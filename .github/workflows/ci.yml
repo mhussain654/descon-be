@@ -54,7 +54,7 @@ jobs:
         run: bundle exec rspec
 
       - name: RuboCop
-        run: bundle exec rubocop
+        run: bundle exec rubocop --force-exclusion
 
       - name: Brakeman
         run: bin/brakeman --no-pager

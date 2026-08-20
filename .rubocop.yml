@@ -7,6 +7,9 @@ AllCops:
   NewCops: enable
   SuggestExtensions: false
   Exclude:
+    - vendor/**/*
+    - tmp/**/*
+    - log/**/*
     - db/schema.rb
     - db/cache_schema.rb
     - db/queue_schema.rb
