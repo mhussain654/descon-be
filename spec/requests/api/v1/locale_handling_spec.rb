@@ -48,4 +48,14 @@ RSpec.describe 'API V1 Locale Handling', type: :request do
     expect(response.headers['Content-Language']).to eq('en')
     expect(response.parsed_body.dig('errors', 0, 'message')).to eq('Invalid credentials.')
   end
+
+  it 'falls back to the next acceptable language when a locale has q=0' do
+    post '/api/v1/auth/login',
+         params: { auth: { email: user.email, password: 'wrong-password' } },
+         headers: { 'Accept-Language' => 'ur;q=0,en;q=0.8' }
+
+    expect(response).to have_http_status(:unauthorized)
+    expect(response.headers['Content-Language']).to eq('en')
+    expect(response.parsed_body.dig('errors', 0, 'message')).to eq('Invalid credentials.')
+  end
 end

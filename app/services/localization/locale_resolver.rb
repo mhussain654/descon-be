@@ -21,7 +21,10 @@ module Localization
         normalized_locale = normalize_locale(locale)
         next unless normalized_locale
 
-        [normalized_locale, parse_quality(quality)]
+        parsed_quality = parse_quality(quality)
+        next unless parsed_quality
+
+        [normalized_locale, parsed_quality]
       end
 
       locales_with_quality.sort_by { |_locale, quality| -quality }.map(&:first)
@@ -30,6 +33,7 @@ module Localization
     def normalize_locale(value)
       normalized = value.to_s.strip.tr('-', '_').downcase
       return if normalized.blank?
+      return I18n.default_locale if normalized == '*'
 
       locale = normalized.to_sym
       return locale if supported_locale?(locale)
@@ -45,8 +49,13 @@ module Localization
     def parse_quality(value)
       return 1.0 if value.blank?
 
-      quality = value.delete_prefix('q=').to_f
-      quality.positive? ? quality : 1.0
+      return unless value.start_with?('q=')
+
+      quality = Float(value.delete_prefix('q='), exception: false)
+      return unless quality&.between?(0.0, 1.0)
+      return if quality.zero?
+
+      quality
     end
   end
 end

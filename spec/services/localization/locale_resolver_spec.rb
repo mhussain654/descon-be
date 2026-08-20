@@ -22,6 +22,24 @@ RSpec.describe Localization::LocaleResolver do
       expect(locale).to eq(:ur)
     end
 
+    it 'ignores locales marked unacceptable with q=0' do
+      locale = described_class.call(explicit_locale: nil, accept_language: 'ur;q=0,en;q=0.8')
+
+      expect(locale).to eq(:en)
+    end
+
+    it 'ignores invalid quality values' do
+      locale = described_class.call(explicit_locale: nil, accept_language: 'ur;q=abc,en;q=0.8')
+
+      expect(locale).to eq(:en)
+    end
+
+    it 'uses the default locale for wildcard language ranges' do
+      locale = described_class.call(explicit_locale: nil, accept_language: '*')
+
+      expect(locale).to eq(:en)
+    end
+
     it 'falls back to the default locale when no supported locale is requested' do
       locale = described_class.call(explicit_locale: nil, accept_language: nil)
 

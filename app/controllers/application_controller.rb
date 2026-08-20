@@ -24,7 +24,7 @@ class ApplicationController < ActionController::API
   end
 
   def render_success(data: {}, meta: {}, status: :ok)
-    response.set_header('Content-Language', I18n.locale.to_s)
+    set_standard_response_headers
 
     render json: {
       data: data,
@@ -34,7 +34,7 @@ class ApplicationController < ActionController::API
   end
 
   def render_api_error(error)
-    response.set_header('Content-Language', I18n.locale.to_s)
+    set_standard_response_headers
 
     render json: {
       errors: [serialized_error(error)],
@@ -77,5 +77,10 @@ class ApplicationController < ActionController::API
       message: error.message,
       field: error.field
     }.compact
+  end
+
+  def set_standard_response_headers
+    response.set_header('Content-Language', I18n.locale.to_s)
+    response.set_header('Vary', 'Accept-Language, X-Locale')
   end
 end

@@ -3,8 +3,8 @@ en:
     messages:
       fallback_example: "English fallback message."
       health:
-        ok: "ok"
-        ready: "ready"
+        ok: "Application is live."
+        ready: "Application is ready."
     errors:
       bad_request: "The request could not be processed."
       parameter_missing: "A required parameter is missing."

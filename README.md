@@ -58,7 +58,7 @@ API message localization is enabled by default with English as the default local
 
 - Supported locales are configured through `APP_SUPPORTED_LOCALES` and default to `en,ur`
 - Locale resolution order is `X-Locale`, then `Accept-Language`, then default `en`
-- Every response includes a `Content-Language` header
+- Standard JSON API responses include `Content-Language` and `Vary: Accept-Language, X-Locale`
 - Request locale switching is isolated per request with `I18n.with_locale`
 - Test mode raises on missing translations
 

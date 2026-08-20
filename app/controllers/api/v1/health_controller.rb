@@ -4,12 +4,12 @@ module Api
   module V1
     class HealthController < BaseController
       def live
-        render_success(data: { status: t('api.messages.health.ok') })
+        render_success(data: { status: 'ok', message: t('api.messages.health.ok') })
       end
 
       def ready
         ActiveRecord::Base.connection.execute('SELECT 1')
-        render_success(data: { status: t('api.messages.health.ready') })
+        render_success(data: { status: 'ready', message: t('api.messages.health.ready') })
       rescue ActiveRecord::ActiveRecordError => e
         log_readiness_failure(e)
         render_api_error(service_unavailable_error)

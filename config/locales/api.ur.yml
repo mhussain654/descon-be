@@ -2,8 +2,8 @@ ur:
   api:
     messages:
       health:
-        ok: "ٹھیک ہے"
-        ready: "تیار"
+        ok: "ایپلیکیشن فعال ہے۔"
+        ready: "ایپلیکیشن تیار ہے۔"
     errors:
       bad_request: "درخواست پر کارروائی نہیں ہو سکی۔"
       parameter_missing: "ضروری پیرامیٹر موجود نہیں ہے۔"
