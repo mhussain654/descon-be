@@ -26,6 +26,17 @@ module RailsApiBase
     config.active_record.default_timezone = :utc
     config.active_job.queue_adapter = :solid_queue
     config.solid_queue.connects_to = { database: { writing: :queue } }
+    config.i18n.default_locale = :en
+    config.x.i18n.supported_locales =
+      ENV.fetch('APP_SUPPORTED_LOCALES', 'en,ur')
+         .split(',')
+         .map(&:strip)
+         .compact_blank
+         .map { |locale| locale.tr('-', '_').downcase.to_sym }
+         .append(:en)
+         .uniq
+    config.i18n.available_locales = config.x.i18n.supported_locales
+    config.i18n.fallbacks = [:en]
 
     %w[errors middleware policies queries serializers services validators].each do |directory|
       path = Rails.root.join('app', directory)
@@ -42,7 +53,6 @@ module RailsApiBase
       generator.fixture_replacement :factory_bot, dir: 'spec/factories'
     end
 
-    config.middleware.insert_before 0, Rack::Cors
     config.middleware.use Rack::Attack
     config.middleware.use SecurityHeadersMiddleware
     config.middleware.use RequestBodySizeLimiter,

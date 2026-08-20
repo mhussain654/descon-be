@@ -2,34 +2,312 @@ openapi: 3.1.0
 info:
   title: Rails API Base
   version: 1.0.0
+components:
+  parameters:
+    XLocaleHeader:
+      in: header
+      name: X-Locale
+      schema:
+        type: string
+      description: Preferred response locale, for example `en` or `ur`.
+    AcceptLanguageHeader:
+      in: header
+      name: Accept-Language
+      schema:
+        type: string
+      description: RFC 9110 language preferences used when `X-Locale` is not provided or unsupported.
+  headers:
+    ContentLanguageHeader:
+      schema:
+        type: string
+      description: Locale used for the translated parts of the standard JSON API response.
+    VaryLanguageHeaders:
+      schema:
+        type: string
+        example: Accept-Language, X-Locale
+      description: Indicates that caches should vary on locale request headers.
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    EnvelopeMeta:
+      type: object
+      properties:
+        request_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    ErrorItem:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        field:
+          type: string
+      required: [code, message]
+    ErrorEnvelope:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorItem'
+        request_id:
+          type: string
+      required: [errors, request_id]
+    LoginRequest:
+      type: object
+      properties:
+        auth:
+          type: object
+          required: [email, password]
+          properties:
+            email:
+              type: string
+              format: email
+            password:
+              type: string
+      required: [auth]
+    RefreshRequest:
+      type: object
+      properties:
+        auth:
+          type: object
+          required: [refresh_token]
+          properties:
+            refresh_token:
+              type: string
+      required: [auth]
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+      required: [id, email, role]
+    SessionPayload:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+        session:
+          type: object
+          properties:
+            id:
+              type: string
+        user:
+          $ref: '#/components/schemas/UserProfile'
+      required: [access_token, refresh_token, token_type, expires_in, session, user]
+    SuccessEnvelope:
+      type: object
+      properties:
+        data: {}
+        meta:
+          $ref: '#/components/schemas/EnvelopeMeta'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorItem'
+      required: [data, meta, errors]
 paths:
   /api/v1/health/live:
     get:
       summary: Liveness probe
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
-        "200":
+        '200':
           description: Application is live
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+  /api/v1/health/ready:
+    get:
+      summary: Readiness probe
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Application is ready
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+        '503':
+          description: Service unavailable
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/auth/login:
     post:
       summary: Authenticate a staff user
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                auth:
-                  type: object
-                  required:
-                    - email
-                    - password
-                  properties:
-                    email:
-                      type: string
-                      format: email
-                    password:
-                      type: string
+              $ref: '#/components/schemas/LoginRequest'
       responses:
-        "201":
+        '201':
           description: Authenticated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '400':
+          description: Missing parameter
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+        '401':
+          description: Invalid credentials
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+        '429':
+          description: Rate limited
+  /api/v1/auth/refresh:
+    post:
+      summary: Rotate a refresh token
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token rotated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '400':
+          description: Missing parameter
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+        '401':
+          description: Invalid refresh token
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+        '429':
+          description: Rate limited
+  /api/v1/auth/logout:
+    delete:
+      summary: Revoke the current session
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session revoked
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Invalid access token
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+  /api/v1/users/profile:
+    get:
+      summary: Fetch the authenticated user profile
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated profile
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Invalid access token
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+        '403':
+          description: Forbidden
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'

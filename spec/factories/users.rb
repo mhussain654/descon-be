@@ -6,5 +6,6 @@ FactoryBot.define do
     password { 'Password123!' }
     public_id { SecureRandom.uuid }
     role { 'member' }
+    active { true }
   end
 end

@@ -1,6 +1,11 @@
 # frozen_string_literal: true
 
-allowed_origins = ENV.fetch('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001')
+allowed_origins =
+  if Rails.env.production?
+    ENV.fetch('CORS_ALLOWED_ORIGINS')
+  else
+    ENV.fetch('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001')
+  end
 
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do

@@ -9,6 +9,17 @@ RSpec.describe 'API V1 Health', type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.dig('data', 'status')).to eq('ok')
+      expect(response.parsed_body.dig('data', 'message')).to eq('Application is live.')
+      expect(response.headers['Vary']).to include('Accept-Language', 'X-Locale')
+    end
+
+    it 'keeps status machine-readable while localizing the message' do
+      get '/api/v1/health/live', headers: { 'X-Locale' => 'ur' }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'status')).to eq('ok')
+      expect(response.parsed_body.dig('data', 'message')).to eq('ایپلیکیشن فعال ہے۔')
+      expect(response.headers['Content-Language']).to eq('ur')
     end
   end
 end

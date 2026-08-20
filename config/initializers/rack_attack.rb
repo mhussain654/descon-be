@@ -10,6 +10,16 @@ module Rack
       request.ip if request.path.start_with?('/api/v1/auth/')
     end
 
+    throttle(
+      'auth/email',
+      limit: ENV.fetch('AUTH_IDENTITY_RATE_LIMIT_PER_MINUTE', 10).to_i,
+      period: 1.minute
+    ) do |request|
+      next unless request.post? && request.path == '/api/v1/auth/login'
+
+      request.params.dig('auth', 'email').to_s.strip.downcase.presence
+    end
+
     self.throttled_responder = lambda do |request|
       retry_after = (request.env['rack.attack.match_data'] || {})[:period]
 

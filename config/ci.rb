@@ -4,6 +4,9 @@
 
 CI.run do
   step 'Setup', 'bin/setup --skip-server'
+  step 'Autoloading', 'bin/rails zeitwerk:check'
+  step 'Specs', 'bundle exec rspec'
+  step 'OpenAPI', 'bundle exec rails openapi:validate'
 
   step 'Style: Ruby', 'bin/rubocop'
 

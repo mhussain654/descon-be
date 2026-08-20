@@ -1,0 +1,27 @@
+ur:
+  api:
+    messages:
+      health:
+        ok: "ایپلیکیشن فعال ہے۔"
+        ready: "ایپلیکیشن تیار ہے۔"
+    errors:
+      bad_request: "درخواست پر کارروائی نہیں ہو سکی۔"
+      parameter_missing: "ضروری پیرامیٹر موجود نہیں ہے۔"
+      validation_failed: "درخواست پر کارروائی نہیں ہو سکی۔"
+      unauthorized: "درست اسناد فراہم نہیں کی گئیں۔"
+      forbidden: "آپ کو یہ کارروائی کرنے کی اجازت نہیں ہے۔"
+      not_found: "ریکارڈ نہیں ملا۔"
+      service_unavailable: "سروس عارضی طور پر دستیاب نہیں ہے۔"
+      invalid_refresh_token: "ریفریش ٹوکن درست نہیں ہے۔"
+      session_revoked: "سیشن منسوخ کر دیا گیا ہے۔"
+    authentication:
+      login_succeeded: "لاگ اِن کامیاب رہا۔"
+      refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"
+      logout_succeeded: "سیشن منسوخ کر دیا گیا ہے۔"
+    pagination:
+      page: "صفحہ"
+      per_page: "فی صفحہ آئٹمز"
+      total_count: "کل آئٹمز"
+      total_pages: "کل صفحات"
+      next: "اگلا صفحہ"
+      previous: "پچھلا صفحہ"

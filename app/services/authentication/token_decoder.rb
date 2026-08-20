@@ -23,7 +23,11 @@ module Authentication
     end
 
     def signing_secret
-      ENV.fetch('JWT_SECRET') { Rails.application.secret_key_base }
+      if Rails.env.production?
+        ENV.fetch('JWT_SECRET')
+      else
+        ENV.fetch('JWT_SECRET', Rails.application.secret_key_base)
+      end
     end
 
     def jwt_issuer
