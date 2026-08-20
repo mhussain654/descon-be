@@ -1,0 +1,44 @@
+plugins:
+  - rubocop-rails
+  - rubocop-rspec
+  - rubocop-performance
+
+AllCops:
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - db/schema.rb
+    - db/cache_schema.rb
+    - db/queue_schema.rb
+    - db/cable_schema.rb
+
+Metrics/BlockLength:
+  Exclude:
+    - config/environments/*.rb
+    - spec/**/*.rb
+
+Metrics/MethodLength:
+  Exclude:
+    - db/migrate/*.rb
+    - app/services/authentication/refresh_service.rb
+
+Metrics/AbcSize:
+  Exclude:
+    - app/services/authentication/refresh_service.rb
+
+Style/Documentation:
+  Enabled: false
+
+Lint/MissingSuper:
+  Exclude:
+    - app/services/**/*.rb
+
+Layout/LineLength:
+  Exclude:
+    - config/initializers/devise.rb
+
+RSpec/MultipleExpectations:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Enabled: false

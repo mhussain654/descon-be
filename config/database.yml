@@ -1,0 +1,62 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch('DB_POOL', 15) %>
+  host: localhost
+  username: <%= ENV.fetch('DB_USERNAME', 'postgres') %>
+  password: <%= ENV.fetch('DB_PASSWORD', 'postgres') %>
+  port: <%= ENV.fetch('DB_PORT', 5432) %>
+  variables:
+    statement_timeout: <%= ENV.fetch('DB_STATEMENT_TIMEOUT_MS', 5000) %>
+    lock_timeout: <%= ENV.fetch('DB_LOCK_TIMEOUT_MS', 2000) %>
+
+development:
+  primary: &primary_development
+    <<: *default
+    database: <%= ENV.fetch('DB_NAME', 'rails_api_base_development') %>
+  cache:
+    <<: *primary_development
+    database: <%= ENV.fetch('CACHE_DB_NAME', 'rails_api_base_development_cache') %>
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *primary_development
+    database: <%= ENV.fetch('QUEUE_DB_NAME', 'rails_api_base_development_queue') %>
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *primary_development
+    database: <%= ENV.fetch('CABLE_DB_NAME', 'rails_api_base_development_cable') %>
+    migrations_paths: db/cable_migrate
+
+test:
+  primary: &primary_test
+    <<: *default
+    database: <%= ENV.fetch('TEST_DB_NAME', 'rails_api_base_test') %>
+  cache:
+    <<: *primary_test
+    database: <%= ENV.fetch('TEST_CACHE_DB_NAME', 'rails_api_base_test_cache') %>
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *primary_test
+    database: <%= ENV.fetch('TEST_QUEUE_DB_NAME', 'rails_api_base_test_queue') %>
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *primary_test
+    database: <%= ENV.fetch('TEST_CABLE_DB_NAME', 'rails_api_base_test_cable') %>
+    migrations_paths: db/cable_migrate
+
+production:
+  primary: &primary_production
+    <<: *default
+    database: <%= ENV.fetch('DB_NAME', 'rails_api_base_production') %>
+  cache:
+    <<: *primary_production
+    database: <%= ENV.fetch('CACHE_DB_NAME', 'rails_api_base_production_cache') %>
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *primary_production
+    database: <%= ENV.fetch('QUEUE_DB_NAME', 'rails_api_base_production_queue') %>
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *primary_production
+    database: <%= ENV.fetch('CABLE_DB_NAME', 'rails_api_base_production_cable') %>
+    migrations_paths: db/cable_migrate

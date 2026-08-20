@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test
+      CACHE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cache
+      QUEUE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_queue
+      CABLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cable
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test
+      TEST_CACHE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cache
+      TEST_QUEUE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_queue
+      TEST_CABLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cable
+      JWT_SECRET: test-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Prepare database
+        run: bundle exec rails db:prepare
+
+      - name: Zeitwerk check
+        run: bundle exec rails zeitwerk:check
+
+      - name: RSpec
+        run: bundle exec rspec
+
+      - name: RuboCop
+        run: bundle exec rubocop
+
+      - name: Brakeman
+        run: bin/brakeman --no-pager
+
+      - name: Bundler Audit
+        run: bundle exec bundle-audit check --update
+
+      - name: OpenAPI validation
+        run: bundle exec rails openapi:validate
+
+      - name: Docker build
+        run: docker build .
