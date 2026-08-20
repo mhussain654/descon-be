@@ -23,14 +23,14 @@ jobs:
           --health-retries=5
     env:
       RAILS_ENV: test
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test
-      CACHE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cache
-      QUEUE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_queue
-      CABLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cable
-      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test
-      TEST_CACHE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cache
-      TEST_QUEUE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_queue
-      TEST_CABLE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rails_api_base_test_cable
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      TEST_DB_NAME: rails_api_base_test
+      TEST_CACHE_DB_NAME: rails_api_base_test_cache
+      TEST_QUEUE_DB_NAME: rails_api_base_test_queue
+      TEST_CABLE_DB_NAME: rails_api_base_test_cable
       JWT_SECRET: test-secret
       CORS_ALLOWED_ORIGINS: http://localhost:3000
 
@@ -41,6 +41,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          ruby-version: .ruby-version
           bundler-cache: true
 
       - name: Prepare database

@@ -14,7 +14,10 @@ class Session < ApplicationRecord
   def revoke!
     transaction do
       update!(revoked_at: Time.current)
-      refresh_tokens.active.find_each { |refresh_token| refresh_token.update!(revoked_at: Time.current) }
+      # Revoking a session should be a single SQL update to avoid per-token callbacks and races.
+      # rubocop:disable Rails/SkipsModelValidations
+      refresh_tokens.active.update_all(revoked_at: Time.current)
+      # rubocop:enable Rails/SkipsModelValidations
     end
   end
 
@@ -23,7 +26,12 @@ class Session < ApplicationRecord
   end
 
   def touch_last_seen!
-    update!(last_seen_at: Time.current)
+    return if last_seen_at&.after?(5.minutes.ago)
+
+    # This timestamp is operational metadata and does not need full validation overhead.
+    # rubocop:disable Rails/SkipsModelValidations
+    update_column(:last_seen_at, Time.current)
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
   private
