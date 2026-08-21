@@ -1,6 +1,6 @@
-# Rails API Base
+# Descon Manpower API
 
-Starter Rails 8.1 API for PostgreSQL-backed services with:
+Rails 8.1 API for the Descon Manpower application, based on the reusable Rails API foundation.
 
 - Devise staff authentication
 - JWT access tokens with rotating database-backed refresh tokens
@@ -10,20 +10,27 @@ Starter Rails 8.1 API for PostgreSQL-backed services with:
 - Docker and Docker Compose
 - OpenAPI validation
 
-## Setup
+## Docker development
+
+```bash
+docker compose up --build
+```
+
+The API is available at `http://localhost:3000` and the readiness endpoint is:
+
+```bash
+curl http://localhost:3000/api/v1/health/ready
+```
+
+Database preparation runs automatically when the API container starts.
+
+## Native development
 
 ```bash
 bundle install
 cp .env.development .env
 bundle exec rails db:prepare
 bundle exec rails server
-```
-
-## Docker
-
-```bash
-docker compose up --build
-docker compose exec api bundle exec rails db:prepare
 ```
 
 ## Quality

@@ -2,8 +2,8 @@
 # check=error=true
 
 # This Dockerfile is designed for production, not development. Use with Kamal or build'n'run by hand:
-# docker build -t rails_api_base .
-# docker run -d -p 80:80 -e RAILS_MASTER_KEY=<value from config/master.key> --name rails_api_base rails_api_base
+# docker build -t descon_backend .
+# docker run -d -p 3000:3000 -e RAILS_MASTER_KEY=<value from config/master.key> --name descon_backend descon_backend
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 

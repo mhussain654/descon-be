@@ -4,8 +4,9 @@
 /.git/
 /.gitignore
 
-# Ignore bundler config.
+# Ignore bundler config and installed gems.
 /.bundle
+/vendor/bundle
 
 # Ignore all environment files.
 /.env*
@@ -14,7 +15,8 @@
 /config/master.key
 /config/credentials/*.key
 
-# Ignore all logfiles and tempfiles.
+# Ignore all logfiles, temporary files, coverage and storage.
+/coverage
 /log/*
 /tmp/*
 !/log/.keep
@@ -22,24 +24,21 @@
 
 # Ignore pidfiles, but keep the directory.
 /tmp/pids/*
+!/tmp/pids/
 !/tmp/pids/.keep
 
-# Ignore storage (uploaded files in development and any SQLite databases).
 /storage/*
 !/storage/.keep
 /tmp/storage/*
+!/tmp/storage/
 !/tmp/storage/.keep
 
-# Ignore CI service files.
+# Ignore CI, deployment and development-only service files.
 /.github
-
-# Ignore Kamal files.
 /config/deploy*.yml
 /.kamal
-
-# Ignore development files
 /.devcontainer
 
-# Ignore Docker-related files
+# Ignore Docker-related files.
 /.dockerignore
 /Dockerfile*

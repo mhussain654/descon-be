@@ -31,7 +31,7 @@ module Authentication
     end
 
     def jwt_issuer
-      ENV.fetch('JWT_ISSUER', 'rails_api_base')
+      ENV.fetch('JWT_ISSUER', 'descon_backend')
     end
 
     def jwt_audience

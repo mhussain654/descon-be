@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Rails API Base
+  title: Descon Manpower API
   version: 1.0.0
 components:
   parameters:
