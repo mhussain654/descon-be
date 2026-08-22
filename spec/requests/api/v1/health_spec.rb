@@ -22,4 +22,24 @@ RSpec.describe 'API V1 Health', type: :request do
       expect(response.headers['Content-Language']).to eq('ur')
     end
   end
+
+  describe 'GET /api/v1/health/ready' do
+    it 'returns a ready response' do
+      get '/api/v1/health/ready'
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'status')).to eq('ready')
+      expect(response.parsed_body.dig('data', 'message')).to eq('Application is ready.')
+      expect(response.headers['Vary']).to include('Accept-Language', 'X-Locale')
+    end
+
+    it 'keeps status machine-readable while localizing the readiness message' do
+      get '/api/v1/health/ready', headers: { 'X-Locale' => 'ur' }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'status')).to eq('ready')
+      expect(response.parsed_body.dig('data', 'message')).to eq('ایپلیکیشن تیار ہے۔')
+      expect(response.headers['Content-Language']).to eq('ur')
+    end
+  end
 end

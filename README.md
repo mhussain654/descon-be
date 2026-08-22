@@ -28,10 +28,59 @@ Database preparation runs automatically when the API container starts.
 
 ```bash
 bundle install
-cp .env.development .env
+cp .env.example .env
 bundle exec rails db:prepare
 bundle exec rails server
 ```
+
+The API runs locally without Docker on Ruby `3.4.7`, Rails `8.1.3.1`, and PostgreSQL `14+`.
+
+Before `db:prepare`, make sure PostgreSQL is running locally and that the `DB_*` credentials in `.env`
+match a local role with permission to create databases.
+
+If you want the full local setup without starting the server immediately:
+
+```bash
+bin/setup --skip-server
+```
+
+## Environment variables
+
+All supported environment variables are documented in `.env.example`.
+
+Required for local development:
+
+- `JWT_SECRET`
+
+Commonly adjusted per machine or environment:
+
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `DB_POOL`
+- `DB_NAME`
+- `CACHE_DB_NAME`
+- `QUEUE_DB_NAME`
+- `CABLE_DB_NAME`
+- `TEST_DB_NAME`
+- `TEST_CACHE_DB_NAME`
+- `TEST_QUEUE_DB_NAME`
+- `TEST_CABLE_DB_NAME`
+- `DB_STATEMENT_TIMEOUT_MS`
+- `DB_LOCK_TIMEOUT_MS`
+- `CORS_ALLOWED_ORIGINS`
+- `JWT_ISSUER`
+- `JWT_AUDIENCE`
+- `DEVISE_MAILER_SENDER`
+- `APP_SUPPORTED_LOCALES`
+- `MAX_REQUEST_BODY_SIZE_BYTES`
+- `API_RATE_LIMIT_PER_MINUTE`
+- `AUTH_RATE_LIMIT_PER_MINUTE`
+- `AUTH_IDENTITY_RATE_LIMIT_PER_MINUTE`
+- `FORCE_SSL`
+- `RAILS_LOG_LEVEL`
+- `JOB_CONCURRENCY`
 
 ## Quality
 
@@ -43,6 +92,16 @@ bin/brakeman --no-pager
 bundle exec bundle-audit check --update
 bundle exec rails openapi:validate
 ```
+
+## Health checks
+
+```bash
+curl http://localhost:3000/api/v1/health/live
+curl http://localhost:3000/api/v1/health/ready
+```
+
+- `/api/v1/health/live` verifies process/application liveness
+- `/api/v1/health/ready` verifies required database dependencies for the current environment
 
 ## API Docs
 
