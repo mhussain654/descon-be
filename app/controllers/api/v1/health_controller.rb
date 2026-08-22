@@ -17,16 +17,18 @@ module Api
       def ready
         check_readiness_dependencies!
         render_success(data: { status: 'ready', message: t('api.messages.health.ready') })
-      rescue ActiveRecord::ActiveRecordError => e
-        log_readiness_failure(e)
+      rescue ActiveRecord::ActiveRecordError
         render_api_error(service_unavailable_error)
       end
 
       private
 
       def check_readiness_dependencies!
-        loaded_readiness_dependencies.each_value do |record_class|
+        loaded_readiness_dependencies.each do |dependency_name, record_class|
           record_class.connection.execute('SELECT 1')
+        rescue ActiveRecord::ActiveRecordError => e
+          log_readiness_failure(dependency_name, e)
+          raise
         end
       end
 
@@ -43,11 +45,12 @@ module Api
         end
       end
 
-      def log_readiness_failure(error)
+      def log_readiness_failure(dependency_name, error)
         Rails.logger.error(
           event: 'readiness_check_failed',
+          dependency: dependency_name,
           error_class: error.class.name,
-          message: error.message
+          status: 'unavailable'
         )
       end
 

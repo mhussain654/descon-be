@@ -5,7 +5,10 @@ require 'simplecov' if ENV.fetch('COVERAGE', 'true') == 'true'
 if defined?(SimpleCov)
   SimpleCov.start 'rails' do
     enable_coverage :branch
-    minimum_coverage line: 75, branch: 45
+    minimum_coverage line: 95
+    coverage :line do
+      minimum_per_file 90
+    end
     skip '/spec/'
   end
 end

@@ -145,6 +145,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                live:
+                  summary: English liveness response
+                  value:
+                    data:
+                      status: ok
+                      message: Application is live.
+                    meta:
+                      request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                      timestamp: '2026-08-22T09:00:00Z'
+                    errors: []
   /api/v1/health/ready:
     get:
       summary: Readiness probe
@@ -159,6 +170,21 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ready:
+                  summary: English readiness response
+                  value:
+                    data:
+                      status: ready
+                      message: Application is ready.
+                    meta:
+                      request_id: 8026848e-b092-4041-8062-d6d2c3f8d0c6
+                      timestamp: '2026-08-22T09:00:01Z'
+                    errors: []
         '503':
           description: Service unavailable
           headers:
@@ -170,6 +196,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                dependencyUnavailable:
+                  summary: Readiness dependency unavailable
+                  value:
+                    errors:
+                      - code: service_unavailable
+                        message: Service is temporarily unavailable.
+                    request_id: a9fe75dc-5233-4ca2-bf76-45745af67d6d
   /api/v1/auth/login:
     post:
       summary: Authenticate a staff user
