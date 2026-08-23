@@ -46,16 +46,16 @@ class WorkflowStage < ApplicationRecord
   private
 
   def prevent_system_destroy
-    return unless system_defined?
+    return unless system_defined_in_database
 
     errors.add(:base, :invalid)
     throw :abort
   end
 
   def protect_system_definition_changes
-    return unless system_defined?
+    return unless system_defined_in_database
 
-    restricted_fields = %w[code position]
+    restricted_fields = %w[code position system_defined]
     return unless changes_to_save.keys.intersect?(restricted_fields)
 
     errors.add(:base, :invalid)

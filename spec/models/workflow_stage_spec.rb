@@ -28,6 +28,24 @@ RSpec.describe WorkflowStage, type: :model do
     expect(stage.errors[:base]).to be_present
   end
 
+  it 'prevents changing system-defined stages to non-system-defined' do
+    stage = create(:workflow_stage, :registered)
+
+    stage.system_defined = false
+
+    expect(stage).not_to be_valid
+    expect(stage.errors[:base]).to be_present
+  end
+
+  it 'prevents changing system-defined stage positions' do
+    stage = create(:workflow_stage, :registered)
+
+    stage.position = 99
+
+    expect(stage).not_to be_valid
+    expect(stage.errors[:base]).to be_present
+  end
+
   it 'prevents destroying system-defined stages' do
     stage = create(:workflow_stage, :registered)
 

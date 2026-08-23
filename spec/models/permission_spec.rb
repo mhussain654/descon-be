@@ -24,6 +24,15 @@ RSpec.describe Permission, type: :model do
     expect(permission.errors[:base]).to be_present
   end
 
+  it 'prevents changing system-defined permissions to non-system-defined' do
+    permission = create(:permission, code: 'view_candidates', system_defined: true)
+
+    permission.system_defined = false
+
+    expect(permission).not_to be_valid
+    expect(permission.errors[:base]).to be_present
+  end
+
   it 'prevents destroying system-defined permissions' do
     permission = create(:permission, code: 'view_candidates', system_defined: true)
 

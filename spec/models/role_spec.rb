@@ -25,6 +25,15 @@ RSpec.describe Role, type: :model do
     expect(system_role.errors[:base]).to be_present
   end
 
+  it 'prevents changing system-defined roles to non-system-defined' do
+    system_role = create(:role, :mps)
+
+    system_role.system_defined = false
+
+    expect(system_role).not_to be_valid
+    expect(system_role.errors[:base]).to be_present
+  end
+
   it 'prevents destroying system-defined roles' do
     system_role = create(:role, :mps)
 
