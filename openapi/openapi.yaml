@@ -16,6 +16,55 @@ components:
       schema:
         type: string
       description: RFC 9110 language preferences used when `X-Locale` is not provided or unsupported.
+    IdempotencyKeyHeader:
+      in: header
+      name: Idempotency-Key
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9:_-]{1,128}$'
+        maxLength: 128
+      description: Optional idempotency key for replay-safe mutation requests. Keys are scoped per operation and authenticated subject, retained for 12 hours, replay the original safe response for an identical request, return `409` while an identical request is still processing, and return `409` if the same key is reused with a different request fingerprint.
+    PageNumber:
+      in: query
+      name: page[number]
+      schema:
+        type: integer
+        minimum: 1
+      description: 1-based page number.
+    PageSize:
+      in: query
+      name: page[size]
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+      description: Number of records per page. Values above 100 are rejected.
+    UserSort:
+      in: query
+      name: sort
+      schema:
+        type: string
+        enum: [created_at, -created_at, email, -email, public_id, -public_id, role, -role]
+      description: Allowlisted sort fields for user collections.
+    UserRoleFilter:
+      in: query
+      name: filter[role]
+      schema:
+        type: string
+      description: Comma-separated role codes.
+    UserActiveFilter:
+      in: query
+      name: filter[active]
+      schema:
+        type: string
+        enum: ['true', 'false']
+      description: Filter by active state. Only `true` and `false` are accepted.
+    UserEmailFilter:
+      in: query
+      name: filter[email]
+      schema:
+        type: string
+      description: Case-insensitive partial match on email.
   headers:
     ContentLanguageHeader:
       schema:
@@ -26,6 +75,15 @@ components:
         type: string
         example: Accept-Language, X-Locale
       description: Indicates that caches should vary on locale request headers.
+    RequestIdHeader:
+      schema:
+        type: string
+      description: Correlation identifier for the request lifecycle.
+    IdempotencyReplayedHeader:
+      schema:
+        type: string
+        example: 'true'
+      description: Present when a prior successful response was replayed for the same idempotency key.
   securitySchemes:
     bearerAuth:
       type: http
@@ -40,6 +98,21 @@ components:
         timestamp:
           type: string
           format: date-time
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+      required: [request_id, timestamp]
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+        total_pages:
+          type: integer
+      required: [page, per_page, total_count, total_pages]
     ErrorItem:
       type: object
       properties:
@@ -59,7 +132,10 @@ components:
             $ref: '#/components/schemas/ErrorItem'
         request_id:
           type: string
-      required: [errors, request_id]
+        timestamp:
+          type: string
+          format: date-time
+      required: [errors, request_id, timestamp]
     LoginRequest:
       type: object
       properties:
@@ -95,6 +171,23 @@ components:
         role:
           type: string
       required: [id, email, role]
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required: [id, email, role, active, created_at]
     SessionPayload:
       type: object
       properties:
@@ -204,6 +297,7 @@ paths:
                       - code: service_unavailable
                         message: Service is temporarily unavailable.
                     request_id: a9fe75dc-5233-4ca2-bf76-45745af67d6d
+                    timestamp: '2026-08-23T09:00:02Z'
   /api/v1/auth/login:
     post:
       summary: Authenticate a staff user
@@ -224,10 +318,51 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                created:
+                  summary: English login response
+                  value:
+                    data:
+                      access_token: token
+                      refresh_token: refresh
+                      token_type: Bearer
+                      expires_in: 900
+                      session:
+                        id: 1d4d7d56-332f-4eb2-a32e-2c79a350af43
+                      user:
+                        id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        email: admin@example.com
+                        role: admin
+                    meta:
+                      request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                      timestamp: '2026-08-23T09:00:00Z'
+                    errors: []
+                createdUrdu:
+                  summary: Urdu login response
+                  value:
+                    data:
+                      access_token: token
+                      refresh_token: refresh
+                      token_type: Bearer
+                      expires_in: 900
+                      session:
+                        id: 1d4d7d56-332f-4eb2-a32e-2c79a350af43
+                      user:
+                        id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        email: admin@example.com
+                        role: admin
+                    meta:
+                      request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                      timestamp: '2026-08-23T09:00:00Z'
+                    errors: []
         '400':
           description: Missing parameter
           headers:
@@ -235,6 +370,19 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingParameter:
+                  value:
+                    errors:
+                      - code: bad_request
+                        field: auth
+                        message: A required parameter is missing.
+                    request_id: 40f8cc3a-87e8-4973-a6a1-9c8dfcc55f44
+                    timestamp: '2026-08-23T09:00:03Z'
         '401':
           description: Invalid credentials
           headers:
@@ -242,6 +390,25 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidCredentialsEn:
+                  value:
+                    errors:
+                      - code: unauthorized
+                        message: Invalid credentials.
+                    request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
+                    timestamp: '2026-08-23T09:00:04Z'
+                invalidCredentialsUr:
+                  value:
+                    errors:
+                      - code: unauthorized
+                        message: درست اسناد فراہم نہیں کی گئیں۔
+                    request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
+                    timestamp: '2026-08-23T09:00:04Z'
         '429':
           description: Rate limited
   /api/v1/auth/refresh:
@@ -275,6 +442,10 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '401':
           description: Invalid refresh token
           headers:
@@ -282,6 +453,18 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidRefresh:
+                  value:
+                    errors:
+                      - code: unauthorized
+                        message: Invalid refresh token.
+                    request_id: 70457c01-59a8-46fd-a488-04d2d89c0dc4
+                    timestamp: '2026-08-23T09:00:05Z'
         '429':
           description: Rate limited
   /api/v1/auth/logout:
@@ -290,6 +473,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
       security:
         - bearerAuth: []
       responses:
@@ -300,10 +484,33 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                revoked:
+                  summary: English logout response
+                  value:
+                    data:
+                      revoked: true
+                    meta:
+                      request_id: 41775a72-a960-4c9c-a319-eb6757ce96d0
+                      timestamp: '2026-08-23T09:00:06Z'
+                    errors: []
+                revokedReplay:
+                  summary: Idempotent logout replay
+                  value:
+                    data:
+                      revoked: true
+                    meta:
+                      request_id: 41775a72-a960-4c9c-a319-eb6757ce96d0
+                      timestamp: '2026-08-23T09:00:06Z'
+                    errors: []
         '401':
           description: Invalid access token
           headers:
@@ -311,6 +518,31 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Idempotency conflict or in-progress request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                fingerprintConflict:
+                  value:
+                    errors:
+                      - code: idempotency_conflict
+                        message: The idempotency key does not match the original request.
+                    request_id: 0f0d088d-f8b0-4550-bcc4-a8f9434db820
+                    timestamp: '2026-08-23T09:00:07Z'
+                inProgress:
+                  value:
+                    errors:
+                      - code: idempotency_in_progress
+                        message: A request with this idempotency key is already being processed.
+                    request_id: 0f0d088d-f8b0-4550-bcc4-a8f9434db820
+                    timestamp: '2026-08-23T09:00:07Z'
   /api/v1/users/profile:
     get:
       summary: Fetch the authenticated user profile
@@ -345,3 +577,102 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+  /api/v1/users:
+    get:
+      summary: List staff users
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/UserSort'
+        - $ref: '#/components/parameters/UserRoleFilter'
+        - $ref: '#/components/parameters/UserActiveFilter'
+        - $ref: '#/components/parameters/UserEmailFilter'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated user collection
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                collection:
+                  value:
+                    data:
+                      - id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        email: admin@example.com
+                        role: admin
+                        active: true
+                        created_at: '2026-08-23T09:00:00Z'
+                    meta:
+                      request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                      timestamp: '2026-08-23T09:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                    errors: []
+                collectionUrdu:
+                  summary: Urdu collection response
+                  value:
+                    data:
+                      - id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        email: admin@example.com
+                        role: admin
+                        active: true
+                        created_at: '2026-08-23T09:00:00Z'
+                    meta:
+                      request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                      timestamp: '2026-08-23T09:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                    errors: []
+        '400':
+          description: Unsupported or malformed filter, sorting, or pagination request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidFilter:
+                  value:
+                    errors:
+                      - code: unsupported_filter
+                        field: filter.password_digest
+                        message: One or more filters are not supported.
+                    request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                    timestamp: '2026-08-23T09:00:01Z'
+                invalidPagination:
+                  value:
+                    errors:
+                      - code: invalid_query_parameter
+                        field: page.size
+                        message: One or more query parameters are invalid.
+                    request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                    timestamp: '2026-08-23T09:00:01Z'
+                invalidBooleanUr:
+                  value:
+                    errors:
+                      - code: invalid_query_parameter
+                        field: filter.active
+                        message: ایک یا زیادہ کوئری پیرامیٹرز درست نہیں ہیں۔
+                    request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                    timestamp: '2026-08-23T09:00:01Z'
+        '401':
+          description: Invalid access token
+        '403':
+          description: Forbidden

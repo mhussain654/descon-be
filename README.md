@@ -88,12 +88,20 @@ Commonly adjusted per machine or environment:
 ## Quality
 
 ```bash
+RAILS_ENV=test bundle exec rails db:prepare
 bundle exec rails zeitwerk:check
 bundle exec rspec
 bundle exec rubocop
 bin/brakeman --no-pager
 bundle exec bundle-audit check --update
 bundle exec rails openapi:validate
+git diff --check
+```
+
+To run the same checks as CI in one command:
+
+```bash
+bin/ci
 ```
 
 ## Health checks
@@ -151,9 +159,41 @@ Database-backed translated content should stay out of static locale files. Store
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/refresh`
 - `DELETE /api/v1/auth/logout`
+- `GET /api/v1/users`
 - `GET /api/v1/users/profile`
 - `GET /api/v1/health/live`
 - `GET /api/v1/health/ready`
+
+## API conventions
+
+- Successful single-resource responses use `{ data, meta, errors }`
+- Collection responses use the same envelope and include `meta.pagination`
+- All timestamps are ISO 8601 UTC
+- Public identifiers are exposed as `id`; internal database IDs stay private
+- Error codes are machine-readable and language-neutral; error messages are localized through Rails I18n
+- Supported locales are only `en` and `ur`; unsupported locales fall back to the best supported locale to preserve compatibility
+- Request IDs are returned in both `X-Request-Id` and the JSON envelope
+- Filtering and sorting are allowlisted per endpoint and reject unsupported fields
+- Malformed query values return field-addressable `400` errors instead of being silently coerced
+- `DELETE /api/v1/auth/logout` supports optional `Idempotency-Key` replay protection
+- Idempotency keys must match `^[A-Za-z0-9:_-]{1,128}$`, are scoped per operation and authenticated subject, and are retained for 12 hours
+
+Example collection request:
+
+```bash
+curl \
+  -H "Authorization: Bearer <token>" \
+  "http://localhost:3000/api/v1/users?page[number]=1&page[size]=20&filter[role]=hr&sort=email"
+```
+
+Example idempotent logout request:
+
+```bash
+curl -X DELETE \
+  -H "Authorization: Bearer <token>" \
+  -H "Idempotency-Key: logout-20260823-001" \
+  http://localhost:3000/api/v1/auth/logout
+```
 
 ## Schema Docs
 

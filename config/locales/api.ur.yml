@@ -1,4 +1,8 @@
 ur:
+  activemodel:
+    errors:
+      messages:
+        record_invalid: "توثیق ناکام ہوگئی: %{errors}"
   api:
     messages:
       health:
@@ -8,12 +12,19 @@ ur:
       bad_request: "درخواست پر کارروائی نہیں ہو سکی۔"
       parameter_missing: "ضروری پیرامیٹر موجود نہیں ہے۔"
       validation_failed: "درخواست پر کارروائی نہیں ہو سکی۔"
+      invalid_query_parameter: "ایک یا زیادہ کوئری پیرامیٹرز درست نہیں ہیں۔"
       unauthorized: "درست اسناد فراہم نہیں کی گئیں۔"
       forbidden: "آپ کو یہ کارروائی کرنے کی اجازت نہیں ہے۔"
       not_found: "ریکارڈ نہیں ملا۔"
       service_unavailable: "سروس عارضی طور پر دستیاب نہیں ہے۔"
+      internal_server_error: "ایک غیر متوقع خرابی پیش آگئی ہے۔"
       invalid_refresh_token: "ریفریش ٹوکن درست نہیں ہے۔"
       session_revoked: "سیشن منسوخ کر دیا گیا ہے۔"
+      unsupported_filter: "ایک یا زیادہ فلٹرز معاونت یافتہ نہیں ہیں۔"
+      unsupported_sort: "درخواست کردہ ترتیب معاونت یافتہ نہیں ہے۔"
+      invalid_idempotency_key: "آئیڈیمپوٹنسی کلید کی ساخت درست نہیں ہے۔"
+      idempotency_conflict: "آئیڈیمپوٹنسی کلید اصل درخواست سے مطابقت نہیں رکھتی۔"
+      idempotency_in_progress: "اس آئیڈیمپوٹنسی کلید کے ساتھ ایک درخواست پہلے سے زیرِ عمل ہے۔"
     authentication:
       login_succeeded: "لاگ اِن کامیاب رہا۔"
       refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"

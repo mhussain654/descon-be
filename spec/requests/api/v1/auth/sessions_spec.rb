@@ -83,14 +83,66 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
   end
 
   describe 'DELETE /api/v1/auth/logout' do
-    it 'revokes the current session' do
+    def login!
       post '/api/v1/auth/login', params: { auth: { email: user.email, password: 'Password123!' } }
-      access_token = response.parsed_body.dig('data', 'access_token')
+      response.parsed_body.dig('data', 'access_token')
+    end
+
+    it 'revokes the current session' do
+      access_token = login!
 
       delete '/api/v1/auth/logout', headers: { 'Authorization' => "Bearer #{access_token}" }
 
       expect(response).to have_http_status(:ok)
       expect(Session.last).to be_revoked
+    end
+
+    it 'replays a successful logout when the same idempotency key is retried' do
+      access_token = login!
+      headers = {
+        'Authorization' => "Bearer #{access_token}",
+        'Idempotency-Key' => 'logout-123'
+      }
+
+      delete '/api/v1/auth/logout', headers: headers
+      first_response = response.parsed_body
+
+      delete '/api/v1/auth/logout', headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers['Idempotency-Replayed']).to eq('true')
+      expect(response.parsed_body.fetch('data')).to eq(first_response.fetch('data'))
+      expect(response.parsed_body.dig('meta', 'timestamp')).to eq(first_response.dig('meta', 'timestamp'))
+      expect(response.headers['X-Request-Id']).to eq(response.parsed_body.dig('meta', 'request_id'))
+      expect(IdempotencyKey.count).to eq(1)
+    end
+
+    it 'returns a conflict when the same logout key is reused with a different request fingerprint' do
+      access_token = login!
+      headers = {
+        'Authorization' => "Bearer #{access_token}",
+        'Idempotency-Key' => 'logout-123'
+      }
+
+      delete '/api/v1/auth/logout', headers: headers
+      delete '/api/v1/auth/logout?reason=manual', headers: headers
+
+      expect(response).to have_http_status(:conflict)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
+    end
+
+    it 'rejects an invalid idempotency key before processing the mutation' do
+      access_token = login!
+
+      delete '/api/v1/auth/logout',
+             headers: {
+               'Authorization' => "Bearer #{access_token}",
+               'Idempotency-Key' => 'bad key with spaces'
+             }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_idempotency_key')
+      expect(Session.last).not_to be_revoked
     end
   end
 end

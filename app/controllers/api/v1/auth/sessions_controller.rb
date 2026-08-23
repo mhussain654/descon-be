@@ -26,9 +26,14 @@ module Api
         end
 
         def destroy
-          authenticate_current_user!
-          Authentication::LogoutService.call(session: current_session)
-          render_success(data: { revoked: true })
+          session = session_from_token(allow_revoked: true)
+
+          render_idempotent_response(scope: 'auth.logout', subject: session) do
+            raise UnauthorizedError if session.revoked?
+
+            Authentication::LogoutService.call(session:)
+            success_payload(data: { revoked: true })
+          end
         end
 
         private
