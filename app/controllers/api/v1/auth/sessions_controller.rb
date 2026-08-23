@@ -5,30 +5,37 @@ module Api
     module Auth
       class SessionsController < BaseController
         def create
-          result = Authentication::LoginService.call(
-            email: login_params.fetch(:email),
-            password: login_params.fetch(:password),
-            user_agent: request.user_agent,
-            ip_address: request.remote_ip
-          )
+          render_idempotent_response do
+            result = Authentication::LoginService.call(
+              email: login_params.fetch(:email),
+              password: login_params.fetch(:password),
+              user_agent: request.user_agent,
+              ip_address: request.remote_ip
+            )
 
-          render_success(data: Authentication::SessionSerializer.new(result).as_json, status: :created)
+            success_payload(data: Authentication::SessionSerializer.new(result).as_json, status: :created)
+          end
         end
 
         def refresh
-          result = Authentication::RefreshService.call(
-            refresh_token: refresh_params.fetch(:refresh_token),
-            user_agent: request.user_agent,
-            ip_address: request.remote_ip
-          )
+          render_idempotent_response do
+            result = Authentication::RefreshService.call(
+              refresh_token: refresh_params.fetch(:refresh_token),
+              user_agent: request.user_agent,
+              ip_address: request.remote_ip
+            )
 
-          render_success(data: Authentication::SessionSerializer.new(result).as_json)
+            success_payload(data: Authentication::SessionSerializer.new(result).as_json)
+          end
         end
 
         def destroy
           authenticate_current_user!
-          Authentication::LogoutService.call(session: current_session)
-          render_success(data: { revoked: true })
+
+          render_idempotent_response do
+            Authentication::LogoutService.call(session: current_session)
+            success_payload(data: { revoked: true })
+          end
         end
 
         private

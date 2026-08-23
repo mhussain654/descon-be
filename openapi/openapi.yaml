@@ -16,6 +16,52 @@ components:
       schema:
         type: string
       description: RFC 9110 language preferences used when `X-Locale` is not provided or unsupported.
+    IdempotencyKeyHeader:
+      in: header
+      name: Idempotency-Key
+      schema:
+        type: string
+      description: Optional idempotency key for replay-safe sensitive mutation requests.
+    PageNumber:
+      in: query
+      name: page[number]
+      schema:
+        type: integer
+        minimum: 1
+      description: 1-based page number.
+    PageSize:
+      in: query
+      name: page[size]
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+      description: Number of records per page.
+    UserSort:
+      in: query
+      name: sort
+      schema:
+        type: string
+        enum: [created_at, -created_at, email, -email, public_id, -public_id, role, -role]
+      description: Allowlisted sort fields for user collections.
+    UserRoleFilter:
+      in: query
+      name: filter[role]
+      schema:
+        type: string
+      description: Comma-separated role codes.
+    UserActiveFilter:
+      in: query
+      name: filter[active]
+      schema:
+        type: boolean
+      description: Filter by active state.
+    UserEmailFilter:
+      in: query
+      name: filter[email]
+      schema:
+        type: string
+      description: Case-insensitive partial match on email.
   headers:
     ContentLanguageHeader:
       schema:
@@ -26,6 +72,15 @@ components:
         type: string
         example: Accept-Language, X-Locale
       description: Indicates that caches should vary on locale request headers.
+    RequestIdHeader:
+      schema:
+        type: string
+      description: Correlation identifier for the request lifecycle.
+    IdempotencyReplayedHeader:
+      schema:
+        type: string
+        example: 'true'
+      description: Present when a prior successful response was replayed for the same idempotency key.
   securitySchemes:
     bearerAuth:
       type: http
@@ -40,6 +95,21 @@ components:
         timestamp:
           type: string
           format: date-time
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+      required: [request_id, timestamp]
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+        total_pages:
+          type: integer
+      required: [page, per_page, total_count, total_pages]
     ErrorItem:
       type: object
       properties:
@@ -59,7 +129,10 @@ components:
             $ref: '#/components/schemas/ErrorItem'
         request_id:
           type: string
-      required: [errors, request_id]
+        timestamp:
+          type: string
+          format: date-time
+      required: [errors, request_id, timestamp]
     LoginRequest:
       type: object
       properties:
@@ -95,6 +168,23 @@ components:
         role:
           type: string
       required: [id, email, role]
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required: [id, email, role, active, created_at]
     SessionPayload:
       type: object
       properties:
@@ -210,6 +300,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
       requestBody:
         required: true
         content:
@@ -224,10 +315,32 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                created:
+                  value:
+                    data:
+                      access_token: token
+                      refresh_token: refresh
+                      token_type: Bearer
+                      expires_in: 900
+                      session:
+                        id: 1d4d7d56-332f-4eb2-a32e-2c79a350af43
+                      user:
+                        id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        email: admin@example.com
+                        role: admin
+                    meta:
+                      request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                      timestamp: '2026-08-23T09:00:00Z'
+                    errors: []
         '400':
           description: Missing parameter
           headers:
@@ -242,6 +355,13 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+        '409':
+          description: Idempotency conflict
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
         '429':
           description: Rate limited
   /api/v1/auth/refresh:
@@ -250,6 +370,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
       requestBody:
         required: true
         content:
@@ -290,6 +411,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
       security:
         - bearerAuth: []
       responses:
@@ -345,3 +467,68 @@ paths:
               $ref: '#/components/headers/ContentLanguageHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
+  /api/v1/users:
+    get:
+      summary: List staff users
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/UserSort'
+        - $ref: '#/components/parameters/UserRoleFilter'
+        - $ref: '#/components/parameters/UserActiveFilter'
+        - $ref: '#/components/parameters/UserEmailFilter'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated user collection
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                collection:
+                  value:
+                    data:
+                      - id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        email: admin@example.com
+                        role: admin
+                        active: true
+                        created_at: '2026-08-23T09:00:00Z'
+                    meta:
+                      request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                      timestamp: '2026-08-23T09:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                    errors: []
+        '400':
+          description: Unsupported filter or sort
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidFilter:
+                  value:
+                    errors:
+                      - code: unsupported_filter
+                        field: filter.password_digest
+                        message: One or more filters are not supported.
+                    request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                    timestamp: '2026-08-23T09:00:01Z'
+        '401':
+          description: Invalid access token
+        '403':
+          description: Forbidden

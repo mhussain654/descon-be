@@ -5,6 +5,14 @@ require 'rails_helper'
 RSpec.describe 'API V1 Auth Sessions', type: :request do
   let!(:user) { create(:user, email: 'admin@example.com', password: 'Password123!') }
 
+  around do |example|
+    original_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    example.run
+  ensure
+    Rails.cache = original_cache
+  end
+
   describe 'POST /api/v1/auth/login' do
     it 'returns an access token and refresh token' do
       post '/api/v1/auth/login', params: {
@@ -41,6 +49,40 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('auth')
+    end
+
+    it 'replays a successful idempotent request without creating a second session' do
+      headers = { 'Idempotency-Key' => 'login-123' }
+
+      post '/api/v1/auth/login',
+           params: { auth: { email: user.email, password: 'Password123!' } },
+           headers: headers
+
+      first_response = response.parsed_body
+
+      post '/api/v1/auth/login',
+           params: { auth: { email: user.email, password: 'Password123!' } },
+           headers: headers
+
+      expect(response).to have_http_status(:created)
+      expect(response.headers['Idempotency-Replayed']).to eq('true')
+      expect(response.parsed_body.dig('data', 'session', 'id')).to eq(first_response.dig('data', 'session', 'id'))
+      expect(Session.count).to eq(1)
+    end
+
+    it 'returns a conflict when the same idempotency key is reused with different parameters' do
+      headers = { 'Idempotency-Key' => 'login-123' }
+
+      post '/api/v1/auth/login',
+           params: { auth: { email: user.email, password: 'Password123!' } },
+           headers: headers
+
+      post '/api/v1/auth/login',
+           params: { auth: { email: user.email, password: 'wrong-password' } },
+           headers: headers
+
+      expect(response).to have_http_status(:conflict)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
     end
   end
 

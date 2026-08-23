@@ -13,6 +13,8 @@ Rails.application.routes.draw do
         delete :logout, to: 'sessions#destroy'
       end
 
+      resources :users, only: :index
+
       namespace :users do
         resource :profile, only: :show
       end

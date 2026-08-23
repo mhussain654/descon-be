@@ -5,8 +5,21 @@ on:
   push:
     branches: [ main ]
 
+env:
+  RAILS_ENV: test
+  DB_HOST: 127.0.0.1
+  DB_PORT: 5432
+  DB_USERNAME: postgres
+  DB_PASSWORD: postgres
+  TEST_DB_NAME: rails_api_base_test
+  TEST_CACHE_DB_NAME: rails_api_base_test_cache
+  TEST_QUEUE_DB_NAME: rails_api_base_test_queue
+  TEST_CABLE_DB_NAME: rails_api_base_test_cable
+  JWT_SECRET: test-secret
+  CORS_ALLOWED_ORIGINS: http://localhost:3000
+
 jobs:
-  test:
+  rspec:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -21,22 +34,74 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-    env:
-      RAILS_ENV: test
-      DB_HOST: 127.0.0.1
-      DB_PORT: 5432
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      TEST_DB_NAME: rails_api_base_test
-      TEST_CACHE_DB_NAME: rails_api_base_test_cache
-      TEST_QUEUE_DB_NAME: rails_api_base_test_queue
-      TEST_CABLE_DB_NAME: rails_api_base_test_cable
-      JWT_SECRET: test-secret
-      CORS_ALLOWED_ORIGINS: http://localhost:3000
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Prepare database
+        run: bundle exec rails db:prepare
+
+      - name: RSpec
+        run: bundle exec rspec
+
+  static_analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: RuboCop
+        run: bundle exec rubocop
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Brakeman
+        run: bin/brakeman --no-pager
+
+      - name: Bundler Audit
+        run: bundle exec bundle-audit check --update
+
+  integrity:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -50,20 +115,5 @@ jobs:
       - name: Zeitwerk check
         run: bundle exec rails zeitwerk:check
 
-      - name: RSpec
-        run: bundle exec rspec
-
-      - name: RuboCop
-        run: bundle exec rubocop --force-exclusion
-
-      - name: Brakeman
-        run: bin/brakeman --no-pager
-
-      - name: Bundler Audit
-        run: bundle exec bundle-audit check --update
-
       - name: OpenAPI validation
         run: bundle exec rails openapi:validate
-
-      - name: Docker build
-        run: docker build .

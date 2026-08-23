@@ -5,11 +5,14 @@ require 'rails_helper'
 RSpec.describe 'API V1 Health', type: :request do
   describe 'GET /api/v1/health/live' do
     it 'returns a live response' do
-      get '/api/v1/health/live'
+      get '/api/v1/health/live', headers: { 'X-Request-Id' => 'health-live-123' }
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.dig('data', 'status')).to eq('ok')
       expect(response.parsed_body.dig('data', 'message')).to eq('Application is live.')
+      expect(response.parsed_body.dig('meta', 'request_id')).to eq('health-live-123')
+      expect(response.parsed_body.dig('meta', 'timestamp')).to end_with('Z')
+      expect(response.headers['X-Request-Id']).to eq('health-live-123')
       expect(response.headers['Vary']).to include('Accept-Language', 'X-Locale')
     end
 
