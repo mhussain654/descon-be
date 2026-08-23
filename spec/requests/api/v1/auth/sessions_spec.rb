@@ -111,7 +111,9 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.headers['Idempotency-Replayed']).to eq('true')
-      expect(response.parsed_body).to eq(first_response)
+      expect(response.parsed_body.fetch('data')).to eq(first_response.fetch('data'))
+      expect(response.parsed_body.dig('meta', 'timestamp')).to eq(first_response.dig('meta', 'timestamp'))
+      expect(response.headers['X-Request-Id']).to eq(response.parsed_body.dig('meta', 'request_id'))
       expect(IdempotencyKey.count).to eq(1)
     end
 

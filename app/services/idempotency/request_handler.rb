@@ -16,14 +16,9 @@ module Idempotency
     end
 
     def call
-      state = { record: nil, claimed: false }
       validate_key!
       lock = acquire_lock!
-      state[:record], state[:claimed], result = process_claimed_request
-      result
-    rescue StandardError
-      cleanup_claim(state[:record], state[:claimed])
-      raise
+      process_claimed_request
     ensure
       lock&.release
     end
@@ -38,11 +33,13 @@ module Idempotency
     end
 
     def process_claimed_request
-      record, state = claim_record
-      claimed = state == :claimed
-      return [record, claimed, resolve_existing_result(record, state)] unless claimed
+      record, claim_state = claim_record
+      return resolve_existing_result(record, claim_state) unless claim_state == :claimed
 
-      [record, claimed, execute_and_complete(record)]
+      execute_and_complete(record)
+    rescue StandardError
+      cleanup_processing_record(record) if record&.processing?
+      raise
     end
 
     def claim_record
@@ -90,10 +87,6 @@ module Idempotency
       end
     rescue ActiveRecord::RecordNotFound
       nil
-    end
-
-    def cleanup_claim(record, claimed)
-      cleanup_processing_record(record) if defined?(record) && record.present? && claimed
     end
 
     def validate_key!

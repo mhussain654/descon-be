@@ -133,6 +133,20 @@ RSpec.describe Idempotency::RequestHandler do
     expect(record.expires_at).to be > Time.current
   end
 
+  it 'removes a claimed processing record when the operation raises and allows a retry' do
+    expect do
+      execute_request { raise 'boom' }
+    end.to raise_error(RuntimeError, 'boom')
+
+    expect(IdempotencyKey.count).to eq(0)
+
+    retry_result = execute_request { success_payload(ok: true) }
+
+    expect(retry_result.replayed).to be(false)
+    expect(retry_result.payload.fetch(:data)).to eq(ok: true)
+    expect(IdempotencyKey.count).to eq(1)
+  end
+
   it 'returns a conflict when the fingerprint changes' do
     execute_request { success_payload(ok: true) }
 
