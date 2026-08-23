@@ -16,8 +16,16 @@ RSpec.describe Role, type: :model do
     let(:expected_urdu_name) { 'منتظم' }
   end
 
+  def system_role_for(code)
+    Role.find_or_initialize_by(code:).tap do |system_role|
+      system_role.system_defined = true
+      system_role.active = true
+      system_role.save! if system_role.new_record?
+    end
+  end
+
   it 'prevents mutating system-defined role codes' do
-    system_role = create(:role, :hr)
+    system_role = system_role_for('hr')
 
     system_role.code = 'changed'
 
@@ -26,7 +34,7 @@ RSpec.describe Role, type: :model do
   end
 
   it 'prevents changing system-defined roles to non-system-defined' do
-    system_role = create(:role, :mps)
+    system_role = system_role_for('mps')
 
     system_role.system_defined = false
 
@@ -35,7 +43,7 @@ RSpec.describe Role, type: :model do
   end
 
   it 'prevents destroying system-defined roles' do
-    system_role = create(:role, :mps)
+    system_role = system_role_for('mps')
 
     expect(system_role.destroy).to be(false)
   end

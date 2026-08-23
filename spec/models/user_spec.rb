@@ -25,8 +25,16 @@ RSpec.describe User, type: :model do
   end
 
   it 'answers permission checks through the assigned role' do
-    role = create(:role, :admin)
-    permission = create(:permission, code: 'manage_candidates', system_defined: true)
+    role = Role.find_or_initialize_by(code: 'admin')
+    role.system_defined = true
+    role.active = true
+    role.save! if role.new_record?
+
+    permission = Permission.find_or_initialize_by(code: 'manage_candidates')
+    permission.system_defined = true
+    permission.active = true
+    permission.save! if permission.new_record?
+
     RolePermission.find_or_create_by!(role:, permission:)
     user = create(:user, role: role.code)
 

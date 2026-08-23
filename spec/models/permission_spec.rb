@@ -15,8 +15,16 @@ RSpec.describe Permission, type: :model do
     let(:expected_urdu_name) { 'امیدواروں کا انتظام' }
   end
 
+  def system_permission_for(code)
+    Permission.find_or_initialize_by(code:).tap do |permission|
+      permission.system_defined = true
+      permission.active = true
+      permission.save! if permission.new_record?
+    end
+  end
+
   it 'prevents mutating system-defined permission codes' do
-    permission = create(:permission, code: 'manage_candidates', system_defined: true)
+    permission = system_permission_for('manage_candidates')
 
     permission.code = 'changed'
 
@@ -25,7 +33,7 @@ RSpec.describe Permission, type: :model do
   end
 
   it 'prevents changing system-defined permissions to non-system-defined' do
-    permission = create(:permission, code: 'view_candidates', system_defined: true)
+    permission = system_permission_for('view_candidates')
 
     permission.system_defined = false
 
@@ -34,7 +42,7 @@ RSpec.describe Permission, type: :model do
   end
 
   it 'prevents destroying system-defined permissions' do
-    permission = create(:permission, code: 'view_candidates', system_defined: true)
+    permission = system_permission_for('view_candidates')
 
     expect(permission.destroy).to be(false)
   end
