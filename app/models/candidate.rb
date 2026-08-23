@@ -11,6 +11,8 @@ class Candidate < ApplicationRecord
 
   has_many :candidate_assignments, dependent: :restrict_with_exception
   has_many :audit_events, dependent: :restrict_with_exception
+  has_many :candidate_sessions, dependent: :destroy
+  has_many :candidate_otp_challenges, dependent: :destroy
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_cnic
@@ -36,10 +38,7 @@ class Candidate < ApplicationRecord
   end
 
   def normalize_cnic
-    digits = cnic.to_s.gsub(/\D/, '')
-    return if digits.length != 13
-
-    self.cnic = "#{digits[0, 5]}-#{digits[5, 7]}-#{digits[12]}"
+    self.cnic = Candidates::CnicNormalizer.call(cnic)
   end
 
   def normalize_mobile_number

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_23_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -91,6 +91,51 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
     t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
     t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_documents_status_code"
+  end
+
+  create_table "candidate_otp_challenges", force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
+    t.bigint "candidate_id", null: false
+    t.string "code_digest", null: false
+    t.datetime "consumed_at"
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "requested_ip"
+    t.datetime "updated_at", null: false
+    t.index ["candidate_id", "created_at"], name: "index_candidate_otp_challenges_on_candidate_id_and_created_at"
+    t.index ["candidate_id"], name: "index_candidate_otp_challenges_on_candidate_id"
+    t.check_constraint "attempts >= 0", name: "candidate_otp_challenges_attempts_range"
+  end
+
+  create_table "candidate_refresh_tokens", force: :cascade do |t|
+    t.bigint "candidate_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.bigint "replaced_by_id"
+    t.datetime "revoked_at"
+    t.datetime "rotated_at"
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.index ["candidate_session_id"], name: "index_candidate_refresh_tokens_on_candidate_session_id"
+    t.index ["expires_at"], name: "index_candidate_refresh_tokens_on_expires_at"
+    t.index ["replaced_by_id"], name: "index_candidate_refresh_tokens_on_replaced_by_id"
+    t.index ["token_digest"], name: "index_candidate_refresh_tokens_on_token_digest", unique: true
+  end
+
+  create_table "candidate_sessions", force: :cascade do |t|
+    t.bigint "candidate_id", null: false
+    t.datetime "created_at", null: false
+    t.string "ip_address"
+    t.string "jti", null: false
+    t.datetime "last_seen_at"
+    t.string "public_id", null: false
+    t.datetime "revoked_at"
+    t.datetime "updated_at", null: false
+    t.string "user_agent"
+    t.index ["candidate_id", "revoked_at"], name: "index_candidate_sessions_on_candidate_id_and_revoked_at"
+    t.index ["candidate_id"], name: "index_candidate_sessions_on_candidate_id"
+    t.index ["jti"], name: "index_candidate_sessions_on_jti", unique: true
+    t.index ["public_id"], name: "index_candidate_sessions_on_public_id", unique: true
   end
 
   create_table "candidate_stage_histories", force: :cascade do |t|
@@ -239,7 +284,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
     t.check_constraint "char_length(key_digest::text) = 64", name: "idempotency_keys_key_digest_length"
     t.check_constraint "request_method::text ~ '^[A-Z]+$'::text", name: "idempotency_keys_request_method_format"
     t.check_constraint "status::text = 'processing'::text AND response_status IS NULL AND response_payload IS NULL AND completed_at IS NULL OR status::text = 'completed'::text AND response_status IS NOT NULL AND response_payload IS NOT NULL AND completed_at IS NOT NULL", name: "idempotency_keys_response_consistency"
-    t.check_constraint "status::text = ANY (ARRAY['processing'::character varying, 'completed'::character varying]::text[])", name: "idempotency_keys_status"
+    t.check_constraint "status::text = ANY (ARRAY['processing'::character varying::text, 'completed'::character varying::text])", name: "idempotency_keys_status"
   end
 
   create_table "payments", force: :cascade do |t|
@@ -385,6 +430,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
   add_foreign_key "candidate_documents", "document_types"
   add_foreign_key "candidate_documents", "users", column: "uploaded_by_id"
   add_foreign_key "candidate_documents", "users", column: "verified_by_id"
+  add_foreign_key "candidate_otp_challenges", "candidates"
+  add_foreign_key "candidate_refresh_tokens", "candidate_sessions"
+  add_foreign_key "candidate_sessions", "candidates"
   add_foreign_key "candidate_stage_histories", "candidate_assignments"
   add_foreign_key "candidate_stage_histories", "users", column: "actor_id"
   add_foreign_key "candidate_stage_histories", "workflow_stages", column: "from_workflow_stage_id"

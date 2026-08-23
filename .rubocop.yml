@@ -18,6 +18,7 @@ AllCops:
 Metrics/BlockLength:
   Exclude:
     - config/environments/*.rb
+    - config/routes.rb
     - spec/**/*.rb
 
 Metrics/MethodLength:
@@ -33,6 +34,8 @@ Metrics/MethodLength:
     - db/migrate/20260822111200_create_candidate_histories_and_documents.rb
     - db/migrate/20260822111300_create_payments_communications_and_audit_events.rb
     - db/migrate/20260822111400_add_core_relational_constraints.rb
+    - db/migrate/20260823130000_create_candidate_sessions_and_refresh_tokens.rb
+    - db/migrate/20260823130001_create_candidate_otp_challenges.rb
 
 Metrics/AbcSize:
   Exclude:
@@ -66,3 +69,16 @@ RSpec/MultipleExpectations:
 
 RSpec/ExampleLength:
   Enabled: false
+
+# Rake tasks aren't classes, so these specs describe the task name as a
+# string (same as request specs describing an endpoint path); the tasks
+# under test load once via Rails.application.load_tasks and touch no
+# database records, so a one-time before(:all) is safe here even with
+# use_transactional_fixtures.
+RSpec/DescribeClass:
+  Exclude:
+    - spec/tasks/**/*.rb
+
+RSpec/BeforeAfterAll:
+  Exclude:
+    - spec/tasks/**/*.rb

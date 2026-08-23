@@ -25,6 +25,10 @@ RSpec.configure do |config|
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!
   config.include FactoryBot::Syntax::Methods
+  # AGENTS.md: "Freeze or control time when testing expiry, scheduling and
+  # timestamps" -- provides freeze_time/travel_to/travel used by the OTP
+  # expiry and resend-cooldown specs.
+  config.include ActiveSupport::Testing::TimeHelpers
 end
 
 Shoulda::Matchers.configure do |config|

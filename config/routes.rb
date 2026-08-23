@@ -13,6 +13,15 @@ Rails.application.routes.draw do
         delete :logout, to: 'sessions#destroy'
       end
 
+      namespace :candidate do
+        namespace :auth do
+          namespace :otp do
+            post :request, to: 'requests#create'
+            post :verify, to: 'verifications#create'
+          end
+        end
+      end
+
       resources :users, only: :index
 
       namespace :users do

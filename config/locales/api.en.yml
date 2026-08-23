@@ -26,10 +26,16 @@ en:
       invalid_idempotency_key: "The idempotency key format is invalid."
       idempotency_conflict: "The idempotency key does not match the original request."
       idempotency_in_progress: "A request with this idempotency key is already being processed."
+      cnic_invalid: "Enter a valid CNIC in the format 00000-0000000-0."
+      otp_format_invalid: "Enter the 6-digit verification code."
+      otp_invalid: "The verification code is incorrect or has already been used."
+      otp_expired: "This verification code has expired. Request a new one."
+      otp_max_attempts: "Too many incorrect attempts. Request a new verification code."
     authentication:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."
       logout_succeeded: "Session revoked."
+      otp_sms_body: "Your Descon Manpower verification code is %{code}. It expires in %{expiry_minutes} minutes. Do not share this code with anyone."
     pagination:
       page: "Page"
       per_page: "Items per page"
