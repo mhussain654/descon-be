@@ -142,23 +142,38 @@ end
 #                                                CNICs above
 #
 # All values are synthetic and match no real person.
-seed_user = User.find_or_create_by!(email: 'seed-data@descon.local') do |user|
-  user.password = SecureRandom.hex(32)
-  user.role = 'admin'
-  user.active = true
-end
+#
+# Skipped in the test environment: `db:prepare` runs this file for real
+# (not inside a rolled-back RSpec transaction) against a freshly created
+# database, e.g. in CI. Every other seed above (roles, permissions, workflow
+# stages, reference catalogs) has always been safe to leave in place because
+# nothing in the existing spec suite assumed zero rows in those tables --
+# but this is the first seed content that creates a User (needed only to
+# satisfy Candidate#created_by) and a Candidate, and pre-existing specs
+# (e.g. Idempotency::RequestHandler's `User.delete_all` cleanup, the users
+# index pagination spec) assumed `db:seed` never touches those tables. These
+# demo candidates exist for manual/frontend exploratory testing against a
+# real running server (see README), not as automated-test fixtures, so
+# skipping them in test is correct, not just a workaround.
+unless Rails.env.test?
+  seed_user = User.find_or_create_by!(email: 'seed-data@descon.local') do |user|
+    user.password = SecureRandom.hex(32)
+    user.role = 'admin'
+    user.active = true
+  end
 
-[
-  { cnic: '11111-1111111-1', full_name: 'OTP Demo Candidate (Valid Mobile)', mobile_number: '+923001234567' },
-  { cnic: '22222-2222222-2', full_name: 'OTP Demo Candidate (Undeliverable Mobile)', mobile_number: '+920000000000' }
-].each do |attributes|
-  candidate = Candidate.find_or_initialize_by(cnic: attributes.fetch(:cnic))
-  candidate.assign_attributes(
-    full_name: attributes.fetch(:full_name),
-    mobile_number: attributes.fetch(:mobile_number),
-    preferred_locale: 'en',
-    source_code: 'admin_ui',
-    created_by: seed_user
-  )
-  candidate.save!
+  [
+    { cnic: '11111-1111111-1', full_name: 'OTP Demo Candidate (Valid Mobile)', mobile_number: '+923001234567' },
+    { cnic: '22222-2222222-2', full_name: 'OTP Demo Candidate (Undeliverable Mobile)', mobile_number: '+920000000000' }
+  ].each do |attributes|
+    candidate = Candidate.find_or_initialize_by(cnic: attributes.fetch(:cnic))
+    candidate.assign_attributes(
+      full_name: attributes.fetch(:full_name),
+      mobile_number: attributes.fetch(:mobile_number),
+      preferred_locale: 'en',
+      source_code: 'admin_ui',
+      created_by: seed_user
+    )
+    candidate.save!
+  end
 end

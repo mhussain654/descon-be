@@ -46,7 +46,24 @@ RSpec.describe 'db:seed rake task' do
     expect(DocumentType.pluck(:code)).to include('passport', 'cnic_front', 'cnic_back', 'cv')
   end
 
-  it 'seeds the reserved demo candidates that exercise MPS-201, and never seeds the reserved unknown CNIC' do
+  it 'does not seed the demo candidates (or their supporting user) in the test environment' do
+    # db:prepare runs this file for real -- not inside a rolled-back RSpec
+    # transaction -- against a freshly created database (e.g. in CI). The
+    # demo candidates exist for manual/frontend exploratory testing against
+    # a real running server, not as automated-test fixtures; seeding them
+    # here would leave a real, persisted User + Candidate rows that
+    # pre-existing specs (e.g. Idempotency::RequestHandler's `User.
+    # delete_all` cleanup, the users index pagination spec) never accounted
+    # for. This regression-tests the fix, not just the feature.
+    Rake::Task['db:seed'].invoke
+
+    expect(Candidate.count).to eq(0)
+    expect(User.find_by(email: 'seed-data@descon.local')).to be_nil
+  end
+
+  it 'seeds the reserved demo candidates that exercise MPS-201, outside the test environment' do
+    allow(Rails.env).to receive(:test?).and_return(false)
+
     Rake::Task['db:seed'].invoke
 
     valid = Candidate.find_by(cnic: '11111-1111111-1')
