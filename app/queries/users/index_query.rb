@@ -6,6 +6,7 @@ module Users
     DEFAULT_PAGE_SIZE = 20
     MAX_PAGE_SIZE = 100
     ALLOWED_FILTERS = %w[active email role].freeze
+    BOOLEAN_FILTER_VALUES = { 'true' => true, 'false' => false }.freeze
     ALLOWED_SORTS = {
       'created_at' => :created_at,
       'email' => :email,
@@ -41,7 +42,7 @@ module Users
     def filter_scope(scope, filter_name, filter_value)
       case filter_name
       when 'active'
-        scope.where(active: ActiveModel::Type::Boolean.new.cast(filter_value))
+        scope.where(active: boolean_filter_value(filter_value))
       when 'email'
         email_scope(scope, filter_value)
       when 'role'
@@ -68,19 +69,29 @@ module Users
       page_size = normalized_page_size
       total_count = scope.count
       total_pages = total_count.zero? ? 0 : (total_count.to_f / page_size).ceil
-      @pagination = pagination_data(page_number:, page_size:, total_count:, total_pages:)
-
+      @pagination = pagination_metadata(page_number, page_size, total_count, total_pages)
       scope.offset((page_number - 1) * page_size).limit(page_size)
     end
 
     def normalized_page_number
-      [@params.dig(:page, :number).to_i, DEFAULT_PAGE_NUMBER].max
+      raw_page_number = @params.dig(:page, :number)
+      return DEFAULT_PAGE_NUMBER if raw_page_number.blank?
+
+      page_number = Integer(raw_page_number, exception: false)
+      raise InvalidQueryParameterError.new(field: 'page.number') unless page_number&.positive?
+
+      page_number
     end
 
     def normalized_page_size
-      requested_size = @params.dig(:page, :size).to_i
-      page_size = requested_size.positive? ? requested_size : DEFAULT_PAGE_SIZE
-      [page_size, MAX_PAGE_SIZE].min
+      raw_page_size = @params.dig(:page, :size)
+      return DEFAULT_PAGE_SIZE if raw_page_size.blank?
+
+      page_size = Integer(raw_page_size, exception: false)
+      raise InvalidQueryParameterError.new(field: 'page.size') unless page_size&.positive?
+      raise InvalidQueryParameterError.new(field: 'page.size') if page_size > MAX_PAGE_SIZE
+
+      page_size
     end
 
     def filters
@@ -90,23 +101,32 @@ module Users
       raw_filters.to_unsafe_h.compact_blank
     end
 
+    def role_scope(scope, filter_value)
+      role_values = filter_value.to_s.split(',').map(&:strip).compact_blank
+      raise InvalidQueryParameterError.new(field: 'filter.role') if role_values.empty?
+      raise InvalidQueryParameterError.new(field: 'filter.role') unless role_codes_supported?(role_values)
+
+      scope.where(role: role_values)
+    end
+
+    def boolean_filter_value(filter_value)
+      normalized_value = filter_value.to_s.strip.downcase
+      return BOOLEAN_FILTER_VALUES.fetch(normalized_value) if BOOLEAN_FILTER_VALUES.key?(normalized_value)
+
+      raise InvalidQueryParameterError.new(field: 'filter.active')
+    end
+
+    def pagination_metadata(page_number, page_size, total_count, total_pages)
+      { page: page_number, per_page: page_size, total_count:, total_pages: }
+    end
+
     def email_scope(scope, filter_value)
       sanitized_email = ActiveRecord::Base.sanitize_sql_like(filter_value.to_s.strip.downcase)
       scope.where('LOWER(users.email) LIKE ?', "%#{sanitized_email}%")
     end
 
-    def role_scope(scope, filter_value)
-      role_values = filter_value.to_s.split(',').map(&:strip).compact_blank
-      scope.where(role: role_values)
-    end
-
-    def pagination_data(page_number:, page_size:, total_count:, total_pages:)
-      {
-        page: page_number,
-        per_page: page_size,
-        total_count:,
-        total_pages:
-      }
+    def role_codes_supported?(role_values)
+      Role.where(code: role_values.uniq).count == role_values.uniq.count
     end
   end
 end

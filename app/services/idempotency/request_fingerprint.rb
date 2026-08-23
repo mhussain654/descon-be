@@ -12,7 +12,7 @@ module Idempotency
       Digest::SHA256.hexdigest(
         [
           @request.request_method,
-          @request.path,
+          @request.fullpath,
           @request.headers['Authorization'].to_s,
           @request.raw_post.to_s
         ].join("\n")

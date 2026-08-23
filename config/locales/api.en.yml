@@ -13,6 +13,7 @@ en:
       bad_request: "The request could not be processed."
       parameter_missing: "A required parameter is missing."
       validation_failed: "The request could not be processed."
+      invalid_query_parameter: "One or more query parameters are invalid."
       unauthorized: "Invalid credentials."
       forbidden: "You are not allowed to perform this action."
       not_found: "Record not found."
@@ -22,7 +23,9 @@ en:
       session_revoked: "Session revoked."
       unsupported_filter: "One or more filters are not supported."
       unsupported_sort: "The requested sort order is not supported."
+      invalid_idempotency_key: "The idempotency key format is invalid."
       idempotency_conflict: "The idempotency key does not match the original request."
+      idempotency_in_progress: "A request with this idempotency key is already being processed."
     authentication:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."

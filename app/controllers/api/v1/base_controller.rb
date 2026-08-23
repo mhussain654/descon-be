@@ -9,12 +9,11 @@ module Api
 
       def current_user
         @current_user ||= begin
-          payload = Authentication::TokenDecoder.call(token: bearer_token)
-          @current_session = Session.active.find_by!(jti: payload.fetch('jti'))
-          raise UnauthorizedError if @current_session.user_id.to_s != payload.fetch('sub')
+          @current_session = session_from_token
+          raise UnauthorizedError if @current_session.revoked?
 
           @current_session.touch_last_seen!
-          User.find(payload.fetch('sub'))
+          User.find(decoded_bearer_payload.fetch('sub'))
         rescue JWT::DecodeError, KeyError, ActiveRecord::RecordNotFound
           raise UnauthorizedError
         end
@@ -29,6 +28,20 @@ module Api
         raise UnauthorizedError if scheme != 'Bearer' || token.blank?
 
         token
+      end
+
+      def decoded_bearer_payload
+        @decoded_bearer_payload ||= Authentication::TokenDecoder.call(token: bearer_token)
+      end
+
+      def session_from_token(allow_revoked: false)
+        session_scope = allow_revoked ? Session.all : Session.active
+        session = session_scope.find_by!(jti: decoded_bearer_payload.fetch('jti'))
+        raise UnauthorizedError if session.user_id.to_s != decoded_bearer_payload.fetch('sub')
+
+        session
+      rescue JWT::DecodeError, KeyError, ActiveRecord::RecordNotFound
+        raise UnauthorizedError
       end
     end
   end

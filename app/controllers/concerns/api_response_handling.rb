@@ -81,7 +81,7 @@ module ApiResponseHandling
   end
 
   def success_meta(meta)
-    meta.merge(request_id: request.request_id, timestamp: meta[:timestamp] || timestamp)
+    meta.merge(request_id: meta[:request_id] || request.request_id, timestamp: meta[:timestamp] || timestamp)
   end
 
   def unexpected_error_payload(error)
@@ -90,8 +90,7 @@ module ApiResponseHandling
       request_id: request.request_id,
       controller: self.class.name,
       action: action_name,
-      error_class: error.class.name,
-      error_message: error.message
+      error_class: error.class.name
     }
   end
 

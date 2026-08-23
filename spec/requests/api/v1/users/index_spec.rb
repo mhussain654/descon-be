@@ -87,6 +87,43 @@ RSpec.describe 'API V1 Users Index', type: :request do
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq('sort.encrypted_password')
   end
 
+  it 'rejects malformed boolean filters' do
+    get '/api/v1/users',
+        params: { filter: { active: 'sometimes' } },
+        headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_query_parameter')
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.active')
+  end
+
+  it 'rejects malformed page numbers' do
+    get '/api/v1/users',
+        params: { page: { number: 'zero' } },
+        headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('page.number')
+  end
+
+  it 'rejects oversized page sizes instead of silently capping them' do
+    get '/api/v1/users',
+        params: { page: { size: 101 } },
+        headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('page.size')
+  end
+
+  it 'rejects unsupported role filter values' do
+    get '/api/v1/users',
+        params: { filter: { role: 'hr,ghost_role' } },
+        headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.role')
+  end
+
   it 'propagates the request id in headers and response metadata' do
     get '/api/v1/users',
         headers: {

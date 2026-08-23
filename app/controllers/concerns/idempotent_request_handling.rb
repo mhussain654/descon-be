@@ -5,17 +5,18 @@ module IdempotentRequestHandling
 
   private
 
-  def render_idempotent_response
+  def render_idempotent_response(
+    scope:,
+    subject: nil,
+    expires_in: Idempotency::RequestHandler::DEFAULT_EXPIRY,
+    &operation
+  )
     key = request.headers['Idempotency-Key'].to_s.strip
     return render_payload(yield) if key.blank?
 
-    stored_response = idempotency_response_store.read(key:)
-    return replay_stored_response(stored_response) if stored_response
-
-    payload = yield
-    rendered_response = render_payload(payload)
-    persist_idempotent_response(key:, payload:)
-    rendered_response
+    result = idempotency_result(key:, scope:, subject:, expires_in:, &operation)
+    response.set_header('Idempotency-Replayed', 'true') if result.replayed
+    render_payload(result.payload)
   end
 
   def render_payload(payload)
@@ -27,11 +28,11 @@ module IdempotentRequestHandling
   end
 
   def success_payload(data:, status: :ok, meta: {})
-    { type: :success, data:, status:, meta: meta.merge(timestamp:) }
+    { type: :success, data:, status:, meta: meta.merge(request_id: request.request_id, timestamp:) }
   end
 
   def collection_payload(data:, pagination:, status: :ok, meta: {})
-    { type: :collection, data:, pagination:, status:, meta: meta.merge(timestamp:) }
+    { type: :collection, data:, pagination:, status:, meta: meta.merge(request_id: request.request_id, timestamp:) }
   end
 
   def renderer_for(payload_type)
@@ -39,23 +40,6 @@ module IdempotentRequestHandling
     return method(:render_collection_payload) if payload_type == :collection
 
     raise ArgumentError, "Unknown payload type: #{payload_type}"
-  end
-
-  def idempotency_response_store
-    @idempotency_response_store ||= Idempotency::ResponseStore.new(cache: Rails.cache)
-  end
-
-  def replay_stored_response(stored_response)
-    fingerprint = Idempotency::RequestFingerprint.call(request:)
-    raise IdempotencyConflictError unless stored_response.fetch('fingerprint') == fingerprint
-
-    response.set_header('Idempotency-Replayed', 'true')
-    render_cached_response(stored_response.fetch('response'))
-  end
-
-  def persist_idempotent_response(key:, payload:)
-    fingerprint = Idempotency::RequestFingerprint.call(request:)
-    idempotency_response_store.write(key:, fingerprint:, response: payload)
   end
 
   def render_success_payload(payload)
@@ -69,5 +53,24 @@ module IdempotentRequestHandling
       meta: payload.fetch(:meta, {}),
       status: payload.fetch(:status, :ok)
     )
+  end
+
+  def idempotency_result(key:, scope:, subject:, expires_in:, &operation)
+    Idempotency::RequestHandler.call(
+      key:,
+      scope:,
+      subject:,
+      request_context: idempotency_request_metadata(operation),
+      expires_in:
+    )
+  end
+
+  def idempotency_request_metadata(operation)
+    {
+      method: request.request_method,
+      path: request.path,
+      fingerprint: Idempotency::RequestFingerprint.call(request:),
+      operation:
+    }
   end
 end

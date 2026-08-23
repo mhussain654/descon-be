@@ -5,35 +5,33 @@ module Api
     module Auth
       class SessionsController < BaseController
         def create
-          render_idempotent_response do
-            result = Authentication::LoginService.call(
-              email: login_params.fetch(:email),
-              password: login_params.fetch(:password),
-              user_agent: request.user_agent,
-              ip_address: request.remote_ip
-            )
+          result = Authentication::LoginService.call(
+            email: login_params.fetch(:email),
+            password: login_params.fetch(:password),
+            user_agent: request.user_agent,
+            ip_address: request.remote_ip
+          )
 
-            success_payload(data: Authentication::SessionSerializer.new(result).as_json, status: :created)
-          end
+          render_success(data: Authentication::SessionSerializer.new(result).as_json, status: :created)
         end
 
         def refresh
-          render_idempotent_response do
-            result = Authentication::RefreshService.call(
-              refresh_token: refresh_params.fetch(:refresh_token),
-              user_agent: request.user_agent,
-              ip_address: request.remote_ip
-            )
+          result = Authentication::RefreshService.call(
+            refresh_token: refresh_params.fetch(:refresh_token),
+            user_agent: request.user_agent,
+            ip_address: request.remote_ip
+          )
 
-            success_payload(data: Authentication::SessionSerializer.new(result).as_json)
-          end
+          render_success(data: Authentication::SessionSerializer.new(result).as_json)
         end
 
         def destroy
-          authenticate_current_user!
+          session = session_from_token(allow_revoked: true)
 
-          render_idempotent_response do
-            Authentication::LogoutService.call(session: current_session)
+          render_idempotent_response(scope: 'auth.logout', subject: session) do
+            raise UnauthorizedError if session.revoked?
+
+            Authentication::LogoutService.call(session:)
             success_payload(data: { revoked: true })
           end
         end

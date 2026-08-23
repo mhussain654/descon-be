@@ -174,7 +174,9 @@ Database-backed translated content should stay out of static locale files. Store
 - Supported locales are only `en` and `ur`; unsupported locales fall back to the best supported locale to preserve compatibility
 - Request IDs are returned in both `X-Request-Id` and the JSON envelope
 - Filtering and sorting are allowlisted per endpoint and reject unsupported fields
-- Sensitive mutation endpoints support optional `Idempotency-Key` replay protection
+- Malformed query values return field-addressable `400` errors instead of being silently coerced
+- `DELETE /api/v1/auth/logout` supports optional `Idempotency-Key` replay protection
+- Idempotency keys must match `^[A-Za-z0-9:_-]{1,128}$`, are scoped per operation and authenticated subject, and are retained for 12 hours
 
 Example collection request:
 
@@ -182,6 +184,15 @@ Example collection request:
 curl \
   -H "Authorization: Bearer <token>" \
   "http://localhost:3000/api/v1/users?page[number]=1&page[size]=20&filter[role]=hr&sort=email"
+```
+
+Example idempotent logout request:
+
+```bash
+curl -X DELETE \
+  -H "Authorization: Bearer <token>" \
+  -H "Idempotency-Key: logout-20260823-001" \
+  http://localhost:3000/api/v1/auth/logout
 ```
 
 ## Schema Docs

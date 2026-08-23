@@ -84,6 +84,9 @@ RSpec.describe 'ApplicationController behavior', type: :request do
   end
 
   it 'renders unexpected errors safely without leaking internals' do
+    log_output = []
+    allow(Rails.logger).to receive(:error) { |entry| log_output << entry }
+
     get '/foundation-test/explode'
 
     expect(response).to have_http_status(:internal_server_error)
@@ -91,5 +94,6 @@ RSpec.describe 'ApplicationController behavior', type: :request do
     expect(response.parsed_body.dig('errors', 0, 'message')).to eq('An unexpected error occurred.')
     expect(response.body).not_to include('unsafe internal detail')
     expect(response.body).not_to include('ArgumentError')
+    expect(log_output.join).not_to include('unsafe internal detail')
   end
 end

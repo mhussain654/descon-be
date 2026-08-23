@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_22_111500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_23_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -89,8 +89,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_111500) do
     t.index ["document_type_id"], name: "index_candidate_documents_on_document_type_id"
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
-    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying]::text[])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
-    t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])", name: "candidate_documents_status_code"
+    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
+    t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_documents_status_code"
   end
 
   create_table "candidate_stage_histories", force: :cascade do |t|
@@ -133,8 +133,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_111500) do
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
     t.check_constraint "cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_cnic_format"
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
-    t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidates_preferred_locale"
-    t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying, 'csv_import'::character varying]::text[])", name: "candidates_source_code"
+    t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
+    t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
   end
 
   create_table "communications", force: :cascade do |t|
@@ -160,9 +160,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_111500) do
     t.index ["provider_reference"], name: "index_communications_on_provider_reference"
     t.index ["public_id"], name: "index_communications_on_public_id", unique: true
     t.check_constraint "channel_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_channel_code_format"
-    t.check_constraint "direction_code::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying]::text[])", name: "communications_direction_code"
+    t.check_constraint "direction_code::text = ANY (ARRAY['inbound'::character varying::text, 'outbound'::character varying::text])", name: "communications_direction_code"
     t.check_constraint "error_code IS NULL OR error_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_error_code_format"
-    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "communications_locale"
+    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "communications_locale"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_status_code_format"
     t.check_constraint "template_code IS NULL OR template_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_template_code_format"
   end
@@ -216,6 +216,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_111500) do
     t.datetime "updated_at", null: false
     t.index ["code"], name: "index_document_types_on_code", unique: true
     t.check_constraint "code::text ~ '^[a-z0-9_]+$'::text", name: "document_types_code_format"
+  end
+
+  create_table "idempotency_keys", force: :cascade do |t|
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "idempotency_scope", null: false
+    t.string "key_digest", null: false
+    t.string "request_fingerprint", null: false
+    t.string "request_method", null: false
+    t.string "request_path", null: false
+    t.jsonb "response_payload"
+    t.integer "response_status"
+    t.string "status", default: "processing", null: false
+    t.bigint "subject_id"
+    t.string "subject_type"
+    t.datetime "updated_at", null: false
+    t.index "idempotency_scope, COALESCE(subject_type, '__global__'::character varying), COALESCE(subject_id, (0)::bigint), key_digest", name: "index_idempotency_keys_on_scope_subject_and_key", unique: true
+    t.index ["expires_at"], name: "index_idempotency_keys_on_expires_at"
+    t.index ["subject_type", "subject_id"], name: "index_idempotency_keys_on_subject"
+    t.check_constraint "char_length(key_digest::text) = 64", name: "idempotency_keys_key_digest_length"
+    t.check_constraint "request_method::text ~ '^[A-Z]+$'::text", name: "idempotency_keys_request_method_format"
+    t.check_constraint "status::text = 'processing'::text AND response_status IS NULL AND response_payload IS NULL AND completed_at IS NULL OR status::text = 'completed'::text AND response_status IS NOT NULL AND response_payload IS NOT NULL AND completed_at IS NOT NULL", name: "idempotency_keys_response_consistency"
+    t.check_constraint "status::text = ANY (ARRAY['processing'::character varying, 'completed'::character varying]::text[])", name: "idempotency_keys_status"
   end
 
   create_table "payments", force: :cascade do |t|
