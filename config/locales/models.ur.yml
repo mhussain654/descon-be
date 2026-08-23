@@ -1,0 +1,14 @@
+ur:
+  activerecord:
+    attributes:
+      candidate:
+        cnic: "شناختی کارڈ نمبر"
+        mobile_number: "موبائل نمبر"
+    errors:
+      models:
+        candidate:
+          attributes:
+            cnic:
+              invalid: "مطلوبہ فارمیٹ میں نہیں ہے۔"
+            mobile_number:
+              invalid: "مطلوبہ فارمیٹ میں نہیں ہے۔"

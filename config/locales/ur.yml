@@ -1,0 +1,31 @@
+ur:
+  reference_data:
+    roles:
+      admin: "منتظم"
+      staff: "عملہ"
+    permissions:
+      manage_staff_users: "اسٹاف صارفین کا انتظام"
+      manage_roles_permissions: "رولز اور اجازتوں کا انتظام"
+      manage_candidates: "امیدواروں کا انتظام"
+      manage_candidate_assignments: "امیدوار اسائنمنٹس کا انتظام"
+      manage_candidate_documents: "امیدوار دستاویزات کا انتظام"
+      manage_workflow: "ورک فلو کا انتظام"
+      manage_payments: "ادائیگیوں کا انتظام"
+      manage_communications: "مواصلات کا انتظام"
+      view_audit_events: "آڈٹ ایونٹس دیکھیں"
+    workflow_stages:
+      registered: "رجسٹرڈ"
+      documents_pending: "دستاویزات زیر التوا"
+      documents_uploaded: "دستاویزات اپ لوڈ ہو گئیں"
+      under_verification: "تصدیق کے مرحلے میں"
+      verified: "تصدیق شدہ"
+      fee_pending: "فیس زیر التوا"
+      fee_paid: "فیس ادا ہو گئی"
+      documents_shared_with_qatar_bu: "دستاویزات قطر بی یو کے ساتھ شیئر کر دی گئیں"
+      qvc_appointment_booked: "کیو وی سی اپائنٹمنٹ بک ہو گئی"
+      qvc_completed_outcome_received: "کیو وی سی مکمل / نتیجہ موصول"
+      visa_issued_or_rejected: "ویزا جاری / ویزا مسترد"
+      appeared_for_protection: "پروٹیکشن کے لیے حاضر"
+      protected_ready_to_fly: "پروٹیکٹڈ - پرواز کے لیے تیار"
+      flight_details_uploaded: "پرواز کی تفصیلات اپ لوڈ ہو گئیں"
+      mobilized: "موبلائزڈ"

@@ -28,6 +28,13 @@ Metrics/MethodLength:
 Metrics/AbcSize:
   Exclude:
     - app/services/authentication/refresh_service.rb
+    - db/migrate/*.rb
+
+# Migrations are intentionally verbose snapshots of schema changes and are already
+# treated separately from application code in this repository.
+Metrics/ClassLength:
+  Exclude:
+    - db/migrate/*.rb
 
 Style/Documentation:
   Enabled: false

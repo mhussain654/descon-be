@@ -1,11 +1,45 @@
 # frozen_string_literal: true
 
-# This file should ensure the existence of records required to run the application in every environment (production,
-# development, test). The code here should be idempotent so that it can be executed at any point in every environment.
-# The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
-#
-# Example:
-#
-#   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
-#     MovieGenre.find_or_create_by!(name: genre_name)
-#   end
+Role::SYSTEM_ROLES.each do |role_attributes|
+  role = Role.find_or_initialize_by(code: role_attributes.fetch(:code))
+  role.assign_attributes(system_defined: true, active: true)
+  role.save!
+end
+
+Permission::SYSTEM_PERMISSIONS.each do |permission_attributes|
+  permission = Permission.find_or_initialize_by(code: permission_attributes.fetch(:code))
+  permission.assign_attributes(system_defined: true, active: true)
+  permission.save!
+end
+
+role_ids_by_code = Role.pluck(:code, :id).to_h
+permission_ids_by_code = Permission.pluck(:code, :id).to_h
+
+{
+  'admin' => Permission::SYSTEM_PERMISSIONS.map { |permission| permission.fetch(:code) },
+  'staff' => %w[
+    manage_candidates
+    manage_candidate_assignments
+    manage_candidate_documents
+    manage_workflow
+    manage_payments
+    manage_communications
+  ]
+}.each do |role_code, permission_codes|
+  permission_codes.each do |permission_code|
+    RolePermission.find_or_create_by!(
+      role_id: role_ids_by_code.fetch(role_code),
+      permission_id: permission_ids_by_code.fetch(permission_code)
+    )
+  end
+end
+
+WorkflowStage::CANONICAL_STAGES.each do |stage_attributes|
+  stage = WorkflowStage.find_or_initialize_by(code: stage_attributes.fetch(:code))
+  stage.assign_attributes(
+    position: stage_attributes.fetch(:position),
+    system_defined: true,
+    active: true
+  )
+  stage.save!
+end

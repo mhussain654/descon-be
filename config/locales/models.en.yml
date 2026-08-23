@@ -1,0 +1,14 @@
+en:
+  activerecord:
+    attributes:
+      candidate:
+        cnic: "Cnic"
+        mobile_number: "Mobile number"
+    errors:
+      models:
+        candidate:
+          attributes:
+            cnic:
+              invalid: "is not in the required format."
+            mobile_number:
+              invalid: "is not in the required format."
