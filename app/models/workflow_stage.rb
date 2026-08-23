@@ -23,7 +23,10 @@ class WorkflowStage < ApplicationRecord
 
   has_many :candidate_assignments, foreign_key: :current_workflow_stage_id, inverse_of: :current_workflow_stage,
                                    dependent: :restrict_with_exception
-  has_many :candidate_stage_histories, dependent: :restrict_with_exception
+  has_many :from_candidate_stage_histories, class_name: 'CandidateStageHistory', foreign_key: :from_workflow_stage_id,
+                                            inverse_of: :from_workflow_stage, dependent: :restrict_with_exception
+  has_many :to_candidate_stage_histories, class_name: 'CandidateStageHistory', foreign_key: :to_workflow_stage_id,
+                                          inverse_of: :to_workflow_stage, dependent: :restrict_with_exception
 
   validates :code, presence: true, uniqueness: true, format: { with: /\A[a-z0-9_]+\z/ }
   validates :position, presence: true, uniqueness: true, numericality: { only_integer: true, greater_than: 0 }

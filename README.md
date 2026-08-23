@@ -45,7 +45,7 @@ If you want the full local setup without starting the server immediately:
 bin/setup --skip-server
 ```
 
-`db:seed` is required for baseline reference data such as staff roles, permissions, and the canonical workflow stages.
+`db:seed` is required for baseline reference data such as the system roles (`admin`, `hr`, `mps`, `finance`, `management`), scoped permissions, and the canonical workflow stages. The seed file is idempotent and safe to rerun.
 
 ## Environment variables
 

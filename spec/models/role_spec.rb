@@ -15,4 +15,19 @@ RSpec.describe Role, type: :model do
     let(:expected_english_name) { 'Administrator' }
     let(:expected_urdu_name) { 'منتظم' }
   end
+
+  it 'prevents mutating system-defined role codes' do
+    system_role = create(:role, :hr)
+
+    system_role.code = 'changed'
+
+    expect(system_role).not_to be_valid
+    expect(system_role.errors[:base]).to be_present
+  end
+
+  it 'prevents destroying system-defined roles' do
+    system_role = create(:role, :mps)
+
+    expect(system_role.destroy).to be(false)
+  end
 end

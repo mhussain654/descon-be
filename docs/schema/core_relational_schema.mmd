@@ -19,7 +19,8 @@ erDiagram
   crafts ||--o{ candidate_assignments : scopes
   workflow_stages ||--o{ candidate_assignments : current_stage
 
-  workflow_stages ||--o{ candidate_stage_histories : records
+  workflow_stages ||--o{ candidate_stage_histories : from_stage
+  workflow_stages ||--o{ candidate_stage_histories : to_stage
   candidate_assignments ||--o{ candidate_stage_histories : tracks
 
   document_types ||--o{ document_requirements : defines
@@ -123,7 +124,8 @@ erDiagram
   candidate_stage_histories {
     bigint id PK
     bigint candidate_assignment_id FK
-    bigint workflow_stage_id FK
+    bigint from_workflow_stage_id FK
+    bigint to_workflow_stage_id FK
     bigint actor_id FK
     datetime occurred_at
     string reason_code

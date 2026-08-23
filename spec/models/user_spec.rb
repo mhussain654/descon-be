@@ -25,13 +25,21 @@ RSpec.describe User, type: :model do
   end
 
   it 'answers permission checks through the assigned role' do
-    role = Role.find_by!(code: 'admin')
-    permission = Permission.find_by!(code: 'manage_candidates')
+    role = create(:role, :admin)
+    permission = create(:permission, code: 'manage_candidates', system_defined: true)
     RolePermission.find_or_create_by!(role:, permission:)
     user = create(:user, role: role.code)
 
     expect(user.admin?).to be(true)
     expect(user.permission?('manage_candidates')).to be(true)
     expect(user.permission?('unknown_permission')).to be(false)
+  end
+
+  it 'recognizes scoped staff roles' do
+    user.role = 'finance'
+
+    expect(user.finance?).to be(true)
+    expect(user.staff?).to be(true)
+    expect(user.management?).to be(false)
   end
 end

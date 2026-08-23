@@ -32,7 +32,10 @@ en:
   reference_data:
     roles:
       admin: "Administrator"
-      staff: "Staff"
+      hr: "HR"
+      mps: "MPS"
+      finance: "Finance"
+      management: "Management"
     permissions:
       manage_staff_users: "Manage staff users"
       manage_roles_permissions: "Manage roles and permissions"
@@ -42,6 +45,12 @@ en:
       manage_workflow: "Manage workflow"
       manage_payments: "Manage payments"
       manage_communications: "Manage communications"
+      view_candidates: "View candidates"
+      view_candidate_assignments: "View candidate assignments"
+      view_candidate_documents: "View candidate documents"
+      view_workflow: "View workflow"
+      view_payments: "View payments"
+      view_communications: "View communications"
       view_audit_events: "View audit events"
     workflow_stages:
       registered: "Registered"

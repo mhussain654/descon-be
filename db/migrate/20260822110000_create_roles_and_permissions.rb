@@ -3,7 +3,10 @@
 class CreateRolesAndPermissions < ActiveRecord::Migration[8.1]
   SYSTEM_ROLES = [
     { code: 'admin' },
-    { code: 'staff' }
+    { code: 'hr' },
+    { code: 'mps' },
+    { code: 'finance' },
+    { code: 'management' }
   ].freeze
 
   SYSTEM_PERMISSIONS = [
@@ -15,18 +18,46 @@ class CreateRolesAndPermissions < ActiveRecord::Migration[8.1]
     { code: 'manage_workflow' },
     { code: 'manage_payments' },
     { code: 'manage_communications' },
+    { code: 'view_candidates' },
+    { code: 'view_candidate_assignments' },
+    { code: 'view_candidate_documents' },
+    { code: 'view_workflow' },
+    { code: 'view_payments' },
+    { code: 'view_communications' },
     { code: 'view_audit_events' }
   ].freeze
 
   ROLE_PERMISSION_MAP = {
     'admin' => SYSTEM_PERMISSIONS.map { |permission| permission.fetch(:code) },
-    'staff' => %w[
+    'hr' => %w[
       manage_candidates
+      manage_candidate_documents
+      manage_communications
+      view_candidate_assignments
+      view_workflow
+    ],
+    'mps' => %w[
+      view_candidates
       manage_candidate_assignments
       manage_candidate_documents
       manage_workflow
-      manage_payments
       manage_communications
+    ],
+    'finance' => %w[
+      view_candidates
+      view_candidate_assignments
+      view_candidate_documents
+      view_workflow
+      manage_payments
+    ],
+    'management' => %w[
+      view_candidates
+      view_candidate_assignments
+      view_candidate_documents
+      view_workflow
+      view_payments
+      view_communications
+      view_audit_events
     ]
   }.freeze
 
@@ -40,6 +71,7 @@ class CreateRolesAndPermissions < ActiveRecord::Migration[8.1]
     end
 
     add_index :roles, :code, unique: true
+    add_check_constraint :roles, "code ~ '^[a-z0-9_]+$'", name: 'roles_code_format'
 
     create_table :permissions do |t|
       t.string :code, null: false
@@ -50,6 +82,7 @@ class CreateRolesAndPermissions < ActiveRecord::Migration[8.1]
     end
 
     add_index :permissions, :code, unique: true
+    add_check_constraint :permissions, "code ~ '^[a-z0-9_]+$'", name: 'permissions_code_format'
 
     create_table :role_permissions do |t|
       t.references :role, null: false, foreign_key: { on_delete: :cascade }
@@ -64,22 +97,22 @@ class CreateRolesAndPermissions < ActiveRecord::Migration[8.1]
 
     execute <<~SQL.squish
       UPDATE users
-      SET role = 'staff'
-      WHERE role = 'member'
+      SET role = 'hr'
+      WHERE role IN ('member', 'staff')
     SQL
 
-    change_column_default :users, :role, from: 'member', to: 'staff'
+    change_column_default :users, :role, from: 'member', to: 'hr'
     add_foreign_key :users, :roles, column: :role, primary_key: :code
   end
 
   def down
     remove_foreign_key :users, column: :role
-    change_column_default :users, :role, from: 'staff', to: 'member'
+    change_column_default :users, :role, from: 'hr', to: 'member'
 
     execute <<~SQL.squish
       UPDATE users
       SET role = 'member'
-      WHERE role = 'staff'
+      WHERE role IN ('hr', 'mps', 'finance', 'management')
     SQL
 
     drop_table :role_permissions

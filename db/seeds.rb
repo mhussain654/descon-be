@@ -17,13 +17,35 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
 
 {
   'admin' => Permission::SYSTEM_PERMISSIONS.map { |permission| permission.fetch(:code) },
-  'staff' => %w[
+  'hr' => %w[
     manage_candidates
+    manage_candidate_documents
+    manage_communications
+    view_candidate_assignments
+    view_workflow
+  ],
+  'mps' => %w[
+    view_candidates
     manage_candidate_assignments
     manage_candidate_documents
     manage_workflow
-    manage_payments
     manage_communications
+  ],
+  'finance' => %w[
+    view_candidates
+    view_candidate_assignments
+    view_candidate_documents
+    view_workflow
+    manage_payments
+  ],
+  'management' => %w[
+    view_candidates
+    view_candidate_assignments
+    view_candidate_documents
+    view_workflow
+    view_payments
+    view_communications
+    view_audit_events
   ]
 }.each do |role_code, permission_codes|
   permission_codes.each do |permission_code|

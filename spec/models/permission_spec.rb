@@ -14,4 +14,19 @@ RSpec.describe Permission, type: :model do
     let(:expected_english_name) { 'Manage candidates' }
     let(:expected_urdu_name) { 'امیدواروں کا انتظام' }
   end
+
+  it 'prevents mutating system-defined permission codes' do
+    permission = create(:permission, code: 'manage_candidates', system_defined: true)
+
+    permission.code = 'changed'
+
+    expect(permission).not_to be_valid
+    expect(permission.errors[:base]).to be_present
+  end
+
+  it 'prevents destroying system-defined permissions' do
+    permission = create(:permission, code: 'view_candidates', system_defined: true)
+
+    expect(permission.destroy).to be(false)
+  end
 end

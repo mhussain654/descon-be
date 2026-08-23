@@ -13,7 +13,7 @@ class CandidateDocument < ApplicationRecord
 
   validates :status_code, presence: true, inclusion: { in: STATUS_CODES }
   validates :uploaded_at, presence: true
-  validate :verification_fields_are_paired
+  validate :status_consistency
 
   private
 
@@ -25,14 +25,40 @@ class CandidateDocument < ApplicationRecord
     self.checksum_sha256 = checksum_sha256.to_s.strip.downcase.presence
   end
 
-  def verification_fields_are_paired
-    return if verification_fields_paired?
-
-    errors.add(:verified_by, :blank) if verified_by_id.blank?
-    errors.add(:verified_at, :blank) if verified_at.blank?
+  def status_consistency
+    case status_code
+    when 'uploaded', 'under_verification'
+      require_unreviewed_state
+    when 'verified'
+      require_verified_state
+    when 'rejected'
+      require_rejected_state
+    end
   end
 
-  def verification_fields_paired?
-    verified_by_id.present? == verified_at.present?
+  def require_present(attribute, value)
+    errors.add(attribute, :blank) if value.blank?
+  end
+
+  def require_absent(attribute, value)
+    errors.add(attribute, :present) if value.present?
+  end
+
+  def require_unreviewed_state
+    require_absent(:verified_by, verified_by_id)
+    require_absent(:verified_at, verified_at)
+    require_absent(:rejection_reason, rejection_reason)
+  end
+
+  def require_verified_state
+    require_present(:verified_by, verified_by_id)
+    require_present(:verified_at, verified_at)
+    require_absent(:rejection_reason, rejection_reason)
+  end
+
+  def require_rejected_state
+    require_present(:verified_by, verified_by_id)
+    require_present(:verified_at, verified_at)
+    require_present(:rejection_reason, rejection_reason)
   end
 end

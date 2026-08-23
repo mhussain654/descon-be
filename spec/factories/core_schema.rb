@@ -11,8 +11,23 @@ FactoryBot.define do
       system_defined { true }
     end
 
-    trait :staff do
-      code { 'staff' }
+    trait :hr do
+      code { 'hr' }
+      system_defined { true }
+    end
+
+    trait :mps do
+      code { 'mps' }
+      system_defined { true }
+    end
+
+    trait :finance do
+      code { 'finance' }
+      system_defined { true }
+    end
+
+    trait :management do
+      code { 'management' }
       system_defined { true }
     end
   end
@@ -106,7 +121,8 @@ FactoryBot.define do
 
   factory :candidate_stage_history do
     candidate_assignment
-    workflow_stage
+    from_workflow_stage { association(:workflow_stage, :registered) }
+    to_workflow_stage { association(:workflow_stage) }
     actor { nil }
     occurred_at { Time.current }
     reason_code { nil }

@@ -12,6 +12,12 @@ class Permission < ApplicationRecord
     { code: 'manage_workflow' },
     { code: 'manage_payments' },
     { code: 'manage_communications' },
+    { code: 'view_candidates' },
+    { code: 'view_candidate_assignments' },
+    { code: 'view_candidate_documents' },
+    { code: 'view_workflow' },
+    { code: 'view_payments' },
+    { code: 'view_communications' },
     { code: 'view_audit_events' }
   ].freeze
 
@@ -20,8 +26,27 @@ class Permission < ApplicationRecord
 
   validates :code, presence: true, uniqueness: true, format: { with: /\A[a-z0-9_]+\z/ }
   validates :active, :system_defined, inclusion: { in: [true, false] }
+  validate :protect_system_definition_changes, on: :update
+
+  before_destroy :prevent_system_destroy
 
   def self.i18n_name_scope
     'reference_data.permissions'
+  end
+
+  private
+
+  def prevent_system_destroy
+    return unless system_defined?
+
+    errors.add(:base, :invalid)
+    throw :abort
+  end
+
+  def protect_system_definition_changes
+    return unless system_defined?
+    return unless changes_to_save.key?('code')
+
+    errors.add(:base, :invalid)
   end
 end

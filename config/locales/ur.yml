@@ -2,7 +2,10 @@ ur:
   reference_data:
     roles:
       admin: "منتظم"
-      staff: "عملہ"
+      hr: "ہیومن ریسورسز"
+      mps: "ایم پی ایس"
+      finance: "فنانس"
+      management: "مینجمنٹ"
     permissions:
       manage_staff_users: "اسٹاف صارفین کا انتظام"
       manage_roles_permissions: "رولز اور اجازتوں کا انتظام"
@@ -12,6 +15,12 @@ ur:
       manage_workflow: "ورک فلو کا انتظام"
       manage_payments: "ادائیگیوں کا انتظام"
       manage_communications: "مواصلات کا انتظام"
+      view_candidates: "امیدوار دیکھیں"
+      view_candidate_assignments: "امیدوار اسائنمنٹس دیکھیں"
+      view_candidate_documents: "امیدوار دستاویزات دیکھیں"
+      view_workflow: "ورک فلو دیکھیں"
+      view_payments: "ادائیگیاں دیکھیں"
+      view_communications: "مواصلات دیکھیں"
       view_audit_events: "آڈٹ ایونٹس دیکھیں"
     workflow_stages:
       registered: "رجسٹرڈ"

@@ -3,6 +3,8 @@
 class User < ApplicationRecord
   devise :database_authenticatable, :recoverable, :lockable, :validatable
 
+  STAFF_ROLE_CODES = %w[hr mps finance management].freeze
+
   belongs_to :staff_role, class_name: 'Role', foreign_key: :role, primary_key: :code, inverse_of: :users
 
   has_many :sessions, dependent: :destroy
@@ -37,11 +39,27 @@ class User < ApplicationRecord
   end
 
   def admin?
-    role == 'admin'
+    role?('admin')
   end
 
   def staff?
-    role == 'staff'
+    STAFF_ROLE_CODES.include?(role)
+  end
+
+  def hr?
+    role?('hr')
+  end
+
+  def mps?
+    role?('mps')
+  end
+
+  def finance?
+    role?('finance')
+  end
+
+  def management?
+    role?('management')
   end
 
   def permission?(permission_code)
@@ -49,6 +67,10 @@ class User < ApplicationRecord
   end
 
   private
+
+  def role?(role_code)
+    role == role_code
+  end
 
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
