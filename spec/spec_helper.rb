@@ -23,7 +23,7 @@ RSpec.configure do |config|
   end
 
   config.shared_context_metadata_behavior = :apply_to_host_groups
-  config.example_status_persistence_file_path = 'spec/examples.txt'
+  config.example_status_persistence_file_path = 'tmp/rspec_examples.txt'
   config.disable_monkey_patching!
   config.filter_run_when_matching :focus
   config.profile_examples = 10

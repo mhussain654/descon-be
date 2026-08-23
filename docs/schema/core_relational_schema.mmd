@@ -1,0 +1,191 @@
+erDiagram
+  roles ||--o{ users : assigns
+  roles ||--o{ role_permissions : grants
+  permissions ||--o{ role_permissions : includes
+
+  users ||--o{ candidates : creates
+  users ||--o{ candidate_assignments : creates
+  users ||--o{ candidate_stage_histories : acts_on
+  users ||--o{ candidate_documents : uploads_or_verifies
+  users ||--o{ payments : records
+  users ||--o{ communications : initiates
+  users ||--o{ audit_events : performs
+
+  candidates ||--o{ candidate_assignments : owns
+  candidates ||--o{ audit_events : relates_to
+
+  countries ||--o{ candidate_assignments : scopes
+  projects ||--o{ candidate_assignments : scopes
+  crafts ||--o{ candidate_assignments : scopes
+  workflow_stages ||--o{ candidate_assignments : current_stage
+
+  workflow_stages ||--o{ candidate_stage_histories : from_stage
+  workflow_stages ||--o{ candidate_stage_histories : to_stage
+  candidate_assignments ||--o{ candidate_stage_histories : tracks
+
+  document_types ||--o{ document_requirements : defines
+  countries ||--o{ document_requirements : scopes
+  projects ||--o{ document_requirements : scopes
+  crafts ||--o{ document_requirements : scopes
+
+  candidate_assignments ||--o{ candidate_documents : stores
+  document_types ||--o{ candidate_documents : categorizes
+
+  candidate_assignments ||--o{ payments : bills
+  candidate_assignments ||--o{ communications : contacts
+  candidate_assignments ||--o{ audit_events : audits
+
+  roles {
+    bigint id PK
+    string code UK
+    boolean system_defined
+    boolean active
+  }
+
+  permissions {
+    bigint id PK
+    string code UK
+    boolean system_defined
+    boolean active
+  }
+
+  role_permissions {
+    bigint id PK
+    bigint role_id FK
+    bigint permission_id FK
+  }
+
+  users {
+    bigint id PK
+    string public_id UK
+    string email UK
+    string role FK
+    boolean active
+  }
+
+  candidates {
+    bigint id PK
+    string public_id UK
+    string full_name
+    string cnic UK
+    string mobile_number
+    string passport_number UK
+    string preferred_locale
+    string source_code
+    bigint created_by_id FK
+  }
+
+  countries {
+    bigint id PK
+    string code UK
+    string name_en
+    string name_ur
+    boolean active
+  }
+
+  projects {
+    bigint id PK
+    string code UK
+    string name_en
+    string name_ur
+    boolean active
+  }
+
+  crafts {
+    bigint id PK
+    string code UK
+    string name_en
+    string name_ur
+    boolean active
+  }
+
+  workflow_stages {
+    bigint id PK
+    string code UK
+    int position UK
+    boolean system_defined
+    boolean active
+  }
+
+  candidate_assignments {
+    bigint id PK
+    string public_id UK
+    bigint candidate_id FK
+    bigint country_id FK
+    bigint project_id FK
+    bigint craft_id FK
+    string reference_number UK
+    bigint current_workflow_stage_id FK
+    string qvc_outcome_code
+    date qvc_outcome_date
+    bigint created_by_id FK
+  }
+
+  candidate_stage_histories {
+    bigint id PK
+    bigint candidate_assignment_id FK
+    bigint from_workflow_stage_id FK
+    bigint to_workflow_stage_id FK
+    bigint actor_id FK
+    datetime occurred_at
+    string reason_code
+    text note
+  }
+
+  document_types {
+    bigint id PK
+    string code UK
+    string name_en
+    string name_ur
+    boolean active
+  }
+
+  document_requirements {
+    bigint id PK
+    bigint document_type_id FK
+    bigint country_id FK
+    bigint project_id FK
+    bigint craft_id FK
+    boolean required
+    boolean active
+  }
+
+  candidate_documents {
+    bigint id PK
+    bigint candidate_assignment_id FK
+    bigint document_type_id FK
+    string status_code
+    datetime uploaded_at
+    datetime verified_at
+  }
+
+  payments {
+    bigint id PK
+    string public_id UK
+    bigint candidate_assignment_id FK
+    string payment_type_code
+    string status_code
+    decimal amount
+    string currency_code
+  }
+
+  communications {
+    bigint id PK
+    string public_id UK
+    bigint candidate_assignment_id FK
+    string channel_code
+    string direction_code
+    string status_code
+    string locale
+  }
+
+  audit_events {
+    bigint id PK
+    bigint candidate_id FK
+    bigint candidate_assignment_id FK
+    bigint actor_id FK
+    string entity_type
+    bigint entity_id
+    string action_code
+    datetime occurred_at
+  }

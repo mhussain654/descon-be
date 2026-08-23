@@ -30,6 +30,7 @@ Database preparation runs automatically when the API container starts.
 bundle install
 cp .env.example .env
 bundle exec rails db:prepare
+bundle exec rails db:seed
 bundle exec rails server
 ```
 
@@ -43,6 +44,8 @@ If you want the full local setup without starting the server immediately:
 ```bash
 bin/setup --skip-server
 ```
+
+`db:seed` is required for baseline reference data such as the system roles (`admin`, `hr`, `mps`, `finance`, `management`), scoped permissions, and the canonical workflow stages. The seed file is idempotent and safe to rerun.
 
 ## Environment variables
 
@@ -151,3 +154,8 @@ Database-backed translated content should stay out of static locale files. Store
 - `GET /api/v1/users/profile`
 - `GET /api/v1/health/live`
 - `GET /api/v1/health/ready`
+
+## Schema Docs
+
+- ERD: `docs/schema/core_relational_schema.mmd`
+- Schema notes: `docs/schema/core_relational_schema.md`
