@@ -52,12 +52,10 @@ module CandidateAuthentication
       # what lets VerifyService return otp_expired/otp_max_attempts
       # symmetrically for both, instead of only ever for a real candidate.
       def request_challenge
-        return if within_resend_cooldown?
+        challenge_payload = create_challenge_payload
+        return unless challenge_payload
 
-        candidate = Candidate.find_by(cnic: @cnic)
-        result = CandidateOtpChallenge.generate_for(candidate:, cnic: @cnic, requested_ip: @ip_address)
-
-        candidate ? deliver(candidate:, code: result.fetch(:code)) : deliver_decoy(code: result.fetch(:code))
+        deliver_challenge(challenge_payload)
       end
 
       def within_resend_cooldown?
@@ -69,8 +67,8 @@ module CandidateAuthentication
         CandidateOtpChallenge.where(cnic: @cnic).order(created_at: :desc).first
       end
 
-      def deliver(candidate:, code:)
-        body = sms_body(code:, locale: candidate.preferred_locale)
+      def deliver(candidate:, code:, locale:)
+        body = sms_body(code:, locale:)
         result = Sms::SendMessage.call(to: candidate.mobile_number, body:)
         return if result.success?
 
@@ -89,10 +87,37 @@ module CandidateAuthentication
 
       # Result and any error are both discarded -- this call exists purely
       # to pay the same latency as #deliver, never to reach a real recipient.
-      def deliver_decoy(code:)
-        Sms::SendMessage.call(to: DECOY_MOBILE_NUMBER, body: sms_body(code:, locale: 'en'))
+      def deliver_decoy(code:, locale:)
+        Sms::SendMessage.call(to: DECOY_MOBILE_NUMBER, body: sms_body(code:, locale:))
       rescue StandardError
         nil
+      end
+
+      def create_challenge_payload
+        challenge_payload = nil
+
+        ActiveRecord::Base.transaction do
+          lock_cnic!
+          next if within_resend_cooldown?
+
+          candidate = Candidate.find_by(cnic: @cnic)
+          challenge_payload = CandidateOtpChallenge.generate_for(candidate:, cnic: @cnic, requested_ip: @ip_address)
+          challenge_payload[:candidate] = candidate
+        end
+
+        challenge_payload
+      end
+
+      def deliver_challenge(challenge_payload)
+        candidate = challenge_payload.fetch(:candidate)
+        code = challenge_payload.fetch(:code)
+        locale = I18n.locale.to_s
+
+        candidate ? deliver(candidate:, code:, locale:) : deliver_decoy(code:, locale:)
+      end
+
+      def lock_cnic!
+        Database::AdvisoryTransactionLock.call(scope: 'candidate_otp.request', key: @cnic)
       end
 
       def sms_body(code:, locale:)

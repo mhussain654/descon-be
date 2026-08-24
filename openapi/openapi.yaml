@@ -681,7 +681,7 @@ paths:
   /api/v1/candidate/auth/otp/verify:
     post:
       summary: Verify a candidate OTP and obtain an access/refresh token pair
-      description: Unknown CNIC, no requested challenge, an already-consumed challenge, and an incorrect code against a real challenge all return the identical otp_invalid error -- distinguishable errors (otp_expired, otp_max_attempts) are only ever returned once a real, active challenge for a resolvable candidate has already been matched, so they cannot be used to enumerate identities.
+      description: Unknown CNIC, no requested challenge, an already-consumed challenge, and an incorrect code against a real challenge all return the identical otp_invalid error -- distinguishable errors (otp_expired, otp_max_attempts) are intentionally reachable for both real and decoy challenges, so they cannot be used to enumerate identities.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'

@@ -66,35 +66,63 @@ module CandidateAuthentication
       # costs the same as a real candidate's; only the candidate check
       # below, not the comparison itself, gates success.
       def evaluate(challenge:)
-        raise OtpInvalidError if challenge.consumed?
-        raise OtpExpiredError if challenge.expired?
-        raise OtpMaxAttemptsError if challenge.locked?
+        result, raised_error = evaluate_challenge(challenge)
 
-        matched = challenge.match?(@code)
+        raise raised_error if raised_error
 
-        if matched && challenge.candidate
-          succeed(candidate: challenge.candidate, challenge:)
-        else
-          fail_attempt(challenge)
-        end
+        result
       end
 
-      def fail_attempt(challenge)
-        challenge.register_failed_attempt!
-        raise(challenge.locked? ? OtpMaxAttemptsError : OtpInvalidError)
+      def evaluate_challenge(challenge)
+        result = nil
+        raised_error = nil
+
+        ActiveRecord::Base.transaction do
+          challenge.lock!
+          next if challenge_state_error_present?(challenge) { |error| raised_error = error }
+
+          result, raised_error = handle_challenge_match(challenge)
+        end
+
+        [result, raised_error]
+      end
+
+      def challenge_state_error_present?(challenge)
+        error = challenge_state_error(challenge)
+        return false unless error
+
+        yield(error)
+        true
+      end
+
+      def handle_challenge_match(challenge)
+        if challenge.match?(@code) && challenge.candidate
+          [succeed(candidate: challenge.candidate, challenge:), nil]
+        else
+          challenge.register_failed_attempt!
+          [nil, failed_attempt_error(challenge)]
+        end
       end
 
       def succeed(candidate:, challenge:)
         challenge.consume!
         candidate_session = candidate.candidate_sessions.create!(user_agent: @user_agent, ip_address: @ip_address)
-        issue_tokens(candidate:, candidate_session:)
-      end
-
-      def issue_tokens(candidate:, candidate_session:)
-        access_token = TokenIssuer.call(candidate:, candidate_session:)
         refresh_token = RefreshTokenIssuer.call(candidate_session:)
+        access_token = TokenIssuer.call(candidate:, candidate_session:)
 
         { candidate:, candidate_session:, access_token:, refresh_token: }
+      end
+
+      def challenge_state_error(challenge)
+        return OtpInvalidError if challenge.consumed?
+        return OtpExpiredError if challenge.expired?
+        return OtpMaxAttemptsError if challenge.locked?
+
+        nil
+      end
+
+      def failed_attempt_error(challenge)
+        challenge.locked? ? OtpMaxAttemptsError : OtpInvalidError
       end
     end
   end

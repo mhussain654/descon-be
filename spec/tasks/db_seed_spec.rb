@@ -12,6 +12,21 @@ RSpec.describe 'db:seed rake task' do
     Rake::Task['db:seed'].reenable
   end
 
+  around do |example|
+    CandidateOtpChallenge.delete_all
+    CandidateRefreshToken.delete_all
+    CandidateSession.delete_all
+    Candidate.delete_all
+    User.delete_all
+    example.run
+  ensure
+    CandidateOtpChallenge.delete_all
+    CandidateRefreshToken.delete_all
+    CandidateSession.delete_all
+    Candidate.delete_all
+    User.delete_all
+  end
+
   it 'runs cleanly against the current (fresh, migrated, empty) database' do
     expect { Rake::Task['db:seed'].invoke }.not_to raise_error
   end
@@ -61,8 +76,20 @@ RSpec.describe 'db:seed rake task' do
     expect(User.find_by(email: 'seed-data@descon.local')).to be_nil
   end
 
-  it 'seeds the reserved demo candidates that exercise MPS-201, outside the test environment' do
-    allow(Rails.env).to receive(:test?).and_return(false)
+  it 'does not seed the reserved demo candidates by default outside development' do
+    allow(Rails.env).to receive_messages(test?: false, development?: false)
+
+    Rake::Task['db:seed'].invoke
+
+    expect(Candidate.find_by(cnic: '11111-1111111-1')).to be_nil
+    expect(Candidate.find_by(cnic: '22222-2222222-2')).to be_nil
+    expect(User.find_by(email: 'seed-data@descon.local')).to be_nil
+  end
+
+  it 'seeds the reserved demo candidates only in development with explicit opt-in' do
+    allow(Rails.env).to receive(:development?).and_return(true)
+    allow(ENV).to receive(:fetch).and_call_original
+    allow(ENV).to receive(:fetch).with('SEED_DEMO_DATA', 'false').and_return('true')
 
     Rake::Task['db:seed'].invoke
 

@@ -155,7 +155,7 @@ end
 # demo candidates exist for manual/frontend exploratory testing against a
 # real running server (see README), not as automated-test fixtures, so
 # skipping them in test is correct, not just a workaround.
-unless Rails.env.test?
+if Rails.env.development? && ENV.fetch('SEED_DEMO_DATA', 'false') == 'true'
   seed_user = User.find_or_create_by!(email: 'seed-data@descon.local') do |user|
     user.password = SecureRandom.hex(32)
     user.role = 'admin'

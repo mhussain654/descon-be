@@ -9,9 +9,10 @@ module Candidates
   # boundary").
   module CnicNormalizer
     def self.call(raw_cnic)
-      digits = raw_cnic.to_s.gsub(/\D/, '')
-      return raw_cnic.to_s if digits.length != 13
+      normalized_input = raw_cnic.to_s.strip
+      return normalized_input unless normalized_input.match?(/\A(?:\d{13}|\d{5}-\d{7}-\d)\z/)
 
+      digits = normalized_input.delete('-')
       "#{digits[0, 5]}-#{digits[5, 7]}-#{digits[12]}"
     end
   end

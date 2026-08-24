@@ -3,6 +3,23 @@
 require 'rails_helper'
 
 RSpec.describe CandidateAuthentication::Otp::VerifyService do
+  self.use_transactional_tests = false
+
+  around do |example|
+    CandidateOtpChallenge.delete_all
+    CandidateRefreshToken.delete_all
+    CandidateSession.delete_all
+    Candidate.delete_all
+    User.delete_all
+    example.run
+  ensure
+    CandidateOtpChallenge.delete_all
+    CandidateRefreshToken.delete_all
+    CandidateSession.delete_all
+    Candidate.delete_all
+    User.delete_all
+  end
+
   def call(cnic:, code:)
     described_class.call(cnic:, code:, user_agent: 'RSpec', ip_address: '10.0.0.1')
   end
@@ -47,6 +64,42 @@ RSpec.describe CandidateAuthentication::Otp::VerifyService do
         expect(decoded['aud']).to eq(ENV.fetch('CANDIDATE_JWT_AUDIENCE', 'candidate_api_clients'))
         expect { Authentication::TokenDecoder.call(token: outcome.fetch(:access_token)) }
           .to raise_error(JWT::InvalidAudError)
+      end
+
+      it 'allows only one concurrent success for the same OTP' do
+        candidate = create(:candidate)
+        result = CandidateOtpChallenge.generate_for(candidate:)
+        outcomes = Queue.new
+
+        worker = lambda do
+          ActiveRecord::Base.connection_pool.with_connection do
+            payload = call(cnic: candidate.cnic, code: result.fetch(:code))
+            outcomes << [:success, payload.fetch(:candidate_session).id]
+          rescue OtpInvalidError => e
+            outcomes << [:error, e.code]
+          end
+        end
+
+        threads = Array.new(2) { Thread.new(&worker) }
+        threads.each(&:join)
+        results = Array.new(2) { outcomes.pop }
+
+        expect(results.count { |type, _| type == :success }).to eq(1)
+        expect(results.count { |type, code| type == :error && code == 'otp_invalid' }).to eq(1)
+        expect(CandidateSession.where(candidate:).count).to eq(1)
+        expect(result.fetch(:challenge).reload).to be_consumed
+      end
+
+      it 'rolls back challenge consumption when session or token persistence fails' do
+        candidate = create(:candidate)
+        result = CandidateOtpChallenge.generate_for(candidate:)
+        allow(CandidateAuthentication::RefreshTokenIssuer).to receive(:call).and_raise(StandardError, 'boom')
+
+        expect { call(cnic: candidate.cnic, code: result.fetch(:code)) }.to raise_error(StandardError, 'boom')
+
+        expect(result.fetch(:challenge).reload).not_to be_consumed
+        expect(CandidateSession.where(candidate:).count).to eq(0)
+        expect(CandidateRefreshToken.count).to eq(0)
       end
     end
 

@@ -74,6 +74,51 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
 
       expect(CandidateOtpChallenge.find_by(cnic: '99999-9999999-9')).to be_present
     end
+
+    it 'uses Urdu for the OTP SMS when X-Locale is ur' do
+      delivered_body = nil
+      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
+        delivered_body = kwargs.fetch(:body)
+        Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
+      end
+
+      post '/api/v1/candidate/auth/otp/request',
+           params: { candidate: { cnic: candidate.cnic } },
+           headers: { 'X-Locale' => 'ur' }
+
+      expect(response).to have_http_status(:ok)
+      expect(delivered_body).to start_with('آپ کا ڈیسکون مین پاور تصدیقی کوڈ ')
+    end
+
+    it 'uses English for the OTP SMS when X-Locale is en' do
+      delivered_body = nil
+      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
+        delivered_body = kwargs.fetch(:body)
+        Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
+      end
+
+      post '/api/v1/candidate/auth/otp/request',
+           params: { candidate: { cnic: candidate.cnic } },
+           headers: { 'X-Locale' => 'en' }
+
+      expect(response).to have_http_status(:ok)
+      expect(delivered_body).to start_with('Your Descon Manpower verification code is ')
+    end
+
+    it 'uses the same selected locale path for an unknown-CNIC decoy SMS' do
+      delivered_body = nil
+      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
+        delivered_body = kwargs.fetch(:body)
+        Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
+      end
+
+      post '/api/v1/candidate/auth/otp/request',
+           params: { candidate: { cnic: '99999-9999999-9' } },
+           headers: { 'X-Locale' => 'ur' }
+
+      expect(response).to have_http_status(:ok)
+      expect(delivered_body).to start_with('آپ کا ڈیسکون مین پاور تصدیقی کوڈ ')
+    end
   end
 
   describe 'POST /api/v1/candidate/auth/otp/verify' do
