@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# A candidate's most recent challenge is always the only one that can
+# The most recent challenge for a CNIC is always the only one that can
 # succeed at verify (see CandidateAuthentication::Otp::VerifyService) --
 # requesting a fresh code naturally invalidates any earlier one without
 # needing to explicitly mark it superseded.
@@ -16,8 +16,14 @@ class CandidateOtpChallenge < ApplicationRecord
   RESEND_COOLDOWN = ENV.fetch('OTP_RESEND_COOLDOWN_SECONDS', 60).to_i.seconds
   MAX_ATTEMPTS = ENV.fetch('OTP_MAX_ATTEMPTS', 5).to_i
 
-  belongs_to :candidate
+  # Optional: a challenge with no candidate is a decoy, created for a CNIC
+  # that does not resolve to a real candidate (see
+  # CandidateAuthentication::Otp::RequestService) so /verify always has a
+  # real row to evaluate either way, closing the otp_expired/otp_max_attempts
+  # identity-enumeration oracle.
+  belongs_to :candidate, optional: true
 
+  validates :cnic, presence: true
   validates :code_digest, presence: true
   validates :expires_at, presence: true
   validates :attempts, numericality: { greater_than_or_equal_to: 0 }
@@ -26,10 +32,14 @@ class CandidateOtpChallenge < ApplicationRecord
   # code exists only in this return value and the caller's local scope --
   # it is never persisted or logged (AGENTS.md: "OTP values must be random,
   # short-lived, single-use and stored as a digest" / ticket: "OTP is never
-  # returned in any API response or log").
-  def self.generate_for(candidate:, requested_ip: nil)
+  # returned in any API response or log"). `cnic` defaults from `candidate`
+  # for the real-candidate case; the decoy case has no candidate and must
+  # pass `cnic` explicitly.
+  def self.generate_for(candidate: nil, cnic: candidate&.cnic, requested_ip: nil)
     code = SecureRandom.random_number(10**CODE_LENGTH).to_s.rjust(CODE_LENGTH, '0')
-    challenge = candidate.candidate_otp_challenges.create!(
+    challenge = create!(
+      candidate:,
+      cnic:,
       code_digest: BCrypt::Password.create(code),
       expires_at: EXPIRY_WINDOW.from_now,
       requested_ip:

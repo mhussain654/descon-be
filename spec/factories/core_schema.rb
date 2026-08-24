@@ -110,6 +110,7 @@ FactoryBot.define do
 
   factory :candidate_otp_challenge do
     candidate
+    cnic { candidate&.cnic }
     code_digest { BCrypt::Password.create('123456') }
     expires_at { CandidateOtpChallenge::EXPIRY_WINDOW.from_now }
     consumed_at { nil }
@@ -126,6 +127,12 @@ FactoryBot.define do
 
     trait :locked do
       attempts { CandidateOtpChallenge::MAX_ATTEMPTS }
+    end
+
+    # A challenge for a CNIC that does not resolve to any real candidate.
+    trait :decoy do
+      candidate { nil }
+      sequence(:cnic) { |n| "#{format('%05d', 90_000 + n)}-#{format('%07d', 9_000_000 + n)}-9" }
     end
   end
 

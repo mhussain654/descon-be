@@ -68,6 +68,12 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
 
       expect(response).to have_http_status(:too_many_requests)
     end
+
+    it 'creates a decoy challenge for an unknown CNIC so /verify has a symmetric response for it' do
+      request_otp('99999-9999999-9')
+
+      expect(CandidateOtpChallenge.find_by(cnic: '99999-9999999-9')).to be_present
+    end
   end
 
   describe 'POST /api/v1/candidate/auth/otp/verify' do
@@ -150,6 +156,31 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       end
 
       expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it 'returns otp_expired for an unknown CNIC once its decoy challenge has expired, identical to a real candidate' do
+      unknown_cnic = '99999-9999999-9'
+      request_otp(unknown_cnic)
+      CandidateOtpChallenge.find_by(cnic: unknown_cnic).update!(expires_at: 1.minute.ago)
+
+      verify_otp(cnic: unknown_cnic, code: '000000')
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('otp_expired')
+    end
+
+    it 'returns otp_max_attempts for an unknown CNIC once attempts are exhausted, identical to a real candidate' do
+      unknown_cnic = '99999-9999999-9'
+      # Created directly (as latest_code_for does for a real candidate above)
+      # rather than via the /request endpoint, so this test's MAX_ATTEMPTS
+      # verify calls stay within the shared candidate_otp/cnic rate limit
+      # instead of also spending a request against it.
+      CandidateOtpChallenge.generate_for(cnic: unknown_cnic)
+
+      CandidateOtpChallenge::MAX_ATTEMPTS.times { verify_otp(cnic: unknown_cnic, code: '000000') }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('otp_max_attempts')
     end
   end
 end

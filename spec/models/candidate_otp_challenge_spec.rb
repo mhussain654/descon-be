@@ -15,6 +15,21 @@ RSpec.describe CandidateOtpChallenge, type: :model do
       expect(result.fetch(:code)).to match(/\A\d{6}\z/)
     end
 
+    it 'defaults cnic from the candidate when cnic is not given explicitly' do
+      candidate = create(:candidate)
+      result = described_class.generate_for(candidate:)
+      expect(result.fetch(:challenge).cnic).to eq(candidate.cnic)
+    end
+
+    it 'creates a decoy challenge with no candidate for a CNIC that does not resolve to one' do
+      result = described_class.generate_for(cnic: '99999-9999999-9')
+
+      expect(result.fetch(:challenge)).to be_persisted
+      expect(result.fetch(:challenge).candidate).to be_nil
+      expect(result.fetch(:challenge).cnic).to eq('99999-9999999-9')
+      expect(result.fetch(:code)).to match(/\A\d{6}\z/)
+    end
+
     it 'stores the code only as a bcrypt digest, never in plaintext' do
       result = described_class.generate_for(candidate: create(:candidate))
 
@@ -83,8 +98,9 @@ RSpec.describe CandidateOtpChallenge, type: :model do
   end
 
   describe 'validations' do
+    it { is_expected.to validate_presence_of(:cnic) }
     it { is_expected.to validate_presence_of(:code_digest) }
     it { is_expected.to validate_presence_of(:expires_at) }
-    it { is_expected.to belong_to(:candidate) }
+    it { is_expected.to belong_to(:candidate).optional }
   end
 end

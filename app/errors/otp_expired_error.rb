@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
-# Only ever raised once a real, active challenge for a resolvable candidate
-# has already been matched by verify -- never reachable for an unknown CNIC
-# (see OtpInvalidError), so it does not function as an existence oracle.
+# Raised once any active challenge -- real or decoy (see
+# CandidateOtpChallenge#belongs_to :candidate, optional: true) -- has
+# expired. Reachable for both a real candidate and an unknown CNIC that
+# previously called /request, so it does not function as an existence
+# oracle.
 class OtpExpiredError < BaseError
   def initialize(message: nil)
     message ||= I18n.t('api.errors.otp_expired')

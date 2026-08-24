@@ -11,7 +11,18 @@ module CandidateAuthentication
     # this class treats as "invalid mobile" is an SMS-provider-level
     # delivery failure for an otherwise well-formed number, which never
     # changes the response either.
+    #
+    # An unknown CNIC also gets a real challenge row and a real call through
+    # the SMS adapter (see #deliver_decoy) -- both at the same cost as a real
+    # candidate's -- so neither this endpoint's response body nor its
+    # latency can be used to distinguish a known CNIC from an unknown one.
     class RequestService < ApplicationService
+      # A well-formed-looking, never-real number used only so a decoy
+      # delivery attempt exercises the same SMS-adapter code path, at the
+      # same cost, as a real candidate's delivery. Mirrors VerifyService's
+      # DUMMY_DIGEST, which gives the same guarantee to /verify.
+      DECOY_MOBILE_NUMBER = '+920000000001'
+
       def initialize(cnic:, ip_address:)
         @cnic = Candidates::CnicNormalizer.call(cnic)
         @ip_address = ip_address
@@ -20,8 +31,7 @@ module CandidateAuthentication
       def call
         raise ValidationError.new(field: 'cnic', message: I18n.t('api.errors.cnic_invalid')) unless valid_cnic_format?
 
-        candidate = Candidate.find_by(cnic: @cnic)
-        request_challenge(candidate) if candidate
+        request_challenge
 
         {
           expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
@@ -35,24 +45,33 @@ module CandidateAuthentication
         @cnic.match?(Candidate::CNIC_FORMAT)
       end
 
-      def request_challenge(candidate)
-        return if within_resend_cooldown?(candidate)
+      # Always creates a challenge row and always calls through the SMS
+      # adapter, for a real candidate or a decoy alike, so an unknown CNIC is
+      # handled by the identical code path as a real one (see
+      # CandidateOtpChallenge#belongs_to :candidate, optional: true). This is
+      # what lets VerifyService return otp_expired/otp_max_attempts
+      # symmetrically for both, instead of only ever for a real candidate.
+      def request_challenge
+        return if within_resend_cooldown?
 
-        result = CandidateOtpChallenge.generate_for(candidate:, requested_ip: @ip_address)
-        deliver(candidate:, code: result.fetch(:code))
+        candidate = Candidate.find_by(cnic: @cnic)
+        result = CandidateOtpChallenge.generate_for(candidate:, cnic: @cnic, requested_ip: @ip_address)
+
+        candidate ? deliver(candidate:, code: result.fetch(:code)) : deliver_decoy(code: result.fetch(:code))
       end
 
-      def within_resend_cooldown?(candidate)
-        latest = latest_challenge_for(candidate)
+      def within_resend_cooldown?
+        latest = latest_challenge_for_cnic
         latest.present? && latest.created_at > CandidateOtpChallenge::RESEND_COOLDOWN.ago
       end
 
-      def latest_challenge_for(candidate)
-        candidate.candidate_otp_challenges.order(created_at: :desc).first
+      def latest_challenge_for_cnic
+        CandidateOtpChallenge.where(cnic: @cnic).order(created_at: :desc).first
       end
 
       def deliver(candidate:, code:)
-        result = Sms::SendMessage.call(to: candidate.mobile_number, body: sms_body(candidate:, code:))
+        body = sms_body(code:, locale: candidate.preferred_locale)
+        result = Sms::SendMessage.call(to: candidate.mobile_number, body:)
         return if result.success?
 
         Rails.logger.warn(
@@ -68,12 +87,20 @@ module CandidateAuthentication
         )
       end
 
-      def sms_body(candidate:, code:)
+      # Result and any error are both discarded -- this call exists purely
+      # to pay the same latency as #deliver, never to reach a real recipient.
+      def deliver_decoy(code:)
+        Sms::SendMessage.call(to: DECOY_MOBILE_NUMBER, body: sms_body(code:, locale: 'en'))
+      rescue StandardError
+        nil
+      end
+
+      def sms_body(code:, locale:)
         I18n.t(
           'api.authentication.otp_sms_body',
           code:,
           expiry_minutes: (CandidateOtpChallenge::EXPIRY_WINDOW / 1.minute).round,
-          locale: candidate.preferred_locale
+          locale:
         )
       end
     end

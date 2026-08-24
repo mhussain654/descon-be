@@ -43,10 +43,48 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       end.to change(CandidateOtpChallenge, :count).by(1)
     end
 
-    it 'does not create any challenge for an unknown CNIC' do
+    it 'creates a decoy challenge for an unknown CNIC, just as it does for a real one' do
+      expect do
+        described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+      end.to change(CandidateOtpChallenge, :count).by(1)
+
+      challenge = CandidateOtpChallenge.find_by(cnic: '99999-9999999-9')
+      expect(challenge).to be_present
+      expect(challenge.candidate).to be_nil
+    end
+
+    it 'calls through the same SMS adapter for an unknown CNIC as for a real one, at equivalent cost' do
+      allow(Sms::SendMessage).to receive(:call).and_call_original
+
+      described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+
+      expect(Sms::SendMessage).to have_received(:call).with(
+        to: CandidateAuthentication::Otp::RequestService::DECOY_MOBILE_NUMBER, body: anything
+      )
+    end
+
+    it 'does not send another decoy or create a new challenge within the resend cooldown for an unknown CNIC' do
+      described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+
       expect do
         described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
       end.not_to change(CandidateOtpChallenge, :count)
+    end
+
+    it 'creates a fresh decoy challenge for an unknown CNIC once the resend cooldown has elapsed' do
+      described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+
+      travel_to((CandidateOtpChallenge::RESEND_COOLDOWN + 1.second).from_now) do
+        expect do
+          described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+        end.to change(CandidateOtpChallenge, :count).by(1)
+      end
+    end
+
+    it 'does not raise when the decoy SMS call itself raises' do
+      allow(Sms::SendMessage).to receive(:call).and_raise(StandardError, 'provider down')
+
+      expect { described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1') }.not_to raise_error
     end
 
     it 'accepts a CNIC without dashes and normalizes it before lookup' do

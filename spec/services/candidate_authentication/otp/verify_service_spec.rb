@@ -63,6 +63,34 @@ RSpec.describe CandidateAuthentication::Otp::VerifyService do
       end
     end
 
+    context 'when the CNIC is unknown but a decoy challenge was requested for it' do
+      it 'raises OtpExpiredError once the decoy has expired, identical to a real candidate' do
+        create(:candidate_otp_challenge, :decoy, :expired, cnic: '99999-9999999-9', code_digest: BCrypt::Password.create('123456'))
+
+        expect { call(cnic: '99999-9999999-9', code: '123456') }.to raise_error(OtpExpiredError)
+      end
+
+      it 'raises OtpMaxAttemptsError once the decoy is locked, identical to a real candidate' do
+        create(:candidate_otp_challenge, :decoy, :locked, cnic: '99999-9999999-9', code_digest: BCrypt::Password.create('123456'))
+
+        expect { call(cnic: '99999-9999999-9', code: '123456') }.to raise_error(OtpMaxAttemptsError)
+      end
+
+      it 'raises OtpInvalidError, never succeeds, even when the decoy code happens to be guessed correctly' do
+        decoy = create(:candidate_otp_challenge, :decoy, cnic: '99999-9999999-9', code_digest: BCrypt::Password.create('654321'))
+
+        expect { call(cnic: '99999-9999999-9', code: '654321') }.to raise_error(OtpInvalidError)
+        expect(decoy.reload).not_to be_consumed
+      end
+
+      it 'increments the decoy attempt counter on a wrong guess, just like a real challenge' do
+        decoy = create(:candidate_otp_challenge, :decoy, cnic: '99999-9999999-9', code_digest: BCrypt::Password.create('654321'))
+
+        expect { call(cnic: '99999-9999999-9', code: '000000') }.to raise_error(OtpInvalidError)
+        expect(decoy.reload.attempts).to eq(1)
+      end
+    end
+
     context 'with an incorrect code against a real, active challenge' do
       it 'raises OtpInvalidError and increments the attempt counter' do
         candidate = create(:candidate)
