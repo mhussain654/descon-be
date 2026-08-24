@@ -65,3 +65,115 @@ WorkflowStage::CANONICAL_STAGES.each do |stage_attributes|
   )
   stage.save!
 end
+
+# --- Reference catalogs (MPS-106) -------------------------------------------
+
+[
+  { code: 'qatar', name_en: 'Qatar', name_ur: 'قطر' },
+  { code: 'saudi_arabia', name_en: 'Saudi Arabia', name_ur: 'سعودی عرب' },
+  { code: 'uae', name_en: 'United Arab Emirates', name_ur: 'متحدہ عرب امارات' }
+].each do |attributes|
+  country = Country.find_or_initialize_by(code: attributes.fetch(:code))
+  country.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
+  country.save!
+end
+
+[
+  { code: 'qatar_infrastructure', name_en: 'Qatar Infrastructure', name_ur: 'قطر انفراسٹرکچر' },
+  { code: 'qatar_energy', name_en: 'Qatar Energy', name_ur: 'قطر انرجی' },
+  { code: 'saudi_construction', name_en: 'Saudi Construction', name_ur: 'سعودی تعمیرات' }
+].each do |attributes|
+  project = Project.find_or_initialize_by(code: attributes.fetch(:code))
+  project.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
+  project.save!
+end
+
+[
+  { code: 'electrician', name_en: 'Electrician', name_ur: 'الیکٹریشن' },
+  { code: 'plumber', name_en: 'Plumber', name_ur: 'پلمبر' },
+  { code: 'welder', name_en: 'Welder', name_ur: 'ویلڈر' },
+  { code: 'mason', name_en: 'Mason', name_ur: 'مستری' },
+  { code: 'steel_fixer', name_en: 'Steel Fixer', name_ur: 'اسٹیل فکسر' }
+].each do |attributes|
+  craft = Craft.find_or_initialize_by(code: attributes.fetch(:code))
+  craft.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
+  craft.save!
+end
+
+# Codes match the document types the candidate-admin frontend already
+# renders (web/src/app/admin/candidates/[id]/page.jsx's documentTypeKeys),
+# keeping the two sides of this contract-first build aligned.
+[
+  { code: 'passport', name_en: 'Passport', name_ur: 'پاسپورٹ', requires_number: true, requires_expiry: true },
+  { code: 'cnic_front', name_en: 'CNIC (Front)', name_ur: 'شناختی کارڈ (اگلا رخ)' },
+  { code: 'cnic_back', name_en: 'CNIC (Back)', name_ur: 'شناختی کارڈ (پچھلا رخ)' },
+  { code: 'next_of_kin_cnic', name_en: 'Next of Kin CNIC', name_ur: 'قریبی رشتہ دار کا شناختی کارڈ' },
+  { code: 'police_character', name_en: 'Police Character Certificate', name_ur: 'پولیس کریکٹر سرٹیفکیٹ',
+    requires_expiry: true },
+  { code: 'bank_details', name_en: 'Bank Account Details', name_ur: 'بینک اکاؤنٹ کی تفصیلات' },
+  { code: 'cheque_image', name_en: 'Cancelled Cheque Image', name_ur: 'منسوخ شدہ چیک کی تصویر' },
+  { code: 'cv', name_en: 'CV / Resume', name_ur: 'سی وی / ریزیومے' }
+].each do |attributes|
+  document_type = DocumentType.find_or_initialize_by(code: attributes.fetch(:code))
+  document_type.assign_attributes(
+    name_en: attributes.fetch(:name_en),
+    name_ur: attributes.fetch(:name_ur),
+    requires_number: attributes.fetch(:requires_number, false),
+    requires_expiry: attributes.fetch(:requires_expiry, false),
+    active: true
+  )
+  document_type.save!
+end
+
+# --- Demo/reserved data for exercising MPS-201's candidate OTP API ---------
+#
+# Reserved test CNIC values (see README for the documented, frontend-facing
+# copy of this table):
+#
+#   11111-1111111-1  seeded, valid mobile   -> full OTP request+verify success
+#   22222-2222222-2  seeded, undeliverable  -> OTP request "succeeds" (generic
+#                     mobile (+920000000000)   response) but SMS delivery fails
+#                                                internally (Sms::Providers::
+#                                                TestProvider's reserved
+#                                                all-zeros pattern)
+#   99999-9999999-9  deliberately NEVER      -> exercises the "unknown CNIC"
+#                     seeded                    path; always returns the same
+#                                                generic response as the two
+#                                                CNICs above
+#
+# All values are synthetic and match no real person.
+#
+# Skipped in the test environment: `db:prepare` runs this file for real
+# (not inside a rolled-back RSpec transaction) against a freshly created
+# database, e.g. in CI. Every other seed above (roles, permissions, workflow
+# stages, reference catalogs) has always been safe to leave in place because
+# nothing in the existing spec suite assumed zero rows in those tables --
+# but this is the first seed content that creates a User (needed only to
+# satisfy Candidate#created_by) and a Candidate, and pre-existing specs
+# (e.g. Idempotency::RequestHandler's `User.delete_all` cleanup, the users
+# index pagination spec) assumed `db:seed` never touches those tables. These
+# demo candidates exist for manual/frontend exploratory testing against a
+# real running server (see README), not as automated-test fixtures, so
+# skipping them in test is correct, not just a workaround.
+if Rails.env.development? && ENV.fetch('SEED_DEMO_DATA', 'false') == 'true'
+  seed_user = User.find_or_create_by!(email: 'seed-data@descon.local') do |user|
+    user.password = SecureRandom.hex(32)
+    user.role = 'admin'
+    user.active = true
+  end
+
+  [
+    { cnic: '11111-1111111-1', full_name: 'OTP Demo Candidate (Valid Mobile)', mobile_number: '+923001234567' },
+    { cnic: '22222-2222222-2', full_name: 'OTP Demo Candidate (Undeliverable Mobile)', mobile_number: '+920000000000' }
+  ].each do |attributes|
+    candidate = Candidate.find_or_initialize_by(cnic: attributes.fetch(:cnic))
+    candidate.assign_attributes(
+      full_name: attributes.fetch(:full_name),
+      mobile_number: attributes.fetch(:mobile_number),
+      preferred_locale: 'en',
+      source_code: 'admin_ui',
+      created_by: seed_user
+    )
+    candidate.save!
+  end
+end

@@ -89,6 +89,53 @@ FactoryBot.define do
     association :created_by, factory: :user
   end
 
+  factory :candidate_session do
+    candidate
+    public_id { SecureRandom.uuid }
+    jti { SecureRandom.uuid }
+    user_agent { 'RSpec' }
+    ip_address { '127.0.0.1' }
+    revoked_at { nil }
+    last_seen_at { nil }
+  end
+
+  factory :candidate_refresh_token do
+    candidate_session
+    token_digest { Digest::SHA256.hexdigest(SecureRandom.hex(48)) }
+    expires_at { CandidateRefreshToken::EXPIRY_WINDOW.from_now }
+    revoked_at { nil }
+    rotated_at { nil }
+    replaced_by_id { nil }
+  end
+
+  factory :candidate_otp_challenge do
+    candidate
+    cnic { candidate&.cnic }
+    code_digest { BCrypt::Password.create('123456') }
+    expires_at { CandidateOtpChallenge::EXPIRY_WINDOW.from_now }
+    consumed_at { nil }
+    attempts { 0 }
+    requested_ip { '127.0.0.1' }
+
+    trait :expired do
+      expires_at { 1.minute.ago }
+    end
+
+    trait :consumed do
+      consumed_at { Time.current }
+    end
+
+    trait :locked do
+      attempts { CandidateOtpChallenge::MAX_ATTEMPTS }
+    end
+
+    # A challenge for a CNIC that does not resolve to any real candidate.
+    trait :decoy do
+      candidate { nil }
+      sequence(:cnic) { |n| "#{format('%05d', 90_000 + n)}-#{format('%07d', 9_000_000 + n)}-9" }
+    end
+  end
+
   factory :document_type do
     sequence(:code) { |n| "document_type_#{n}" }
     sequence(:name_en) { |n| "Document Type #{n}" }
