@@ -46,11 +46,17 @@ If you want the full local setup without starting the server immediately:
 bin/setup --skip-server
 ```
 
-`db:seed` is required for baseline reference data such as the system roles (`admin`, `hr`, `mps`, `finance`, `management`), scoped permissions, the canonical workflow stages, reference catalogs (countries, projects, crafts, document types), and a small set of demo candidates for exercising candidate OTP authentication. The seed file is idempotent and safe to rerun.
+`db:seed` is required for baseline reference data such as the system roles (`admin`, `hr`, `mps`, `finance`, `management`), scoped permissions, the canonical workflow stages, and reference catalogs (countries, projects, crafts, document types). The seed file is idempotent and safe to rerun.
+
+Demo candidates are separate, development-only, and opt-in:
+
+```bash
+SEED_DEMO_DATA=true bundle exec rails db:seed
+```
 
 ## Demo/seed data for candidate OTP authentication (MPS-106)
 
-`db:seed` creates two demo candidates and reserves one CNIC that is deliberately never seeded, so every path of `POST /api/v1/candidate/auth/otp/request` and `POST /api/v1/candidate/auth/otp/verify` can be exercised end-to-end. All values are synthetic and match no real person.
+`SEED_DEMO_DATA=true bundle exec rails db:seed` creates two demo candidates and reserves one CNIC that is deliberately never seeded, so every path of `POST /api/v1/candidate/auth/otp/request` and `POST /api/v1/candidate/auth/otp/verify` can be exercised end-to-end. Demo candidate creation is disabled outside development. All values are synthetic and match no real person.
 
 | CNIC | Mobile | Behavior |
 | --- | --- | --- |
@@ -113,6 +119,7 @@ Commonly adjusted per machine or environment:
 - `CANDIDATE_JWT_AUDIENCE`
 - `CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`
 - `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS`
+- `SEED_DEMO_DATA` -- set to `true` only in development when you want demo candidates and the demo administrator created by `db:seed`
 - `OTP_CODE_LENGTH`
 - `OTP_EXPIRY_SECONDS`
 - `OTP_RESEND_COOLDOWN_SECONDS`

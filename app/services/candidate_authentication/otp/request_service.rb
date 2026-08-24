@@ -17,6 +17,8 @@ module CandidateAuthentication
     # candidate's -- so neither this endpoint's response body nor its
     # latency can be used to distinguish a known CNIC from an unknown one.
     class RequestService < ApplicationService
+      LOCK_SCOPE = 'candidate_otp'
+
       # A well-formed-looking, never-real number used only so a decoy
       # delivery attempt exercises the same SMS-adapter code path, at the
       # same cost, as a real candidate's delivery. Mirrors VerifyService's
@@ -117,7 +119,7 @@ module CandidateAuthentication
       end
 
       def lock_cnic!
-        Database::AdvisoryTransactionLock.call(scope: 'candidate_otp.request', key: @cnic)
+        Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: @cnic)
       end
 
       def sms_body(code:, locale:)

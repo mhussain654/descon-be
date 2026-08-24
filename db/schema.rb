@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_113000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -432,7 +432,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_113000) do
   add_foreign_key "candidate_documents", "users", column: "uploaded_by_id"
   add_foreign_key "candidate_documents", "users", column: "verified_by_id"
   add_foreign_key "candidate_otp_challenges", "candidates"
-  add_foreign_key "candidate_refresh_tokens", "candidate_refresh_tokens", column: "replaced_by_id"
+  add_foreign_key "candidate_refresh_tokens", "candidate_refresh_tokens", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "candidate_refresh_tokens", "candidate_sessions"
   add_foreign_key "candidate_sessions", "candidates"
   add_foreign_key "candidate_stage_histories", "candidate_assignments"

@@ -101,6 +101,48 @@ RSpec.describe CandidateAuthentication::Otp::VerifyService do
         expect(CandidateSession.where(candidate:).count).to eq(0)
         expect(CandidateRefreshToken.count).to eq(0)
       end
+
+      it 'does not let an old OTP succeed once a replacement OTP request acquires the shared CNIC lock' do
+        candidate = create(:candidate)
+        original = CandidateOtpChallenge.generate_for(candidate:)
+        request_started = Queue.new
+        outcomes = Queue.new
+
+        allow(CandidateOtpChallenge).to receive(:generate_for).and_wrap_original do |method, *args, **kwargs|
+          generated = method.call(*args, **kwargs)
+          request_started << true
+          sleep 0.15
+          generated
+        end
+
+        travel_to((CandidateOtpChallenge::RESEND_COOLDOWN + 1.second).from_now) do
+          request_thread = Thread.new do
+            ActiveRecord::Base.connection_pool.with_connection do
+              CandidateAuthentication::Otp::RequestService.call(cnic: candidate.cnic, ip_address: '10.0.0.2')
+            end
+          end
+
+          request_started.pop
+
+          verify_thread = Thread.new do
+            ActiveRecord::Base.connection_pool.with_connection do
+              call(cnic: candidate.cnic, code: original.fetch(:code))
+              outcomes << :success
+            rescue OtpInvalidError
+              outcomes << :otp_invalid
+            end
+          end
+
+          request_thread.join
+          verify_thread.join
+        end
+
+        expect(outcomes.pop).to eq(:otp_invalid)
+        expect(CandidateSession.where(candidate:).count).to eq(0)
+        expect(CandidateOtpChallenge.where(candidate:).count).to eq(2)
+        latest_challenge = CandidateOtpChallenge.where(candidate:).order(created_at: :desc).first
+        expect(latest_challenge).not_to eq(original.fetch(:challenge))
+      end
     end
 
     context 'when the CNIC does not resolve to any candidate' do
