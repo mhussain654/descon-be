@@ -13,6 +13,8 @@ class Session < ApplicationRecord
 
   def revoke!
     transaction do
+      return self if revoked?
+
       update!(revoked_at: Time.current)
       # Revoking a session should be a single SQL update to avoid per-token callbacks and races.
       # rubocop:disable Rails/SkipsModelValidations

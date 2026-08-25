@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -35,6 +35,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_130000) do
     t.index ["entity_type", "entity_id", "occurred_at"], name: "index_audit_events_on_entity_and_occurred_at"
     t.check_constraint "action_code::text ~ '^[a-z0-9_]+$'::text", name: "audit_events_action_code_format"
     t.check_constraint "reason_code IS NULL OR reason_code::text ~ '^[a-z0-9_]+$'::text", name: "audit_events_reason_code_format"
+  end
+
+  create_table "authentication_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event_code", null: false
+    t.string "identifier_masked"
+    t.string "ip_address"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.string "request_id", null: false
+    t.bigint "session_id"
+    t.datetime "updated_at", null: false
+    t.string "user_agent"
+    t.bigint "user_id"
+    t.index ["event_code"], name: "index_authentication_events_on_event_code"
+    t.index ["occurred_at"], name: "index_authentication_events_on_occurred_at"
+    t.index ["session_id"], name: "index_authentication_events_on_session_id"
+    t.index ["user_id"], name: "index_authentication_events_on_user_id"
   end
 
   create_table "candidate_assignments", force: :cascade do |t|
@@ -421,6 +439,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_130000) do
   add_foreign_key "audit_events", "candidate_assignments"
   add_foreign_key "audit_events", "candidates"
   add_foreign_key "audit_events", "users", column: "actor_id"
+  add_foreign_key "authentication_events", "sessions"
+  add_foreign_key "authentication_events", "users"
   add_foreign_key "candidate_assignments", "candidates"
   add_foreign_key "candidate_assignments", "countries"
   add_foreign_key "candidate_assignments", "crafts"

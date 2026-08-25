@@ -116,6 +116,7 @@ Commonly adjusted per machine or environment:
 - `API_RATE_LIMIT_PER_MINUTE`
 - `AUTH_RATE_LIMIT_PER_MINUTE`
 - `AUTH_IDENTITY_RATE_LIMIT_PER_MINUTE`
+- `AUTH_REFRESH_TOKEN_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_JWT_AUDIENCE`
 - `CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`
 - `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS`
@@ -175,6 +176,50 @@ To share docs with API consumers, use one of these approaches:
 - Share the raw OpenAPI document at `/openapi/openapi.yaml`
 - Import `openapi/openapi.yaml` into Swagger UI, Postman, or Stoplight
 
+## Staff authentication
+
+Staff authentication is limited to administrator-managed accounts. There is no public signup flow.
+
+- `POST /api/v1/auth/login` authenticates `admin`, `hr`, `mps`, `finance`, and `management` users by email and password
+- `POST /api/v1/auth/refresh` rotates the database-backed refresh token on every successful use
+- `DELETE /api/v1/auth/logout` revokes the current session and is safe to repeat
+- `GET /api/v1/users/profile` returns the authenticated staff profile with trusted server-side role information
+
+Security behavior:
+
+- Unknown email and wrong password return the same generic `401 unauthorized` response
+- Inactive accounts return `403 inactive_account`
+- Refresh-token reuse revokes the affected session and records a security event
+- Login attempts are throttled per IP and normalized email
+- Refresh attempts are throttled per IP and refresh-token digest
+- Successful login, refresh, logout, failed login, and refresh-token reuse are persisted in `authentication_events`
+
+Example login:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -H "X-Locale: en" \
+  -d '{
+    "auth": {
+      "email": "admin@example.com",
+      "password": "Password123!"
+    }
+  }'
+```
+
+Example refresh:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "auth": {
+      "refresh_token": "<refresh_token>"
+    }
+  }'
+```
+
 ## I18n
 
 API message localization is enabled by default with English as the default locale and English fallbacks for missing keys.
@@ -224,6 +269,10 @@ Database-backed translated content should stay out of static locale files. Store
 - Filtering and sorting are allowlisted per endpoint and reject unsupported fields
 - Malformed query values return field-addressable `400` errors instead of being silently coerced
 - `DELETE /api/v1/auth/logout` supports optional `Idempotency-Key` replay protection
+- `POST /api/v1/auth/login` returns a localized success message plus an access token, refresh token, public session ID, and trusted server-side role information
+- `POST /api/v1/auth/refresh` rotates the refresh token on every success and returns a localized success message
+- `POST /api/v1/auth/refresh` returns `invalid_refresh_token` for invalid, expired, or replayed refresh tokens and `session_revoked` when the session has already been revoked
+- `DELETE /api/v1/auth/logout` is safe to repeat with the same bearer token and still returns `{ revoked: true }`
 - Idempotency keys must match `^[A-Za-z0-9:_-]{1,128}$`, are scoped per operation and authenticated subject, and are retained for 12 hours
 - `POST /api/v1/candidate/auth/otp/request` always returns the identical response shape and content regardless of whether the CNIC is unknown, resolves to a candidate whose mobile is currently undeliverable, or resolves to a candidate a code was actually sent to -- never use this endpoint's response to infer whether a CNIC exists
 - `POST /api/v1/candidate/auth/otp/verify` collapses unknown CNIC, no requested challenge, an already-used challenge, and an incorrect code into the identical `otp_invalid` error; `otp_expired` and `otp_max_attempts` are intentionally reachable for both real and decoy challenges, so they do not function as an existence oracle

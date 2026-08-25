@@ -2,15 +2,16 @@
 
 module Authentication
   class RefreshService < ApplicationService
-    def initialize(refresh_token:, user_agent:, ip_address:)
+    def initialize(refresh_token:, user_agent:, ip_address:, request_id:)
       @refresh_token = refresh_token
       @user_agent = user_agent
       @ip_address = ip_address
+      @request_id = request_id
     end
 
     def call
       token_record = RefreshToken.find_by(token_digest: token_digest(@refresh_token))
-      raise UnauthorizedError.new(message: I18n.t('api.errors.invalid_refresh_token')) unless token_record
+      return invalid_refresh_token! unless token_record
 
       result = nil
 
@@ -20,12 +21,13 @@ module Authentication
 
         if token_record.rotated?
           session.revoke!
+          log_event('refresh_token_reuse_detected', user: session.user, session:)
           result = :reused_token
           next
         end
 
-        raise UnauthorizedError.new(message: I18n.t('api.errors.invalid_refresh_token')) unless token_record.active?
-        raise UnauthorizedError.new(message: I18n.t('api.errors.session_revoked')) if session.revoked?
+        raise RevokedSessionError if session.revoked?
+        raise InvalidRefreshTokenError unless token_record.active?
 
         replacement_token = RefreshTokenIssuer.call(session:)
         token_record.update!(rotated_at: Time.current, replaced_by_id: refresh_token_record_for(replacement_token).id)
@@ -37,9 +39,11 @@ module Authentication
           access_token: TokenIssuer.call(user: session.user, session:),
           refresh_token: replacement_token
         }
+
+        log_event('refresh_succeeded', user: session.user, session:)
       end
 
-      raise UnauthorizedError.new(message: I18n.t('api.errors.invalid_refresh_token')) if result == :reused_token
+      raise InvalidRefreshTokenError if result == :reused_token
 
       result
     end
@@ -52,6 +56,24 @@ module Authentication
 
     def token_digest(raw_token)
       Digest::SHA256.hexdigest(raw_token)
+    end
+
+    def invalid_refresh_token!
+      log_event('refresh_failed', metadata: { reason: 'token_not_found' })
+      raise InvalidRefreshTokenError
+    end
+
+    def log_event(event_code, user: nil, session: nil, metadata: {})
+      EventLogger.call(
+        event_code:,
+        context: request_context,
+        subject: { user:, session: },
+        metadata:
+      )
+    end
+
+    def request_context
+      { request_id: @request_id, ip_address: @ip_address, user_agent: @user_agent }
     end
   end
 end
