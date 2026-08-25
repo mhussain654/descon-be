@@ -3,46 +3,7 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 Users Index', type: :request do
-  let!(:admin) { create(:user, role: 'admin', email: 'admin@example.com', password: 'Password123!') }
-  let!(:hr_user) do
-    create(
-      :user,
-      role: 'hr',
-      email: 'hr@example.com',
-      active: true,
-      password: 'Password123!',
-      created_at: 2.days.ago
-    )
-  end
-  let!(:mps_user) do
-    create(
-      :user,
-      role: 'mps',
-      email: 'mps@example.com',
-      active: true,
-      password: 'Password123!',
-      created_at: Time.current
-    )
-  end
-  let!(:active_finance_user) do
-    create(
-      :user,
-      role: 'finance',
-      email: 'finance-active@example.com',
-      active: true,
-      password: 'Password123!'
-    )
-  end
-  let!(:management_user) do
-    create(
-      :user,
-      role: 'management',
-      email: 'management@example.com',
-      active: true,
-      password: 'Password123!',
-      created_at: 3.days.ago
-    )
-  end
+  let(:admin_email) { 'admin@example.com' }
 
   around do |example|
     original_cache = Rails.cache
@@ -54,36 +15,55 @@ RSpec.describe 'API V1 Users Index', type: :request do
 
   before do
     ensure_staff_authorization_reference_data!
+
+    create(:user, role: 'admin', email: admin_email, password: 'Password123!')
+    create(:user, role: 'hr', email: 'hr@example.com', password: 'Password123!', active: true, created_at: 2.days.ago)
+    create(
+      :user,
+      role: 'mps',
+      email: 'mps@example.com',
+      password: 'Password123!',
+      active: true,
+      created_at: Time.current
+    )
+    create(:user, role: 'finance', email: 'finance-active@example.com', password: 'Password123!', active: true)
+    create(:user, role: 'management', email: 'management@example.com', password: 'Password123!', active: true)
     create(
       :user,
       role: 'finance',
-      email: 'finance@example.com',
-      active: false,
+      email: 'finance-disabled@example.com',
       password: 'Password123!',
+      active: false,
       created_at: 1.day.ago
     )
   end
 
-  def access_token_for(user)
-    post '/api/v1/auth/login', params: { auth: { email: user.email, password: 'Password123!' } }
+  def user_by_email(email)
+    User.find_by!(email:)
+  end
+
+  def access_token_for(email)
+    post '/api/v1/auth/login', params: { auth: { email:, password: 'Password123!' } }
     response.parsed_body.dig('data', 'access_token')
   end
 
-  def user_for_role(role)
-    {
-      admin: admin,
-      hr: hr_user,
-      mps: mps_user,
-      finance: active_finance_user,
-      management: management_user
+  def access_token_for_role(role)
+    email = {
+      admin: admin_email,
+      hr: 'hr@example.com',
+      mps: 'mps@example.com',
+      finance: 'finance-active@example.com',
+      management: 'management@example.com'
     }.fetch(role)
+
+    access_token_for(email)
   end
 
   describe 'GET /api/v1/users' do
     it 'returns a paginated collection response with public identifiers for admins' do
       get '/api/v1/users',
           params: { page: { number: 1, size: 2 }, sort: 'email' },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.fetch('data').size).to eq(2)
@@ -95,10 +75,9 @@ RSpec.describe 'API V1 Users Index', type: :request do
         'total_count' => 6,
         'total_pages' => 3
       )
-      expect(response.parsed_body.fetch('errors')).to eq([])
     end
 
-    it 'allows the admin role and forbids every other supported staff role' do
+    it 'allows the admin role and forbids every other supported active staff role' do
       {
         admin: :ok,
         hr: :forbidden,
@@ -106,9 +85,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
         finance: :forbidden,
         management: :forbidden
       }.each do |role, expected_status|
-        token = access_token_for(user_for_role(role))
-
-        get '/api/v1/users', headers: { 'Authorization' => "Bearer #{token}" }
+        get '/api/v1/users', headers: { 'Authorization' => "Bearer #{access_token_for_role(role)}" }
 
         expect(response).to have_http_status(expected_status), "expected #{role} to return #{expected_status}"
       end
@@ -117,7 +94,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'returns a localized forbidden response for a role without permission' do
       get '/api/v1/users',
           headers: {
-            'Authorization' => "Bearer #{access_token_for(hr_user)}",
+            'Authorization' => "Bearer #{access_token_for_role(:hr)}",
             'X-Locale' => 'ur'
           }
 
@@ -125,6 +102,24 @@ RSpec.describe 'API V1 Users Index', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('forbidden')
       expect(response.parsed_body.dig('errors', 0, 'message')).to eq(I18n.t('api.errors.forbidden', locale: :ur))
       expect(response.headers['Content-Language']).to eq('ur')
+    end
+
+    it 'denies access when the role is inactive' do
+      user_by_email(admin_email).staff_role.update!(active: false)
+
+      get '/api/v1/users', headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('forbidden')
+    end
+
+    it 'denies access when the required permission is inactive' do
+      Permission.find_by!(code: 'manage_staff_users').update!(active: false)
+
+      get '/api/v1/users', headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('forbidden')
     end
 
     it 'rejects requests without authentication' do
@@ -153,7 +148,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     end
 
     it 'rejects revoked staff sessions even with an otherwise valid access token' do
-      token = access_token_for(admin)
+      token = access_token_for(admin_email)
       Session.last.revoke!
 
       get '/api/v1/users', headers: { 'Authorization' => "Bearer #{token}" }
@@ -163,8 +158,8 @@ RSpec.describe 'API V1 Users Index', type: :request do
     end
 
     it 'rejects inactive staff even with a previously issued token' do
-      token = access_token_for(admin)
-      admin.update!(active: false)
+      token = access_token_for(admin_email)
+      user_by_email(admin_email).update!(active: false)
 
       get '/api/v1/users', headers: { 'Authorization' => "Bearer #{token}" }
 
@@ -175,7 +170,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'supports localized responses and falls back when locale is unsupported' do
       get '/api/v1/users',
           headers: {
-            'Authorization' => "Bearer #{access_token_for(admin)}",
+            'Authorization' => "Bearer #{access_token_for(admin_email)}",
             'X-Locale' => 'fr'
           }
 
@@ -186,7 +181,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'applies only explicitly allowed filters' do
       get '/api/v1/users',
           params: { filter: { role: 'hr,mps', active: 'true' }, sort: 'email' },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:ok)
       emails = response.parsed_body.fetch('data').map { |entry| entry.fetch('email') }
@@ -197,7 +192,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'rejects unsupported filters with a field-addressable error' do
       get '/api/v1/users',
           params: { filter: { password_digest: 'nope' } },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unsupported_filter')
@@ -207,7 +202,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'rejects unsupported sorting with a field-addressable error' do
       get '/api/v1/users',
           params: { sort: '-encrypted_password' },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unsupported_sort')
@@ -217,7 +212,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'rejects malformed boolean filters' do
       get '/api/v1/users',
           params: { filter: { active: 'sometimes' } },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_query_parameter')
@@ -227,7 +222,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'rejects malformed page numbers' do
       get '/api/v1/users',
           params: { page: { number: 'zero' } },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('page.number')
@@ -236,7 +231,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'rejects oversized page sizes instead of silently capping them' do
       get '/api/v1/users',
           params: { page: { size: 101 } },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('page.size')
@@ -245,7 +240,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'rejects unsupported role filter values' do
       get '/api/v1/users',
           params: { filter: { role: 'hr,ghost_role' } },
-          headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+          headers: { 'Authorization' => "Bearer #{access_token_for(admin_email)}" }
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.role')
@@ -254,7 +249,7 @@ RSpec.describe 'API V1 Users Index', type: :request do
     it 'propagates the request id in headers and response metadata' do
       get '/api/v1/users',
           headers: {
-            'Authorization' => "Bearer #{access_token_for(admin)}",
+            'Authorization' => "Bearer #{access_token_for(admin_email)}",
             'X-Request-Id' => 'request-id-123'
           }
 

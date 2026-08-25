@@ -3,13 +3,17 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 User Profile', type: :request do
+  before do
+    ensure_staff_authorization_reference_data!
+  end
+
   def login_as(user)
     post '/api/v1/auth/login', params: { auth: { email: user.email, password: 'Password123!' } }
     response.parsed_body.fetch('data')
   end
 
   describe 'GET /api/v1/users/profile' do
-    it 'returns the authenticated profile for every supported staff role' do
+    it 'returns the authenticated profile for every supported active staff role' do
       %w[admin hr mps finance management].each do |role|
         user = create(:user, role:, email: "#{role}-profile@example.com", password: 'Password123!')
         tokens = login_as(user)
@@ -20,6 +24,17 @@ RSpec.describe 'API V1 User Profile', type: :request do
         expect(response.parsed_body.dig('data', 'email')).to eq(user.email)
         expect(response.parsed_body.dig('data', 'role')).to eq(role)
       end
+    end
+
+    it 'denies access when the role is inactive' do
+      user = create(:user, role: 'management', email: 'inactive-role-profile@example.com', password: 'Password123!')
+      tokens = login_as(user)
+      user.staff_role.update!(active: false)
+
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('forbidden')
     end
 
     it 'rejects requests without authentication' do

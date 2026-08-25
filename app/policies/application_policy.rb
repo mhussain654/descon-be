@@ -39,7 +39,7 @@ class ApplicationPolicy
   private
 
   def staff_authenticated?
-    user.present? && user.staff?
+    user.present? && user.authorization_active?
   end
 
   def permission_granted?(permission_code)
@@ -65,7 +65,7 @@ class ApplicationPolicy
     attr_reader :user, :scope
 
     def staff_authenticated?
-      user.present? && user.staff?
+      user.present? && user.authorization_active?
     end
 
     def permission_granted?(permission_code)

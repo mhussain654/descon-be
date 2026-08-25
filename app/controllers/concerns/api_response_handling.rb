@@ -62,6 +62,8 @@ module ApiResponseHandling
   end
 
   def render_unexpected_error(error)
+    raise error if performed?
+
     Rails.logger.error(unexpected_error_payload(error).to_json)
     render_api_error(InternalServerError.new)
   end

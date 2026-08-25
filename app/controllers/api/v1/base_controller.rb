@@ -3,6 +3,8 @@
 module Api
   module V1
     class BaseController < ApplicationController
+      after_action :verify_staff_pundit_usage!, if: :staff_pundit_verification_required?
+
       private
 
       attr_reader :current_session
@@ -23,7 +25,12 @@ module Api
       end
 
       def authenticate_current_user!
+        @staff_pundit_verification_required = true
         current_user
+      end
+
+      def staff_pundit_verification_required?
+        @staff_pundit_verification_required == true
       end
 
       def bearer_token
@@ -45,6 +52,11 @@ module Api
         session
       rescue JWT::DecodeError, KeyError, ActiveRecord::RecordNotFound
         raise UnauthorizedError
+      end
+
+      def verify_staff_pundit_usage!
+        verify_authorized
+        verify_policy_scoped if action_name == 'index'
       end
     end
   end

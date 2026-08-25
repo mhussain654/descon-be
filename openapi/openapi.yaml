@@ -1090,7 +1090,3 @@ paths:
                         message: آپ کو یہ کارروائی کرنے کی اجازت نہیں ہے۔
                     request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
                     timestamp: '2026-08-23T09:00:01Z'
-        '401':
-          description: Invalid access token
-        '403':
-          description: Forbidden

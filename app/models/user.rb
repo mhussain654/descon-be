@@ -50,6 +50,10 @@ class User < ApplicationRecord
     STAFF_ROLE_CODES.include?(role)
   end
 
+  def authorization_active?
+    active? && active_staff_role?
+  end
+
   def hr?
     role?('hr')
   end
@@ -67,10 +71,14 @@ class User < ApplicationRecord
   end
 
   def permission?(permission_code)
-    permissions.exists?(code: permission_code.to_s)
+    authorization_active? && permissions.where(active: true).exists?(code: permission_code.to_s)
   end
 
   private
+
+  def active_staff_role?
+    staff? && staff_role&.active?
+  end
 
   def role?(role_code)
     role == role_code

@@ -4,6 +4,8 @@ require 'rails_helper'
 
 RSpec.describe 'ApplicationController behavior', type: :request do
   before do
+    ensure_staff_authorization_reference_data!
+
     stub_const('FoundationValidationModel', Class.new do
       include ActiveModel::Model
 
@@ -37,6 +39,14 @@ RSpec.describe 'ApplicationController behavior', type: :request do
         raise ArgumentError, 'unsafe internal detail'
       end
     end)
+
+    stub_const('FoundationProtectedTestController', Class.new(Api::V1::BaseController) do
+      before_action :authenticate_current_user!
+
+      def insecure
+        render_success(data: { ok: true })
+      end
+    end)
   end
 
   around do |example|
@@ -47,6 +57,7 @@ RSpec.describe 'ApplicationController behavior', type: :request do
         get '/foundation-test/missing', to: 'foundation_test#missing'
         get '/foundation-test/forbidden', to: 'foundation_test#forbidden'
         get '/foundation-test/explode', to: 'foundation_test#explode'
+        get '/foundation-protected-test/insecure', to: 'foundation_protected_test#insecure'
       end
 
       example.run
@@ -95,5 +106,15 @@ RSpec.describe 'ApplicationController behavior', type: :request do
     expect(response.body).not_to include('unsafe internal detail')
     expect(response.body).not_to include('ArgumentError')
     expect(log_output.join).not_to include('unsafe internal detail')
+  end
+
+  it 'fails a protected staff action that forgets to authorize' do
+    user = create(:user, role: 'admin', email: 'missing-authorize@example.com', password: 'Password123!')
+    session = create(:session, user:)
+    token = Authentication::TokenIssuer.call(user:, session:)
+
+    expect do
+      get '/foundation-protected-test/insecure', headers: { 'Authorization' => "Bearer #{token}" }
+    end.to raise_error(Pundit::AuthorizationNotPerformedError)
   end
 end
