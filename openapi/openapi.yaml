@@ -917,8 +917,8 @@ paths:
                   value:
                     data:
                       id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
-                      email: management-profile@example.com
-                      role: management
+                      email: hr-profile@example.com
+                      role: hr
                       permissions:
                         - manage_candidate_documents
                         - manage_candidates
