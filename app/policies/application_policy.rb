@@ -36,6 +36,20 @@ class ApplicationPolicy
     false
   end
 
+  private
+
+  def staff_authenticated?
+    user.present? && user.staff?
+  end
+
+  def permission_granted?(permission_code)
+    staff_authenticated? && user.permission?(permission_code)
+  end
+
+  def self_record?
+    user.present? && record == user
+  end
+
   class Scope
     def initialize(user, scope)
       @user = user
@@ -49,5 +63,13 @@ class ApplicationPolicy
     private
 
     attr_reader :user, :scope
+
+    def staff_authenticated?
+      user.present? && user.staff?
+    end
+
+    def permission_granted?(permission_code)
+      staff_authenticated? && user.permission?(permission_code)
+    end
   end
 end

@@ -890,6 +890,7 @@ paths:
   /api/v1/users/profile:
     get:
       summary: Fetch the authenticated user profile
+      description: Returns the authenticated staff user's own profile. Every authenticated active staff role may access this endpoint for its own session only.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
@@ -919,7 +920,7 @@ paths:
                       timestamp: '2026-08-23T09:00:06Z'
                     errors: []
         '401':
-          description: Invalid access token
+          description: Missing, invalid, expired, or revoked staff access token
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -951,6 +952,7 @@ paths:
   /api/v1/users:
     get:
       summary: List staff users
+      description: Returns staff users only for staff accounts granted the `manage_staff_users` permission. With the seeded role matrix, that is the `admin` role.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
@@ -1041,6 +1043,51 @@ paths:
                       - code: invalid_query_parameter
                         field: filter.active
                         message: ایک یا زیادہ کوئری پیرامیٹرز درست نہیں ہیں۔
+                    request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                    timestamp: '2026-08-23T09:00:01Z'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                unauthorized:
+                  value:
+                    errors:
+                      - code: unauthorized
+                        message: Invalid credentials.
+                    request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                    timestamp: '2026-08-23T09:00:01Z'
+        '403':
+          description: Authenticated staff account lacks permission to list staff users, or the account is inactive
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                forbidden:
+                  value:
+                    errors:
+                      - code: forbidden
+                        message: You are not allowed to perform this action.
+                    request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
+                    timestamp: '2026-08-23T09:00:01Z'
+                forbiddenUrdu:
+                  value:
+                    errors:
+                      - code: forbidden
+                        message: آپ کو یہ کارروائی کرنے کی اجازت نہیں ہے۔
                     request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
                     timestamp: '2026-08-23T09:00:01Z'
         '401':

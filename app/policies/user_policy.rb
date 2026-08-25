@@ -2,16 +2,16 @@
 
 class UserPolicy < ApplicationPolicy
   def index?
-    user&.admin?
+    permission_granted?('manage_staff_users')
   end
 
   def show?
-    user.present? && record == user
+    staff_authenticated? && self_record?
   end
 
-  class Scope < Scope
+  class Scope < ApplicationPolicy::Scope
     def resolve
-      return scope.none unless user&.admin?
+      return scope.none unless permission_granted?('manage_staff_users')
 
       scope
     end
