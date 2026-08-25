@@ -10,12 +10,12 @@ module Api
       private
 
       def invitation_params
-        params.expect(invitation: %i[password password_confirmation])
+        params.expect(invitation: %i[token password password_confirmation])
       end
 
       def invitation_acceptance_payload
         user = ::Users::InvitationAcceptanceService.call(
-          token: params[:token],
+          token: invitation_params.fetch(:token),
           password: invitation_params.fetch(:password),
           password_confirmation: invitation_params.fetch(:password_confirmation),
           request_id: request.request_id

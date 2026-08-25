@@ -26,6 +26,13 @@ FactoryBot.define do
       encrypted_password { '' }
       staff_state { 'invited' }
       active { false }
+      invitation_token_digest { nil }
+      invitation_sent_at { nil }
+      invitation_expires_at { nil }
+    end
+
+    trait :issued_invitation do
+      invited
       invitation_token_digest { Digest::SHA256.hexdigest(SecureRandom.hex(32)) }
       invitation_sent_at { Time.current }
       invitation_expires_at { User::INVITATION_TTL.from_now }

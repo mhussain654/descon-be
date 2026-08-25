@@ -39,8 +39,14 @@ RSpec.describe 'API V1 User Invitations', type: :request do
   it 'accepts a valid invitation and activates the invited user' do
     token = invite_user!
 
-    patch "/api/v1/user_invitations/#{token}",
-          params: { invitation: { password: 'Password123!', password_confirmation: 'Password123!' } }
+    patch '/api/v1/user_invitation',
+          params: {
+            invitation: {
+              token:,
+              password: 'Password123!',
+              password_confirmation: 'Password123!'
+            }
+          }
 
     expect(response).to have_http_status(:ok)
     user = User.find_by!(email: 'accepted.staff@example.com')
@@ -49,8 +55,14 @@ RSpec.describe 'API V1 User Invitations', type: :request do
   end
 
   it 'rejects an invalid invitation token with a generic error' do
-    patch '/api/v1/user_invitations/not-a-real-token',
-          params: { invitation: { password: 'Password123!', password_confirmation: 'Password123!' } }
+    patch '/api/v1/user_invitation',
+          params: {
+            invitation: {
+              token: 'not-a-real-token',
+              password: 'Password123!',
+              password_confirmation: 'Password123!'
+            }
+          }
 
     expect(response).to have_http_status(:unauthorized)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_invitation')

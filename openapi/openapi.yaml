@@ -235,8 +235,10 @@ components:
       properties:
         invitation:
           type: object
-          required: [password, password_confirmation]
+          required: [token, password, password_confirmation]
           properties:
+            token:
+              type: string
             password:
               type: string
               minLength: 8
@@ -1322,25 +1324,26 @@ paths:
                         message: آخری فعال ایڈمن صارف کو معطل یا تنزلی نہیں دی جا سکتی۔
                     request_id: 18cfaad5-879a-466f-91cf-863f00ea6fed
                     timestamp: '2026-08-25T11:05:00Z'
-  /api/v1/user_invitations/{token}:
+  /api/v1/user_invitation:
     patch:
       summary: Accept a staff invitation
-      description: Accepts a single-use expiring staff invitation token, sets the initial password, and activates the invited staff account. The plaintext invitation token is only delivered out-of-band and is never persisted.
+      description: Accepts a single-use expiring staff invitation token from the filtered request body, sets the initial password, and activates the invited staff account. The plaintext invitation token is only delivered out-of-band and is never persisted.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
-        - in: path
-          name: token
-          required: true
-          schema:
-            type: string
-          description: Single-use invitation token delivered out-of-band.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UserInvitationAcceptanceRequest'
+            examples:
+              acceptInvitation:
+                value:
+                  invitation:
+                    token: invitation-token-from-email
+                    password: Password123!
+                    password_confirmation: Password123!
       responses:
         '200':
           description: Invitation accepted and account activated

@@ -47,7 +47,7 @@ module Rack
       limit: ENV.fetch('STAFF_INVITATION_ACCEPT_RATE_LIMIT_PER_MINUTE', 10).to_i,
       period: 1.minute
     ) do |request|
-      next unless request.patch? && request.path.start_with?('/api/v1/user_invitations/')
+      next unless request.patch? && request.path == '/api/v1/user_invitation'
 
       request.ip
     end

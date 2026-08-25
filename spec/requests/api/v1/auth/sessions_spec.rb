@@ -216,7 +216,7 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
     end
 
     it 'rate-limits repeated refresh attempts' do
-      raw_token = login_response.fetch('refresh_token')
+      raw_token = 'repeat-refresh-attempt-token'
 
       (ENV.fetch('AUTH_REFRESH_TOKEN_RATE_LIMIT_PER_MINUTE', 10).to_i + 1).times do
         refresh(refresh_token: raw_token)
