@@ -6,8 +6,6 @@ class ApplicationController < ActionController::API
   include ApiResponseHandling
   include IdempotentRequestHandling
 
-  rescue_from Pundit::AuthorizationNotPerformedError, with: :re_raise_pundit_verification_error
-  rescue_from Pundit::PolicyScopingNotPerformedError, with: :re_raise_pundit_verification_error
   rescue_from StandardError, with: :render_unexpected_error
   rescue_from ActiveRecord::RecordInvalid, with: :render_record_invalid
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
@@ -26,9 +24,5 @@ class ApplicationController < ActionController::API
       explicit_locale: request.headers['X-Locale'],
       accept_language: request.headers['Accept-Language']
     )
-  end
-
-  def re_raise_pundit_verification_error(error)
-    raise error
   end
 end

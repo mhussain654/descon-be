@@ -170,7 +170,11 @@ components:
           format: email
         role:
           type: string
-      required: [id, email, role]
+        permissions:
+          type: array
+          items:
+            type: string
+      required: [id, email, role, permissions]
     UserSummary:
       type: object
       properties:
@@ -915,6 +919,10 @@ paths:
                       id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                       email: management-profile@example.com
                       role: management
+                      permissions:
+                        - manage_candidate_documents
+                        - manage_candidates
+                        - manage_communications
                     meta:
                       request_id: 41775a72-a960-4c9c-a319-eb6757ce96d0
                       timestamp: '2026-08-23T09:00:06Z'

@@ -62,7 +62,7 @@ module ApiResponseHandling
   end
 
   def render_unexpected_error(error)
-    raise error if performed?
+    raise error if pundit_verification_error?(error)
 
     Rails.logger.error(unexpected_error_payload(error).to_json)
     render_api_error(InternalServerError.new)
@@ -98,5 +98,9 @@ module ApiResponseHandling
 
   def timestamp
     Time.current.utc.iso8601
+  end
+
+  def pundit_verification_error?(error)
+    error.is_a?(Pundit::AuthorizationNotPerformedError) || error.is_a?(Pundit::PolicyScopingNotPerformedError)
   end
 end

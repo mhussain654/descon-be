@@ -23,7 +23,34 @@ RSpec.describe 'API V1 User Profile', type: :request do
         expect(response).to have_http_status(:ok)
         expect(response.parsed_body.dig('data', 'email')).to eq(user.email)
         expect(response.parsed_body.dig('data', 'role')).to eq(role)
+        expect(response.parsed_body.dig('data', 'permissions')).to eq(user.effective_permission_codes)
       end
+    end
+
+    it 'returns active effective permission codes in deterministic order' do
+      user = create(:user, role: 'admin', email: 'permissions-profile@example.com', password: 'Password123!')
+      Permission.find_by!(code: 'manage_staff_users').update!(active: false)
+      tokens = login_as(user)
+
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'permissions')).to eq(user.reload.effective_permission_codes)
+      expect(response.parsed_body.dig('data', 'permissions')).not_to include('manage_staff_users')
+      expect(response.parsed_body.dig('data', 'permissions')).to eq(
+        response.parsed_body.dig('data', 'permissions').sort
+      )
+    end
+
+    it 'returns an empty permissions array when no active permissions are granted' do
+      user = create(:user, role: 'hr', email: 'no-permissions-profile@example.com', password: 'Password123!')
+      user.staff_role.role_permissions.destroy_all
+      tokens = login_as(user)
+
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'permissions')).to eq([])
     end
 
     it 'denies access when the role is inactive' do

@@ -2,10 +2,8 @@
 
 require 'rails_helper'
 
-RSpec.describe Api::V1::BaseController, type: :controller do
+RSpec.describe Api::V1::ProtectedStaffController, type: :controller do
   controller(described_class) do
-    before_action :authenticate_current_user!
-
     def insecure
       render_success(data: { ok: true })
     end
@@ -15,7 +13,7 @@ RSpec.describe Api::V1::BaseController, type: :controller do
     ensure_staff_authorization_reference_data!
 
     routes.draw do
-      get 'insecure' => 'api/v1/base#insecure'
+      get 'insecure' => 'api/v1/protected_staff#insecure'
     end
   end
 

@@ -2,9 +2,7 @@
 
 module Api
   module V1
-    class UsersController < BaseController
-      before_action :authenticate_current_user!
-
+    class UsersController < ProtectedStaffController
       def index
         authorize User
 

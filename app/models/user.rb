@@ -74,6 +74,12 @@ class User < ApplicationRecord
     authorization_active? && permissions.where(active: true).exists?(code: permission_code.to_s)
   end
 
+  def effective_permission_codes
+    return [] unless authorization_active?
+
+    permissions.where(active: true).distinct.order(:code).pluck(:code)
+  end
+
   private
 
   def active_staff_role?

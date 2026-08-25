@@ -40,9 +40,7 @@ RSpec.describe 'ApplicationController behavior', type: :request do
       end
     end)
 
-    stub_const('FoundationProtectedTestController', Class.new(Api::V1::BaseController) do
-      before_action :authenticate_current_user!
-
+    stub_const('FoundationProtectedTestController', Class.new(Api::V1::ProtectedStaffController) do
       def insecure
         render_success(data: { ok: true })
       end
@@ -116,5 +114,12 @@ RSpec.describe 'ApplicationController behavior', type: :request do
     expect do
       get '/foundation-protected-test/insecure', headers: { 'Authorization' => "Bearer #{token}" }
     end.to raise_error(Pundit::AuthorizationNotPerformedError)
+  end
+
+  it 'authenticates protected staff actions even when the controller forgets both authentication and authorization' do
+    get '/foundation-protected-test/insecure'
+
+    expect(response).to have_http_status(:unauthorized)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unauthorized')
   end
 end

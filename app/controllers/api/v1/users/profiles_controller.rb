@@ -3,9 +3,7 @@
 module Api
   module V1
     module Users
-      class ProfilesController < BaseController
-        before_action :authenticate_current_user!
-
+      class ProfilesController < ProtectedStaffController
         def show
           authorize current_user, :show?
           render_success(data: ::Users::ProfileSerializer.new(current_user).as_json)
