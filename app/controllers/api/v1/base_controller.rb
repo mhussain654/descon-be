@@ -13,7 +13,10 @@ module Api
           raise UnauthorizedError if @current_session.revoked?
 
           @current_session.touch_last_seen!
-          User.find(decoded_bearer_payload.fetch('sub'))
+          user = User.find(decoded_bearer_payload.fetch('sub'))
+          raise InactiveAccountError unless user.active?
+
+          user
         rescue JWT::DecodeError, KeyError, ActiveRecord::RecordNotFound
           raise UnauthorizedError
         end

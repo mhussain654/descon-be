@@ -3,7 +3,7 @@
 class User < ApplicationRecord
   devise :database_authenticatable, :recoverable, :lockable, :validatable
 
-  STAFF_ROLE_CODES = %w[hr mps finance management].freeze
+  STAFF_ROLE_CODES = %w[admin hr mps finance management].freeze
 
   belongs_to :staff_role, class_name: 'Role', foreign_key: :role, primary_key: :code, inverse_of: :users
 
@@ -33,6 +33,10 @@ class User < ApplicationRecord
   validates :role, presence: true
 
   delegate :permissions, to: :staff_role
+
+  def self.normalize_email_value(email)
+    email.to_s.strip.downcase
+  end
 
   def active_for_authentication?
     super && active?
@@ -77,6 +81,6 @@ class User < ApplicationRecord
   end
 
   def normalize_email
-    self.email = email.to_s.strip.downcase
+    self.email = self.class.normalize_email_value(email)
   end
 end

@@ -29,6 +29,27 @@ FactoryBot.define do
     last_seen_at { nil }
   end
 
+  factory :refresh_token do
+    session
+    token_digest { Digest::SHA256.hexdigest(SecureRandom.hex(48)) }
+    expires_at { RefreshToken::EXPIRY_WINDOW.from_now }
+    revoked_at { nil }
+    rotated_at { nil }
+    replaced_by_id { nil }
+  end
+
+  factory :authentication_event do
+    user
+    session { nil }
+    event_code { 'login_succeeded' }
+    request_id { SecureRandom.uuid }
+    identifier_masked { 'u***r@example.com' }
+    ip_address { '127.0.0.1' }
+    user_agent { 'RSpec' }
+    metadata { {} }
+    occurred_at { Time.current }
+  end
+
   factory :idempotency_key do
     idempotency_scope { 'test.scope' }
     key_digest { Digest::SHA256.hexdigest("key-#{SecureRandom.hex(8)}") }
