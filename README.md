@@ -117,6 +117,7 @@ Commonly adjusted per machine or environment:
 - `AUTH_RATE_LIMIT_PER_MINUTE`
 - `AUTH_IDENTITY_RATE_LIMIT_PER_MINUTE`
 - `AUTH_REFRESH_TOKEN_RATE_LIMIT_PER_MINUTE`
+- `STAFF_INVITATION_ACCEPT_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_JWT_AUDIENCE`
 - `CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`
 - `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS`
@@ -184,6 +185,7 @@ Staff authentication is limited to administrator-managed accounts. There is no p
 - `POST /api/v1/auth/refresh` rotates the database-backed refresh token on every successful use
 - `DELETE /api/v1/auth/logout` revokes the current session and is safe to repeat
 - `GET /api/v1/users/profile` returns the authenticated staff profile with trusted server-side role information
+- `PATCH /api/v1/user_invitations/:token` completes the password-setup flow for an invited staff account
 
 Security behavior:
 
@@ -201,8 +203,76 @@ Authentication and authorization are enforced separately.
 - Staff API authorization is enforced server-side through Pundit policies
 - Access is denied by default unless a policy explicitly grants it
 - `GET /api/v1/users/profile` is available to any authenticated active staff session for its own profile
-- `GET /api/v1/users` requires the `manage_staff_users` permission; with the seeded role matrix, this is currently granted to the `admin` role only
+- `GET /api/v1/users`, `POST /api/v1/users`, and `PATCH /api/v1/users/:id` require the active `manage_staff_users` permission; with the seeded role matrix, this is currently granted to the `admin` role only
 - Frontend route guards or hidden navigation are not treated as a security boundary
+
+## Staff user administration
+
+Staff-user administration uses the existing `/api/v1/users` resource and a dedicated invitation-acceptance resource.
+
+- `GET /api/v1/users` returns the paginated staff directory
+- `POST /api/v1/users` creates an invited staff user and queues invitation delivery
+- `PATCH /api/v1/users/:id` updates only allowlisted staff fields: `role` and `staff_state`
+- `PATCH /api/v1/user_invitations/:token` accepts a single-use invitation token and sets the initial password
+
+Canonical staff states:
+
+- `invited`
+- `active`
+- `suspended`
+
+Security and lifecycle rules:
+
+- Every administration endpoint requires an authenticated, active staff session with the active `manage_staff_users` permission
+- Public UUIDs are exposed as `id`; internal numeric IDs, password digests, invitation digests, Devise lock fields, and session records are never returned
+- Invitation tokens are generated securely, stored only as SHA-256 digests, expire after `72` hours, and are single-use
+- Invitation acceptance is rate-limited by `STAFF_INVITATION_ACCEPT_RATE_LIMIT_PER_MINUTE`
+- Role changes and suspensions revoke only the affected user's active staff sessions immediately
+- A staff user cannot suspend their own account
+- The final active administrator cannot be suspended or demoted; the invariant is enforced inside a transaction with row locking
+- Audit events are recorded for staff invitation, activation, role change, suspension, and reactivation with request IDs and PII-safe before/after metadata
+
+Example staff invitation:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/users \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: invite-staff-20260825-001" \
+  -d '{
+    "user": {
+      "email": "invited.staff@example.com",
+      "role": "hr"
+    }
+  }'
+```
+
+Example staff update:
+
+```bash
+curl -X PATCH http://localhost:3000/api/v1/users/<public_uuid> \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user": {
+      "role": "finance",
+      "staff_state": "active"
+    }
+  }'
+```
+
+Example invitation acceptance:
+
+```bash
+curl -X PATCH http://localhost:3000/api/v1/user_invitations/<invitation_token> \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invitation": {
+      "password": "Password123!",
+      "password_confirmation": "Password123!"
+    }
+  }'
+```
 
 Example login:
 
@@ -263,7 +333,10 @@ Database-backed translated content should stay out of static locale files. Store
 - `POST /api/v1/candidate/auth/otp/request`
 - `POST /api/v1/candidate/auth/otp/verify`
 - `GET /api/v1/users`
+- `POST /api/v1/users`
+- `PATCH /api/v1/users/:id`
 - `GET /api/v1/users/profile`
+- `PATCH /api/v1/user_invitations/:token`
 - `GET /api/v1/health/live`
 - `GET /api/v1/health/ready`
 
@@ -284,6 +357,9 @@ Database-backed translated content should stay out of static locale files. Store
 - `POST /api/v1/auth/refresh` returns `invalid_refresh_token` for invalid, expired, or replayed refresh tokens and `session_revoked` when the session has already been revoked
 - `DELETE /api/v1/auth/logout` is safe to repeat with the same bearer token and still returns `{ revoked: true }`
 - Idempotency keys must match `^[A-Za-z0-9:_-]{1,128}$`, are scoped per operation and authenticated subject, and are retained for 12 hours
+- `POST /api/v1/users` creates staff users in the `invited` state and returns only safe summary fields plus a localized success message
+- `PATCH /api/v1/users/:id` only accepts allowlisted `role` and `staff_state` changes and revokes the target staff user's sessions immediately after role changes or suspension
+- `PATCH /api/v1/user_invitations/:token` activates an invited staff account, stores only the token digest, and never returns the plaintext invitation token
 - `POST /api/v1/candidate/auth/otp/request` always returns the identical response shape and content regardless of whether the CNIC is unknown, resolves to a candidate whose mobile is currently undeliverable, or resolves to a candidate a code was actually sent to -- never use this endpoint's response to infer whether a CNIC exists
 - `POST /api/v1/candidate/auth/otp/verify` collapses unknown CNIC, no requested challenge, an already-used challenge, and an incorrect code into the identical `otp_invalid` error; `otp_expired` and `otp_max_attempts` are intentionally reachable for both real and decoy challenges, so they do not function as an existence oracle
 - Both candidate OTP endpoints are rate-limited per IP and per (normalized) CNIC, independently of the per-challenge attempt limit enforced by `otp_max_attempts`
@@ -294,7 +370,7 @@ Example collection request:
 ```bash
 curl \
   -H "Authorization: Bearer <token>" \
-  "http://localhost:3000/api/v1/users?page[number]=1&page[size]=20&filter[role]=hr&sort=email"
+  "http://localhost:3000/api/v1/users?page[number]=1&page[size]=20&filter[role]=hr&filter[staff_state]=active&sort=email"
 ```
 
 Example idempotent logout request:

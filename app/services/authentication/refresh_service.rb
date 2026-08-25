@@ -54,7 +54,7 @@ module Authentication
         return :reused_token
       end
 
-      unless user.active?
+      unless user.active_staff_account?
         session.revoke!
         return :inactive_account
       end

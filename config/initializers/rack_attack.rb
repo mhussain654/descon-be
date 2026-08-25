@@ -42,6 +42,16 @@ module Rack
       Digest::SHA256.hexdigest(refresh_token)
     end
 
+    throttle(
+      'staff_invitation/ip',
+      limit: ENV.fetch('STAFF_INVITATION_ACCEPT_RATE_LIMIT_PER_MINUTE', 10).to_i,
+      period: 1.minute
+    ) do |request|
+      next unless request.patch? && request.path.start_with?('/api/v1/user_invitations/')
+
+      request.ip
+    end
+
     throttle('candidate_otp/ip', limit: ENV.fetch('OTP_RATE_LIMIT_PER_MINUTE', 10).to_i, period: 1.minute) do |request|
       request.ip if request.path.start_with?('/api/v1/candidate/auth/otp/')
     end

@@ -11,6 +11,7 @@ module Users
         id: @user.public_id,
         email: @user.email,
         role: @user.role,
+        staff_state: @user.staff_state,
         active: @user.active,
         created_at: @user.created_at.utc.iso8601
       }

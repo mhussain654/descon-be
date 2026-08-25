@@ -5,7 +5,14 @@ require 'rails_helper'
 RSpec.describe User, type: :model do
   subject(:user) { build(:user) }
 
-  it { is_expected.to belong_to(:staff_role).class_name('Role').with_foreign_key(:role).with_primary_key(:code) }
+  it do
+    expect(user).to belong_to(:staff_role)
+      .class_name('Role')
+      .with_foreign_key(:role)
+      .with_primary_key(:code)
+      .optional
+  end
+
   it { is_expected.to have_many(:sessions).dependent(:destroy) }
   it { is_expected.to validate_uniqueness_of(:public_id) }
 
@@ -49,5 +56,19 @@ RSpec.describe User, type: :model do
     expect(user.finance?).to be(true)
     expect(user.staff?).to be(true)
     expect(user.management?).to be(false)
+  end
+
+  it 'syncs staff_state from the active flag when callers suspend a user directly' do
+    user.active = false
+    user.validate
+
+    expect(user.staff_state).to eq('suspended')
+  end
+
+  it 'syncs the active flag from staff_state for invited users' do
+    user.staff_state = 'invited'
+    user.validate
+
+    expect(user.active).to be(false)
   end
 end

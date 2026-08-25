@@ -47,6 +47,27 @@ RSpec.describe UserPolicy do
     end
   end
 
+  describe '#create?' do
+    it 'matches the manage_staff_users permission' do
+      admin = create(:user, role: 'admin')
+      hr_user = create(:user, role: 'hr')
+
+      expect(described_class.new(admin, User).create?).to be(true)
+      expect(described_class.new(hr_user, User).create?).to be(false)
+    end
+  end
+
+  describe '#update?' do
+    it 'matches the manage_staff_users permission' do
+      admin = create(:user, role: 'admin')
+      hr_user = create(:user, role: 'hr')
+      target = create(:user, role: 'finance')
+
+      expect(described_class.new(admin, target).update?).to be(true)
+      expect(described_class.new(hr_user, target).update?).to be(false)
+    end
+  end
+
   describe '#show?' do
     it 'allows only the authenticated staff user to view its own profile' do
       actor = create(:user, role: 'management')

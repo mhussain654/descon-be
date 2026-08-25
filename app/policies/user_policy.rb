@@ -5,6 +5,14 @@ class UserPolicy < ApplicationPolicy
     permission_granted?('manage_staff_users')
   end
 
+  def create?
+    permission_granted?('manage_staff_users')
+  end
+
+  def update?
+    permission_granted?('manage_staff_users')
+  end
+
   def show?
     staff_authenticated? && self_record?
   end

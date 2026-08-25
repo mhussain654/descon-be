@@ -16,6 +16,7 @@ class AuditEvent < ApplicationRecord
   validates :action_code, presence: true, format: { with: CODE_FORMAT }
   validates :reason_code, format: { with: CODE_FORMAT }, allow_blank: true
   validates :occurred_at, presence: true
+  validates :metadata, exclusion: { in: [nil] }
   validate :candidate_assignment_matches_candidate
 
   private

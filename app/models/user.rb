@@ -4,8 +4,11 @@ class User < ApplicationRecord
   devise :database_authenticatable, :recoverable, :lockable, :validatable
 
   STAFF_ROLE_CODES = %w[admin hr mps finance management].freeze
+  STAFF_STATES = %w[invited active suspended].freeze
+  INVITATION_TTL = 72.hours
 
-  belongs_to :staff_role, class_name: 'Role', foreign_key: :role, primary_key: :code, inverse_of: :users
+  belongs_to :staff_role, class_name: 'Role', foreign_key: :role, primary_key: :code, inverse_of: :users, optional: true
+  belongs_to :invited_by, class_name: 'User', optional: true
 
   has_many :sessions, dependent: :destroy
   has_many :created_candidates, class_name: 'Candidate', foreign_key: :created_by_id, inverse_of: :created_by,
@@ -27,48 +30,44 @@ class User < ApplicationRecord
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_email
+  before_validation :normalize_staff_state
+  before_validation :synchronize_active_and_staff_state
 
   validates :active, inclusion: { in: [true, false] }
   validates :public_id, presence: true, uniqueness: true
-  validates :role, presence: true
+  validates :email, uniqueness: { case_sensitive: false }
+  validates :role, presence: true, inclusion: { in: STAFF_ROLE_CODES }
+  validates :staff_state, presence: true, inclusion: { in: STAFF_STATES }
 
   delegate :permissions, to: :staff_role
 
-  def self.normalize_email_value(email)
-    email.to_s.strip.downcase
-  end
+  def self.normalize_email_value(email) = email.to_s.strip.downcase
 
   def active_for_authentication?
-    super && active?
+    super && active_staff_account?
   end
 
-  def admin?
-    role?('admin')
-  end
+  def admin? = role?('admin')
 
-  def staff?
-    STAFF_ROLE_CODES.include?(role)
-  end
+  def staff? = STAFF_ROLE_CODES.include?(role)
 
   def authorization_active?
-    active? && active_staff_role?
+    active_staff_account? && active_staff_role?
   end
 
-  def hr?
-    role?('hr')
-  end
+  def invited? = staff_state == 'invited'
 
-  def mps?
-    role?('mps')
-  end
+  def active_staff_account? = staff_state == 'active'
 
-  def finance?
-    role?('finance')
-  end
+  def suspended? = staff_state == 'suspended'
 
-  def management?
-    role?('management')
-  end
+  def hr? = role?('hr')
+
+  def mps? = role?('mps')
+
+  def finance? = role?('finance')
+
+  def management? = role?('management')
 
   def permission?(permission_code)
     authorization_active? && permissions.where(active: true).exists?(code: permission_code.to_s)
@@ -80,15 +79,21 @@ class User < ApplicationRecord
     permissions.where(active: true).distinct.order(:code).pluck(:code)
   end
 
+  def invitation_active?
+    invited? && invitation_token_digest.present? && invitation_expires_at.present? && invitation_expires_at.future?
+  end
+
   private
 
-  def active_staff_role?
-    staff? && staff_role&.active?
+  def active_staff_role? = staff? && staff_role&.active?
+
+  def password_required?
+    return false if invited? && encrypted_password.blank?
+
+    super
   end
 
-  def role?(role_code)
-    role == role_code
-  end
+  def role?(role_code) = role == role_code
 
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
@@ -96,5 +101,15 @@ class User < ApplicationRecord
 
   def normalize_email
     self.email = self.class.normalize_email_value(email)
+  end
+
+  def normalize_staff_state
+    self.staff_state = staff_state.to_s.strip.downcase.presence || 'active'
+  end
+
+  def synchronize_active_and_staff_state
+    return self.active = active_staff_account? if will_save_change_to_staff_state? || !will_save_change_to_active?
+
+    self.staff_state = active? ? 'active' : 'suspended'
   end
 end

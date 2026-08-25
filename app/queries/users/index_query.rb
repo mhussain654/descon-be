@@ -5,15 +5,15 @@ module Users
     DEFAULT_PAGE_NUMBER = 1
     DEFAULT_PAGE_SIZE = 20
     MAX_PAGE_SIZE = 100
-    ALLOWED_FILTERS = %w[active email role].freeze
+    ALLOWED_FILTERS = %w[active email role staff_state].freeze
     BOOLEAN_FILTER_VALUES = { 'true' => true, 'false' => false }.freeze
     ALLOWED_SORTS = {
       'created_at' => :created_at,
       'email' => :email,
       'public_id' => :public_id,
-      'role' => :role
+      'role' => :role,
+      'staff_state' => :staff_state
     }.freeze
-
     attr_reader :pagination
 
     def initialize(scope:, params:)
@@ -23,11 +23,7 @@ module Users
       @pagination = {}
     end
 
-    def call
-      filtered_scope = apply_filters(@scope)
-      sorted_scope = apply_sort(filtered_scope)
-      paginate(sorted_scope)
-    end
+    def call = paginate(apply_sort(apply_filters(@scope)))
 
     private
 
@@ -40,16 +36,12 @@ module Users
     end
 
     def filter_scope(scope, filter_name, filter_value)
-      case filter_name
-      when 'active'
-        scope.where(active: boolean_filter_value(filter_value))
-      when 'email'
-        email_scope(scope, filter_value)
-      when 'role'
-        role_scope(scope, filter_value)
-      else
-        scope.none
-      end
+      return scope.where(active: boolean_filter_value(filter_value)) if filter_name == 'active'
+      return email_scope(scope, filter_value) if filter_name == 'email'
+      return role_scope(scope, filter_value) if filter_name == 'role'
+      return staff_state_scope(scope, filter_value) if filter_name == 'staff_state'
+
+      scope.none
     end
 
     def apply_sort(scope)
@@ -125,8 +117,16 @@ module Users
       scope.where('LOWER(users.email) LIKE ?', "%#{sanitized_email}%")
     end
 
-    def role_codes_supported?(role_values)
-      Role.where(code: role_values.uniq).count == role_values.uniq.count
+    def role_codes_supported?(role_values) = Role.where(code: role_values.uniq).count == role_values.uniq.count
+
+    def staff_state_scope(scope, filter_value)
+      state_values = filter_value.to_s.split(',').map(&:strip).compact_blank
+      raise InvalidQueryParameterError.new(field: 'filter.staff_state') if state_values.empty?
+
+      invalid_states = state_values - User::STAFF_STATES
+      raise InvalidQueryParameterError.new(field: 'filter.staff_state') if invalid_states.any?
+
+      scope.where(staff_state: state_values)
     end
   end
 end

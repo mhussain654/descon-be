@@ -23,4 +23,11 @@ RSpec.describe AuditEvent, type: :model do
     expect(audit_event).not_to be_valid
     expect(audit_event.errors[:candidate_assignment]).to include('is invalid')
   end
+
+  it 'requires metadata to be present' do
+    audit_event.metadata = nil
+
+    expect(audit_event).not_to be_valid
+    expect(audit_event.errors[:metadata]).to be_present
+  end
 end

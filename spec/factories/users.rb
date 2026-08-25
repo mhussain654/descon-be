@@ -7,12 +7,33 @@ FactoryBot.define do
     public_id { SecureRandom.uuid }
     role { 'hr' }
     active { true }
+    staff_state { 'active' }
+    invitation_token_digest { nil }
+    invitation_sent_at { nil }
+    invitation_expires_at { nil }
+    invitation_accepted_at { nil }
+    invited_by { nil }
 
     after(:build) do |user|
       Role.find_or_create_by!(code: user.role) do |role|
         role.system_defined = Role::SYSTEM_ROLES.any? { |role_attributes| role_attributes.fetch(:code) == user.role }
         role.active = true
       end
+    end
+
+    trait :invited do
+      password { nil }
+      encrypted_password { '' }
+      staff_state { 'invited' }
+      active { false }
+      invitation_token_digest { Digest::SHA256.hexdigest(SecureRandom.hex(32)) }
+      invitation_sent_at { Time.current }
+      invitation_expires_at { User::INVITATION_TTL.from_now }
+    end
+
+    trait :suspended do
+      staff_state { 'suspended' }
+      active { false }
     end
   end
 

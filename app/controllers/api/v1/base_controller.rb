@@ -14,7 +14,7 @@ module Api
 
           @current_session.touch_last_seen!
           user = User.find(decoded_bearer_payload.fetch('sub'))
-          raise InactiveAccountError unless user.active?
+          raise InactiveAccountError unless user.active_staff_account?
 
           user
         rescue JWT::DecodeError, KeyError, ActiveRecord::RecordNotFound
