@@ -1,0 +1,5 @@
+<p><%= I18n.t('api.users.mailer.greeting', email: @user.email) %></p>
+
+<p><%= I18n.t('api.users.mailer.body', role: @user.role, expires_in_hours: @expires_in_hours) %></p>
+
+<p><strong><%= I18n.t('api.users.mailer.token_label') %>:</strong> <%= @invitation_token %></p>

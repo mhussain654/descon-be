@@ -15,7 +15,7 @@ module Authentication
     def call
       user = User.find_for_authentication(email: @email)
       return failed_login! unless authenticated?(user)
-      return inactive_account!(user) unless user.active?
+      return inactive_account!(user) unless user.active_staff_account?
 
       authenticate!(user)
     end

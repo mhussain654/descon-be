@@ -22,7 +22,8 @@ Rails.application.routes.draw do
         end
       end
 
-      resources :users, only: :index
+      resources :users, only: %i[index create update]
+      resource :user_invitation, only: :update
 
       namespace :users do
         resource :profile, only: :show

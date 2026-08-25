@@ -231,6 +231,8 @@ FactoryBot.define do
     action_code { 'created' }
     reason_code { nil }
     note { nil }
+    request_id { SecureRandom.uuid }
+    metadata { {} }
     occurred_at { Time.current }
   end
 end

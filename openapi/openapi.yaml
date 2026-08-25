@@ -44,7 +44,7 @@ components:
       name: sort
       schema:
         type: string
-        enum: [created_at, -created_at, email, -email, public_id, -public_id, role, -role]
+        enum: [created_at, -created_at, email, -email, public_id, -public_id, role, -role, staff_state, -staff_state]
       description: Allowlisted sort fields for user collections.
     UserRoleFilter:
       in: query
@@ -65,6 +65,12 @@ components:
       schema:
         type: string
       description: Case-insensitive partial match on email.
+    UserStaffStateFilter:
+      in: query
+      name: filter[staff_state]
+      schema:
+        type: string
+      description: Comma-separated staff states. Supported values are `invited`, `active`, and `suspended`.
   headers:
     ContentLanguageHeader:
       schema:
@@ -170,6 +176,7 @@ components:
           format: email
         role:
           type: string
+          enum: [admin, hr, mps, finance, management]
         permissions:
           type: array
           items:
@@ -186,12 +193,59 @@ components:
           format: email
         role:
           type: string
+          enum: [admin, hr, mps, finance, management]
+        staff_state:
+          type: string
+          enum: [invited, active, suspended]
         active:
           type: boolean
         created_at:
           type: string
           format: date-time
-      required: [id, email, role, active, created_at]
+      required: [id, email, role, staff_state, active, created_at]
+    UserCreateRequest:
+      type: object
+      properties:
+        user:
+          type: object
+          required: [email, role]
+          properties:
+            email:
+              type: string
+              format: email
+            role:
+              type: string
+              enum: [admin, hr, mps, finance, management]
+      required: [user]
+    UserUpdateRequest:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            role:
+              type: string
+              enum: [admin, hr, mps, finance, management]
+            staff_state:
+              type: string
+              enum: [active, suspended]
+      required: [user]
+    UserInvitationAcceptanceRequest:
+      type: object
+      properties:
+        invitation:
+          type: object
+          required: [token, password, password_confirmation]
+          properties:
+            token:
+              type: string
+            password:
+              type: string
+              minLength: 8
+            password_confirmation:
+              type: string
+              minLength: 8
+      required: [invitation]
     SessionPayload:
       type: object
       properties:
@@ -960,7 +1014,7 @@ paths:
   /api/v1/users:
     get:
       summary: List staff users
-      description: Returns staff users only for staff accounts granted the `manage_staff_users` permission. With the seeded role matrix, that is the `admin` role.
+      description: Returns paginated staff users only for staff accounts granted the active `manage_staff_users` permission. The collection supports allowlisted filtering, sorting, and pagination and exposes canonical `invited`, `active`, and `suspended` staff states.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
@@ -969,6 +1023,7 @@ paths:
         - $ref: '#/components/parameters/UserSort'
         - $ref: '#/components/parameters/UserRoleFilter'
         - $ref: '#/components/parameters/UserActiveFilter'
+        - $ref: '#/components/parameters/UserStaffStateFilter'
         - $ref: '#/components/parameters/UserEmailFilter'
       security:
         - bearerAuth: []
@@ -993,6 +1048,7 @@ paths:
                       - id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                         email: admin@example.com
                         role: admin
+                        staff_state: active
                         active: true
                         created_at: '2026-08-23T09:00:00Z'
                     meta:
@@ -1011,6 +1067,7 @@ paths:
                       - id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                         email: admin@example.com
                         role: admin
+                        staff_state: active
                         active: true
                         created_at: '2026-08-23T09:00:00Z'
                     meta:
@@ -1098,3 +1155,251 @@ paths:
                         message: آپ کو یہ کارروائی کرنے کی اجازت نہیں ہے۔
                     request_id: 5f9c04b6-6c40-4c08-bc6d-4186b3834c26
                     timestamp: '2026-08-23T09:00:01Z'
+    post:
+      summary: Invite a staff user
+      description: Creates an invited staff user with a canonical role and queues password-setup invitation delivery. Requires an authenticated active staff session with the active `manage_staff_users` permission.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: Staff invitation created
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                invitationCreated:
+                  value:
+                    data:
+                      user:
+                        id: 84de12f9-27cf-44e5-a8eb-9ca8ac05c572
+                        email: invited.staff@example.com
+                        role: hr
+                        staff_state: invited
+                        active: false
+                        created_at: '2026-08-25T11:00:00Z'
+                      message: Staff user invitation created successfully.
+                    meta:
+                      request_id: ccbcd679-3b5e-4f70-ab8e-d959ebbf7fcb
+                      timestamp: '2026-08-25T11:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Authenticated staff account lacks permission to manage staff users, or the account is inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Validation error such as duplicate email, invalid role, or unsupported attribute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                duplicateEmail:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: email
+                        message: Email has already been taken
+                    request_id: ccbcd679-3b5e-4f70-ab8e-d959ebbf7fcb
+                    timestamp: '2026-08-25T11:00:01Z'
+                unsupportedAttributeUr:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: user.active
+                        message: درخواست میں غیر معاون خصوصیات شامل ہیں۔
+                    request_id: ccbcd679-3b5e-4f70-ab8e-d959ebbf7fcb
+                    timestamp: '2026-08-25T11:00:01Z'
+        '429':
+          description: Rate limited or idempotency collision
+  /api/v1/users/{id}:
+    patch:
+      summary: Update a staff user
+      description: Updates only allowlisted security-sensitive staff attributes. Role changes and suspensions take effect immediately and revoke the affected staff user's active sessions.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Public UUID of the target staff user.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Staff user updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                roleChanged:
+                  value:
+                    data:
+                      user:
+                        id: 84de12f9-27cf-44e5-a8eb-9ca8ac05c572
+                        email: invited.staff@example.com
+                        role: finance
+                        staff_state: active
+                        active: true
+                        created_at: '2026-08-25T11:00:00Z'
+                      message: Staff user updated successfully.
+                    meta:
+                      request_id: 18cfaad5-879a-466f-91cf-863f00ea6fed
+                      timestamp: '2026-08-25T11:05:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Authenticated staff account lacks permission to manage staff users, or the account is inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Validation error such as self-suspension, last-admin protection, invalid state transition, or unsupported attribute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                selfSuspension:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: user.staff_state
+                        message: You cannot suspend your own account.
+                    request_id: 18cfaad5-879a-466f-91cf-863f00ea6fed
+                    timestamp: '2026-08-25T11:05:00Z'
+                lastAdminUr:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: user.role
+                        message: آخری فعال ایڈمن صارف کو معطل یا تنزلی نہیں دی جا سکتی۔
+                    request_id: 18cfaad5-879a-466f-91cf-863f00ea6fed
+                    timestamp: '2026-08-25T11:05:00Z'
+  /api/v1/user_invitation:
+    patch:
+      summary: Accept a staff invitation
+      description: Accepts a single-use expiring staff invitation token from the filtered request body, sets the initial password, and activates the invited staff account. The plaintext invitation token is only delivered out-of-band and is never persisted.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInvitationAcceptanceRequest'
+            examples:
+              acceptInvitation:
+                value:
+                  invitation:
+                    token: invitation-token-from-email
+                    password: Password123!
+                    password_confirmation: Password123!
+      responses:
+        '200':
+          description: Invitation accepted and account activated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                invitationAccepted:
+                  value:
+                    data:
+                      user:
+                        id: 84de12f9-27cf-44e5-a8eb-9ca8ac05c572
+                        email: accepted.staff@example.com
+                        role: hr
+                        staff_state: active
+                        active: true
+                        created_at: '2026-08-25T11:00:00Z'
+                      message: Staff invitation accepted successfully.
+                    meta:
+                      request_id: 7a772a8f-8177-4d55-ae2f-d9a6c7d15c47
+                      timestamp: '2026-08-25T12:00:00Z'
+                    errors: []
+        '401':
+          description: Invalid, expired, revoked, or already-used invitation token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidInvitation:
+                  value:
+                    errors:
+                      - code: invalid_invitation
+                        message: Invalid or expired invitation.
+                    request_id: 7a772a8f-8177-4d55-ae2f-d9a6c7d15c47
+                    timestamp: '2026-08-25T12:00:00Z'
+                invalidInvitationUr:
+                  value:
+                    errors:
+                      - code: invalid_invitation
+                        message: دعوت نامہ غلط ہے یا اس کی مدت ختم ہو چکی ہے۔
+                    request_id: 7a772a8f-8177-4d55-ae2f-d9a6c7d15c47
+                    timestamp: '2026-08-25T12:00:00Z'
+        '422':
+          description: Password validation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Invitation acceptance rate limited
