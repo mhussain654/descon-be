@@ -9,13 +9,10 @@ FactoryBot.define do
     active { true }
 
     after(:build) do |user|
-      next if Role.exists?(code: user.role)
-
-      create(
-        :role,
-        code: user.role,
-        system_defined: Role::SYSTEM_ROLES.any? { |role_attributes| role_attributes.fetch(:code) == user.role }
-      )
+      Role.find_or_create_by!(code: user.role) do |role|
+        role.system_defined = Role::SYSTEM_ROLES.any? { |role_attributes| role_attributes.fetch(:code) == user.role }
+        role.active = true
+      end
     end
   end
 

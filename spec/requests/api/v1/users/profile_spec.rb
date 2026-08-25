@@ -3,62 +3,124 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 User Profile', type: :request do
-  let!(:user) { create(:user, role: 'management', email: 'management-profile@example.com', password: 'Password123!') }
+  before do
+    ensure_staff_authorization_reference_data!
+  end
 
-  def login!
+  def login_as(user)
     post '/api/v1/auth/login', params: { auth: { email: user.email, password: 'Password123!' } }
     response.parsed_body.fetch('data')
   end
 
-  it 'returns the authenticated profile with trusted server-side role data' do
-    tokens = login!
+  describe 'GET /api/v1/users/profile' do
+    it 'returns the authenticated profile for every supported active staff role' do
+      %w[admin hr mps finance management].each do |role|
+        user = create(:user, role:, email: "#{role}-profile@example.com", password: 'Password123!')
+        tokens = login_as(user)
 
-    get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+        get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
 
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.dig('data', 'email')).to eq(user.email)
-    expect(response.parsed_body.dig('data', 'role')).to eq('management')
-  end
-
-  it 'rejects requests without authentication' do
-    get '/api/v1/users/profile'
-
-    expect(response).to have_http_status(:unauthorized)
-  end
-
-  it 'rejects an invalid jwt' do
-    get '/api/v1/users/profile', headers: { 'Authorization' => 'Bearer invalid.token' }
-
-    expect(response).to have_http_status(:unauthorized)
-  end
-
-  it 'rejects an expired staff token' do
-    tokens = login!
-
-    travel_to((Authentication::TokenIssuer::ACCESS_TOKEN_TTL + 1.second).from_now) do
-      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body.dig('data', 'email')).to eq(user.email)
+        expect(response.parsed_body.dig('data', 'role')).to eq(role)
+        expect(response.parsed_body.dig('data', 'permissions')).to eq(user.effective_permission_codes)
+      end
     end
 
-    expect(response).to have_http_status(:unauthorized)
-  end
+    it 'returns active effective permission codes in deterministic order' do
+      user = create(:user, role: 'admin', email: 'permissions-profile@example.com', password: 'Password123!')
+      Permission.find_by!(code: 'manage_staff_users').update!(active: false)
+      tokens = login_as(user)
 
-  it 'rejects a candidate token on a staff endpoint' do
-    candidate = create(:candidate)
-    candidate_session = create(:candidate_session, candidate:)
-    token = CandidateAuthentication::TokenIssuer.call(candidate:, candidate_session:)
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
 
-    get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{token}" }
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'permissions')).to eq(user.reload.effective_permission_codes)
+      expect(response.parsed_body.dig('data', 'permissions')).not_to include('manage_staff_users')
+      expect(response.parsed_body.dig('data', 'permissions')).to eq(
+        response.parsed_body.dig('data', 'permissions').sort
+      )
+    end
 
-    expect(response).to have_http_status(:unauthorized)
-  end
+    it 'returns an empty permissions array when no active permissions are granted' do
+      user = create(:user, role: 'hr', email: 'no-permissions-profile@example.com', password: 'Password123!')
+      user.staff_role.role_permissions.destroy_all
+      tokens = login_as(user)
 
-  it 'rejects inactive users even with a previously issued token' do
-    tokens = login!
-    user.update!(active: false)
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
 
-    get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'permissions')).to eq([])
+    end
 
-    expect(response).to have_http_status(:forbidden)
-    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('inactive_account')
+    it 'denies access when the role is inactive' do
+      user = create(:user, role: 'management', email: 'inactive-role-profile@example.com', password: 'Password123!')
+      tokens = login_as(user)
+      user.staff_role.update!(active: false)
+
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('forbidden')
+    end
+
+    it 'rejects requests without authentication' do
+      get '/api/v1/users/profile'
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unauthorized')
+    end
+
+    it 'rejects an invalid jwt' do
+      get '/api/v1/users/profile', headers: { 'Authorization' => 'Bearer invalid.token' }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unauthorized')
+    end
+
+    it 'rejects an expired staff token' do
+      user = create(:user, role: 'management', email: 'management-profile@example.com', password: 'Password123!')
+      tokens = login_as(user)
+
+      travel_to((Authentication::TokenIssuer::ACCESS_TOKEN_TTL + 1.second).from_now) do
+        get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+      end
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unauthorized')
+    end
+
+    it 'rejects a candidate token on a staff endpoint' do
+      candidate = create(:candidate)
+      candidate_session = create(:candidate_session, candidate:)
+      token = CandidateAuthentication::TokenIssuer.call(candidate:, candidate_session:)
+
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{token}" }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unauthorized')
+    end
+
+    it 'rejects revoked staff sessions even with an otherwise valid access token' do
+      user = create(:user, role: 'management', email: 'revoked-management@example.com', password: 'Password123!')
+      tokens = login_as(user)
+      Session.last.revoke!
+
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unauthorized')
+    end
+
+    it 'rejects inactive users even with a previously issued token' do
+      user = create(:user, role: 'management', email: 'inactive-management@example.com', password: 'Password123!')
+      tokens = login_as(user)
+      user.update!(active: false)
+
+      get '/api/v1/users/profile', headers: { 'Authorization' => "Bearer #{tokens.fetch('access_token')}" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('inactive_account')
+    end
   end
 end

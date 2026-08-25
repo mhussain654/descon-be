@@ -10,7 +10,8 @@ module Users
       {
         id: @user.public_id,
         email: @user.email,
-        role: @user.role
+        role: @user.role,
+        permissions: @user.effective_permission_codes
       }
     end
   end

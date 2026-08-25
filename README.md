@@ -194,6 +194,16 @@ Security behavior:
 - Refresh attempts are throttled per IP and refresh-token digest
 - Successful login, refresh, logout, failed login, and refresh-token reuse are persisted in `authentication_events`
 
+## Staff authorization
+
+Authentication and authorization are enforced separately.
+
+- Staff API authorization is enforced server-side through Pundit policies
+- Access is denied by default unless a policy explicitly grants it
+- `GET /api/v1/users/profile` is available to any authenticated active staff session for its own profile
+- `GET /api/v1/users` requires the `manage_staff_users` permission; with the seeded role matrix, this is currently granted to the `admin` role only
+- Frontend route guards or hidden navigation are not treated as a security boundary
+
 Example login:
 
 ```bash
