@@ -27,7 +27,7 @@ RSpec.describe Users::InvitationDeliveryJob, type: :job do
     end
 
     email = ActionMailer::Base.deliveries.last
-    token = email.body.encoded[/Invitation token:\s+([A-Za-z0-9\-_]+)/, 1]
+    token = email.body.encoded[/Invitation token:\s+([A-Za-z0-9._-]+)/, 1]
 
     expect(email.to).to eq([user.email])
     expect(token).to be_present
@@ -44,16 +44,28 @@ RSpec.describe Users::InvitationDeliveryJob, type: :job do
     end.to have_enqueued_job(described_class).with(user.id)
   end
 
+  it 'does not store plaintext invitation tokens in Rails.cache' do
+    user = create(:user, :invited, email: 'no-cache-job@example.com')
+
+    allow(Rails.cache).to receive(:read).and_call_original
+    allow(Rails.cache).to receive(:write).and_call_original
+
+    described_class.perform_now(user.id)
+
+    expect(Rails.cache).not_to have_received(:read)
+    expect(Rails.cache).not_to have_received(:write)
+  end
+
   it 'reuses the same active invitation token for duplicate delivery jobs' do
     user = create(:user, :invited, email: 'duplicate-job@example.com')
 
     described_class.perform_now(user.id)
     first_email = ActionMailer::Base.deliveries.last
-    first_token = first_email.body.encoded[/Invitation token:\s+([A-Za-z0-9\-_]+)/, 1]
+    first_token = first_email.body.encoded[/Invitation token:\s+([A-Za-z0-9._-]+)/, 1]
 
     described_class.perform_now(user.id)
     second_email = ActionMailer::Base.deliveries.last
-    second_token = second_email.body.encoded[/Invitation token:\s+([A-Za-z0-9\-_]+)/, 1]
+    second_token = second_email.body.encoded[/Invitation token:\s+([A-Za-z0-9._-]+)/, 1]
 
     expect(first_token).to be_present
     expect(second_token).to eq(first_token)

@@ -111,6 +111,7 @@ Commonly adjusted per machine or environment:
 - `JWT_ISSUER`
 - `JWT_AUDIENCE`
 - `DEVISE_MAILER_SENDER`
+- `INVITATION_TOKEN_SECRET`
 - `APP_SUPPORTED_LOCALES`
 - `MAX_REQUEST_BODY_SIZE_BYTES`
 - `API_RATE_LIMIT_PER_MINUTE`
@@ -226,6 +227,7 @@ Security and lifecycle rules:
 - Every administration endpoint requires an authenticated, active staff session with the active `manage_staff_users` permission
 - Public UUIDs are exposed as `id`; internal numeric IDs, password digests, invitation digests, Devise lock fields, and session records are never returned
 - Invitation tokens are generated securely, stored only as SHA-256 digests, expire after `72` hours, and are single-use
+- Active invitation tokens are derived deterministically from a dedicated server-side secret plus stable invitation data, so duplicate jobs can reproduce the same active token without persisting plaintext in PostgreSQL, Solid Cache, job arguments, logs, or audit metadata
 - Invitation acceptance tokens are submitted in the JSON body, not the URL path, to avoid leaking plaintext tokens through access logs and browser history
 - Duplicate delivery jobs reuse the same still-valid invitation token instead of rotating it and invalidating an already delivered email
 - Invitation acceptance is rate-limited by `STAFF_INVITATION_ACCEPT_RATE_LIMIT_PER_MINUTE`

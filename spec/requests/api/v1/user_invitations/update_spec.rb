@@ -27,7 +27,7 @@ RSpec.describe 'API V1 User Invitations', type: :request do
            headers: { 'Authorization' => "Bearer #{admin_access_token}" }
     end
 
-    ActionMailer::Base.deliveries.last.body.encoded[/Invitation token:\s+([A-Za-z0-9\-_]+)/, 1]
+    ActionMailer::Base.deliveries.last.body.encoded[/Invitation token:\s+([A-Za-z0-9._-]+)/, 1]
   end
 
   def admin_access_token
