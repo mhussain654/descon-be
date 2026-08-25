@@ -2,18 +2,24 @@
 
 module Authentication
   class LogoutService < ApplicationService
+    private attr_reader :request_context
+
     def initialize(session:, request_id:, ip_address:, user_agent:)
       @session = session
-      @request_id = request_id
-      @ip_address = ip_address
-      @user_agent = user_agent
+      @request_context = RequestContextSanitizer.call(request_id:, user_agent:, ip_address:)
     end
 
     def call
-      already_revoked = @session.revoked?
-      @session.revoke!
-      log_event unless already_revoked
-      @session
+      revoked_by_this_call = false
+
+      Session.transaction do
+        @session.lock!
+        revoked_by_this_call = !@session.revoked?
+        @session.revoke!
+      end
+
+      log_event if revoked_by_this_call
+      @session.reload
     end
 
     private
@@ -25,10 +31,6 @@ module Authentication
         subject: { user: @session.user, session: @session },
         metadata: {}
       )
-    end
-
-    def request_context
-      { request_id: @request_id, ip_address: @ip_address, user_agent: @user_agent }
     end
   end
 end

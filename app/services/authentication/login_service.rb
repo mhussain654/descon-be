@@ -2,17 +2,19 @@
 
 module Authentication
   class LoginService < ApplicationService
+    DUMMY_PASSWORD_DIGEST = BCrypt::Password.create('0' * 24).freeze
+
+    private attr_reader :request_context
+
     def initialize(email:, password:, user_agent:, ip_address:, request_id:)
       @email = User.normalize_email_value(email)
       @password = password
-      @user_agent = user_agent
-      @ip_address = ip_address
-      @request_id = request_id
+      @request_context = RequestContextSanitizer.call(request_id:, user_agent:, ip_address:)
     end
 
     def call
       user = User.find_for_authentication(email: @email)
-      return failed_login! unless user&.valid_password?(@password)
+      return failed_login! unless authenticated?(user)
       return inactive_account!(user) unless user.active?
 
       authenticate!(user)
@@ -24,7 +26,10 @@ module Authentication
       result = nil
 
       Session.transaction do
-        session = user.sessions.create!(user_agent: @user_agent, ip_address: @ip_address)
+        session = user.sessions.create!(
+          user_agent: @request_context.fetch(:user_agent),
+          ip_address: @request_context.fetch(:ip_address)
+        )
         result = issue_tokens(user:, session:)
         log_event('login_succeeded', user:, session:)
       end
@@ -44,6 +49,18 @@ module Authentication
       raise UnauthorizedError
     end
 
+    def authenticated?(user)
+      return user.valid_password?(@password) if user
+
+      consume_dummy_password_digest
+      false
+    end
+
+    def consume_dummy_password_digest
+      BCrypt::Password.new(DUMMY_PASSWORD_DIGEST).is_password?(@password)
+      nil
+    end
+
     def inactive_account!(user)
       log_event('inactive_account_login_rejected', user:, identifier: @email)
       raise InactiveAccountError
@@ -56,10 +73,6 @@ module Authentication
         subject: { user:, session:, identifier: identifier || @email },
         metadata:
       )
-    end
-
-    def request_context
-      { request_id: @request_id, ip_address: @ip_address, user_agent: @user_agent }
     end
   end
 end

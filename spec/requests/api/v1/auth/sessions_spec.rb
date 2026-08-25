@@ -180,6 +180,18 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('session_revoked')
     end
 
+    it 'rejects refresh for an inactive account and revokes the session' do
+      raw_token = login_response.fetch('refresh_token')
+      session = Session.last
+      admin_user.update!(active: false)
+
+      refresh(refresh_token: raw_token)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('inactive_account')
+      expect(session.reload).to be_revoked
+    end
+
     it 'revokes the session when a rotated token is reused' do
       refresh_token_value = login_response.fetch('refresh_token')
       access_token = login_response.fetch('access_token')
