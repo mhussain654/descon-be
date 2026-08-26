@@ -21,6 +21,7 @@ Rails.application.routes.draw do
           end
         end
 
+        resources :documents, only: %i[index create]
         resource :profile, only: :show
       end
 

@@ -123,6 +123,7 @@ Commonly adjusted per machine or environment:
 - `CANDIDATE_JWT_AUDIENCE`
 - `CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`
 - `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS`
+- `CANDIDATE_DOCUMENT_MAX_BYTES`
 - `SEED_DEMO_DATA` -- set to `true` only in development when you want demo candidates and the demo administrator created by `db:seed`
 - `OTP_CODE_LENGTH`
 - `OTP_EXPIRY_SECONDS`
@@ -133,6 +134,7 @@ Commonly adjusted per machine or environment:
 - `CANDIDATE_IMPORT_MAX_BYTES`
 - `CANDIDATE_IMPORT_MAX_ROWS`
 - `SMS_PROVIDER` -- `test` is the only implementation available until a real vendor adapter is added (see `app/services/sms/`); never set to anything else in production until one exists
+- `ACTIVE_STORAGE_SERVICE`
 - `FORCE_SSL`
 - `RAILS_LOG_LEVEL`
 - `JOB_CONCURRENCY`
@@ -276,6 +278,74 @@ Candidate-facing endpoints remain isolated from staff APIs.
 
 Staff tokens are rejected from candidate-only endpoints, and inactive candidates cannot initialize or restore an authenticated candidate session.
 
+## Candidate required documents and uploads
+
+Candidate document APIs are candidate-facing only. No admin review or verification endpoint is added in this ticket.
+
+- `GET /api/v1/candidate/documents` returns the authenticated candidate's document checklist
+- `POST /api/v1/candidate/documents` uploads or replaces one candidate-owned document through `multipart/form-data`
+- Candidate identity always comes from the candidate bearer token; the client never supplies a candidate ID
+- Staff tokens are rejected from candidate-only document endpoints
+- Files are attached through Active Storage and are treated as private application assets; the API never returns public URLs, storage keys, disk paths, or internal IDs
+
+Checklist behavior:
+
+- Requirements are resolved from the candidate's current assignment against `document_requirements`
+- The current implementation prefers the most specific active requirement match across global, country, project, and craft scopes for each stable document-type code
+- If no current document exists for a requirement, the API returns `status: missing`
+- Uploaded documents expose only safe metadata: public document ID, original filename, detected content type, file size, and upload timestamp
+
+Upload behavior:
+
+- Requires `candidate_document[requirement_code]` and `candidate_document[file]`
+- Supports PDF, JPEG, and PNG only
+- Detects actual content type server-side instead of trusting the filename extension alone
+- Enforces `CANDIDATE_DOCUMENT_MAX_BYTES`
+- Supports safe retries with `Idempotency-Key`
+- Reusing the same idempotency key with the same file and requirement replays the original success response
+- The replay decision is scoped to the authenticated candidate subject, not to a specific bearer token, so the same candidate can safely retry after renewing their session
+- Reusing the same key with different upload content returns `409 idempotency_conflict`
+- Replacements are allowed only while the current document is still candidate-replaceable; verified or pending-review records cannot be replaced by the candidate
+- Failed replacements preserve the previous current document because superseding and new-document persistence occur in one transaction
+
+Localized upload error codes:
+
+- `missing_file`
+- `invalid_requirement`
+- `unsupported_file_type`
+- `file_too_large`
+- `empty_file`
+- `replacement_not_allowed`
+- `inactive_account`
+- `unauthorized`
+- `idempotency_conflict`
+
+Example checklist request:
+
+```bash
+curl \
+  -H "Authorization: Bearer <candidate_access_token>" \
+  -H "X-Locale: ur" \
+  http://localhost:3000/api/v1/candidate/documents
+```
+
+Example upload request:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/candidate/documents \
+  -H "Authorization: Bearer <candidate_access_token>" \
+  -H "X-Locale: en" \
+  -H "Idempotency-Key: candidate-document-20260826-001" \
+  -F "candidate_document[requirement_code]=passport" \
+  -F "candidate_document[file]=@spec/fixtures/files/test.pdf;type=application/pdf"
+```
+
+Production storage note:
+
+- Production must set `ACTIVE_STORAGE_SERVICE` explicitly to an approved durable private storage backend before deploying candidate uploads
+- The production environment no longer falls back to `local` storage for uploads
+- Leaving `ACTIVE_STORAGE_SERVICE` unset in production now fails fast during boot instead of silently storing candidate documents on local disk
+
 ## Staff user administration
 
 Staff-user administration uses the existing `/api/v1/users` resource and a dedicated invitation-acceptance resource.
@@ -406,6 +476,8 @@ Database-backed translated content should stay out of static locale files. Store
 - `DELETE /api/v1/auth/logout`
 - `POST /api/v1/candidate/auth/otp/request`
 - `POST /api/v1/candidate/auth/otp/verify`
+- `GET /api/v1/candidate/documents`
+- `POST /api/v1/candidate/documents`
 - `GET /api/v1/users`
 - `POST /api/v1/users`
 - `PATCH /api/v1/users/:id`
@@ -438,6 +510,8 @@ Database-backed translated content should stay out of static locale files. Store
 - `POST /api/v1/candidate/auth/otp/verify` collapses unknown CNIC, no requested challenge, an already-used challenge, and an incorrect code into the identical `otp_invalid` error; `otp_expired` and `otp_max_attempts` are intentionally reachable for both real and decoy challenges, so they do not function as an existence oracle
 - Both candidate OTP endpoints are rate-limited per IP and per (normalized) CNIC, independently of the per-challenge attempt limit enforced by `otp_max_attempts`
 - Candidate access/refresh tokens use a distinct JWT audience (`CANDIDATE_JWT_AUDIENCE`) from staff tokens and are backed by separate `candidate_sessions`/`candidate_refresh_tokens` tables, so a candidate token can never be accepted as a staff one or vice versa
+- `POST /api/v1/candidate/documents` accepts multipart uploads with `candidate_document[requirement_code]` and `candidate_document[file]`, validates actual content type, and stores files privately
+- `POST /api/v1/candidate/documents` supports replay-safe retries with `Idempotency-Key` and returns `409 idempotency_conflict` when a key is reused for different upload content
 
 Example collection request:
 

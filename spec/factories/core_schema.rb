@@ -194,6 +194,16 @@ FactoryBot.define do
     uploaded_at { Time.current }
     verified_at { nil }
     rejection_reason { nil }
+
+    after(:build) do |document|
+      next if document.file.attached?
+
+      document.file.attach(
+        io: Rails.root.join('spec/fixtures/files/test.pdf').open,
+        filename: 'document.pdf',
+        content_type: 'application/pdf'
+      )
+    end
   end
 
   factory :payment do
