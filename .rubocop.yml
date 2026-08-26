@@ -36,6 +36,8 @@ Metrics/MethodLength:
     - db/migrate/20260822111400_add_core_relational_constraints.rb
     - db/migrate/20260823130000_create_candidate_sessions_and_refresh_tokens.rb
     - db/migrate/20260823130001_create_candidate_otp_challenges.rb
+    - spec/requests/api/v1/admin/candidate_imports_spec.rb
+    - spec/services/admin/candidates/import_service_spec.rb
 
 Metrics/AbcSize:
   Exclude:
@@ -63,6 +65,8 @@ Lint/MissingSuper:
 Layout/LineLength:
   Exclude:
     - config/initializers/devise.rb
+    - spec/requests/api/v1/admin/candidate_imports_spec.rb
+    - spec/services/admin/candidates/import_service_spec.rb
 
 RSpec/MultipleExpectations:
   Enabled: false

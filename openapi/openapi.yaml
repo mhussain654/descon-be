@@ -95,6 +95,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    candidateBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     EnvelopeMeta:
       type: object
@@ -309,10 +313,67 @@ components:
           format: uuid
         full_name:
           type: string
+        masked_cnic:
+          type: string
+          example: 42101-*******-1
+        reference_number:
+          type: string
         preferred_locale:
           type: string
           enum: [en, ur]
-      required: [id, full_name, preferred_locale]
+        candidate_status:
+          type: string
+          example: registered
+        current_workflow_stage:
+          type: object
+          properties:
+            code:
+              type: string
+            name:
+              type: string
+          required: [code, name]
+        active:
+          type: boolean
+      required: [id, full_name, masked_cnic, reference_number, preferred_locale, candidate_status, active]
+    CandidateImportRequest:
+      type: object
+      properties:
+        candidate_import:
+          type: object
+          required: [file]
+          properties:
+            file:
+              type: string
+              format: binary
+      required: [candidate_import]
+    CandidateImportRowError:
+      type: object
+      properties:
+        row:
+          type: integer
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required: [row, field, code, message]
+    CandidateImportResult:
+      type: object
+      properties:
+        successful_rows:
+          type: integer
+        failed_rows:
+          type: integer
+        skipped_rows:
+          type: integer
+        total_rows:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateImportRowError'
+      required: [successful_rows, failed_rows, skipped_rows, total_rows, errors]
     CandidateSessionPayload:
       type: object
       properties:
@@ -886,7 +947,14 @@ paths:
                       candidate:
                         id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                         full_name: Ahmed Ali
+                        masked_cnic: 42101-*******-1
+                        reference_number: DES-001001
                         preferred_locale: en
+                        candidate_status: registered
+                        current_workflow_stage:
+                          code: registered
+                          name: Registered
+                        active: true
                     meta:
                       request_id: 3c4d5e6f-7a8b-4c9d-9e0f-1a2b3c4d5e6f
                       timestamp: '2026-08-23T09:00:09Z'
@@ -945,6 +1013,162 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '429':
           description: Rate limited (per IP or per CNIC)
+  /api/v1/candidate/profile:
+    get:
+      summary: Fetch the authenticated candidate profile
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Authenticated candidate profile
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                englishProfile:
+                  value:
+                    data:
+                      id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      full_name: Ahmed Ali
+                      masked_cnic: 42101-*******-1
+                      reference_number: DES-001001
+                      preferred_locale: en
+                      candidate_status: registered
+                      current_workflow_stage:
+                        code: registered
+                        name: Registered
+                      active: true
+                    meta:
+                      request_id: c0f3c0af-1bf0-48ba-bf9d-6ec0229247f0
+                      timestamp: '2026-08-26T09:00:10Z'
+                    errors: []
+                urduProfile:
+                  value:
+                    data:
+                      id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      full_name: Ahmed Ali
+                      masked_cnic: 42101-*******-1
+                      reference_number: DES-001001
+                      preferred_locale: ur
+                      candidate_status: registered
+                      current_workflow_stage:
+                        code: registered
+                        name: رجسٹرڈ
+                      active: true
+                    meta:
+                      request_id: c0f3c0af-1bf0-48ba-bf9d-6ec0229247f0
+                      timestamp: '2026-08-26T09:00:10Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/admin/candidate_imports:
+    post:
+      summary: Import candidates from CSV
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateImportRequest'
+      responses:
+        '201':
+          description: >-
+            Import request accepted and processed. At least one row was persisted as a new
+            candidate. Row-level problems (invalid field values, in-file or database
+            duplicates, blank rows) do not cause a 4xx response — they are reported per-row
+            inside `data.errors`, alongside the `successful_rows`/`failed_rows`/`skipped_rows`
+            counts. Only file-level or request-level problems (missing file, wrong content
+            type, unreadable CSV, missing required headers, too many rows) are returned as
+            `422`.
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                imported:
+                  value:
+                    data:
+                      successful_rows: 2
+                      failed_rows: 0
+                      skipped_rows: 0
+                      total_rows: 2
+                      errors: []
+                    meta:
+                      request_id: 915c82bc-5f8f-4ce8-90d8-fafc418ea0df
+                      timestamp: '2026-08-26T09:00:11Z'
+                    errors: []
+        '200':
+          description: >-
+            Import request accepted and processed, but no row was persisted as a new
+            candidate (every row was invalid, blank, or a duplicate). As with `201`, these
+            are row-level outcomes reported in `data.errors`, not request-level `422`
+            failures — the request itself was well-formed and was fully processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                importWithErrors:
+                  value:
+                    data:
+                      successful_rows: 0
+                      failed_rows: 1
+                      skipped_rows: 1
+                      total_rows: 2
+                      errors:
+                        - row: 2
+                          field: cnic
+                          code: invalid_cnic
+                          message: Enter a valid CNIC in the format 00000-0000000-0.
+                        - row: 3
+                          field: reference_number
+                          code: duplicate_reference_number
+                          message: A candidate assignment with this reference number already exists.
+                    meta:
+                      request_id: 915c82bc-5f8f-4ce8-90d8-fafc418ea0df
+                      timestamp: '2026-08-26T09:00:11Z'
+                    errors: []
+        '401':
+          description: Missing or invalid staff authentication
+        '403':
+          description: Authenticated staff user lacks the required permission or is inactive
+        '409':
+          description: Idempotency conflict or in-progress request
+        '422':
+          description: >-
+            Request-level failure before any row was processed: missing file, invalid file
+            type or size, unreadable/malformed CSV, or missing required CSV headers. This
+            does not cover invalid row content (bad CNIC format, unknown reference codes,
+            duplicate rows, etc.) — those are row-level outcomes returned inside a `200`/`201`
+            response's `data.errors` array, not this status.
   /api/v1/users/profile:
     get:
       summary: Fetch the authenticated user profile

@@ -102,7 +102,7 @@ module CandidateAuthentication
           lock_cnic!
           next if within_resend_cooldown?
 
-          candidate = Candidate.find_by(cnic: @cnic)
+          candidate = Candidate.active.find_by(cnic: @cnic)
           challenge_payload = CandidateOtpChallenge.generate_for(candidate:, cnic: @cnic, requested_ip: @ip_address)
           challenge_payload[:candidate] = candidate
         end

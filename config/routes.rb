@@ -20,6 +20,12 @@ Rails.application.routes.draw do
             post :verify, to: 'verifications#create'
           end
         end
+
+        resource :profile, only: :show
+      end
+
+      namespace :admin do
+        resources :candidate_imports, only: :create
       end
 
       resources :users, only: %i[index create update]

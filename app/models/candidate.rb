@@ -3,6 +3,7 @@
 class Candidate < ApplicationRecord
   PREFERRED_LOCALES = %w[en ur].freeze
   SOURCE_CODES = %w[admin_ui csv_import].freeze
+  STATUS_CODE_FORMAT = /\A[a-z0-9_]+\z/
   CNIC_FORMAT = /\A\d{5}-\d{7}-\d\z/
   MOBILE_NUMBER_FORMAT = /\A\+?\d{10,15}\z/
   PASSPORT_NUMBER_FORMAT = /\A[A-Z0-9-]+\z/
@@ -18,7 +19,11 @@ class Candidate < ApplicationRecord
   before_validation :normalize_cnic
   before_validation :normalize_mobile_number
   before_validation :normalize_passport_number
+  before_validation :normalize_status_code
 
+  scope :active, -> { where(active: true) }
+
+  validates :active, inclusion: { in: [true, false] }
   validates :public_id, presence: true, uniqueness: true
   validates :full_name, presence: true
   validates :cnic, presence: true, uniqueness: true, format: { with: CNIC_FORMAT }
@@ -30,6 +35,13 @@ class Candidate < ApplicationRecord
             if: :passport_number?
   validates :preferred_locale, inclusion: { in: PREFERRED_LOCALES }
   validates :source_code, inclusion: { in: SOURCE_CODES }
+  validates :status_code, presence: true, format: { with: STATUS_CODE_FORMAT }
+
+  def active_for_authentication? = active?
+
+  def current_assignment
+    candidate_assignments.order(created_at: :desc).first
+  end
 
   private
 
@@ -52,5 +64,9 @@ class Candidate < ApplicationRecord
   def normalize_passport_number
     normalized_value = passport_number.to_s.upcase.gsub(/\s+/, '')
     self.passport_number = normalized_value.presence
+  end
+
+  def normalize_status_code
+    self.status_code = status_code.to_s.strip.downcase.presence || 'registered'
   end
 end

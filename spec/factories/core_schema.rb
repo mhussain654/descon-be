@@ -85,6 +85,8 @@ FactoryBot.define do
     sequence(:mobile_number) { |n| "+9230012#{format('%05d', n)}" }
     passport_number { nil }
     preferred_locale { 'en' }
+    status_code { 'registered' }
+    active { true }
     source_code { 'admin_ui' }
     association :created_by, factory: :user
   end
