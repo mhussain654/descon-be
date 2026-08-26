@@ -9,12 +9,13 @@ module IdempotentRequestHandling
     scope:,
     subject: nil,
     expires_in: Idempotency::RequestHandler::DEFAULT_EXPIRY,
+    fingerprint: nil,
     &operation
   )
     key = request.headers['Idempotency-Key'].to_s.strip
     return render_payload(yield) if key.blank?
 
-    result = idempotency_result(key:, scope:, subject:, expires_in:, &operation)
+    result = idempotency_result(key:, scope:, subject:, expires_in:, fingerprint:, &operation)
     response.set_header('Idempotency-Replayed', 'true') if result.replayed
     render_payload(result.payload)
   end
@@ -55,21 +56,21 @@ module IdempotentRequestHandling
     )
   end
 
-  def idempotency_result(key:, scope:, subject:, expires_in:, &operation)
+  def idempotency_result(key:, scope:, subject:, expires_in:, fingerprint:, &operation)
     Idempotency::RequestHandler.call(
       key:,
       scope:,
       subject:,
-      request_context: idempotency_request_metadata(operation),
+      request_context: idempotency_request_metadata(operation, fingerprint:),
       expires_in:
     )
   end
 
-  def idempotency_request_metadata(operation)
+  def idempotency_request_metadata(operation, fingerprint:)
     {
       method: request.request_method,
       path: request.path,
-      fingerprint: Idempotency::RequestFingerprint.call(request:),
+      fingerprint: fingerprint || Idempotency::RequestFingerprint.call(request:),
       operation:
     }
   end

@@ -10,9 +10,37 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_113000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_172000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "record_id", null: false
+    t.string "record_type", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "audit_events", force: :cascade do |t|
     t.string "action_code", null: false
@@ -97,17 +125,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_113000) do
     t.date "expires_on"
     t.date "issued_on"
     t.string "original_filename"
+    t.string "public_id", null: false
     t.text "rejection_reason"
     t.string "status_code", null: false
+    t.datetime "superseded_at"
     t.datetime "updated_at", null: false
     t.datetime "uploaded_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.bigint "uploaded_by_id"
     t.datetime "verified_at"
     t.bigint "verified_by_id"
     t.index ["candidate_assignment_id", "document_type_id", "status_code"], name: "index_candidate_documents_on_assignment_type_status"
+    t.index ["candidate_assignment_id", "document_type_id"], name: "index_candidate_documents_on_current_requirement", unique: true, where: "(superseded_at IS NULL)"
     t.index ["candidate_assignment_id"], name: "index_candidate_documents_on_candidate_assignment_id"
     t.index ["checksum_sha256"], name: "index_candidate_documents_on_checksum_sha256"
     t.index ["document_type_id"], name: "index_candidate_documents_on_document_type_id"
+    t.index ["public_id"], name: "index_candidate_documents_on_public_id", unique: true
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
     t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying]::text[])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
@@ -453,6 +485,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_113000) do
     t.check_constraint "code::text ~ '^[a-z0-9_]+$'::text", name: "workflow_stages_code_format"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "audit_events", "candidate_assignments"
   add_foreign_key "audit_events", "candidates"
   add_foreign_key "audit_events", "users", column: "actor_id"

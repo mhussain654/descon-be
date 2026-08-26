@@ -335,6 +335,57 @@ components:
         active:
           type: boolean
       required: [id, full_name, masked_cnic, reference_number, preferred_locale, candidate_status, active]
+    CandidateDocumentMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        file_name:
+          type: string
+        content_type:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png]
+        file_size:
+          type: integer
+        uploaded_at:
+          type: string
+          format: date-time
+      required: [id, file_name, content_type, file_size, uploaded_at]
+    CandidateDocumentChecklistItem:
+      type: object
+      properties:
+        requirement_code:
+          type: string
+          example: passport
+        name:
+          type: string
+        required:
+          type: boolean
+        status:
+          type: string
+          enum: [missing, uploaded, pending_review, verified, rejected]
+        replacement_allowed:
+          type: boolean
+        document:
+          anyOf:
+            - $ref: '#/components/schemas/CandidateDocumentMetadata'
+            - type: 'null'
+      required: [requirement_code, name, required, status, replacement_allowed, document]
+    CandidateDocumentUploadRequest:
+      type: object
+      properties:
+        candidate_document:
+          type: object
+          required: [requirement_code, file]
+          properties:
+            requirement_code:
+              type: string
+              example: passport
+            file:
+              type: string
+              format: binary
+      required: [candidate_document]
     CandidateImportRequest:
       type: object
       properties:
@@ -1074,6 +1125,208 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/documents:
+    get:
+      summary: Fetch the authenticated candidate document checklist
+      description: Returns only the authenticated candidate's current requirement checklist and safe document metadata. Staff tokens are not accepted.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate checklist retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                checklistMissing:
+                  summary: English checklist with a missing document
+                  value:
+                    data:
+                      - requirement_code: passport
+                        name: Passport
+                        required: true
+                        status: missing
+                        replacement_allowed: true
+                        document: null
+                    meta:
+                      request_id: 318785e8-644f-4d6d-a439-c6e57f7f0d07
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+                checklistUploadedUr:
+                  summary: Urdu checklist with an uploaded document
+                  value:
+                    data:
+                      - requirement_code: passport
+                        name: پاسپورٹ
+                        required: true
+                        status: uploaded
+                        replacement_allowed: true
+                        document:
+                          id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
+                          file_name: passport.pdf
+                          content_type: application/pdf
+                          file_size: 123456
+                          uploaded_at: '2026-08-26T12:00:00Z'
+                    meta:
+                      request_id: 318785e8-644f-4d6d-a439-c6e57f7f0d07
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+    post:
+      summary: Upload or replace a candidate document
+      description: >-
+        Accepts a private multipart upload for one applicable requirement code. The
+        authenticated candidate is derived only from the candidate bearer token. Reusing
+        the same idempotency key with the same file and requirement replays the original
+        response; reusing it with different upload content returns `409`.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateDocumentUploadRequest'
+      responses:
+        '201':
+          description: Document uploaded or existing idempotent result replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                uploadedEn:
+                  summary: English upload response
+                  value:
+                    data:
+                      requirement_code: passport
+                      name: Passport
+                      required: true
+                      status: uploaded
+                      replacement_allowed: true
+                      document:
+                        id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
+                        file_name: passport.pdf
+                        content_type: application/pdf
+                        file_size: 123456
+                        uploaded_at: '2026-08-26T12:00:00Z'
+                    meta:
+                      request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+                uploadedUr:
+                  summary: Urdu upload response
+                  value:
+                    data:
+                      requirement_code: passport
+                      name: پاسپورٹ
+                      required: true
+                      status: uploaded
+                      replacement_allowed: true
+                      document:
+                        id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
+                        file_name: passport.pdf
+                        content_type: application/pdf
+                        file_size: 123456
+                        uploaded_at: '2026-08-26T12:00:00Z'
+                    meta:
+                      request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '409':
+          description: Idempotency conflict or in-progress duplicate request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                idempotencyConflict:
+                  value:
+                    errors:
+                      - code: idempotency_conflict
+                        message: The idempotency key does not match the original request.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+        '422':
+          description: Validation failure for missing file, invalid requirement, unsupported content type, empty file, oversized file, or forbidden replacement
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingFile:
+                  value:
+                    errors:
+                      - code: missing_file
+                        message: Attach a document file.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+                invalidRequirementUr:
+                  value:
+                    errors:
+                      - code: invalid_requirement
+                        message: منتخب دستاویز کی شرط درست نہیں ہے۔
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+                unsupportedFileType:
+                  value:
+                    errors:
+                      - code: unsupported_file_type
+                        message: Upload a PDF, JPEG, or PNG document.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+                fileTooLarge:
+                  value:
+                    errors:
+                      - code: file_too_large
+                        message: The uploaded file exceeds the maximum allowed size.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+                replacementNotAllowed:
+                  value:
+                    errors:
+                      - code: replacement_not_allowed
+                        message: This document cannot be replaced in its current status.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+        '429':
+          description: Rate limited
   /api/v1/admin/candidate_imports:
     post:
       summary: Import candidates from CSV
