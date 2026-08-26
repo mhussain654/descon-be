@@ -303,6 +303,7 @@ Upload behavior:
 - Enforces `CANDIDATE_DOCUMENT_MAX_BYTES`
 - Supports safe retries with `Idempotency-Key`
 - Reusing the same idempotency key with the same file and requirement replays the original success response
+- The replay decision is scoped to the authenticated candidate subject, not to a specific bearer token, so the same candidate can safely retry after renewing their session
 - Reusing the same key with different upload content returns `409 idempotency_conflict`
 - Replacements are allowed only while the current document is still candidate-replaceable; verified or pending-review records cannot be replaced by the candidate
 - Failed replacements preserve the previous current document because superseding and new-document persistence occur in one transaction
@@ -338,6 +339,12 @@ curl -X POST http://localhost:3000/api/v1/candidate/documents \
   -F "candidate_document[requirement_code]=passport" \
   -F "candidate_document[file]=@spec/fixtures/files/test.pdf;type=application/pdf"
 ```
+
+Production storage note:
+
+- Production must set `ACTIVE_STORAGE_SERVICE` explicitly to an approved durable private storage backend before deploying candidate uploads
+- The production environment no longer falls back to `local` storage for uploads
+- Leaving `ACTIVE_STORAGE_SERVICE` unset in production now fails fast during boot instead of silently storing candidate documents on local disk
 
 ## Staff user administration
 

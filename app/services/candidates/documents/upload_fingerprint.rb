@@ -21,7 +21,6 @@ module Candidates
         [
           @request.request_method,
           @request.path,
-          @request.headers['Authorization'].to_s,
           @requirement_code,
           sanitized_filename,
           file_size,
@@ -30,14 +29,20 @@ module Candidates
       end
 
       def sanitized_filename
+        return '' if @uploaded_file.blank?
+
         File.basename(@uploaded_file.original_filename.to_s)
       end
 
       def file_size
+        return 0 if @uploaded_file.blank?
+
         @uploaded_file.size.to_i
       end
 
       def file_checksum
+        return '' if @uploaded_file.blank?
+
         tempfile = @uploaded_file.tempfile
         tempfile.rewind
         Digest::SHA256.file(tempfile.path).hexdigest

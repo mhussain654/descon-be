@@ -3,9 +3,19 @@
 require 'rails_helper'
 
 RSpec.describe Candidates::Documents::UploadService do
+  def existing_or_create_document_type(code, name_en:, name_ur:)
+    DocumentType.find_or_create_by!(code:) do |document_type|
+      document_type.name_en = name_en
+      document_type.name_ur = name_ur
+      document_type.active = true
+      document_type.requires_number = false
+      document_type.requires_expiry = false
+    end
+  end
+
   let(:candidate) { create(:candidate) }
   let(:assignment) { create(:candidate_assignment, candidate:) }
-  let(:document_type) { create(:document_type, code: 'passport', name_en: 'Passport', name_ur: 'پاسپورٹ') }
+  let(:document_type) { existing_or_create_document_type('passport', name_en: 'Passport', name_ur: 'پاسپورٹ') }
 
   before do
     create(
@@ -97,6 +107,24 @@ RSpec.describe Candidates::Documents::UploadService do
       expect(existing_document.reload.superseded_at).to be_nil
       expect(CandidateDocument.current_version.where(candidate_assignment: assignment, document_type:).count).to eq(1)
       expect(ActiveStorage::Blob.pluck(:id)).to match_array(original_blob_ids)
+    end
+
+    it 'purges an unattached blob and re-raises unexpected failures' do
+      original_blob_ids = ActiveStorage::Blob.pluck(:id)
+
+      allow(Candidates::Documents::UploadPersistence).to receive(:call).and_raise(RuntimeError, 'unexpected failure')
+
+      expect do
+        described_class.call(
+          candidate:,
+          uploaded_file: fixture_upload('test.pdf', 'application/pdf'),
+          requirement_code: 'passport',
+          request_id: 'req-doc-upload-5'
+        )
+      end.to raise_error(RuntimeError, 'unexpected failure')
+
+      expect(ActiveStorage::Blob.pluck(:id)).to match_array(original_blob_ids)
+      expect(CandidateDocument.count).to eq(0)
     end
   end
 end

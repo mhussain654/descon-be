@@ -14,6 +14,8 @@ module Candidates
       end
 
       def call
+        blob = nil
+
         validate_upload_request!
         file_details = UploadedFileInspector.call(uploaded_file: @uploaded_file)
 
@@ -22,7 +24,7 @@ module Candidates
         blob = build_blob
         uploaded_document = persist_upload(file_details:, blob:)
         ChecklistItemBuilder.call(requirement:, document: uploaded_document)
-      rescue BaseError, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+      rescue StandardError
         purge_blob(blob)
         raise
       end

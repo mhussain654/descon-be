@@ -3,6 +3,16 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 Candidate Documents', type: :request do
+  def existing_or_create_document_type(code)
+    DocumentType.find_or_create_by!(code:) do |document_type|
+      document_type.name_en = code.humanize
+      document_type.name_ur = code.humanize
+      document_type.active = true
+      document_type.requires_number = false
+      document_type.requires_expiry = false
+    end
+  end
+
   def candidate_auth_headers(candidate, extra_headers = {})
     { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }.merge(extra_headers)
   end
@@ -18,7 +28,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
 
   def create_requirement(candidate:, code: 'passport', required: true)
     assignment = candidate_assignment_for(candidate)
-    document_type = create(:document_type, code:, name_en: code.humanize, name_ur: code.humanize)
+    document_type = existing_or_create_document_type(code)
     create_requirement_record(assignment:, document_type:, required:)
     document_type
   end
@@ -161,6 +171,37 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
     end
 
+    it 'replays the original upload result when the same candidate retries with a renewed access token' do
+      candidate = create(:candidate)
+      create_requirement(candidate:, code: 'passport')
+      idempotency_headers = { 'Idempotency-Key' => 'candidate-doc-renewed-token' }
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: 'passport',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: candidate_auth_headers(candidate, idempotency_headers)
+      first_document_id = response.parsed_body.dig('data', 'document', 'id')
+
+      expect do
+        post '/api/v1/candidate/documents',
+             params: {
+               candidate_document: {
+                 requirement_code: 'passport',
+                 file: fixture_upload('test.pdf', 'application/pdf')
+               }
+             },
+             headers: candidate_auth_headers(candidate, idempotency_headers)
+      end.not_to change(CandidateDocument, :count)
+
+      expect(response).to have_http_status(:created)
+      expect(response.headers['Idempotency-Replayed']).to eq('true')
+      expect(response.parsed_body.dig('data', 'document', 'id')).to eq(first_document_id)
+    end
+
     it 'rejects missing, empty, oversized, unsupported, and invalid requirement uploads with localized errors' do
       candidate = create(:candidate)
       create_requirement(candidate:, code: 'passport')
@@ -181,6 +222,18 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
            },
            headers: auth_header
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('empty_file')
+    end
+
+    it 'returns missing_file instead of raising when an idempotency key is present without a file' do
+      candidate = create(:candidate)
+      create_requirement(candidate:, code: 'passport')
+
+      post '/api/v1/candidate/documents',
+           params: { candidate_document: { requirement_code: 'passport' } },
+           headers: candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-doc-missing-file')
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_file')
     end
 
     it 'rejects oversized uploads' do
