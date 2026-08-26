@@ -264,5 +264,86 @@ RSpec.describe Admin::Candidates::ImportService do
       expect(Candidate.find_by(cnic: '42131-1234567-1')).to be_nil
       expect(CandidateAssignment.find_by(reference_number: 'DES-001031')).to be_nil
     end
+
+    it 'rolls back a candidate when assignment persistence fails and still imports later valid rows' do
+      allow(Candidate).to receive(:create!).and_wrap_original do |original, *args|
+        candidate = original.call(*args)
+        association_proxy = candidate.candidate_assignments
+
+        allow(association_proxy).to receive(:create!).and_wrap_original do |create_original, *create_args|
+          attributes = create_args.first
+          raise ActiveRecord::RecordInvalid, CandidateAssignment.new if attributes[:reference_number] == 'DES-001041'
+
+          create_original.call(*create_args)
+        end
+
+        candidate
+      end
+
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(
+            ['Broken Assignment', '42141-1234567-1', '+923001234567', 'DES-001041', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true'],
+            ['Imported Candidate', '42142-1234567-2', '+923001234568', 'DES-001042', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true']
+          )
+        ),
+        request_id: 'req-import-assignment-rollback'
+      )
+
+      expect(result).to include(successful_rows: 1, failed_rows: 1, skipped_rows: 0, total_rows: 2)
+      expect(result[:errors]).to include(include(row: 2, field: 'row', code: 'validation_failed'))
+      expect(Candidate.find_by(cnic: '42141-1234567-1')).to be_nil
+      expect(CandidateAssignment.find_by(reference_number: 'DES-001041')).to be_nil
+      expect(Candidate.find_by!(cnic: '42142-1234567-2')).to be_present
+      expect(
+        AuditEvent.find_by!(action_code: 'candidate_import_completed', request_id: 'req-import-assignment-rollback').metadata
+      ).to eq(
+        'successful_rows' => 1,
+        'failed_rows' => 1,
+        'skipped_rows' => 0,
+        'total_rows' => 2
+      )
+    end
+
+    it 'rolls back only the raced row on a unique-constraint conflict and still commits later rows and the audit event' do
+      call_count = 0
+
+      allow(Candidate).to receive(:create!).and_wrap_original do |original, *args|
+        call_count += 1
+        raise ActiveRecord::RecordNotUnique, 'duplicate key value violates unique constraint' if call_count == 1
+
+        original.call(*args)
+      end
+
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(
+            ['Raced Candidate', '42151-1234567-1', '+923001234567', 'DES-001051', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true'],
+            ['Imported Candidate', '42152-1234567-2', '+923001234568', 'DES-001052', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true']
+          )
+        ),
+        request_id: 'req-import-unique-race'
+      )
+
+      expect(result).to include(successful_rows: 1, failed_rows: 0, skipped_rows: 1, total_rows: 2)
+      expect(result[:errors]).to include(include(row: 2, field: 'row', code: 'duplicate_row'))
+      expect(Candidate.find_by(cnic: '42151-1234567-1')).to be_nil
+      expect(CandidateAssignment.find_by(reference_number: 'DES-001051')).to be_nil
+      expect(Candidate.find_by!(cnic: '42152-1234567-2')).to be_present
+      expect(
+        AuditEvent.find_by!(action_code: 'candidate_import_completed', request_id: 'req-import-unique-race').metadata
+      ).to eq(
+        'successful_rows' => 1,
+        'failed_rows' => 0,
+        'skipped_rows' => 1,
+        'total_rows' => 2
+      )
+    end
   end
 end

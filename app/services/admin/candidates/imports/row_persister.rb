@@ -7,7 +7,7 @@ module Admin
         def call(row_plan:, result:)
           return handle_duplicate(row_plan:, result:) if duplicate_row?(row_plan)
 
-          create_candidate!(row_plan)
+          persist_row!(row_plan)
           result.record_success
         rescue ActiveRecord::RecordInvalid
           result.record_failed(
@@ -46,6 +46,12 @@ module Admin
         def create_candidate!(row_plan)
           candidate = ::Candidate.create!(row_plan.candidate_attributes)
           candidate.candidate_assignments.create!(row_plan.assignment_attributes)
+        end
+
+        def persist_row!(row_plan)
+          ActiveRecord::Base.transaction(requires_new: true) do
+            create_candidate!(row_plan)
+          end
         end
       end
     end
