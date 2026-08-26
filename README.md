@@ -81,6 +81,7 @@ The candidate OTP endpoints never reveal, through response body or response timi
 - `POST /request` always creates a challenge row and always calls through the SMS adapter, whether the CNIC resolves to a real candidate or not. For an unknown CNIC this is a **decoy challenge** (`CandidateOtpChallenge` with no `candidate`, a random never-delivered code, and a call to the SMS adapter with a synthetic destination) so both the response body and response latency are identical to the real-candidate path.
 - `POST /verify` looks up the latest challenge by CNIC, not by resolving a candidate first, so `otp_expired` and `otp_max_attempts` are reachable for a decoy challenge exactly as they are for a real one -- these codes do not imply the CNIC exists. A decoy challenge can never actually succeed (there is no candidate to log in as), so a lucky correct-code guess against a decoy still returns `otp_invalid`, not success.
 - The one exception is a CNIC that has never had `/request` called for it at all (no challenge row exists, real or decoy) -- `/verify` returns `otp_invalid` there too, using a fixed-cost dummy bcrypt comparison so this path is not measurably faster than a real comparison.
+- Inactive candidates are handled through the same non-enumerating request path as unknown candidates, so `/request` never delivers a real OTP to an inactive record.
 
 ## Environment variables
 
@@ -129,6 +130,8 @@ Commonly adjusted per machine or environment:
 - `OTP_MAX_ATTEMPTS`
 - `OTP_RATE_LIMIT_PER_MINUTE`
 - `OTP_IDENTITY_RATE_LIMIT_PER_MINUTE`
+- `CANDIDATE_IMPORT_MAX_BYTES`
+- `CANDIDATE_IMPORT_MAX_ROWS`
 - `SMS_PROVIDER` -- `test` is the only implementation available until a real vendor adapter is added (see `app/services/sms/`); never set to anything else in production until one exists
 - `FORCE_SSL`
 - `RAILS_LOG_LEVEL`
@@ -206,6 +209,72 @@ Authentication and authorization are enforced separately.
 - `GET /api/v1/users/profile` is available to any authenticated active staff session for its own profile
 - `GET /api/v1/users`, `POST /api/v1/users`, and `PATCH /api/v1/users/:id` require the active `manage_staff_users` permission; with the seeded role matrix, this is currently granted to the `admin` role only
 - Frontend route guards or hidden navigation are not treated as a security boundary
+
+## Candidate registry and CSV import
+
+Candidate registry data remains split by domain responsibility:
+
+- `candidates` stores candidate identity, authentication fields, preferred language, candidate-level status, and active state
+- `candidate_assignments` stores the current reference number and workflow-stage relationship
+
+Admin import is exposed as `POST /api/v1/admin/candidate_imports`.
+
+- Requires an authenticated active staff session with the active `manage_candidates` permission
+- Accepts `multipart/form-data` with `candidate_import[file]`
+- Normalizes CNIC and mobile values before validation and persistence
+- Detects duplicate CNICs and reference numbers inside the CSV and against existing database records
+- Never silently overwrites an existing candidate or assignment
+- Supports safe client retries through `Idempotency-Key`
+- Records a PII-safe audit event with only summary counts and the request ID
+
+Required CSV headers:
+
+- `full_name`
+- `cnic`
+- `mobile_number`
+- `reference_number`
+- `preferred_locale`
+- `candidate_status`
+- `workflow_stage_code`
+- `country_code`
+- `project_code`
+- `craft_code`
+- `active`
+
+Example import:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/admin/candidate_imports \
+  -H "Authorization: Bearer <staff_token>" \
+  -H "Idempotency-Key: candidate-import-20260826-001" \
+  -F "candidate_import[file]=@/path/to/candidates.csv;type=text/csv"
+```
+
+Safe sample CSV:
+
+```csv
+full_name,cnic,mobile_number,reference_number,preferred_locale,candidate_status,workflow_stage_code,country_code,project_code,craft_code,active
+Ahmed Ali,42101-1234567-1,+923001234567,DES-001001,en,registered,registered,qatar,qatar_infrastructure,electrician,true
+Fatima Noor,42102-1234567-2,+923001234568,DES-001002,ur,registered,documents_pending,uae,qatar_energy,welder,false
+```
+
+## Candidate profile API
+
+Candidate-facing endpoints remain isolated from staff APIs.
+
+- `GET /api/v1/candidate/profile` requires a candidate JWT, not a staff JWT
+- The authenticated candidate is derived only from the candidate session token; the client never supplies a candidate ID
+- The response returns only safe fields needed by the candidate UI and future document ownership:
+  - public candidate ID
+  - full name
+  - masked CNIC
+  - reference number
+  - preferred locale
+  - candidate status
+  - current workflow stage
+  - active state
+
+Staff tokens are rejected from candidate-only endpoints, and inactive candidates cannot initialize or restore an authenticated candidate session.
 
 ## Staff user administration
 

@@ -3,6 +3,7 @@
 source 'https://rubygems.org'
 
 gem 'bcrypt'
+gem 'csv'
 gem 'devise'
 gem 'jwt'
 gem 'oj'

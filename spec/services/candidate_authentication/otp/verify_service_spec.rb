@@ -102,6 +102,15 @@ RSpec.describe CandidateAuthentication::Otp::VerifyService do
         expect(CandidateRefreshToken.count).to eq(0)
       end
 
+      it 'rejects an inactive candidate even when the OTP code matches' do
+        candidate = create(:candidate, active: false)
+        result = CandidateOtpChallenge.generate_for(candidate:)
+
+        expect { call(cnic: candidate.cnic, code: result.fetch(:code)) }.to raise_error(InactiveAccountError)
+        expect(result.fetch(:challenge).reload).not_to be_consumed
+        expect(CandidateSession.where(candidate:).count).to eq(0)
+      end
+
       it 'does not let an old OTP succeed once a replacement OTP request acquires the shared CNIC lock' do
         candidate = create(:candidate)
         original = CandidateOtpChallenge.generate_for(candidate:)

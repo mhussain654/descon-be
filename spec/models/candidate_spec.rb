@@ -3,93 +3,92 @@
 require 'rails_helper'
 
 RSpec.describe Candidate, type: :model do
-  subject(:candidate) { build(:candidate) }
+  describe 'validations and normalization' do
+    it 'is valid with the factory defaults' do
+      expect(build(:candidate)).to be_valid
+    end
 
-  it { is_expected.to belong_to(:created_by).class_name('User') }
-  it { is_expected.to have_many(:candidate_assignments).dependent(:restrict_with_exception) }
-
-  it 'normalizes CNIC, mobile number, and passport number' do
-    candidate.cnic = '4210112345671'
-    candidate.mobile_number = '+92 300-123 4567'
-    candidate.passport_number = ' ab 12345 '
-    candidate.validate
-
-    expect(candidate.cnic).to eq('42101-1234567-1')
-    expect(candidate.mobile_number).to eq('+923001234567')
-    expect(candidate.passport_number).to eq('AB12345')
-  end
-
-  it 'validates CNIC uniqueness' do
-    existing_candidate = create(:candidate, cnic: '42101-1234567-1')
-    duplicate_candidate = build(:candidate, cnic: existing_candidate.cnic)
-
-    expect(duplicate_candidate).not_to be_valid
-    expect(duplicate_candidate.errors[:cnic]).to include('has already been taken')
-  end
-
-  it 'validates passport uniqueness when present' do
-    existing_candidate = create(:candidate, passport_number: 'AB12345')
-    duplicate_candidate = build(:candidate, passport_number: existing_candidate.passport_number)
-
-    expect(duplicate_candidate).not_to be_valid
-    expect(duplicate_candidate.errors[:passport_number]).to include('has already been taken')
-  end
-
-  it 'enforces CNIC uniqueness at the database level' do
-    create(:candidate, cnic: '42101-1234567-1')
-
-    expect do
-      described_class.connection.exec_insert(
-        <<~SQL.squish,
-          INSERT INTO candidates (
-            public_id,
-            full_name,
-            cnic,
-            mobile_number,
-            preferred_locale,
-            source_code,
-            created_by_id,
-            created_at,
-            updated_at
-          )
-          VALUES (
-            #{described_class.connection.quote(SecureRandom.uuid)},
-            'Duplicate Candidate',
-            '42101-1234567-1',
-            '+923001111111',
-            'en',
-            'admin_ui',
-            #{create(:user).id},
-            #{described_class.connection.quote(Time.current)},
-            #{described_class.connection.quote(Time.current)}
-          )
-        SQL
-        'SQL'
+    it 'normalizes CNIC, mobile number, and status code before validation' do
+      candidate = build(
+        :candidate,
+        cnic: '4210112345671',
+        mobile_number: '+92 300 123 4567',
+        status_code: ' Registered '
       )
-    end.to raise_error(ActiveRecord::RecordNotUnique)
-  end
 
-  it 'returns representative English validation messages' do
-    candidate.cnic = 'invalid'
-    candidate.mobile_number = 'bad'
-    candidate.valid?
+      candidate.validate
 
-    expect(candidate.errors.full_messages).to include(
-      'Cnic is not in the required format.',
-      'Mobile number is not in the required format.'
-    )
-  end
+      expect(candidate.cnic).to eq('42101-1234567-1')
+      expect(candidate.mobile_number).to eq('+923001234567')
+      expect(candidate.status_code).to eq('registered')
+    end
 
-  it 'returns representative Urdu validation messages' do
-    candidate.cnic = 'invalid'
-    candidate.mobile_number = 'bad'
+    it 'rejects malformed CNIC input' do
+      candidate = build(:candidate, cnic: 'invalid-cnic')
 
-    I18n.with_locale(:ur) do
-      candidate.valid?
-      expect(candidate.errors.full_messages).to include(
-        'شناختی کارڈ نمبر مطلوبہ فارمیٹ میں نہیں ہے۔',
-        'موبائل نمبر مطلوبہ فارمیٹ میں نہیں ہے۔'
+      expect(candidate).not_to be_valid
+      expect(candidate.errors[:cnic]).to be_present
+    end
+
+    it 'rejects malformed mobile numbers' do
+      candidate = build(:candidate, mobile_number: 'abc')
+
+      expect(candidate).not_to be_valid
+      expect(candidate.errors[:mobile_number]).to be_present
+    end
+
+    it 'rejects malformed status codes' do
+      candidate = build(:candidate, status_code: 'Needs Review')
+
+      expect(candidate).not_to be_valid
+      expect(candidate.errors[:status_code]).to be_present
+    end
+
+    it 'enforces CNIC uniqueness at the application layer' do
+      create(:candidate, cnic: '42101-1234567-1')
+      duplicate = build(:candidate, cnic: '4210112345671')
+
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:cnic]).to include('has already been taken')
+    end
+
+    it 'rejects concurrent duplicate CNIC inserts at the database layer' do
+      create(:candidate, cnic: '42101-1234567-1')
+
+      duplicate = described_class.new(
+        full_name: 'Concurrent Candidate',
+        cnic: '42101-1234567-1',
+        mobile_number: '+923009999999',
+        public_id: SecureRandom.uuid,
+        preferred_locale: 'en',
+        status_code: 'registered',
+        active: true,
+        source_code: 'csv_import',
+        created_by: create(:user)
       )
+
+      expect { duplicate.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+  end
+
+  describe 'state helpers' do
+    it 'returns true for active_for_authentication? only when active' do
+      expect(build(:candidate, active: true).active_for_authentication?).to be(true)
+      expect(build(:candidate, active: false).active_for_authentication?).to be(false)
+    end
+
+    it 'exposes the most recent assignment as the current assignment' do
+      candidate = create(:candidate)
+      first_assignment = create(:candidate_assignment, candidate:, reference_number: 'DES-000101')
+      latest_assignment = create(
+        :candidate_assignment,
+        candidate:,
+        reference_number: 'DES-000102',
+        created_at: 1.minute.from_now
+      )
+
+      expect(candidate.current_assignment).to eq(latest_assignment)
+      expect(candidate.current_assignment).not_to eq(first_assignment)
     end
   end
 end

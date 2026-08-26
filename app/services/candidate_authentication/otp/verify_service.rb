@@ -104,6 +104,8 @@ module CandidateAuthentication
       end
 
       def succeed(candidate:, challenge:)
+        raise InactiveAccountError unless candidate.active_for_authentication?
+
         challenge.consume!
         candidate_session = candidate.candidate_sessions.create!(user_agent: @user_agent, ip_address: @ip_address)
         refresh_token = RefreshTokenIssuer.call(candidate_session:)

@@ -119,6 +119,20 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       expect(response).to have_http_status(:ok)
       expect(delivered_body).to start_with('آپ کا ڈیسکون مین پاور تصدیقی کوڈ ')
     end
+
+    it 'does not deliver a real OTP for an inactive candidate, while keeping the response generic' do
+      candidate.update!(active: false)
+      delivered_to = nil
+      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
+        delivered_to = kwargs.fetch(:to)
+        Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
+      end
+
+      request_otp(candidate.cnic)
+
+      expect(response).to have_http_status(:ok)
+      expect(delivered_to).to eq(CandidateAuthentication::Otp::RequestService::DECOY_MOBILE_NUMBER)
+    end
   end
 
   describe 'POST /api/v1/candidate/auth/otp/verify' do

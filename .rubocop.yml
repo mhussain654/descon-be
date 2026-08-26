@@ -24,6 +24,7 @@ Metrics/BlockLength:
 Metrics/MethodLength:
   Exclude:
     - app/services/authentication/refresh_service.rb
+    - app/services/admin/candidates/import_service.rb
     - db/migrate/20260819173159_devise_create_users.rb
     - db/migrate/20260819173246_create_sessions.rb
     - db/migrate/20260819173248_create_refresh_tokens.rb
@@ -36,10 +37,13 @@ Metrics/MethodLength:
     - db/migrate/20260822111400_add_core_relational_constraints.rb
     - db/migrate/20260823130000_create_candidate_sessions_and_refresh_tokens.rb
     - db/migrate/20260823130001_create_candidate_otp_challenges.rb
+    - spec/requests/api/v1/admin/candidate_imports_spec.rb
+    - spec/services/admin/candidates/import_service_spec.rb
 
 Metrics/AbcSize:
   Exclude:
     - app/services/authentication/refresh_service.rb
+    - app/services/admin/candidates/import_service.rb
     - db/migrate/20260822110000_create_roles_and_permissions.rb
     - db/migrate/20260822111100_create_candidates_and_candidate_assignments.rb
     - db/migrate/20260822111200_create_candidate_histories_and_documents.rb
@@ -50,6 +54,7 @@ Metrics/AbcSize:
 # clearer than additional extraction would be.
 Metrics/ClassLength:
   Exclude:
+    - app/services/admin/candidates/import_service.rb
     - db/migrate/20260822110000_create_roles_and_permissions.rb
     - db/migrate/20260822111400_add_core_relational_constraints.rb
 
@@ -63,6 +68,9 @@ Lint/MissingSuper:
 Layout/LineLength:
   Exclude:
     - config/initializers/devise.rb
+    - app/services/admin/candidates/import_service.rb
+    - spec/requests/api/v1/admin/candidate_imports_spec.rb
+    - spec/services/admin/candidates/import_service_spec.rb
 
 RSpec/MultipleExpectations:
   Enabled: false
