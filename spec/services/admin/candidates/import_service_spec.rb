@@ -6,14 +6,7 @@ RSpec.describe Admin::Candidates::ImportService do
   let(:actor) { create(:user, role: 'hr') }
 
   before do
-    create(:workflow_stage, :registered)
-    create(:workflow_stage, code: 'documents_pending', position: 2, system_defined: true)
-    create(:country, code: 'qatar', name_en: 'Qatar', name_ur: 'قطر')
-    create(:country, code: 'uae', name_en: 'United Arab Emirates', name_ur: 'متحدہ عرب امارات')
-    create(:project, code: 'qatar_infrastructure', name_en: 'Qatar Infrastructure', name_ur: 'قطر انفراسٹرکچر')
-    create(:project, code: 'qatar_energy', name_en: 'Qatar Energy', name_ur: 'قطر انرجی')
-    create(:craft, code: 'electrician', name_en: 'Electrician', name_ur: 'الیکٹریشن')
-    create(:craft, code: 'welder', name_en: 'Welder', name_ur: 'ویلڈر')
+    ensure_candidate_import_reference_data!
   end
 
   def uploaded_csv(content, filename: 'candidates.csv', content_type: 'text/csv')
@@ -74,7 +67,7 @@ RSpec.describe Admin::Candidates::ImportService do
     end
 
     it 'rejects oversized files' do
-      stub_const("#{described_class}::MAX_FILE_BYTES", 10)
+      stub_const("#{Admin::Candidates::Imports::CsvFileParser}::MAX_FILE_BYTES", 10)
 
       expect do
         described_class.call(
@@ -109,7 +102,7 @@ RSpec.describe Admin::Candidates::ImportService do
     end
 
     it 'rejects csv files that exceed the configured maximum row count' do
-      stub_const("#{described_class}::MAX_ROWS", 1)
+      stub_const("#{Admin::Candidates::Imports::CsvFileParser}::MAX_ROWS", 1)
 
       expect do
         described_class.call(
@@ -191,6 +184,43 @@ RSpec.describe Admin::Candidates::ImportService do
       )
     end
 
+    it 'allows a later valid row when an earlier row with the same cnic fails validation' do
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(
+            ['Broken Candidate', '42121-1234567-1', '+923001234567', 'DES-001020', 'fr', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true'],
+            ['Corrected Candidate', '42121-1234567-1', '+923001234568', 'DES-001021', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true']
+          )
+        ),
+        request_id: 'req-import-invalid-first'
+      )
+
+      expect(result).to include(successful_rows: 1, failed_rows: 1, skipped_rows: 0, total_rows: 2)
+      expect(result[:errors]).to include(include(row: 2, field: 'preferred_locale', code: 'invalid_preferred_locale'))
+      expect(Candidate.find_by!(cnic: '42121-1234567-1').full_name).to eq('Corrected Candidate')
+    end
+
+    it 'rejects a later duplicate row after the first valid row reserves the cnic within the same file' do
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(
+            ['Original Candidate', '42122-1234567-2', '+923001234567', 'DES-001022', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true'],
+            ['Duplicate Candidate', '42122-1234567-2', '+923001234568', 'DES-001023', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true']
+          )
+        ),
+        request_id: 'req-import-valid-first'
+      )
+
+      expect(result).to include(successful_rows: 1, failed_rows: 1, skipped_rows: 0, total_rows: 2)
+      expect(result[:errors]).to include(include(row: 3, field: 'cnic', code: 'duplicate_cnic_in_file'))
+    end
+
     it 'records a PII-safe audit event with only summary counts' do
       described_class.call(
         actor:,
@@ -213,6 +243,26 @@ RSpec.describe Admin::Candidates::ImportService do
       )
       expect(event.metadata.to_s).not_to include('42101-1234567-1')
       expect(event.metadata.to_s).not_to include('+923001234567')
+    end
+
+    it 'rolls back imported candidates when the audit event cannot be persisted' do
+      allow(AuditEvent).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(AuditEvent.new))
+
+      expect do
+        described_class.call(
+          actor:,
+          file: uploaded_csv(
+            csv_content(
+              ['Candidate One', '42131-1234567-1', '+923001234567', 'DES-001031', 'en', 'registered', 'registered', 'qatar',
+               'qatar_infrastructure', 'electrician', 'true']
+            )
+          ),
+          request_id: 'req-import-audit-failure'
+        )
+      end.to raise_error(ActiveRecord::RecordInvalid)
+
+      expect(Candidate.find_by(cnic: '42131-1234567-1')).to be_nil
+      expect(CandidateAssignment.find_by(reference_number: 'DES-001031')).to be_nil
     end
   end
 end

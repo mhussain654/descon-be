@@ -1091,7 +1091,14 @@ paths:
               $ref: '#/components/schemas/CandidateImportRequest'
       responses:
         '201':
-          description: Candidates imported
+          description: >-
+            Import request accepted and processed. At least one row was persisted as a new
+            candidate. Row-level problems (invalid field values, in-file or database
+            duplicates, blank rows) do not cause a 4xx response — they are reported per-row
+            inside `data.errors`, alongside the `successful_rows`/`failed_rows`/`skipped_rows`
+            counts. Only file-level or request-level problems (missing file, wrong content
+            type, unreadable CSV, missing required headers, too many rows) are returned as
+            `422`.
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -1119,7 +1126,11 @@ paths:
                       timestamp: '2026-08-26T09:00:11Z'
                     errors: []
         '200':
-          description: Import processed without creating new candidates
+          description: >-
+            Import request accepted and processed, but no row was persisted as a new
+            candidate (every row was invalid, blank, or a duplicate). As with `201`, these
+            are row-level outcomes reported in `data.errors`, not request-level `422`
+            failures — the request itself was well-formed and was fully processed.
           content:
             application/json:
               schema:
@@ -1152,7 +1163,12 @@ paths:
         '409':
           description: Idempotency conflict or in-progress request
         '422':
-          description: Invalid file, headers, or row content
+          description: >-
+            Request-level failure before any row was processed: missing file, invalid file
+            type or size, unreadable/malformed CSV, or missing required CSV headers. This
+            does not cover invalid row content (bad CNIC format, unknown reference codes,
+            duplicate rows, etc.) — those are row-level outcomes returned inside a `200`/`201`
+            response's `data.errors` array, not this status.
   /api/v1/users/profile:
     get:
       summary: Fetch the authenticated user profile

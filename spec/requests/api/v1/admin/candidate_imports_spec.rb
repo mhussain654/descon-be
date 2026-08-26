@@ -5,10 +5,7 @@ require 'rails_helper'
 RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
   before do
     ensure_staff_authorization_reference_data!
-    create(:workflow_stage, :registered)
-    create(:country, code: 'qatar', name_en: 'Qatar', name_ur: 'قطر')
-    create(:project, code: 'qatar_infrastructure', name_en: 'Qatar Infrastructure', name_ur: 'قطر انفراسٹرکچر')
-    create(:craft, code: 'electrician', name_en: 'Electrician', name_ur: 'الیکٹریشن')
+    ensure_candidate_import_reference_data!
   end
 
   def login_as(user)
