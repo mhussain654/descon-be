@@ -44,6 +44,12 @@ ur:
       otp_invalid: "تصدیقی کوڈ غلط ہے یا پہلے ہی استعمال ہو چکا ہے۔"
       otp_expired: "اس تصدیقی کوڈ کی میعاد ختم ہو گئی ہے۔ براہ کرم نیا کوڈ حاصل کریں۔"
       otp_max_attempts: "بہت زیادہ غلط کوششیں۔ براہ کرم نیا تصدیقی کوڈ حاصل کریں۔"
+      no_current_assignment: "اس امیدوار کے لیے کوئی موجودہ اسائنمنٹ دستیاب نہیں ہے۔"
+      no_document_requirements: "اس امیدوار کے لیے کوئی دستاویزی تقاضے مرتب نہیں ہیں۔"
+      documents_incomplete: "جمع کرانے سے پہلے تمام مطلوبہ دستاویزات اپ لوڈ کریں۔"
+      documents_rejected: "جمع کرانے سے پہلے تمام مسترد شدہ مطلوبہ دستاویزات تبدیل کریں۔"
+      submission_not_allowed: "موجودہ حالت میں دستاویزات جمع کرانا ممکن نہیں ہے۔"
+      already_submitted: "موجودہ دستاویزات پہلے ہی جانچ کے لیے جمع کرائی جا چکی ہیں۔"
     authentication:
       login_succeeded: "لاگ اِن کامیاب رہا۔"
       refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"
@@ -86,6 +92,8 @@ ur:
         duplicate_reference_number: "اس ریفرنس نمبر کے ساتھ امیدوار اسائنمنٹ پہلے سے موجود ہے۔"
         duplicate_row: "یہ قطار پہلے سے موجود امپورٹ ریکارڈ کی نقل ہے۔"
         validation_failed: "یہ قطار امپورٹ نہیں ہو سکی۔"
+    candidate_document_submissions:
+      submitted: "دستاویزات جانچ کے لیے جمع کرا دی گئی ہیں۔"
     pagination:
       page: "صفحہ"
       per_page: "فی صفحہ آئٹمز"

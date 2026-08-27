@@ -22,6 +22,8 @@ Rails.application.routes.draw do
         end
 
         resources :documents, only: %i[index create]
+        resources :document_submissions, only: :create
+        resource :application_progress, only: :show, controller: :application_progress
         resource :profile, only: :show
       end
 

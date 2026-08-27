@@ -45,6 +45,12 @@ en:
       otp_invalid: "The verification code is incorrect or has already been used."
       otp_expired: "This verification code has expired. Request a new one."
       otp_max_attempts: "Too many incorrect attempts. Request a new verification code."
+      no_current_assignment: "No current assignment is available for this candidate."
+      no_document_requirements: "No document requirements are configured for this candidate."
+      documents_incomplete: "Upload all required documents before submitting."
+      documents_rejected: "Replace every rejected required document before submitting."
+      submission_not_allowed: "Document submission is not allowed in the current state."
+      already_submitted: "The current documents have already been submitted for review."
     authentication:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."
@@ -87,6 +93,8 @@ en:
         duplicate_reference_number: "A candidate assignment with this reference number already exists."
         duplicate_row: "This row duplicates an existing candidate import record."
         validation_failed: "This row could not be imported."
+    candidate_document_submissions:
+      submitted: "Documents submitted for review."
     pagination:
       page: "Page"
       per_page: "Items per page"

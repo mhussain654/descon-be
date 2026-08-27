@@ -71,6 +71,7 @@ module ApiResponseHandling
   def serialized_error(error)
     {
       code: error.code,
+      details: error.details,
       message: error.message,
       field: error.field
     }.compact
