@@ -12,6 +12,7 @@ class CandidateAssignment < ApplicationRecord
 
   has_many :candidate_stage_histories, dependent: :restrict_with_exception
   has_many :candidate_documents, dependent: :restrict_with_exception
+  has_many :candidate_document_submissions, dependent: :restrict_with_exception
   has_many :payments, dependent: :restrict_with_exception
   has_many :communications, dependent: :restrict_with_exception
   has_many :audit_events, dependent: :restrict_with_exception

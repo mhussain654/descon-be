@@ -284,6 +284,8 @@ Candidate document APIs are candidate-facing only. No admin review or verificati
 
 - `GET /api/v1/candidate/documents` returns the authenticated candidate's document checklist
 - `POST /api/v1/candidate/documents` uploads or replaces one candidate-owned document through `multipart/form-data`
+- `GET /api/v1/candidate/application_progress` returns the authenticated candidate's authoritative readiness summary
+- `POST /api/v1/candidate/document_submissions` atomically submits current uploaded documents for review
 - Candidate identity always comes from the candidate bearer token; the client never supplies a candidate ID
 - Staff tokens are rejected from candidate-only document endpoints
 - Files are attached through Active Storage and are treated as private application assets; the API never returns public URLs, storage keys, disk paths, or internal IDs
@@ -307,6 +309,36 @@ Upload behavior:
 - Reusing the same key with different upload content returns `409 idempotency_conflict`
 - Replacements are allowed only while the current document is still candidate-replaceable; verified or pending-review records cannot be replaced by the candidate
 - Failed replacements preserve the previous current document because superseding and new-document persistence occur in one transaction
+
+Application progress behavior:
+
+- Progress is derived only from the authenticated candidate and the current assignment
+- The backend resolves the active document requirements and computes readiness server-side; the client does not submit document IDs or requirement lists
+- `required_total` counts only active required requirements
+- `missing` and `rejected` required documents block submission
+- `uploaded`, `pending_review`, and `verified` count as provided for progress purposes
+- `completion_percentage` is based on provided required documents and returns `0` when no required documents are configured
+- `submission_state` is currently one of:
+  - `no_assignment`
+  - `no_requirements`
+  - `incomplete`
+  - `ready`
+  - `submitted`
+  - `partially_verified`
+  - `verified`
+  - `changes_required`
+- Blocking requirement entries include a stable `requirement_code`, localized `name`, and untranslated `reason` code
+
+Document submission behavior:
+
+- `POST /api/v1/candidate/document_submissions` accepts no request body because the backend derives everything from the authenticated candidate and their current assignment
+- Submission is allowed only when the candidate is active, has a current assignment, has at least one required document rule, has no missing required document, has no rejected required document, and still has at least one current required document in `uploaded`
+- Optional documents do not block submission, but current optional uploads are submitted alongside required uploads when a valid submission occurs
+- The submission transaction locks the current assignment, re-resolves requirements, locks current document rows, rechecks readiness, moves current `uploaded` documents to `under_verification`, persists immutable submission evidence, and records a PII-safe audit event
+- If any step fails, document statuses remain unchanged and no submission success is stored for idempotent replay
+- Reusing the same `Idempotency-Key` for the same authenticated candidate replays the original successful response even after session renewal because the fingerprint does not include the bearer token
+- Reusing the same key while another request is still processing returns `409`, and reusing it for a different authenticated candidate remains isolated through subject scoping
+- This ticket does not add an automatic workflow-stage transition because no explicit documented transition rule was found in the current repository requirements/proposal material
 
 Localized upload error codes:
 
@@ -338,6 +370,24 @@ curl -X POST http://localhost:3000/api/v1/candidate/documents \
   -H "Idempotency-Key: candidate-document-20260826-001" \
   -F "candidate_document[requirement_code]=passport" \
   -F "candidate_document[file]=@spec/fixtures/files/test.pdf;type=application/pdf"
+```
+
+Example application-progress request:
+
+```bash
+curl \
+  -H "Authorization: Bearer <candidate_access_token>" \
+  -H "X-Locale: ur" \
+  http://localhost:3000/api/v1/candidate/application_progress
+```
+
+Example document-submission request:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/candidate/document_submissions \
+  -H "Authorization: Bearer <candidate_access_token>" \
+  -H "X-Locale: en" \
+  -H "Idempotency-Key: candidate-submission-20260826-001"
 ```
 
 Production storage note:
@@ -478,6 +528,8 @@ Database-backed translated content should stay out of static locale files. Store
 - `POST /api/v1/candidate/auth/otp/verify`
 - `GET /api/v1/candidate/documents`
 - `POST /api/v1/candidate/documents`
+- `GET /api/v1/candidate/application_progress`
+- `POST /api/v1/candidate/document_submissions`
 - `GET /api/v1/users`
 - `POST /api/v1/users`
 - `PATCH /api/v1/users/:id`
@@ -512,6 +564,8 @@ Database-backed translated content should stay out of static locale files. Store
 - Candidate access/refresh tokens use a distinct JWT audience (`CANDIDATE_JWT_AUDIENCE`) from staff tokens and are backed by separate `candidate_sessions`/`candidate_refresh_tokens` tables, so a candidate token can never be accepted as a staff one or vice versa
 - `POST /api/v1/candidate/documents` accepts multipart uploads with `candidate_document[requirement_code]` and `candidate_document[file]`, validates actual content type, and stores files privately
 - `POST /api/v1/candidate/documents` supports replay-safe retries with `Idempotency-Key` and returns `409 idempotency_conflict` when a key is reused for different upload content
+- `GET /api/v1/candidate/application_progress` returns localized workflow-stage and blocking-requirement names while preserving stable machine-readable state and reason codes
+- `POST /api/v1/candidate/document_submissions` is a bodyless candidate-authenticated mutation that atomically moves current `uploaded` documents to `under_verification`, records immutable submission evidence, and returns blocking requirement details on `422`
 
 Example collection request:
 

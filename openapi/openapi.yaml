@@ -132,6 +132,9 @@ components:
           type: string
         field:
           type: string
+        details:
+          type: object
+          additionalProperties: true
       required: [code, message]
     ErrorEnvelope:
       type: object
@@ -386,6 +389,114 @@ components:
               type: string
               format: binary
       required: [candidate_document]
+    CandidateBlockingRequirement:
+      type: object
+      properties:
+        requirement_code:
+          type: string
+          example: passport
+        name:
+          type: string
+        reason:
+          type: string
+          enum: [missing, rejected]
+      required: [requirement_code, name, reason]
+    CandidateProgressWorkflowStage:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+      required: [code, name]
+    CandidateApplicationProgressDocuments:
+      type: object
+      properties:
+        required_total:
+          type: integer
+        missing:
+          type: integer
+        uploaded:
+          type: integer
+        pending_review:
+          type: integer
+        verified:
+          type: integer
+        rejected:
+          type: integer
+        submitted_total:
+          type: integer
+        completion_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        can_submit:
+          type: boolean
+        submission_state:
+          type: string
+          enum:
+            - no_assignment
+            - no_requirements
+            - incomplete
+            - ready
+            - submitted
+            - partially_verified
+            - verified
+            - changes_required
+        blocking_requirements:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateBlockingRequirement'
+      required:
+        - required_total
+        - missing
+        - uploaded
+        - pending_review
+        - verified
+        - rejected
+        - submitted_total
+        - completion_percentage
+        - can_submit
+        - submission_state
+        - blocking_requirements
+    CandidateApplicationProgress:
+      type: object
+      properties:
+        candidate_status:
+          type: string
+          example: registered
+        current_workflow_stage:
+          anyOf:
+            - $ref: '#/components/schemas/CandidateProgressWorkflowStage'
+            - type: 'null'
+        documents:
+          $ref: '#/components/schemas/CandidateApplicationProgressDocuments'
+      required: [candidate_status, current_workflow_stage, documents]
+    CandidateDocumentSubmissionResult:
+      type: object
+      properties:
+        message:
+          type: string
+        submission_id:
+          type: string
+          format: uuid
+        submitted_at:
+          type: string
+          format: date-time
+        submission_state:
+          type: string
+          enum: [submitted, partially_verified, verified]
+        documents:
+          type: object
+          properties:
+            required_total:
+              type: integer
+            pending_review:
+              type: integer
+            can_submit:
+              type: boolean
+          required: [required_total, pending_review, can_submit]
+      required: [message, submission_id, submitted_at, submission_state, documents]
     CandidateImportRequest:
       type: object
       properties:
@@ -1327,6 +1438,230 @@ paths:
                     timestamp: '2026-08-26T12:00:00Z'
         '429':
           description: Rate limited
+  /api/v1/candidate/application_progress:
+    get:
+      summary: Fetch the authenticated candidate application progress
+      description: >-
+        Returns the authenticated candidate's current workflow-stage label and authoritative
+        document readiness summary. Candidate identity is derived only from the candidate
+        bearer token, staff tokens are rejected, and the backend computes blocking
+        requirements from the current assignment and active requirement rules.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate progress retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                readyEn:
+                  summary: Ready-to-submit progress in English
+                  value:
+                    data:
+                      candidate_status: registered
+                      current_workflow_stage:
+                        code: registered
+                        name: Registered
+                      documents:
+                        required_total: 1
+                        missing: 0
+                        uploaded: 1
+                        pending_review: 0
+                        verified: 0
+                        rejected: 0
+                        submitted_total: 1
+                        completion_percentage: 100
+                        can_submit: true
+                        submission_state: ready
+                        blocking_requirements: []
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+                noAssignmentUr:
+                  summary: No-assignment progress in Urdu
+                  value:
+                    data:
+                      candidate_status: registered
+                      current_workflow_stage: null
+                      documents:
+                        required_total: 0
+                        missing: 0
+                        uploaded: 0
+                        pending_review: 0
+                        verified: 0
+                        rejected: 0
+                        submitted_total: 0
+                        completion_percentage: 0
+                        can_submit: false
+                        submission_state: no_assignment
+                        blocking_requirements: []
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/candidate/document_submissions:
+    post:
+      summary: Submit candidate documents for review
+      description: >-
+        Atomically submits the authenticated candidate's current uploaded documents for
+        review. The backend locks the current assignment, re-resolves active requirements,
+        rechecks readiness, moves only current `uploaded` documents to `under_verification`,
+        records immutable submission evidence, and replays the original successful result
+        for the same authenticated candidate and idempotency key. This endpoint does not
+        accept candidate IDs, assignment IDs, document IDs, or requirement lists from the
+        client.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      responses:
+        '201':
+          description: Documents submitted for review or idempotent success replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                submittedEn:
+                  summary: English submission response
+                  value:
+                    data:
+                      message: Documents submitted for review.
+                      submission_id: 0f5b8c9a-4f88-440d-94eb-cf70f780ff95
+                      submitted_at: '2026-08-26T12:00:00Z'
+                      submission_state: submitted
+                      documents:
+                        required_total: 1
+                        pending_review: 1
+                        can_submit: false
+                    meta:
+                      request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+                submittedUr:
+                  summary: Urdu submission response
+                  value:
+                    data:
+                      message: دستاویزات جانچ کے لیے جمع کرا دی گئی ہیں۔
+                      submission_id: 0f5b8c9a-4f88-440d-94eb-cf70f780ff95
+                      submitted_at: '2026-08-26T12:00:00Z'
+                      submission_state: submitted
+                      documents:
+                        required_total: 1
+                        pending_review: 1
+                        can_submit: false
+                    meta:
+                      request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                      timestamp: '2026-08-26T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '409':
+          description: Idempotency conflict or in-progress duplicate request
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                idempotencyConflict:
+                  value:
+                    errors:
+                      - code: idempotency_conflict
+                        message: The idempotency key does not match the original request.
+                    request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                    timestamp: '2026-08-26T12:00:00Z'
+        '422':
+          description: Submission readiness failure
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                noCurrentAssignment:
+                  value:
+                    errors:
+                      - code: no_current_assignment
+                        message: No active assignment is available for this candidate.
+                    request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                    timestamp: '2026-08-26T12:00:00Z'
+                noDocumentRequirements:
+                  value:
+                    errors:
+                      - code: no_document_requirements
+                        message: No document requirements are configured for this candidate.
+                    request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                    timestamp: '2026-08-26T12:00:00Z'
+                documentsIncomplete:
+                  value:
+                    errors:
+                      - code: documents_incomplete
+                        message: Upload all required documents before submitting.
+                        details:
+                          blocking_requirements:
+                            - requirement_code: passport
+                              name: Passport
+                              reason: missing
+                    request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                    timestamp: '2026-08-26T12:00:00Z'
+                documentsRejectedUr:
+                  value:
+                    errors:
+                      - code: documents_rejected
+                        message: جمع کرانے سے پہلے تمام مسترد شدہ مطلوبہ دستاویزات تبدیل کریں۔
+                        details:
+                          blocking_requirements:
+                            - requirement_code: passport
+                              name: پاسپورٹ
+                              reason: rejected
+                    request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                    timestamp: '2026-08-26T12:00:00Z'
+                alreadySubmitted:
+                  value:
+                    errors:
+                      - code: already_submitted
+                        message: The current documents have already been submitted for review.
+                    request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                    timestamp: '2026-08-26T12:00:00Z'
   /api/v1/admin/candidate_imports:
     post:
       summary: Import candidates from CSV

@@ -2,7 +2,7 @@
 
 FactoryBot.define do
   factory :user do
-    sequence(:email) { |n| "user#{n}@example.com" }
+    email { "test_user_#{SecureRandom.hex(6)}@example.com" }
     password { 'Password123!' }
     public_id { SecureRandom.uuid }
     role { 'hr' }

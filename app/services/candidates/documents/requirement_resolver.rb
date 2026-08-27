@@ -3,8 +3,9 @@
 module Candidates
   module Documents
     class RequirementResolver < ApplicationService
-      def initialize(candidate:)
+      def initialize(candidate:, assignment: nil)
         @candidate = candidate
+        @assignment = assignment
       end
 
       def call
@@ -20,7 +21,7 @@ module Candidates
       private
 
       def current_assignment
-        @current_assignment ||= @candidate.current_assignment
+        @current_assignment ||= @assignment || @candidate.current_assignment
       end
 
       def applicable_requirements

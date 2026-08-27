@@ -44,21 +44,21 @@ FactoryBot.define do
   end
 
   factory :country do
-    sequence(:code) { |n| "country_#{n}" }
+    code { "test_country_#{SecureRandom.hex(6)}" }
     sequence(:name_en) { |n| "Country #{n}" }
     sequence(:name_ur) { |n| "ملک #{n}" }
     active { true }
   end
 
   factory :project do
-    sequence(:code) { |n| "project_#{n}" }
+    code { "test_project_#{SecureRandom.hex(6)}" }
     sequence(:name_en) { |n| "Project #{n}" }
     sequence(:name_ur) { |n| "پروجیکٹ #{n}" }
     active { true }
   end
 
   factory :craft do
-    sequence(:code) { |n| "craft_#{n}" }
+    code { "test_craft_#{SecureRandom.hex(6)}" }
     sequence(:name_en) { |n| "Craft #{n}" }
     sequence(:name_ur) { |n| "کرافٹ #{n}" }
     active { true }
@@ -68,7 +68,7 @@ FactoryBot.define do
     initialize_with { WorkflowStage.find_or_initialize_by(code: code) }
 
     sequence(:position) { |n| n + 100 }
-    sequence(:code) { |n| "workflow_stage_#{n}" }
+    code { "test_workflow_stage_#{SecureRandom.hex(6)}" }
     system_defined { false }
     active { true }
 
@@ -81,8 +81,12 @@ FactoryBot.define do
 
   factory :candidate do
     sequence(:full_name) { |n| "Candidate #{n}" }
-    sequence(:cnic) { |n| "#{format('%05d', 42_000 + n)}-#{format('%07d', 1_000_000 + n)}-#{n % 10}" }
-    sequence(:mobile_number) { |n| "+9230012#{format('%05d', n)}" }
+    cnic do
+      digits = SecureRandom.random_number(10_000_000)
+      suffix = SecureRandom.random_number(10)
+      "#{format('%05d', 42_000 + SecureRandom.random_number(10_000))}-#{format('%07d', digits)}-#{suffix}"
+    end
+    mobile_number { "+923#{format('%09d', SecureRandom.random_number(1_000_000_000))}" }
     passport_number { nil }
     preferred_locale { 'en' }
     status_code { 'registered' }
@@ -139,7 +143,7 @@ FactoryBot.define do
   end
 
   factory :document_type do
-    sequence(:code) { |n| "document_type_#{n}" }
+    code { "test_document_type_#{SecureRandom.hex(6)}" }
     sequence(:name_en) { |n| "Document Type #{n}" }
     sequence(:name_ur) { |n| "دستاویز کی قسم #{n}" }
     active { true }
@@ -163,7 +167,7 @@ FactoryBot.define do
     craft
     association :current_workflow_stage, factory: %i[workflow_stage registered]
     association :created_by, factory: :user
-    sequence(:reference_number) { |n| "DES-#{format('%06d', n + 100)}" }
+    reference_number { "DES-#{SecureRandom.hex(6).upcase}" }
     qvc_outcome_code { nil }
     qvc_outcome_date { nil }
   end
@@ -204,6 +208,14 @@ FactoryBot.define do
         content_type: 'application/pdf'
       )
     end
+  end
+
+  factory :candidate_document_submission do
+    candidate_assignment
+    public_id { SecureRandom.uuid }
+    status_code { 'submitted' }
+    request_id { SecureRandom.uuid }
+    submitted_at { Time.current }
   end
 
   factory :payment do
