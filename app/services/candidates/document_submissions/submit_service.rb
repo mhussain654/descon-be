@@ -10,16 +10,8 @@ module Candidates
 
       def call
         CandidateDocumentSubmission.transaction do
-          lock_current_assignment!
-          ensure_requirements_present!
-          load_current_documents!
-          ensure_submission_allowed!
-
-          submit_documents!
-          submission = create_submission!
-          create_audit_event!(submission:)
-
-          build_result(submission)
+          prepare_submission!
+          persist_submission!
         end
       end
 
@@ -34,28 +26,7 @@ module Candidates
         )
       end
 
-      def create_audit_event!(submission:)
-        AuditEvent.create!(
-          candidate: @candidate,
-          candidate_assignment: @current_assignment,
-          entity_type: 'CandidateDocumentSubmission',
-          entity_id: submission.id,
-          action_code: 'candidate_documents_submitted',
-          request_id: @request_id,
-          metadata: audit_metadata(submission),
-          occurred_at: submission.submitted_at
-        )
-      end
-
-      def audit_metadata(submission)
-        AuditMetadataBuilder.call(
-          candidate: @candidate,
-          current_assignment: @current_assignment,
-          required_requirements:,
-          submission:,
-          submitted_documents: documents_to_submit
-        )
-      end
+      def create_audit_event!(submission:) = SubmissionAuditCreator.call(**submission_audit_arguments(submission))
 
       def documents_to_submit
         @documents_to_submit ||= @requirements.filter_map do |requirement|
@@ -66,11 +37,25 @@ module Candidates
 
       def ensure_requirements_present! = (raise NoDocumentRequirementsError if required_requirements.empty?)
 
-      def ensure_submission_allowed!
-        ReadinessValidator.call(
-          documents_to_submit:,
-          progress: current_progress
+      def ensure_submission_allowed! = ReadinessValidator.call(documents_to_submit:, progress: current_progress)
+
+      def persist_submission!
+        submit_documents!
+        submission = create_submission!
+        SubmissionItemCreator.call(
+          submission:,
+          documents: documents_to_submit,
+          requirements_by_document_type_id:
         )
+        create_audit_event!(submission:)
+        build_result(submission)
+      end
+
+      def prepare_submission!
+        lock_current_assignment!
+        ensure_requirements_present!
+        load_current_documents!
+        ensure_submission_allowed!
       end
 
       def load_current_documents!
@@ -93,27 +78,44 @@ module Candidates
         )
       end
 
-      def required_requirements
-        @required_requirements ||= @requirements.select(&:required)
+      def required_requirements = @required_requirements ||= @requirements.select(&:required)
+
+      def requirements_by_document_type_id
+        @requirements_by_document_type_id ||= @requirements.index_by(&:document_type_id)
       end
 
-      def current_progress
-        @current_progress ||= Candidates::ApplicationProgress::SummaryService.call(
+      def current_progress = @current_progress ||= ProgressSummaryBuilder.call(**progress_summary_arguments)
+
+      def progress_summary_arguments
+        {
           candidate: @candidate,
           assignment: @current_assignment,
           current_documents_by_type: @current_documents_by_type,
           requirements: @requirements
+        }
+      end
+
+      def submission_audit_arguments(submission)
+        {
+          candidate: @candidate,
+          candidate_assignment: @current_assignment,
+          submission:,
+          request_id: @request_id,
+          metadata: submission_audit_metadata(submission)
+        }
+      end
+
+      def submission_audit_metadata(submission)
+        SubmissionAuditMetadataBuilder.call(
+          candidate: @candidate,
+          current_assignment: @current_assignment,
+          required_requirements:,
+          submission:,
+          submitted_documents: documents_to_submit
         )
       end
 
-      def submission_progress
-        Candidates::ApplicationProgress::SummaryService.call(
-          candidate: @candidate,
-          assignment: @current_assignment,
-          current_documents_by_type: @current_documents_by_type,
-          requirements: @requirements
-        )
-      end
+      def submission_progress = ProgressSummaryBuilder.call(**progress_summary_arguments)
 
       def submit_documents! = documents_to_submit.each { |document| submit_document!(document) }
 

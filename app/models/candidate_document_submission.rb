@@ -6,6 +6,9 @@ class CandidateDocumentSubmission < ApplicationRecord
   STATUS_CODES = %w[submitted].freeze
 
   belongs_to :candidate_assignment
+  has_many :submission_items, class_name: 'CandidateDocumentSubmissionItem', dependent: :destroy
+  has_many :candidate_documents, through: :submission_items
+
   delegate :candidate, to: :candidate_assignment
 
   before_validation :assign_public_id, on: :create

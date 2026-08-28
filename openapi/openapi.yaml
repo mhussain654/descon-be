@@ -24,6 +24,15 @@ components:
         pattern: '^[A-Za-z0-9:_-]{1,128}$'
         maxLength: 128
       description: Optional idempotency key for replay-safe mutation requests. Keys are scoped per operation and authenticated subject, retained for 12 hours, replay the original safe response for an identical request, return `409` while an identical request is still processing, and return `409` if the same key is reused with a different request fingerprint.
+    RequiredIdempotencyKeyHeader:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9:_-]{1,128}$'
+        maxLength: 128
+      description: Required idempotency key for replay-safe mutation requests. Keys are scoped per operation and authenticated subject, retained for 12 hours, replay the original safe response for an identical request, return `409` while an identical request is still processing, and return `409` if the same key is reused with a different request fingerprint.
     PageNumber:
       in: query
       name: page[number]
@@ -71,6 +80,45 @@ components:
       schema:
         type: string
       description: Comma-separated staff states. Supported values are `invited`, `active`, and `suspended`.
+    DocumentSubmissionStatusFilter:
+      in: query
+      name: filter[status]
+      schema:
+        type: string
+      description: Comma-separated review states. Supported values are `pending_review`, `partially_reviewed`, `changes_required`, and `verified`.
+    DocumentSubmissionCandidateFilter:
+      in: query
+      name: filter[candidate_public_id]
+      schema:
+        type: string
+        format: uuid
+      description: Filter by candidate public ID.
+    DocumentSubmissionProjectFilter:
+      in: query
+      name: filter[project_code]
+      schema:
+        type: string
+      description: Filter by project code.
+    DocumentSubmissionCountryFilter:
+      in: query
+      name: filter[country_code]
+      schema:
+        type: string
+      description: Filter by country code.
+    DocumentSubmissionSubmittedFromFilter:
+      in: query
+      name: filter[submitted_from]
+      schema:
+        type: string
+        format: date-time
+      description: Include submissions created on or after this ISO 8601 timestamp.
+    DocumentSubmissionSubmittedToFilter:
+      in: query
+      name: filter[submitted_to]
+      schema:
+        type: string
+        format: date-time
+      description: Include submissions created on or before this ISO 8601 timestamp.
   headers:
     ContentLanguageHeader:
       schema:
@@ -497,6 +545,179 @@ components:
               type: boolean
           required: [required_total, pending_review, can_submit]
       required: [message, submission_id, submitted_at, submission_state, documents]
+    AdminReviewState:
+      type: string
+      enum: [pending_review, partially_reviewed, changes_required, verified]
+    AdminReferenceRecord:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+      required: [code, name]
+    AdminDocumentReviewSummary:
+      type: object
+      properties:
+        pending_review:
+          type: integer
+        verified:
+          type: integer
+        rejected:
+          type: integer
+        required_total:
+          type: integer
+        review_state:
+          $ref: '#/components/schemas/AdminReviewState'
+      required: [pending_review, verified, rejected, required_total, review_state]
+    AdminDocumentSubmissionCandidate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+      required: [id, full_name]
+    AdminDocumentSubmissionAssignment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference_number:
+          type: string
+        country:
+          $ref: '#/components/schemas/AdminReferenceRecord'
+        project:
+          $ref: '#/components/schemas/AdminReferenceRecord'
+        craft:
+          $ref: '#/components/schemas/AdminReferenceRecord'
+      required: [id, reference_number, country, project, craft]
+    AdminDocumentReviewQueueItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        candidate:
+          $ref: '#/components/schemas/AdminDocumentSubmissionCandidate'
+        assignment:
+          $ref: '#/components/schemas/AdminDocumentSubmissionAssignment'
+        submitted_at:
+          type: string
+          format: date-time
+        review:
+          $ref: '#/components/schemas/AdminDocumentReviewSummary'
+      required: [id, candidate, assignment, submitted_at, review]
+    AdminCandidateDocument:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        requirement_code:
+          type: string
+        required:
+          type: boolean
+        name:
+          type: string
+        file_name:
+          type: string
+        content_type:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png]
+        file_size:
+          type: integer
+        uploaded_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [uploaded, pending_review, verified, rejected]
+        verified_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        rejection_reason:
+          anyOf:
+            - type: string
+            - type: 'null'
+        reviewer_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+      required:
+        - id
+        - requirement_code
+        - required
+        - name
+        - file_name
+        - content_type
+        - file_size
+        - uploaded_at
+        - status
+    AdminDocumentSubmissionDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        candidate:
+          $ref: '#/components/schemas/AdminDocumentSubmissionCandidate'
+        assignment:
+          $ref: '#/components/schemas/AdminDocumentSubmissionAssignment'
+        submitted_at:
+          type: string
+          format: date-time
+        review:
+          $ref: '#/components/schemas/AdminDocumentReviewSummary'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminCandidateDocument'
+      required: [id, candidate, assignment, submitted_at, review, documents]
+    AdminDocumentAccess:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required: [document_id, url, expires_at]
+    AdminDocumentReviewDecision:
+      type: object
+      properties:
+        document:
+          $ref: '#/components/schemas/AdminCandidateDocument'
+        submission:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            review:
+              $ref: '#/components/schemas/AdminDocumentReviewSummary'
+          required: [id, review]
+      required: [document, submission]
+    AdminDocumentRejectionRequest:
+      type: object
+      properties:
+        rejection:
+          type: object
+          required: [reason]
+          properties:
+            reason:
+              type: string
+              minLength: 10
+              maxLength: 500
+      required: [rejection]
     CandidateImportRequest:
       type: object
       properties:
@@ -1757,6 +1978,526 @@ paths:
             does not cover invalid row content (bad CNIC format, unknown reference codes,
             duplicate rows, etc.) — those are row-level outcomes returned inside a `200`/`201`
             response's `data.errors` array, not this status.
+  /api/v1/admin/document_submissions:
+    get:
+      summary: List candidate document submissions waiting for review
+      description: >-
+        Returns the paginated admin review queue for current candidate document
+        submissions. Authorization requires the active `manage_candidate_documents`
+        permission. Review states are derived from the current statuses of the immutable
+        submitted document set captured for each submission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/DocumentSubmissionStatusFilter'
+        - $ref: '#/components/parameters/DocumentSubmissionSubmittedFromFilter'
+        - $ref: '#/components/parameters/DocumentSubmissionSubmittedToFilter'
+        - $ref: '#/components/parameters/DocumentSubmissionCandidateFilter'
+        - $ref: '#/components/parameters/DocumentSubmissionProjectFilter'
+        - $ref: '#/components/parameters/DocumentSubmissionCountryFilter'
+      responses:
+        '200':
+          description: Paginated review queue
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                queueEn:
+                  value:
+                    data:
+                      - id: 85be7c2b-c0bd-4a0d-b7d4-422a2c40f59d
+                        candidate:
+                          id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                          full_name: Ahmed Ali
+                        assignment:
+                          id: 674845a4-f90d-413c-b655-e3488c578e95
+                          reference_number: DES-001001
+                          country:
+                            code: qatar
+                            name: Qatar
+                          project:
+                            code: qatar_infrastructure
+                            name: Qatar Infrastructure
+                          craft:
+                            code: electrician
+                            name: Electrician
+                        submitted_at: '2026-08-27T10:00:00Z'
+                        review:
+                          pending_review: 1
+                          verified: 1
+                          rejected: 0
+                          required_total: 2
+                          review_state: partially_reviewed
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-08-27T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                    errors: []
+                queueUr:
+                  value:
+                    data:
+                      - id: 85be7c2b-c0bd-4a0d-b7d4-422a2c40f59d
+                        candidate:
+                          id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                          full_name: احمد علی
+                        assignment:
+                          id: 674845a4-f90d-413c-b655-e3488c578e95
+                          reference_number: DES-001001
+                          country:
+                            code: qatar
+                            name: قطر
+                          project:
+                            code: qatar_infrastructure
+                            name: قطر انفراسٹرکچر
+                          craft:
+                            code: electrician
+                            name: الیکٹریشن
+                        submitted_at: '2026-08-27T10:00:00Z'
+                        review:
+                          pending_review: 2
+                          verified: 0
+                          rejected: 0
+                          required_total: 2
+                          review_state: pending_review
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-08-27T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                    errors: []
+        '400':
+          description: Unsupported or malformed queue filter or pagination request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks review permission or is inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                reviewNotAllowedUr:
+                  value:
+                    errors:
+                      - code: review_not_allowed
+                        message: آپ کو اس دستاویز کا جائزہ لینے کی اجازت نہیں ہے۔
+                    request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                    timestamp: '2026-08-27T10:00:01Z'
+  /api/v1/admin/document_submissions/{id}:
+    get:
+      summary: Fetch one candidate document submission for review
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Submission detail
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                detailEn:
+                  value:
+                    data:
+                      id: 85be7c2b-c0bd-4a0d-b7d4-422a2c40f59d
+                      candidate:
+                        id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                        full_name: Ahmed Ali
+                      assignment:
+                        id: 674845a4-f90d-413c-b655-e3488c578e95
+                        reference_number: DES-001001
+                        country:
+                          code: qatar
+                          name: Qatar
+                        project:
+                          code: qatar_infrastructure
+                          name: Qatar Infrastructure
+                        craft:
+                          code: electrician
+                          name: Electrician
+                      submitted_at: '2026-08-27T10:00:00Z'
+                      review:
+                        pending_review: 1
+                        verified: 0
+                        rejected: 0
+                        required_total: 1
+                        review_state: pending_review
+                      documents:
+                        - id: 6a2f0cb8-73b3-4250-a4b0-f568a9f9bb3f
+                          requirement_code: passport
+                          required: true
+                          name: Passport
+                          file_name: passport.pdf
+                          content_type: application/pdf
+                          file_size: 123456
+                          uploaded_at: '2026-08-27T09:55:00Z'
+                          status: pending_review
+                    meta:
+                      request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
+                      timestamp: '2026-08-27T10:00:02Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks review permission or is inactive
+        '404':
+          description: Submission public ID not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                submissionNotFound:
+                  value:
+                    errors:
+                      - code: document_submission_not_found
+                        message: Document submission not found.
+                    request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
+                    timestamp: '2026-08-27T10:00:02Z'
+  /api/v1/admin/candidate_documents/{candidate_document_id}/access:
+    post:
+      summary: Generate a short-lived private access path for a submitted document
+      description: >-
+        Returns a private Active Storage proxy path for an accessible current submitted
+        document. The path is time-limited, does not expose storage keys, and every
+        successful access is audited. Clients must not cache this response or the
+        proxied document response.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: candidate_document_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                accessEn:
+                  value:
+                    data:
+                      document_id: 6a2f0cb8-73b3-4250-a4b0-f568a9f9bb3f
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/passport.pdf?disposition=inline
+                      expires_at: '2026-08-27T10:05:00Z'
+                    meta:
+                      request_id: aa9a5883-70d5-4040-8823-424f4b4b669b
+                      timestamp: '2026-08-27T10:00:03Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks document-access permission or is inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                accessForbiddenUr:
+                  value:
+                    errors:
+                      - code: document_access_forbidden
+                        message: آپ کو اس دستاویز تک رسائی کی اجازت نہیں ہے۔
+                    request_id: aa9a5883-70d5-4040-8823-424f4b4b669b
+                    timestamp: '2026-08-27T10:00:03Z'
+        '404':
+          description: Document public ID not found
+        '422':
+          description: Document exists but its attachment is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                attachmentMissing:
+                  value:
+                    errors:
+                      - code: document_attachment_missing
+                        message: The requested document file is unavailable.
+                    request_id: aa9a5883-70d5-4040-8823-424f4b4b669b
+                    timestamp: '2026-08-27T10:00:03Z'
+  /api/v1/admin/candidate_documents/{candidate_document_id}/verifications:
+    post:
+      summary: Verify one current pending-review candidate document
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+        - in: path
+          name: candidate_document_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Document verified or idempotent verification replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                verifiedEn:
+                  value:
+                    data:
+                      document:
+                        id: 6a2f0cb8-73b3-4250-a4b0-f568a9f9bb3f
+                        requirement_code: passport
+                        required: true
+                        name: Passport
+                        file_name: passport.pdf
+                        content_type: application/pdf
+                        file_size: 123456
+                        uploaded_at: '2026-08-27T09:55:00Z'
+                        status: verified
+                        verified_at: '2026-08-27T10:06:00Z'
+                        reviewer_id: 7bb78387-a979-4bd8-868c-d89bd52d71d8
+                      submission:
+                        id: 85be7c2b-c0bd-4a0d-b7d4-422a2c40f59d
+                        review:
+                          pending_review: 0
+                          verified: 1
+                          rejected: 0
+                          required_total: 1
+                          review_state: verified
+                    meta:
+                      request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                      timestamp: '2026-08-27T10:06:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '400':
+          description: Missing or invalid idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingIdempotencyKey:
+                  value:
+                    errors:
+                      - code: missing_idempotency_key
+                        field: idempotency_key
+                        message: An idempotency key is required for this request.
+                    request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                    timestamp: '2026-08-28T10:06:00Z'
+                invalidIdempotencyKey:
+                  value:
+                    errors:
+                      - code: invalid_idempotency_key
+                        field: idempotency_key
+                        message: The idempotency key format is invalid.
+                    request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                    timestamp: '2026-08-28T10:06:00Z'
+        '403':
+          description: Authenticated staff user lacks review permission or is inactive
+        '404':
+          description: Document public ID not found
+        '409':
+          description: Idempotency conflict or in-progress duplicate decision
+        '422':
+          description: Document is not currently reviewable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                alreadyReviewed:
+                  value:
+                    errors:
+                      - code: document_already_reviewed
+                        message: This document has already been reviewed.
+                    request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                    timestamp: '2026-08-27T10:06:00Z'
+  /api/v1/admin/candidate_documents/{candidate_document_id}/rejections:
+    post:
+      summary: Reject one current pending-review candidate document
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+        - in: path
+          name: candidate_document_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDocumentRejectionRequest'
+      responses:
+        '201':
+          description: Document rejected or idempotent rejection replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                rejectedUr:
+                  value:
+                    data:
+                      document:
+                        id: 6a2f0cb8-73b3-4250-a4b0-f568a9f9bb3f
+                        requirement_code: passport
+                        required: true
+                        name: پاسپورٹ
+                        file_name: passport.pdf
+                        content_type: application/pdf
+                        file_size: 123456
+                        uploaded_at: '2026-08-27T09:55:00Z'
+                        status: rejected
+                        verified_at: '2026-08-27T10:07:00Z'
+                        rejection_reason: Document is unreadable.
+                        reviewer_id: 7bb78387-a979-4bd8-868c-d89bd52d71d8
+                      submission:
+                        id: 85be7c2b-c0bd-4a0d-b7d4-422a2c40f59d
+                        review:
+                          pending_review: 0
+                          verified: 0
+                          rejected: 1
+                          required_total: 1
+                          review_state: changes_required
+                    meta:
+                      request_id: efde0cad-b9d1-4adb-b03b-7774a794e328
+                      timestamp: '2026-08-27T10:07:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '400':
+          description: Missing or invalid idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingIdempotencyKey:
+                  value:
+                    errors:
+                      - code: missing_idempotency_key
+                        field: idempotency_key
+                        message: An idempotency key is required for this request.
+                    request_id: efde0cad-b9d1-4adb-b03b-7774a794e328
+                    timestamp: '2026-08-28T10:07:00Z'
+                invalidIdempotencyKey:
+                  value:
+                    errors:
+                      - code: invalid_idempotency_key
+                        field: idempotency_key
+                        message: The idempotency key format is invalid.
+                    request_id: efde0cad-b9d1-4adb-b03b-7774a794e328
+                    timestamp: '2026-08-28T10:07:00Z'
+        '403':
+          description: Authenticated staff user lacks review permission or is inactive
+        '404':
+          description: Document public ID not found
+        '409':
+          description: Idempotency conflict or in-progress duplicate decision
+        '422':
+          description: Invalid rejection reason or document is not currently reviewable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                rejectionReasonRequired:
+                  value:
+                    errors:
+                      - code: rejection_reason_required
+                        field: rejection.reason
+                        message: Enter a rejection reason.
+                    request_id: efde0cad-b9d1-4adb-b03b-7774a794e328
+                    timestamp: '2026-08-27T10:07:00Z'
+                rejectionReasonInvalidUr:
+                  value:
+                    errors:
+                      - code: rejection_reason_invalid
+                        field: rejection.reason
+                        message: درست مسترد کرنے کی وجہ درج کریں۔
+                    request_id: efde0cad-b9d1-4adb-b03b-7774a794e328
+                    timestamp: '2026-08-27T10:07:00Z'
   /api/v1/users/profile:
     get:
       summary: Fetch the authenticated user profile

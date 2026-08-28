@@ -62,7 +62,7 @@ SEED_DEMO_DATA=true bundle exec rails db:seed
 | --- | --- | --- |
 | `11111-1111111-1` | `+923001234567` | Full success path -- a request actually creates a challenge and attempts SMS delivery, and the correct code verifies. |
 | `22222-2222222-2` | `+920000000000` | Registered candidate whose mobile matches the test SMS provider's reserved "undeliverable" pattern (10+ trailing zeros) -- a request still returns the identical generic response and still creates a verifiable challenge, but the simulated SMS delivery fails internally. |
-| `99999-9999999-9` | -- | Deliberately **never** seeded, to exercise the "unknown CNIC" path -- returns the identical generic response as the two CNICs above. `/request` still creates a real (decoy) challenge row and calls through the SMS adapter for it, so `/verify` can return `otp_expired`/`otp_max_attempts` for this CNIC exactly as it would for a real one -- see [Security: identity-enumeration resistance](#security-identity-enumeration-resistance). |
+| `99999-9999999-9` | -- | Deliberately **never** seeded, to exercise the "unknown CNIC" path -- returns the identical generic response as the two CNICs above. `/request` still creates a decoy challenge row and calls through the SMS adapter for it, so `/verify` can return `otp_expired`/`otp_max_attempts` for this CNIC exactly as it would for a real one -- see [Security: identity-enumeration resistance](#security-identity-enumeration-resistance). |
 
 Because [`SMS_PROVIDER=test`](#environment-variables) never sends a real message, retrieve the actual code from the database or Rails console during local development, for example:
 
@@ -280,7 +280,7 @@ Staff tokens are rejected from candidate-only endpoints, and inactive candidates
 
 ## Candidate required documents and uploads
 
-Candidate document APIs are candidate-facing only. No admin review or verification endpoint is added in this ticket.
+Candidate document upload and submission APIs remain candidate-facing. Admin review is exposed separately through dedicated admin endpoints.
 
 - `GET /api/v1/candidate/documents` returns the authenticated candidate's document checklist
 - `POST /api/v1/candidate/documents` uploads or replaces one candidate-owned document through `multipart/form-data`
@@ -395,6 +395,116 @@ Production storage note:
 - Production must set `ACTIVE_STORAGE_SERVICE` explicitly to an approved durable private storage backend before deploying candidate uploads
 - The production environment no longer falls back to `local` storage for uploads
 - Leaving `ACTIVE_STORAGE_SERVICE` unset in production now fails fast during boot instead of silently storing candidate documents on local disk
+
+## Admin document review and verification
+
+Admin review is isolated from candidate-facing upload/submission APIs.
+
+- `GET /api/v1/admin/document_submissions` returns the paginated review queue
+- `GET /api/v1/admin/document_submissions/:id` returns one submission by submission public ID
+- `POST /api/v1/admin/candidate_documents/:id/access` returns a short-lived private Active Storage proxy path for one submitted current document
+- `POST /api/v1/admin/candidate_documents/:id/verifications` verifies one current pending-review document
+- `POST /api/v1/admin/candidate_documents/:id/rejections` rejects one current pending-review document with a required reason
+
+Authorization and scope rules:
+
+- Every admin review endpoint requires an authenticated active staff session with the active `manage_candidate_documents` permission
+- With the current seeded permission matrix, `admin`, `hr`, and `mps` may access the review queue and make review decisions; `finance` and `management` are denied by policy
+- Candidate bearer tokens are rejected from every admin review endpoint
+- Only current submitted documents are reviewable; unsent, superseded, or inaccessible documents return safe `404`/`403` responses through the standard API envelope
+
+Queue and detail behavior:
+
+- The queue supports `page[number]`, `page[size]`, and safe filters for `status`, `submitted_from`, `submitted_to`, `candidate_public_id`, `project_code`, and `country_code`
+- Queue and detail responses expose public IDs only
+- The API returns safe metadata only: candidate public ID and display name, assignment public ID and reference number, localized country/project/craft names, submission time, review counts, localized document-type names, file content type, file size, upload time, and review status
+- The API does not expose internal numeric IDs, storage keys, disk paths, public file URLs, CNIC, passport details, phone numbers, or document contents
+
+Review-state rules:
+
+- `pending_review`: every required submitted document is still pending review
+- `partially_reviewed`: at least one required submitted document is verified and at least one required submitted document is still pending review
+- `changes_required`: at least one required submitted document is rejected
+- `verified`: every required submitted document is verified
+
+Secure document access behavior:
+
+- Access is granted only through an authorized backend endpoint and returns a short-lived private proxy path, not a permanent URL
+- `ADMIN_DOCUMENT_ACCESS_TTL_SECONDS` controls the expiry window and defaults to `300`
+- Both the JSON access response and the proxied document response set `Cache-Control: private, no-store`
+- Every successful document-access action records a PII-safe audit event
+
+Verification and rejection behavior:
+
+- Only a current `under_verification` document may be reviewed
+- Verification sets the document to `verified`, records the reviewer and decision timestamp, and clears any stale rejection reason
+- Rejection requires a plain-text reason, trims surrounding whitespace, rejects HTML content, records the reviewer and decision timestamp, and sets the document to `rejected`
+- Rejected candidate documents become replaceable again through the existing candidate upload flow because candidate replacement rules already allow replacement for current `rejected` documents
+- Verification and rejection are atomic: the document lock, status update, reviewer/timestamp changes, and audit event are persisted together or not at all
+
+Idempotency and concurrency:
+
+- Verification and rejection require `Idempotency-Key`; missing keys return `400 missing_idempotency_key` and malformed keys return `400 invalid_idempotency_key`
+- Retrying the same successful decision with the same authenticated staff user and the same request fingerprint replays the original `201` response
+- Reusing the same key for a different document, action, or rejection reason returns `409 idempotency_conflict`
+- The fingerprint intentionally excludes the bearer token so a retried request still replays after staff session renewal
+- Concurrent verify/reject attempts against the same current document are serialized by row locking so only one decision succeeds
+
+Deployment/backfill:
+
+- Existing `candidate_document_submissions` are backfilled into immutable `candidate_document_submission_items` during deployment so submissions created before the admin-review rollout remain reviewable
+
+Audit and privacy:
+
+- Audit events are recorded for successful document access, verification, and rejection
+- Audit metadata is limited to safe identifiers such as staff public ID, candidate public ID, assignment public ID, submission public ID, document public ID, requirement code, request ID, and timestamp
+- Audit metadata never includes document contents, CNIC, phone numbers, storage keys, checksums, access URLs, authentication tokens, or raw request payloads
+
+Example review-queue request:
+
+```bash
+curl \
+  -H "Authorization: Bearer <staff_access_token>" \
+  -H "X-Locale: ur" \
+  "http://localhost:3000/api/v1/admin/document_submissions?filter[status]=pending_review&page[number]=1&page[size]=20"
+```
+
+Example submission-detail request:
+
+```bash
+curl \
+  -H "Authorization: Bearer <staff_access_token>" \
+  http://localhost:3000/api/v1/admin/document_submissions/<submission_public_id>
+```
+
+Example secure-document-access request:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/admin/candidate_documents/<document_public_id>/access \
+  -H "Authorization: Bearer <staff_access_token>"
+```
+
+Example verify request:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/admin/candidate_documents/<document_public_id>/verifications \
+  -H "Authorization: Bearer <staff_access_token>" \
+  -H "Idempotency-Key: review-verify-20260827-001"
+```
+
+Example rejection request:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/admin/candidate_documents/<document_public_id>/rejections \
+  -H "Authorization: Bearer <staff_access_token>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: review-reject-20260827-001" \
+  -d '{
+    "rejection": {
+      "reason": "Document is unreadable."
+    }
+  }'
+```
 
 ## Staff user administration
 

@@ -12,10 +12,11 @@ module CandidateAuthentication
     # delivery failure for an otherwise well-formed number, which never
     # changes the response either.
     #
-    # An unknown CNIC also gets a real challenge row and a real call through
-    # the SMS adapter (see #deliver_decoy) -- both at the same cost as a real
-    # candidate's -- so neither this endpoint's response body nor its
-    # latency can be used to distinguish a known CNIC from an unknown one.
+    # An unknown CNIC also gets a decoy challenge row and a decoy call
+    # through the SMS adapter (see #deliver_decoy_challenge) -- both at the
+    # same cost as a real candidate's path -- so neither this endpoint's
+    # response body nor its latency can be used to distinguish a known CNIC
+    # from an unknown one.
     class RequestService < ApplicationService
       LOCK_SCOPE = 'candidate_otp'
 
@@ -33,7 +34,7 @@ module CandidateAuthentication
       def call
         raise ValidationError.new(field: 'cnic', message: I18n.t('api.errors.cnic_invalid')) unless valid_cnic_format?
 
-        request_challenge
+        request_verification_challenge
 
         {
           expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
@@ -47,17 +48,17 @@ module CandidateAuthentication
         @cnic.match?(Candidate::CNIC_FORMAT)
       end
 
-      # Always creates a challenge row and always calls through the SMS
-      # adapter, for a real candidate or a decoy alike, so an unknown CNIC is
-      # handled by the identical code path as a real one (see
+      # Always creates a real or decoy challenge row and always calls through
+      # the SMS adapter, for a real candidate or a decoy alike, so an unknown
+      # CNIC is handled by the identical code path as a real one (see
       # CandidateOtpChallenge#belongs_to :candidate, optional: true). This is
       # what lets VerifyService return otp_expired/otp_max_attempts
       # symmetrically for both, instead of only ever for a real candidate.
-      def request_challenge
-        challenge_payload = create_challenge_payload
+      def request_verification_challenge
+        challenge_payload = build_verification_challenge_payload
         return unless challenge_payload
 
-        deliver_challenge(challenge_payload)
+        deliver_real_or_decoy_challenge(challenge_payload)
       end
 
       def within_resend_cooldown?
@@ -89,13 +90,13 @@ module CandidateAuthentication
 
       # Result and any error are both discarded -- this call exists purely
       # to pay the same latency as #deliver, never to reach a real recipient.
-      def deliver_decoy(code:, locale:)
+      def deliver_decoy_challenge(code:, locale:)
         Sms::SendMessage.call(to: DECOY_MOBILE_NUMBER, body: sms_body(code:, locale:))
       rescue StandardError
         nil
       end
 
-      def create_challenge_payload
+      def build_verification_challenge_payload
         challenge_payload = nil
 
         ActiveRecord::Base.transaction do
@@ -103,19 +104,25 @@ module CandidateAuthentication
           next if within_resend_cooldown?
 
           candidate = Candidate.active.find_by(cnic: @cnic)
-          challenge_payload = CandidateOtpChallenge.generate_for(candidate:, cnic: @cnic, requested_ip: @ip_address)
+          challenge_payload = candidate_challenge_payload(candidate)
           challenge_payload[:candidate] = candidate
         end
 
         challenge_payload
       end
 
-      def deliver_challenge(challenge_payload)
+      def candidate_challenge_payload(candidate)
+        return CandidateOtpChallenge.generate_for(candidate:, requested_ip: @ip_address) if candidate
+
+        CandidateOtpChallenge.generate_decoy_for(cnic: @cnic, requested_ip: @ip_address)
+      end
+
+      def deliver_real_or_decoy_challenge(challenge_payload)
         candidate = challenge_payload.fetch(:candidate)
         code = challenge_payload.fetch(:code)
         locale = I18n.locale.to_s
 
-        candidate ? deliver(candidate:, code:, locale:) : deliver_decoy(code:, locale:)
+        candidate ? deliver(candidate:, code:, locale:) : deliver_decoy_challenge(code:, locale:)
       end
 
       def lock_cnic!
