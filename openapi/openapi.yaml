@@ -420,6 +420,11 @@ components:
               enum: [current, near_expiry, expired, not_applicable]
             - type: 'null'
           description: Present only for the `police_character` requirement. Non-PCC responses omit the field instead of returning `not_applicable`.
+        rejection_reason:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Present only when this document's current status is `rejected`.
       required: [id, file_name, content_type, file_size, uploaded_at]
     CandidateDocumentChecklistItem:
       type: object

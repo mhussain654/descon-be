@@ -85,6 +85,39 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       expect(response.body).not_to include('/storage/')
     end
 
+    it 'returns the rejection reason for a rejected document' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      create(
+        :candidate_document,
+        candidate_assignment: candidate.current_assignment,
+        document_type:,
+        status_code: 'rejected',
+        verified_by: create(:user),
+        verified_at: Time.current,
+        rejection_reason: 'Document is unreadable.'
+      )
+
+      get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      item = response.parsed_body.fetch('data').first
+      expect(item['status']).to eq('rejected')
+      expect(item.dig('document', 'rejection_reason')).to eq('Document is unreadable.')
+    end
+
+    it 'omits the rejection reason for a document that has not been rejected' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      create(:candidate_document, candidate_assignment: candidate.current_assignment, document_type:)
+
+      get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      item = response.parsed_body.fetch('data').first
+      expect(item.fetch('document')).not_to have_key('rejection_reason')
+    end
+
     it 'returns PCC metadata and compliance status for police character documents' do
       candidate = create(:candidate)
       document_type = create_requirement(candidate:, code: pcc_code)
