@@ -18,12 +18,16 @@ class BackfillCandidateDocumentSubmissionItems < ActiveRecord::Migration[8.1]
   class Assignment < ApplicationRecord
     self.table_name = 'candidate_assignments'
 
-    has_many :candidate_documents, class_name: 'BackfillCandidateDocumentSubmissionItems::Document'
+    has_many :candidate_documents,
+             class_name: 'BackfillCandidateDocumentSubmissionItems::Document',
+             foreign_key: :candidate_assignment_id,
+             inverse_of: :candidate_assignment
   end
 
   class Document < ApplicationRecord
     self.table_name = 'candidate_documents'
 
+    belongs_to :candidate_assignment, class_name: 'BackfillCandidateDocumentSubmissionItems::Assignment'
     belongs_to :document_type, class_name: 'BackfillCandidateDocumentSubmissionItems::DocumentType'
   end
 
@@ -39,8 +43,6 @@ class BackfillCandidateDocumentSubmissionItems < ActiveRecord::Migration[8.1]
 
   def up
     Submission.includes(candidate_assignment: { candidate_documents: :document_type }).find_each do |submission|
-      next if submission.submission_items.exists?
-
       backfill_submission_items!(submission)
     end
   end
@@ -52,7 +54,7 @@ class BackfillCandidateDocumentSubmissionItems < ActiveRecord::Migration[8.1]
   def backfill_submission_items!(submission)
     assignment = submission.candidate_assignment
     requirements_by_document_type_id = resolved_requirements_by_document_type_id(assignment)
-    rows = submission_item_rows(submission, assignment, requirements_by_document_type_id)
+    rows = missing_submission_item_rows(submission, assignment, requirements_by_document_type_id)
 
     return if rows.empty?
 
@@ -61,10 +63,34 @@ class BackfillCandidateDocumentSubmissionItems < ActiveRecord::Migration[8.1]
     end
   end
 
-  def submission_item_rows(submission, assignment, requirements_by_document_type_id)
-    assignment.candidate_documents.where(superseded_at: nil).includes(:document_type).filter_map do |document|
-      submission_item_attributes(submission, document, requirements_by_document_type_id[document.document_type_id])
+  def missing_submission_item_rows(submission, assignment, requirements_by_document_type_id)
+    existing_requirement_codes = submission.submission_items.pluck(:requirement_code)
+
+    historical_documents_for(submission, assignment, requirements_by_document_type_id).filter_map do |document|
+      requirement = requirements_by_document_type_id[document.document_type_id]
+      next if existing_requirement_codes.include?(requirement.document_type.code)
+
+      submission_item_attributes(submission, document, requirement)
     end
+  end
+
+  def historical_documents_for(submission, assignment, requirements_by_document_type_id)
+    requirements_by_document_type_id.keys.filter_map do |document_type_id|
+      historical_document_for(
+        assignment:,
+        document_type_id:,
+        submitted_at: submission.submitted_at
+      )
+    end
+  end
+
+  def historical_document_for(assignment:, document_type_id:, submitted_at:)
+    assignment.candidate_documents
+              .where(document_type_id:)
+              .where(uploaded_at: ..submitted_at)
+              .where('superseded_at IS NULL OR superseded_at > ?', submitted_at)
+              .order(uploaded_at: :desc, created_at: :desc, id: :desc)
+              .first
   end
 
   def submission_item_attributes(submission, document, requirement)
