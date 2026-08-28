@@ -19,7 +19,12 @@ module Candidates
 
       def build_result(submission) = ResultBuilder.call(progress: submission_progress, submission:)
 
-      def create_submission! = @current_assignment.candidate_document_submissions.create!(request_id: @request_id, submitted_at: Time.current)
+      def create_submission!
+        @current_assignment.candidate_document_submissions.create!(
+          request_id: @request_id,
+          submitted_at: Time.current
+        )
+      end
 
       def create_audit_event!(submission:) = SubmissionAuditCreator.call(**submission_audit_arguments(submission))
 
@@ -32,12 +37,7 @@ module Candidates
 
       def ensure_requirements_present! = (raise NoDocumentRequirementsError if required_requirements.empty?)
 
-      def ensure_submission_allowed!
-        ReadinessValidator.call(
-          documents_to_submit:,
-          progress: current_progress
-        )
-      end
+      def ensure_submission_allowed! = ReadinessValidator.call(documents_to_submit:, progress: current_progress)
 
       def persist_submission!
         submit_documents!
