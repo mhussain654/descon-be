@@ -29,6 +29,12 @@ Rails.application.routes.draw do
 
       namespace :admin do
         resources :candidate_imports, only: :create
+        resources :document_submissions, only: %i[index show]
+        resources :candidate_documents, only: [] do
+          resource :access, only: :create, controller: :document_accesses
+          resources :rejections, only: :create, controller: :document_rejections
+          resources :verifications, only: :create, controller: :document_verifications
+        end
       end
 
       resources :users, only: %i[index create update]

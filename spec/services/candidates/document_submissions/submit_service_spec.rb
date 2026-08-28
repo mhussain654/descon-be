@@ -6,6 +6,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
   self.use_transactional_tests = false
 
   around do |example|
+    CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
     CandidateDocument.delete_all
@@ -14,6 +15,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     User.delete_all
     example.run
   ensure
+    CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
     CandidateDocument.delete_all
@@ -60,6 +62,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       expect(result.documents[:pending_review]).to eq(1)
       expect(result.documents[:can_submit]).to be(false)
       expect(CandidateDocumentSubmission.count).to eq(1)
+      expect(CandidateDocumentSubmissionItem.count).to eq(2)
       expect(CandidateDocument.current_version.pluck(:status_code).uniq).to eq(['under_verification'])
       expect(AuditEvent.last.action_code).to eq('candidate_documents_submitted')
     end

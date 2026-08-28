@@ -14,6 +14,8 @@ class CandidateDocument < ApplicationRecord
   belongs_to :document_type
   belongs_to :uploaded_by, class_name: 'User', optional: true
   belongs_to :verified_by, class_name: 'User', optional: true
+  has_one :submission_item, class_name: 'CandidateDocumentSubmissionItem', dependent: :restrict_with_exception
+  has_one :candidate_document_submission, through: :submission_item
 
   has_one_attached :file
 

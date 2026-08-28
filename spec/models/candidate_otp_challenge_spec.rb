@@ -22,7 +22,7 @@ RSpec.describe CandidateOtpChallenge, type: :model do
     end
 
     it 'creates a decoy challenge with no candidate for a CNIC that does not resolve to one' do
-      result = described_class.generate_for(cnic: '99999-9999999-9')
+      result = described_class.generate_decoy_for(cnic: '99999-9999999-9')
 
       expect(result.fetch(:challenge)).to be_persisted
       expect(result.fetch(:challenge).candidate).to be_nil

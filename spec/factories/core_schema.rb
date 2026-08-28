@@ -218,6 +218,13 @@ FactoryBot.define do
     submitted_at { Time.current }
   end
 
+  factory :candidate_document_submission_item do
+    candidate_document_submission
+    candidate_document
+    requirement_code { candidate_document.document_type.code }
+    required { true }
+  end
+
   factory :payment do
     candidate_assignment
     association :recorded_by, factory: :user

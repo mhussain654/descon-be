@@ -33,8 +33,7 @@ class CandidateOtpChallenge < ApplicationRecord
   # it is never persisted or logged (AGENTS.md: "OTP values must be random,
   # short-lived, single-use and stored as a digest" / ticket: "OTP is never
   # returned in any API response or log"). `cnic` defaults from `candidate`
-  # for the real-candidate case; the decoy case has no candidate and must
-  # pass `cnic` explicitly.
+  # for the real-candidate case.
   def self.generate_for(candidate: nil, cnic: candidate&.cnic, requested_ip: nil)
     code = SecureRandom.random_number(10**CODE_LENGTH).to_s.rjust(CODE_LENGTH, '0')
     challenge = create!(
@@ -45,6 +44,13 @@ class CandidateOtpChallenge < ApplicationRecord
       requested_ip:
     )
     { challenge:, code: }
+  end
+
+  # Creates a decoy challenge for an unknown or inactive CNIC. The generated
+  # code is never deliverable to a real user; it exists only so request and
+  # verify keep the same observable behavior as the real-candidate path.
+  def self.generate_decoy_for(cnic:, requested_ip: nil)
+    generate_for(cnic:, requested_ip:)
   end
 
   def match?(code)
