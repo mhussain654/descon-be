@@ -54,7 +54,10 @@ module Candidates
       end
 
       def missing = required_requirements.count { |requirement| document_for(requirement).blank? }
-      def required_documents = @required_documents ||= required_requirements.map(&method(:document_for))
+
+      def required_documents
+        @required_documents ||= required_requirements.map { |requirement| document_for(requirement) }
+      end
 
       def required_requirements = @required_requirements ||= @requirements.select(&:required)
 
@@ -82,11 +85,9 @@ module Candidates
         document = document_for(requirement)
         return build_blocking_requirement(requirement, reason: 'missing') if document.blank?
         return build_blocking_requirement(requirement, reason: 'rejected') if document.api_status == 'rejected'
-        if expired_pcc_requirement?(requirement:, document:)
-          return build_blocking_requirement(requirement, reason: 'expired')
-        end
+        return unless expired_pcc_requirement?(requirement:, document:)
 
-        nil
+        build_blocking_requirement(requirement, reason: 'expired')
       end
 
       def build_blocking_requirement(requirement, reason:)

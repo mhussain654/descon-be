@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_28_163000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -171,7 +171,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_110000) do
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
     t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying]::text[])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
-    t.check_constraint "issued_on IS NULL AND expires_on IS NULL OR expires_on = (issued_on + 'P6M'::interval)::date", name: "candidate_documents_pcc_expiry_consistency"
     t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])", name: "candidate_documents_status_code"
   end
 

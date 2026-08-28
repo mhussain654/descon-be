@@ -50,15 +50,10 @@ module CandidateDocuments
     private
 
     def apply_pcc_dates
-      return clear_pcc_dates unless police_character?
+      return unless police_character?
       return if issued_on.blank?
 
       self.expires_on = issued_on.advance(months: 6)
-    end
-
-    def clear_pcc_dates
-      self.issued_on = nil
-      self.expires_on = nil
     end
 
     def pcc_date_consistency

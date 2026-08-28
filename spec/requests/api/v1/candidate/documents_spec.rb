@@ -250,6 +250,20 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('pcc_expiry_not_editable')
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.expires_on')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               issued_on: '2026-08-01',
+               expires_on: '',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: candidate_auth_headers(candidate)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('pcc_expiry_not_editable')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.expires_on')
     end
 
     it 'uploads PCC with derived expiry and conflicts on same idempotency key with different issue date' do

@@ -13,6 +13,7 @@ module Candidates
         @request_id = request_id
         @issued_on = pcc_attributes[:issued_on]
         @expires_on = pcc_attributes[:expires_on]
+        @expires_on_supplied = expires_on_supplied?(pcc_attributes)
       end
 
       def call
@@ -38,7 +39,7 @@ module Candidates
         raise EmptyFileError if @uploaded_file.size.to_i.zero?
         raise FileTooLargeError if @uploaded_file.size.to_i > MAX_FILE_BYTES
         raise InvalidRequirementError if requirement.blank?
-        raise PccExpiryNotEditableError if @expires_on.present?
+        raise PccExpiryNotEditableError if pcc_requirement? && @expires_on_supplied
 
         pcc_issued_on
       end
@@ -105,6 +106,12 @@ module Candidates
 
       def pcc_requirement?
         requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE
+      end
+
+      def expires_on_supplied?(pcc_attributes)
+        return pcc_attributes[:expires_on_supplied] if pcc_attributes.key?(:expires_on_supplied)
+
+        pcc_attributes.key?(:expires_on)
       end
     end
   end

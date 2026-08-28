@@ -125,14 +125,21 @@ RSpec.describe CandidateDocument, type: :model do
     end
   end
 
-  it 'clears issue and expiry dates for non-PCC documents before persistence' do
-    candidate_document.document_type = create(:document_type, code: "passport_#{SecureRandom.hex(4)}")
-    candidate_document.issued_on = Date.new(2026, 8, 1)
-    candidate_document.expires_on = Date.new(2027, 2, 1)
+  it 'preserves non-PCC issue and expiry dates when saving unrelated changes' do
+    candidate_document = create(
+      :candidate_document,
+      document_type: create(:document_type, code: "passport_#{SecureRandom.hex(4)}"),
+      issued_on: Date.new(2026, 1, 1),
+      expires_on: Date.new(2031, 1, 1)
+    )
 
-    expect(candidate_document).to be_valid
-    expect(candidate_document.issued_on).to be_nil
-    expect(candidate_document.expires_on).to be_nil
+    candidate_document.status_code = 'verified'
+    candidate_document.verified_by = create(:user)
+    candidate_document.verified_at = Time.current
+    candidate_document.save!
+
+    expect(candidate_document.reload.issued_on).to eq(Date.new(2026, 1, 1))
+    expect(candidate_document.expires_on).to eq(Date.new(2031, 1, 1))
   end
 
   it 'exposes current, near-expiry, and expired compliance states for PCC documents' do

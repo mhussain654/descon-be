@@ -55,10 +55,15 @@ module Api
             uploaded_file: document_params[:file],
             requirement_code: document_params[:requirement_code],
             request_id: request.request_id,
-            pcc_attributes: {
-              issued_on: document_params[:issued_on],
-              expires_on: document_params[:expires_on]
-            }
+            pcc_attributes:
+          }
+        end
+
+        def pcc_attributes
+          {
+            issued_on: document_params[:issued_on],
+            expires_on: document_params[:expires_on],
+            expires_on_supplied: document_params.key?(:expires_on)
           }
         end
       end
