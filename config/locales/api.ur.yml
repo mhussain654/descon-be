@@ -36,6 +36,7 @@ ur:
       staff_state_transition_invalid: "مدعو شدہ صارف کو دعوت قبول کر کے اکاؤنٹ فعال کرنا ہوگا۔"
       self_suspension_forbidden: "آپ اپنا اکاؤنٹ معطل نہیں کر سکتے۔"
       last_active_admin: "آخری فعال ایڈمنسٹریٹر کو معطل یا تنزّل نہیں کیا جا سکتا۔"
+      missing_idempotency_key: "اس درخواست کے لیے آئیڈیمپوٹنسی کلید ضروری ہے۔"
       invalid_idempotency_key: "آئیڈیمپوٹنسی کلید کی ساخت درست نہیں ہے۔"
       idempotency_conflict: "آئیڈیمپوٹنسی کلید اصل درخواست سے مطابقت نہیں رکھتی۔"
       idempotency_in_progress: "اس آئیڈیمپوٹنسی کلید کے ساتھ ایک درخواست پہلے سے زیرِ عمل ہے۔"

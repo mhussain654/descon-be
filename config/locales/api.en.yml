@@ -37,6 +37,7 @@ en:
       staff_state_transition_invalid: "Invited users must activate their account through invitation acceptance."
       self_suspension_forbidden: "You cannot suspend your own account."
       last_active_admin: "The final active administrator cannot be suspended or demoted."
+      missing_idempotency_key: "An idempotency key is required for this request."
       invalid_idempotency_key: "The idempotency key format is invalid."
       idempotency_conflict: "The idempotency key does not match the original request."
       idempotency_in_progress: "A request with this idempotency key is already being processed."

@@ -431,7 +431,7 @@ Secure document access behavior:
 
 - Access is granted only through an authorized backend endpoint and returns a short-lived private proxy path, not a permanent URL
 - `ADMIN_DOCUMENT_ACCESS_TTL_SECONDS` controls the expiry window and defaults to `300`
-- Access responses set `Cache-Control: private, no-store`
+- Both the JSON access response and the proxied document response set `Cache-Control: private, no-store`
 - Every successful document-access action records a PII-safe audit event
 
 Verification and rejection behavior:
@@ -444,11 +444,15 @@ Verification and rejection behavior:
 
 Idempotency and concurrency:
 
-- Verification and rejection require `Idempotency-Key`
+- Verification and rejection require `Idempotency-Key`; missing keys return `400 missing_idempotency_key` and malformed keys return `400 invalid_idempotency_key`
 - Retrying the same successful decision with the same authenticated staff user and the same request fingerprint replays the original `201` response
 - Reusing the same key for a different document, action, or rejection reason returns `409 idempotency_conflict`
 - The fingerprint intentionally excludes the bearer token so a retried request still replays after staff session renewal
 - Concurrent verify/reject attempts against the same current document are serialized by row locking so only one decision succeeds
+
+Deployment/backfill:
+
+- Existing `candidate_document_submissions` are backfilled into immutable `candidate_document_submission_items` during deployment so submissions created before the admin-review rollout remain reviewable
 
 Audit and privacy:
 

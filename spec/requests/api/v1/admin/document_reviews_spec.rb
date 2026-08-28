@@ -179,7 +179,7 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
   end
 
   describe 'POST /api/v1/admin/candidate_documents/:id/access' do
-    it 'returns a short-lived private access URL and audits access' do
+    it 'returns a short-lived private access URL and the actual document response is non-cacheable' do
       actor = create(:user, role: 'mps')
       submission = create_submission(review_statuses: %w[under_verification])
       document = submission.candidate_documents.first
@@ -193,6 +193,13 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response.parsed_body.dig('data', 'document_id')).to eq(document.public_id)
       expect(response.parsed_body.dig('data', 'url')).to include('/rails/active_storage/blobs/proxy/')
       expect(AuditEvent.last.action_code).to eq('candidate_document_accessed')
+
+      access_url = response.parsed_body.dig('data', 'url')
+      get access_url
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers['Cache-Control']).to include('private')
+      expect(response.headers['Cache-Control']).to include('no-store')
     end
 
     it 'returns localized forbidden and missing-attachment errors' do
@@ -235,6 +242,27 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response).to have_http_status(:created)
       expect(response.headers['Idempotency-Replayed']).to eq('true')
       expect(AuditEvent.where(action_code: 'candidate_document_verified').count).to eq(1)
+    end
+
+    it 'rejects missing and malformed idempotency keys' do
+      actor = create(:user, role: 'admin')
+      submission = create_submission(review_statuses: %w[under_verification])
+      document = submission.candidate_documents.first
+
+      post "/api/v1/admin/candidate_documents/#{document.public_id}/verifications",
+           headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'X-Locale' => 'ur' }
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_idempotency_key')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('idempotency_key')
+      expect(response.headers['Content-Language']).to eq('ur')
+
+      post "/api/v1/admin/candidate_documents/#{document.public_id}/verifications",
+           headers: {
+             'Authorization' => "Bearer #{access_token_for(actor)}",
+             'Idempotency-Key' => 'invalid key with spaces'
+           }
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_idempotency_key')
     end
 
     it 'returns review errors for unauthorized, non-pending, and missing documents' do
@@ -284,6 +312,28 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
 
       expect(response).to have_http_status(:conflict)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
+    end
+
+    it 'rejects missing and malformed idempotency keys' do
+      actor = create(:user, role: 'admin')
+      submission = create_submission(review_statuses: %w[under_verification])
+      document = submission.candidate_documents.first
+
+      post "/api/v1/admin/candidate_documents/#{document.public_id}/rejections",
+           params: { rejection: { reason: 'Document is unreadable.' } },
+           headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_idempotency_key')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('idempotency_key')
+
+      post "/api/v1/admin/candidate_documents/#{document.public_id}/rejections",
+           params: { rejection: { reason: 'Document is unreadable.' } },
+           headers: {
+             'Authorization' => "Bearer #{access_token_for(actor)}",
+             'Idempotency-Key' => 'invalid key with spaces'
+           }
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_idempotency_key')
     end
 
     it 'returns required and invalid reason errors and rejects already-reviewed documents' do

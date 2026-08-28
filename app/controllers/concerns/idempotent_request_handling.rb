@@ -10,9 +10,11 @@ module IdempotentRequestHandling
     subject: nil,
     expires_in: Idempotency::RequestHandler::DEFAULT_EXPIRY,
     fingerprint: nil,
+    required: false,
     &operation
   )
     key = request.headers['Idempotency-Key'].to_s.strip
+    raise MissingIdempotencyKeyError if required && key.blank?
     return render_payload(yield) if key.blank?
 
     result = idempotency_result(key:, scope:, subject:, expires_in:, fingerprint:, &operation)

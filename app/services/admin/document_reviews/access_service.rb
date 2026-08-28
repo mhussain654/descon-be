@@ -15,12 +15,13 @@ module Admin
         raise DocumentAttachmentMissingError unless @document.file.attached?
 
         expires_at = Time.current + ACCESS_TTL
+        url = access_url(expires_at:)
         create_audit_event!(expires_at:)
 
         AccessResult.new(
           document: @document,
           expires_at: expires_at.utc.iso8601,
-          url: access_url(expires_at:)
+          url:
         )
       end
 

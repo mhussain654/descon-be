@@ -40,4 +40,21 @@ RSpec.describe Admin::DocumentReviews::AccessService do
       described_class.call(actor:, document:, request_id: 'doc-access-2')
     end.to raise_error(DocumentAttachmentMissingError)
   end
+
+  it 'does not write an access audit event if URL generation fails' do
+    actor = create(:user, role: 'admin')
+    document = create(:candidate_document, status_code: 'under_verification')
+    submission = create(:candidate_document_submission, candidate_assignment: document.candidate_assignment)
+    create(:candidate_document_submission_item, candidate_document_submission: submission, candidate_document: document)
+
+    allow(Rails.application.routes.url_helpers)
+      .to receive(:rails_service_blob_proxy_path)
+      .and_raise(StandardError, 'boom')
+
+    expect do
+      described_class.call(actor:, document:, request_id: 'doc-access-3')
+    end.to raise_error(StandardError, 'boom')
+
+    expect(AuditEvent.where(action_code: 'candidate_document_accessed')).to be_empty
+  end
 end

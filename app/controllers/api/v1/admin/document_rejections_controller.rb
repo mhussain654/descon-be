@@ -12,7 +12,8 @@ module Api
           render_idempotent_response(
             scope: 'admin.candidate_documents.rejections.create',
             subject: current_user,
-            fingerprint: decision_fingerprint
+            fingerprint: decision_fingerprint,
+            required: true
           ) do
             success_payload(data: serialized_result, status: :created)
           end

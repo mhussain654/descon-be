@@ -24,6 +24,15 @@ components:
         pattern: '^[A-Za-z0-9:_-]{1,128}$'
         maxLength: 128
       description: Optional idempotency key for replay-safe mutation requests. Keys are scoped per operation and authenticated subject, retained for 12 hours, replay the original safe response for an identical request, return `409` while an identical request is still processing, and return `409` if the same key is reused with a different request fingerprint.
+    RequiredIdempotencyKeyHeader:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9:_-]{1,128}$'
+        maxLength: 128
+      description: Required idempotency key for replay-safe mutation requests. Keys are scoped per operation and authenticated subject, retained for 12 hours, replay the original safe response for an identical request, return `409` while an identical request is still processing, and return `409` if the same key is reused with a different request fingerprint.
     PageNumber:
       in: query
       name: page[number]
@@ -2190,7 +2199,8 @@ paths:
       description: >-
         Returns a private Active Storage proxy path for an accessible current submitted
         document. The path is time-limited, does not expose storage keys, and every
-        successful access is audited. Clients must not cache this response.
+        successful access is audited. Clients must not cache this response or the
+        proxied document response.
       security:
         - bearerAuth: []
       parameters:
@@ -2272,7 +2282,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
-        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
         - in: path
           name: candidate_document_id
           required: true
@@ -2325,6 +2335,29 @@ paths:
                     errors: []
         '401':
           description: Missing, invalid, expired, or revoked staff access token
+        '400':
+          description: Missing or invalid idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingIdempotencyKey:
+                  value:
+                    errors:
+                      - code: missing_idempotency_key
+                        field: idempotency_key
+                        message: An idempotency key is required for this request.
+                    request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                    timestamp: '2026-08-28T10:06:00Z'
+                invalidIdempotencyKey:
+                  value:
+                    errors:
+                      - code: invalid_idempotency_key
+                        field: idempotency_key
+                        message: The idempotency key format is invalid.
+                    request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                    timestamp: '2026-08-28T10:06:00Z'
         '403':
           description: Authenticated staff user lacks review permission or is inactive
         '404':
@@ -2353,7 +2386,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
-        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
         - in: path
           name: candidate_document_id
           required: true
@@ -2413,6 +2446,29 @@ paths:
                     errors: []
         '401':
           description: Missing, invalid, expired, or revoked staff access token
+        '400':
+          description: Missing or invalid idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingIdempotencyKey:
+                  value:
+                    errors:
+                      - code: missing_idempotency_key
+                        field: idempotency_key
+                        message: An idempotency key is required for this request.
+                    request_id: efde0cad-b9d1-4adb-b03b-7774a794e328
+                    timestamp: '2026-08-28T10:07:00Z'
+                invalidIdempotencyKey:
+                  value:
+                    errors:
+                      - code: invalid_idempotency_key
+                        field: idempotency_key
+                        message: The idempotency key format is invalid.
+                    request_id: efde0cad-b9d1-4adb-b03b-7774a794e328
+                    timestamp: '2026-08-28T10:07:00Z'
         '403':
           description: Authenticated staff user lacks review permission or is inactive
         '404':
