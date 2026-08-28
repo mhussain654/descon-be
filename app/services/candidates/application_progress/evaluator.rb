@@ -50,38 +50,19 @@ module Candidates
       def completion_percentage
         return 0 if required_requirements.empty?
 
-        ((submitted_total * 100) / required_requirements.count)
+        (submitted_total * 100) / required_requirements.count
       end
 
-      def missing
-        required_requirements.count do |requirement|
-          document_for(requirement).blank?
-        end
-      end
+      def missing = required_requirements.count { |requirement| document_for(requirement).blank? }
+      def required_documents = @required_documents ||= required_requirements.map(&method(:document_for))
 
-      def required_documents
-        @required_documents ||= required_requirements.map { |requirement| document_for(requirement) }
-      end
+      def required_requirements = @required_requirements ||= @requirements.select(&:required)
 
-      def required_requirements
-        @required_requirements ||= @requirements.select(&:required)
-      end
+      def submitted_total = required_documents.count { |document| valid_submission_evidence?(document) }
 
-      def submitted_total
-        required_documents.count do |document|
-          PROVIDED_STATUS_CODES.include?(document&.api_status)
-        end
-      end
+      def allowed_for_submission? = required_documents.all? { |document| allowed_submission_document?(document) }
 
-      def allowed_for_submission?
-        required_documents.all? do |document|
-          SUBMISSION_ALLOWED_STATUS_CODES.include?(document&.api_status)
-        end
-      end
-
-      def count_status(status)
-        required_documents.count { |document| document&.api_status == status }
-      end
+      def count_status(status) = required_documents.count { |document| document&.api_status == status }
 
       def rejected = count_status('rejected')
 
@@ -101,6 +82,9 @@ module Candidates
         document = document_for(requirement)
         return build_blocking_requirement(requirement, reason: 'missing') if document.blank?
         return build_blocking_requirement(requirement, reason: 'rejected') if document.api_status == 'rejected'
+        if expired_pcc_requirement?(requirement:, document:)
+          return build_blocking_requirement(requirement, reason: 'expired')
+        end
 
         nil
       end
@@ -114,6 +98,26 @@ module Candidates
       end
 
       def document_for(requirement) = @current_documents_by_type[requirement.document_type_id]
+
+      def allowed_submission_document?(document)
+        SUBMISSION_ALLOWED_STATUS_CODES.include?(document&.api_status) && compliant_submission_evidence?(document)
+      end
+
+      def compliant_submission_evidence?(document)
+        return false if document.blank?
+        return true unless document.police_character?
+
+        document.compliance_status != 'expired'
+      end
+
+      def valid_submission_evidence?(document)
+        PROVIDED_STATUS_CODES.include?(document&.api_status) && compliant_submission_evidence?(document)
+      end
+
+      def expired_pcc_requirement?(requirement:, document:)
+        requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE &&
+          document.compliance_status == 'expired'
+      end
 
       def submission_state
         StateResolver.call(

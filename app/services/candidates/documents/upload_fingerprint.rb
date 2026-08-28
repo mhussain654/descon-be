@@ -5,10 +5,11 @@ require 'digest'
 module Candidates
   module Documents
     class UploadFingerprint < ApplicationService
-      def initialize(request:, uploaded_file:, requirement_code:)
+      def initialize(request:, uploaded_file:, requirement_code:, issued_on:)
         @request = request
         @uploaded_file = uploaded_file
         @requirement_code = requirement_code.to_s.strip.downcase
+        @issued_on = issued_on.to_s.strip
       end
 
       def call
@@ -22,6 +23,7 @@ module Candidates
           @request.request_method,
           @request.path,
           @requirement_code,
+          @issued_on,
           sanitized_filename,
           file_size,
           file_checksum

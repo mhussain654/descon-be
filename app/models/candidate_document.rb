@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class CandidateDocument < ApplicationRecord
+  include CandidateDocuments::PoliceCharacterCompliance
+
   STATUS_CODES = %w[uploaded under_verification verified rejected].freeze
   API_STATUS_MAP = {
     'uploaded' => 'uploaded',
@@ -35,13 +37,9 @@ class CandidateDocument < ApplicationRecord
 
   def api_status = API_STATUS_MAP.fetch(status_code)
 
-  def replacement_allowed?
-    REPLACEABLE_STATUS_CODES.include?(status_code)
-  end
+  def replacement_allowed? = REPLACEABLE_STATUS_CODES.include?(status_code)
 
-  def current_version?
-    superseded_at.blank?
-  end
+  def current_version? = superseded_at.blank?
 
   private
 

@@ -44,6 +44,10 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
     )
   end
 
+  def pcc_code
+    CandidateDocument::PCC_REQUIREMENT_CODE
+  end
+
   describe 'GET /api/v1/candidate/documents' do
     it 'returns the authenticated candidate checklist with missing requirements only for that candidate' do
       candidate = create(:candidate)
@@ -79,6 +83,26 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
         'uploaded_at'
       )
       expect(response.body).not_to include('/storage/')
+    end
+
+    it 'returns PCC metadata and compliance status for police character documents' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: pcc_code)
+      document = create(
+        :candidate_document,
+        candidate_assignment: candidate.current_assignment,
+        document_type:,
+        issued_on: Date.new(2026, 8, 1)
+      )
+
+      get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      item = response.parsed_body.fetch('data').first
+      expect(item.dig('document', 'id')).to eq(document.public_id)
+      expect(item.dig('document', 'issued_on')).to eq('2026-08-01')
+      expect(item.dig('document', 'expires_on')).to eq('2027-02-01')
+      expect(item.dig('document', 'compliance_status')).to eq('current')
     end
 
     it 'rejects inactive candidates and staff tokens' do
@@ -169,6 +193,132 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
 
       expect(response).to have_http_status(:conflict)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
+    end
+
+    it 'requires issue date for PCC uploads, rejects bad dates, and rejects client-supplied expiry' do
+      candidate = create(:candidate)
+      create_requirement(candidate:, code: pcc_code)
+      auth_header = candidate_auth_headers(candidate, 'X-Locale' => 'ur')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: auth_header
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('validation_failed')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.issued_on')
+      expect(response.headers['Content-Language']).to eq('ur')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               issued_on: '2026-02-30',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: candidate_auth_headers(candidate)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.issued_on')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               issued_on: '2026-09-01',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: candidate_auth_headers(candidate)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.issued_on')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               issued_on: '2026-08-01',
+               expires_on: '2027-02-01',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: candidate_auth_headers(candidate)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('pcc_expiry_not_editable')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.expires_on')
+    end
+
+    it 'uploads PCC with derived expiry and conflicts on same idempotency key with different issue date' do
+      candidate = create(:candidate)
+      create_requirement(candidate:, code: pcc_code)
+      headers = candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-doc-pcc-1')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               issued_on: '2026-08-01',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: headers
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body.dig('data', 'document', 'issued_on')).to eq('2026-08-01')
+      expect(response.parsed_body.dig('data', 'document', 'expires_on')).to eq('2027-02-01')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               issued_on: '2026-08-01',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: headers
+      expect(response).to have_http_status(:created)
+      expect(response.headers['Idempotency-Replayed']).to eq('true')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: pcc_code,
+               issued_on: '2026-08-02',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: headers
+      expect(response).to have_http_status(:conflict)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
+    end
+
+    it 'does not persist issue or expiry dates for non-PCC uploads' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+
+      post '/api/v1/candidate/documents',
+           params: {
+             candidate_document: {
+               requirement_code: 'passport',
+               issued_on: '2026-08-01',
+               file: fixture_upload('test.pdf', 'application/pdf')
+             }
+           },
+           headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:created)
+      document = CandidateDocument.current_version.find_by!(
+        candidate_assignment: candidate.current_assignment,
+        document_type:
+      )
+      expect(document.issued_on).to be_nil
+      expect(document.expires_on).to be_nil
+      expect(response.parsed_body.dig('data', 'document')).not_to have_key('issued_on')
+      expect(response.parsed_body.dig('data', 'document')).not_to have_key('expires_on')
     end
 
     it 'replays the original upload result when the same candidate retries with a renewed access token' do

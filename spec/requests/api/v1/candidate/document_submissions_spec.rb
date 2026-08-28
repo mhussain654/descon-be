@@ -35,6 +35,10 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
     document_type
   end
 
+  def pcc_code
+    CandidateDocument::PCC_REQUIREMENT_CODE
+  end
+
   describe 'POST /api/v1/candidate/document_submissions' do
     it 'submits the authenticated candidate documents and replays the same key safely' do
       candidate = create(:candidate)
@@ -131,6 +135,31 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('documents_rejected')
+    end
+
+    it 'blocks submission when the required PCC has expired' do
+      travel_to(Time.zone.local(2026, 8, 28, 12, 0, 0)) do
+        candidate = create(:candidate)
+        assignment = create(:candidate_assignment, candidate:)
+        pcc = create_requirement(assignment:, code: pcc_code)
+        create(
+          :candidate_document,
+          candidate_assignment: assignment,
+          document_type: pcc,
+          status_code: 'uploaded',
+          issued_on: Date.new(2026, 1, 1)
+        )
+
+        post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate, 'X-Locale' => 'ur')
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body.dig('errors', 0, 'code')).to eq('documents_incomplete')
+        expect(
+          response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements', 0, 'requirement_code')
+        ).to eq(pcc_code)
+        expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements', 0, 'reason')).to eq('expired')
+        expect(response.headers['Content-Language']).to eq('ur')
+      end
     end
 
     it 'rejects no-assignment, no-requirements, inactive-candidate, and staff-token cases safely' do

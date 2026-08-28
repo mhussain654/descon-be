@@ -26,12 +26,7 @@ module Api
         private
 
         def upload_payload
-          checklist_item = ::Candidates::Documents::UploadService.call(
-            candidate: current_candidate,
-            uploaded_file: document_params[:file],
-            requirement_code: document_params[:requirement_code],
-            request_id: request.request_id
-          )
+          checklist_item = ::Candidates::Documents::UploadService.call(**upload_service_arguments)
 
           success_payload(
             data: ::Candidates::DocumentSerializer.new(checklist_item).as_json,
@@ -45,12 +40,26 @@ module Api
           ::Candidates::Documents::UploadFingerprint.call(
             request:,
             uploaded_file: document_params[:file],
-            requirement_code: document_params[:requirement_code]
+            requirement_code: document_params[:requirement_code],
+            issued_on: document_params[:issued_on]
           )
         end
 
         def document_params
-          params.expect(candidate_document: %i[requirement_code file])
+          params.expect(candidate_document: %i[requirement_code file issued_on expires_on])
+        end
+
+        def upload_service_arguments
+          {
+            candidate: current_candidate,
+            uploaded_file: document_params[:file],
+            requirement_code: document_params[:requirement_code],
+            request_id: request.request_id,
+            pcc_attributes: {
+              issued_on: document_params[:issued_on],
+              expires_on: document_params[:expires_on]
+            }
+          }
         end
       end
     end

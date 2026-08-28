@@ -35,6 +35,10 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
     document_type
   end
 
+  def pcc_code
+    CandidateDocument::PCC_REQUIREMENT_CODE
+  end
+
   describe 'GET /api/v1/candidate/application_progress' do
     it 'returns no_assignment progress for a candidate without a current assignment' do
       candidate = create(:candidate)
@@ -64,6 +68,33 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.parsed_body.dig('data', 'documents', 'submission_state')).to eq('ready')
       expect(response.parsed_body.dig('data', 'current_workflow_stage', 'name')).to be_present
       expect(response.headers['Content-Language']).to eq('ur')
+    end
+
+    it 'treats an expired required PCC as a blocking requirement with stable expired reason' do
+      travel_to(Time.zone.local(2026, 8, 28, 12, 0, 0)) do
+        candidate = create(:candidate)
+        assignment = create(:candidate_assignment, candidate:)
+        pcc = create_requirement(assignment:, code: pcc_code)
+        create(
+          :candidate_document,
+          candidate_assignment: assignment,
+          document_type: pcc,
+          status_code: 'verified',
+          verified_by: create(:user),
+          verified_at: Time.current,
+          issued_on: Date.new(2026, 1, 1)
+        )
+
+        get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body.dig('data', 'documents', 'can_submit')).to be(false)
+        expect(
+          response.parsed_body.dig('data', 'documents', 'blocking_requirements', 0, 'requirement_code')
+        ).to eq(pcc_code)
+        expect(response.parsed_body.dig('data', 'documents', 'blocking_requirements', 0, 'reason')).to eq('expired')
+        expect(response.parsed_body.dig('data', 'documents', 'verified')).to eq(1)
+      end
     end
 
     it 'rejects inactive candidates and staff tokens' do

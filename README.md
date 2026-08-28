@@ -300,15 +300,33 @@ Checklist behavior:
 Upload behavior:
 
 - Requires `candidate_document[requirement_code]` and `candidate_document[file]`
+- `candidate_document[issued_on]` is additionally required when `requirement_code=police_character`
 - Supports PDF, JPEG, and PNG only
 - Detects actual content type server-side instead of trusting the filename extension alone
 - Enforces `CANDIDATE_DOCUMENT_MAX_BYTES`
+- Rejects any client-supplied `candidate_document[expires_on]`; PCC expiry is always calculated server-side as `issued_on.advance(months: 6)`
 - Supports safe retries with `Idempotency-Key`
 - Reusing the same idempotency key with the same file and requirement replays the original success response
+- For PCC uploads, reusing the same idempotency key with a different `issued_on` value returns `409 idempotency_conflict`
 - The replay decision is scoped to the authenticated candidate subject, not to a specific bearer token, so the same candidate can safely retry after renewing their session
 - Reusing the same key with different upload content returns `409 idempotency_conflict`
 - Replacements are allowed only while the current document is still candidate-replaceable; verified or pending-review records cannot be replaced by the candidate
 - Failed replacements preserve the previous current document because superseding and new-document persistence occur in one transaction
+- PCC replacements create a new version with its own `issued_on` and derived `expires_on`; previous PCC versions retain their original dates
+- Non-PCC uploads never persist PCC date fields
+
+PCC compliance behavior:
+
+- The seeded PCC requirement code is `police_character`
+- PCC `issued_on` must be a valid ISO date (`YYYY-MM-DD`) and cannot be in the future relative to the application date
+- PCC `expires_on` is always derived with six calendar months, not a fixed number of days
+- The checklist and admin review detail responses expose PCC-only metadata: `issued_on`, `expires_on`, and `compliance_status`
+- `compliance_status` is derived, not persisted, and is one of:
+  - `current`
+  - `near_expiry`
+  - `expired`
+- `near_expiry` uses the configurable `PCC_NEAR_EXPIRY_DAYS` warning window without changing the calculated expiry date
+- Non-PCC document responses omit PCC-only metadata
 
 Application progress behavior:
 
@@ -316,7 +334,9 @@ Application progress behavior:
 - The backend resolves the active document requirements and computes readiness server-side; the client does not submit document IDs or requirement lists
 - `required_total` counts only active required requirements
 - `missing` and `rejected` required documents block submission
+- An expired required PCC also blocks submission with the stable blocker reason `expired`
 - `uploaded`, `pending_review`, and `verified` count as provided for progress purposes
+- An expired PCC still keeps its review status history; expiry compliance is exposed separately and does not silently convert the document to `rejected`
 - `completion_percentage` is based on provided required documents and returns `0` when no required documents are configured
 - `submission_state` is currently one of:
   - `no_assignment`
@@ -368,7 +388,8 @@ curl -X POST http://localhost:3000/api/v1/candidate/documents \
   -H "Authorization: Bearer <candidate_access_token>" \
   -H "X-Locale: en" \
   -H "Idempotency-Key: candidate-document-20260826-001" \
-  -F "candidate_document[requirement_code]=passport" \
+  -F "candidate_document[requirement_code]=police_character" \
+  -F "candidate_document[issued_on]=2026-08-01" \
   -F "candidate_document[file]=@spec/fixtures/files/test.pdf;type=application/pdf"
 ```
 
@@ -673,8 +694,9 @@ Database-backed translated content should stay out of static locale files. Store
 - Both candidate OTP endpoints are rate-limited per IP and per (normalized) CNIC, independently of the per-challenge attempt limit enforced by `otp_max_attempts`
 - Candidate access/refresh tokens use a distinct JWT audience (`CANDIDATE_JWT_AUDIENCE`) from staff tokens and are backed by separate `candidate_sessions`/`candidate_refresh_tokens` tables, so a candidate token can never be accepted as a staff one or vice versa
 - `POST /api/v1/candidate/documents` accepts multipart uploads with `candidate_document[requirement_code]` and `candidate_document[file]`, validates actual content type, and stores files privately
+- `POST /api/v1/candidate/documents` additionally requires `candidate_document[issued_on]` for `police_character`, rejects client-supplied `candidate_document[expires_on]`, and derives `expires_on` with `issued_on.advance(months: 6)`
 - `POST /api/v1/candidate/documents` supports replay-safe retries with `Idempotency-Key` and returns `409 idempotency_conflict` when a key is reused for different upload content
-- `GET /api/v1/candidate/application_progress` returns localized workflow-stage and blocking-requirement names while preserving stable machine-readable state and reason codes
+- `GET /api/v1/candidate/application_progress` returns localized workflow-stage and blocking-requirement names while preserving stable machine-readable state and reason codes; an expired required PCC blocks submission with blocker reason `expired`
 - `POST /api/v1/candidate/document_submissions` is a bodyless candidate-authenticated mutation that atomically moves current `uploaded` documents to `under_verification`, records immutable submission evidence, and returns blocking requirement details on `422`
 
 Example collection request:

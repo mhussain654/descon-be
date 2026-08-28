@@ -3,12 +3,13 @@
 module Candidates
   module Documents
     class UploadPersistence < ApplicationService
-      def initialize(candidate:, requirement:, file_details:, blob:, request_id:)
+      def initialize(candidate:, requirement:, file_details:, blob:, context:)
         @candidate = candidate
         @requirement = requirement
         @file_details = file_details
         @blob = blob
-        @request_id = request_id
+        @request_id = context[:request_id]
+        @issued_on = context[:issued_on]
       end
 
       def call
@@ -67,7 +68,8 @@ module Candidates
           content_type: @file_details.content_type,
           byte_size: @file_details.byte_size,
           checksum_sha256: @file_details.checksum_sha256,
-          uploaded_at: Time.current
+          uploaded_at: Time.current,
+          issued_on: @issued_on
         }
       end
 
@@ -89,6 +91,15 @@ module Candidates
           candidate_public_id: @candidate.public_id,
           document_public_id: uploaded_document.public_id,
           requirement_code: @requirement.document_type.code
+        }.merge(pcc_audit_metadata(uploaded_document))
+      end
+
+      def pcc_audit_metadata(uploaded_document)
+        return {} unless uploaded_document.police_character?
+
+        {
+          issued_on: uploaded_document.issued_on.iso8601,
+          expires_on: uploaded_document.expires_on.iso8601
         }
       end
     end

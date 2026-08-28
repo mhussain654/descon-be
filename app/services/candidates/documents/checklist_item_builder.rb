@@ -42,6 +42,16 @@ module Candidates
           content_type: @document.content_type,
           file_size: @document.byte_size,
           uploaded_at: @document.uploaded_at.utc.iso8601
+        }.merge(pcc_metadata)
+      end
+
+      def pcc_metadata
+        return {} unless @document.police_character?
+
+        {
+          issued_on: @document.issued_on.iso8601,
+          expires_on: @document.expires_on.iso8601,
+          compliance_status: @document.compliance_status
         }
       end
     end
