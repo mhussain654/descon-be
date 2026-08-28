@@ -18,6 +18,8 @@ class User < ApplicationRecord
 
   has_many :uploaded_candidate_documents, class_name: 'CandidateDocument', foreign_key: :uploaded_by_id,
                                           inverse_of: :uploaded_by, dependent: :nullify
+  has_many :verified_candidate_bank_details, class_name: 'CandidateBankDetail', foreign_key: :reviewed_by_id,
+                                             inverse_of: :reviewed_by, dependent: :nullify
   has_many :verified_candidate_documents, class_name: 'CandidateDocument', foreign_key: :verified_by_id,
                                           inverse_of: :verified_by, dependent: :nullify
   has_many :recorded_payments, class_name: 'Payment', foreign_key: :recorded_by_id, inverse_of: :recorded_by,
