@@ -402,6 +402,24 @@ components:
         uploaded_at:
           type: string
           format: date-time
+        issued_on:
+          anyOf:
+            - type: string
+              format: date
+            - type: 'null'
+          description: Present only for the `police_character` requirement.
+        expires_on:
+          anyOf:
+            - type: string
+              format: date
+            - type: 'null'
+          description: Present only for the `police_character` requirement and calculated by the backend as exactly six calendar months after `issued_on`.
+        compliance_status:
+          anyOf:
+            - type: string
+              enum: [current, near_expiry, expired, not_applicable]
+            - type: 'null'
+          description: Present only for the `police_character` requirement. Non-PCC responses omit the field instead of returning `not_applicable`.
       required: [id, file_name, content_type, file_size, uploaded_at]
     CandidateDocumentChecklistItem:
       type: object
@@ -436,6 +454,14 @@ components:
             file:
               type: string
               format: binary
+            issued_on:
+              type: string
+              format: date
+              description: Required when `requirement_code=police_character`. Must be a valid ISO date in `YYYY-MM-DD` format and cannot be in the future.
+            expires_on:
+              type: string
+              format: date
+              description: Must not be supplied by clients. The backend rejects this field and calculates PCC expiry automatically.
       required: [candidate_document]
     CandidateBlockingRequirement:
       type: object
@@ -447,7 +473,7 @@ components:
           type: string
         reason:
           type: string
-          enum: [missing, rejected]
+          enum: [missing, rejected, expired]
       required: [requirement_code, name, reason]
     CandidateProgressWorkflowStage:
       type: object
@@ -648,6 +674,21 @@ components:
           anyOf:
             - type: string
               format: uuid
+            - type: 'null'
+        issued_on:
+          anyOf:
+            - type: string
+              format: date
+            - type: 'null'
+        expires_on:
+          anyOf:
+            - type: string
+              format: date
+            - type: 'null'
+        compliance_status:
+          anyOf:
+            - type: string
+              enum: [current, near_expiry, expired, not_applicable]
             - type: 'null'
       required:
         - id
@@ -1499,17 +1540,20 @@ paths:
                   summary: Urdu checklist with an uploaded document
                   value:
                     data:
-                      - requirement_code: passport
-                        name: پاسپورٹ
+                      - requirement_code: police_character
+                        name: پولیس کریکٹر سرٹیفکیٹ
                         required: true
                         status: uploaded
                         replacement_allowed: true
                         document:
                           id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
-                          file_name: passport.pdf
+                          file_name: police-character-certificate.pdf
                           content_type: application/pdf
                           file_size: 123456
                           uploaded_at: '2026-08-26T12:00:00Z'
+                          issued_on: '2026-08-01'
+                          expires_on: '2027-02-01'
+                          compliance_status: current
                     meta:
                       request_id: 318785e8-644f-4d6d-a439-c6e57f7f0d07
                       timestamp: '2026-08-26T12:00:00Z'
@@ -1524,7 +1568,9 @@ paths:
         Accepts a private multipart upload for one applicable requirement code. The
         authenticated candidate is derived only from the candidate bearer token. Reusing
         the same idempotency key with the same file and requirement replays the original
-        response; reusing it with different upload content returns `409`.
+        response; reusing it with different upload content, including a different PCC
+        `issued_on` value, returns `409`. Clients must never send `expires_on`; the
+        backend derives PCC expiry exactly six calendar months after `issued_on`.
       security:
         - candidateBearerAuth: []
       parameters:
@@ -1558,17 +1604,20 @@ paths:
                   summary: English upload response
                   value:
                     data:
-                      requirement_code: passport
-                      name: Passport
+                      requirement_code: police_character
+                      name: Police Character Certificate
                       required: true
                       status: uploaded
                       replacement_allowed: true
                       document:
                         id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
-                        file_name: passport.pdf
+                        file_name: police-character-certificate.pdf
                         content_type: application/pdf
                         file_size: 123456
                         uploaded_at: '2026-08-26T12:00:00Z'
+                        issued_on: '2026-08-01'
+                        expires_on: '2027-02-01'
+                        compliance_status: current
                     meta:
                       request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                       timestamp: '2026-08-26T12:00:00Z'
@@ -1577,17 +1626,20 @@ paths:
                   summary: Urdu upload response
                   value:
                     data:
-                      requirement_code: passport
-                      name: پاسپورٹ
+                      requirement_code: police_character
+                      name: پولیس کریکٹر سرٹیفکیٹ
                       required: true
                       status: uploaded
                       replacement_allowed: true
                       document:
                         id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
-                        file_name: passport.pdf
+                        file_name: police-character-certificate.pdf
                         content_type: application/pdf
                         file_size: 123456
                         uploaded_at: '2026-08-26T12:00:00Z'
+                        issued_on: '2026-08-01'
+                        expires_on: '2027-02-01'
+                        compliance_status: current
                     meta:
                       request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                       timestamp: '2026-08-26T12:00:00Z'
@@ -1626,21 +1678,21 @@ paths:
                   value:
                     errors:
                       - code: missing_file
-                        message: Attach a document file.
+                        message: Attach a file to continue.
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
                 invalidRequirementUr:
                   value:
                     errors:
                       - code: invalid_requirement
-                        message: منتخب دستاویز کی شرط درست نہیں ہے۔
+                        message: درست دستاویز کی شرط منتخب کریں۔
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
                 unsupportedFileType:
                   value:
                     errors:
                       - code: unsupported_file_type
-                        message: Upload a PDF, JPEG, or PNG document.
+                        message: Upload a PDF, JPEG, or PNG file.
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
                 fileTooLarge:
@@ -1657,6 +1709,38 @@ paths:
                         message: This document cannot be replaced in its current status.
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
+                pccIssueDateRequired:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: candidate_document.issued_on
+                        message: Enter the Police Character Certificate issue date.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-28T12:00:00Z'
+                pccIssueDateInvalidUr:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: candidate_document.issued_on
+                        message: پولیس کریکٹر سرٹیفکیٹ کی درست اجرا کی تاریخ YYYY-MM-DD فارمیٹ میں درج کریں۔
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-28T12:00:00Z'
+                pccIssueDateInFuture:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: candidate_document.issued_on
+                        message: The Police Character Certificate issue date cannot be in the future.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-28T12:00:00Z'
+                pccExpiryNotEditable:
+                  value:
+                    errors:
+                      - code: pcc_expiry_not_editable
+                        field: candidate_document.expires_on
+                        message: The Police Character Certificate expiry date is calculated by the server and cannot be provided.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-28T12:00:00Z'
         '429':
           description: Rate limited
   /api/v1/candidate/application_progress:
@@ -1733,6 +1817,33 @@ paths:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                       timestamp: '2026-08-26T12:00:00Z'
                     errors: []
+                expiredPccEn:
+                  summary: Expired PCC blocks submission
+                  value:
+                    data:
+                      candidate_status: registered
+                      current_workflow_stage:
+                        code: documents_pending
+                        name: Documents Pending
+                      documents:
+                        required_total: 1
+                        missing: 0
+                        uploaded: 1
+                        pending_review: 0
+                        verified: 0
+                        rejected: 0
+                        submitted_total: 0
+                        completion_percentage: 0
+                        can_submit: false
+                        submission_state: incomplete
+                        blocking_requirements:
+                          - requirement_code: police_character
+                            name: Police Character Certificate
+                            reason: expired
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
         '401':
           description: Missing, invalid, expired, or revoked candidate session
         '403':
@@ -1747,7 +1858,8 @@ paths:
         records immutable submission evidence, and replays the original successful result
         for the same authenticated candidate and idempotency key. This endpoint does not
         accept candidate IDs, assignment IDs, document IDs, or requirement lists from the
-        client.
+        client. An expired required PCC is not valid submission evidence and blocks the
+        submission with blocker reason `expired`.
       security:
         - candidateBearerAuth: []
       parameters:
@@ -1876,6 +1988,18 @@ paths:
                               reason: rejected
                     request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
                     timestamp: '2026-08-26T12:00:00Z'
+                documentsExpiredPcc:
+                  value:
+                    errors:
+                      - code: documents_incomplete
+                        message: Upload all required documents before submitting.
+                        details:
+                          blocking_requirements:
+                            - requirement_code: police_character
+                              name: Police Character Certificate
+                              reason: expired
+                    request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
+                    timestamp: '2026-08-28T12:00:00Z'
                 alreadySubmitted:
                   value:
                     errors:
@@ -2163,14 +2287,17 @@ paths:
                         review_state: pending_review
                       documents:
                         - id: 6a2f0cb8-73b3-4250-a4b0-f568a9f9bb3f
-                          requirement_code: passport
+                          requirement_code: police_character
                           required: true
-                          name: Passport
-                          file_name: passport.pdf
+                          name: Police Character Certificate
+                          file_name: police-character-certificate.pdf
                           content_type: application/pdf
                           file_size: 123456
                           uploaded_at: '2026-08-27T09:55:00Z'
                           status: pending_review
+                          issued_on: '2026-08-01'
+                          expires_on: '2027-02-01'
+                          compliance_status: current
                     meta:
                       request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
                       timestamp: '2026-08-27T10:00:02Z'

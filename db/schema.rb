@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_28_163000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -165,6 +165,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_090000) do
     t.index ["candidate_assignment_id", "document_type_id"], name: "index_candidate_documents_on_current_requirement", unique: true, where: "(superseded_at IS NULL)"
     t.index ["candidate_assignment_id"], name: "index_candidate_documents_on_candidate_assignment_id"
     t.index ["checksum_sha256"], name: "index_candidate_documents_on_checksum_sha256"
+    t.index ["document_type_id", "superseded_at", "expires_on"], name: "index_candidate_documents_on_type_state_expiry", where: "(issued_on IS NOT NULL)"
     t.index ["document_type_id"], name: "index_candidate_documents_on_document_type_id"
     t.index ["public_id"], name: "index_candidate_documents_on_public_id", unique: true
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"

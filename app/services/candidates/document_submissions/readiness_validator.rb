@@ -11,7 +11,7 @@ module Candidates
       end
 
       def call
-        raise DocumentsIncompleteError.new(blocking_requirements:) if blocking_reason?('missing')
+        raise DocumentsIncompleteError.new(blocking_requirements:) if incomplete_blocking_requirements?
         raise DocumentsRejectedError.new(blocking_requirements:) if blocking_reason?('rejected')
         raise AlreadySubmittedError if already_submitted?
         raise SubmissionNotAllowedError unless @progress.documents.can_submit
@@ -25,6 +25,10 @@ module Candidates
 
       def blocking_reason?(reason)
         @progress.documents.blocking_requirements.any? { |requirement| requirement.reason == reason }
+      end
+
+      def incomplete_blocking_requirements?
+        blocking_reason?('missing') || blocking_reason?('expired')
       end
 
       def blocking_requirements

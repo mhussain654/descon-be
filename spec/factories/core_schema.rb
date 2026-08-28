@@ -193,7 +193,7 @@ FactoryBot.define do
     byte_size { 1024 }
     checksum_sha256 { 'a' * 64 }
     document_number { 'DOC-001' }
-    issued_on { Date.current }
+    issued_on { nil }
     expires_on { nil }
     uploaded_at { Time.current }
     verified_at { nil }

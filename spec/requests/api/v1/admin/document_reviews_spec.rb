@@ -41,6 +41,10 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
     document_type
   end
 
+  def pcc_code
+    CandidateDocument::PCC_REQUIREMENT_CODE
+  end
+
   def create_submission(review_statuses:, optional_statuses: [])
     candidate = create(:candidate)
     assignment = create(:candidate_assignment, candidate:)
@@ -152,9 +156,26 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
   end
 
   describe 'GET /api/v1/admin/document_submissions/:id' do
-    it 'returns safe submission detail by public id only' do
+    it 'returns safe submission detail by public id only, including PCC compliance metadata when applicable' do
       actor = create(:user, role: 'hr')
-      submission = create_submission(review_statuses: %w[under_verification])
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+      pcc_type = create_requirement(assignment:, code: pcc_code)
+      document = create(
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type: pcc_type,
+        status_code: 'under_verification',
+        issued_on: Date.new(2026, 8, 1)
+      )
+      submission = create(:candidate_document_submission, candidate_assignment: assignment, submitted_at: Time.current)
+      create(
+        :candidate_document_submission_item,
+        candidate_document_submission: submission,
+        candidate_document: document,
+        requirement_code: pcc_code,
+        required: true
+      )
 
       get "/api/v1/admin/document_submissions/#{submission.public_id}",
           headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
@@ -163,6 +184,9 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response.parsed_body.dig('data', 'id')).to eq(submission.public_id)
       expect(response.parsed_body.dig('data', 'documents', 0, 'id')).to be_present
       expect(response.parsed_body.dig('data', 'documents', 0, 'status')).to eq('pending_review')
+      expect(response.parsed_body.dig('data', 'documents', 0, 'issued_on')).to eq('2026-08-01')
+      expect(response.parsed_body.dig('data', 'documents', 0, 'expires_on')).to eq('2027-02-01')
+      expect(response.parsed_body.dig('data', 'documents', 0, 'compliance_status')).to eq('current')
       expect(response.parsed_body.dig('data', 'documents', 0)).not_to have_key('storage_key')
       expect(response.parsed_body.dig('data', 'documents', 0)).not_to have_key('internal_id')
     end

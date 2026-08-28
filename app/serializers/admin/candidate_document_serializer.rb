@@ -30,7 +30,7 @@ module Admin
         file_size: document.byte_size,
         uploaded_at: document.uploaded_at.utc.iso8601,
         status: document.api_status
-      }
+      }.merge(pcc_metadata)
     end
 
     def review_metadata
@@ -39,6 +39,16 @@ module Admin
         rejection_reason: document.rejection_reason,
         reviewer_id: document.verified_by&.public_id
       }.compact
+    end
+
+    def pcc_metadata
+      return {} unless document.police_character?
+
+      {
+        issued_on: document.issued_on.iso8601,
+        expires_on: document.expires_on.iso8601,
+        compliance_status: document.compliance_status
+      }
     end
   end
 end
