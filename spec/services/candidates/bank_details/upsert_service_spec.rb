@@ -14,10 +14,12 @@ RSpec.describe Candidates::BankDetails::UpsertService do
 
       result = described_class.call(
         candidate:,
-        account_title: ' Ahmed Ali ',
-        account_number: 'pk24 scbl 0000001123456702',
-        bank_name: ' Sample Bank ',
-        proof: proof_upload,
+        attributes: {
+          account_title: ' Ahmed Ali ',
+          account_number: 'pk24 scbl 0000001123456702',
+          bank_name: ' Sample Bank ',
+          proof: proof_upload
+        },
         request_id: 'request-1'
       )
 
@@ -47,10 +49,12 @@ RSpec.describe Candidates::BankDetails::UpsertService do
       expect do
         described_class.call(
           candidate:,
-          account_title: 'Updated Name',
-          account_number: 'PK24SCBL0002',
-          bank_name: 'Updated Bank',
-          proof: proof_upload,
+          attributes: {
+            account_title: 'Updated Name',
+            account_number: 'PK24SCBL0002',
+            bank_name: 'Updated Bank',
+            proof: proof_upload
+          },
           request_id: 'request-2'
         )
       end.to raise_error(ActiveRecord::RecordInvalid)

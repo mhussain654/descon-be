@@ -159,6 +159,56 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
     end
 
+    it 'returns field-addressable validation errors for missing banking attributes' do
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:)
+
+      put '/api/v1/candidate/bank_details',
+          params: {
+            bank_detail: {
+              account_title: '',
+              account_number: 'PK24SCBL0000001123456702',
+              bank_name: 'Meezan Bank',
+              proof: fixture_upload('test.pdf', 'application/pdf')
+            }
+          },
+          headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_account_title')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('bank_detail.account_title')
+
+      put '/api/v1/candidate/bank_details',
+          params: {
+            bank_detail: {
+              account_title: 'Ahmed Ali',
+              account_number: '',
+              bank_name: 'Meezan Bank',
+              proof: fixture_upload('test.pdf', 'application/pdf')
+            }
+          },
+          headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_account_number')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('bank_detail.account_number')
+
+      put '/api/v1/candidate/bank_details',
+          params: {
+            bank_detail: {
+              account_title: 'Ahmed Ali',
+              account_number: 'PK24SCBL0000001123456702',
+              bank_name: '',
+              proof: fixture_upload('test.pdf', 'application/pdf')
+            }
+          },
+          headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_bank_name')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('bank_detail.bank_name')
+    end
+
     it 'preserves the previous record when replacement persistence fails' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)

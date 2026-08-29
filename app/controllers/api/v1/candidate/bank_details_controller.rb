@@ -26,19 +26,32 @@ module Api
         private
 
         def update_payload
-          result = ::Candidates::BankDetails::UpsertService.call(
-            candidate: current_candidate,
-            account_title: bank_detail_params[:account_title],
-            account_number: bank_detail_params[:account_number],
-            bank_name: bank_detail_params[:bank_name],
-            proof: bank_detail_params[:proof],
-            request_id: request.request_id
-          )
-          summary = ::Candidates::BankDetails::BankDetailSummary.new(status: result.bank_detail.status_code, bank_detail: result.bank_detail)
+          result = upsert_result
 
           success_payload(
-            data: ::Candidates::BankDetailSerializer.new(summary).as_json.merge(message: success_message(result)),
+            data: serialized_update_result(result),
             status: result.created? ? :created : :ok
+          )
+        end
+
+        def serialized_update_result(result)
+          ::Candidates::BankDetailSerializer.new(bank_detail_summary(result)).as_json.merge(
+            message: success_message(result)
+          )
+        end
+
+        def upsert_result
+          @upsert_result ||= ::Candidates::BankDetails::UpsertService.call(
+            candidate: current_candidate,
+            attributes: bank_detail_attributes,
+            request_id: request.request_id
+          )
+        end
+
+        def bank_detail_summary(result)
+          ::Candidates::BankDetails::BankDetailSummary.new(
+            status: result.bank_detail.status_code,
+            bank_detail: result.bank_detail
           )
         end
 
@@ -56,6 +69,10 @@ module Api
 
         def bank_detail_params
           params.expect(bank_detail: %i[account_title account_number bank_name proof])
+        end
+
+        def bank_detail_attributes
+          bank_detail_params.to_h.symbolize_keys
         end
 
         def success_message(result)

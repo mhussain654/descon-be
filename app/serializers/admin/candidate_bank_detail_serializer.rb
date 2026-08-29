@@ -8,21 +8,26 @@ module Admin
     end
 
     def as_json(*)
-      {
-        id: @bank_detail.public_id,
-        candidate: serialized_candidate,
-        assignment: serialized_assignment,
-        status: @bank_detail.status_code,
-        account_title: @bank_detail.account_title,
-        account_number: serialized_account_number,
-        bank_name: @bank_detail.bank_name,
-        proof: serialized_proof,
-        submitted_at: @bank_detail.submitted_at.utc.iso8601,
-        updated_at: @bank_detail.updated_at.utc.iso8601
-      }
+      primary_attributes
+        .merge(
+          candidate: serialized_candidate,
+          assignment: serialized_assignment
+        )
+        .merge(account_attributes)
+        .merge(
+          proof: serialized_proof
+        )
+        .merge(timestamp_attributes)
     end
 
     private
+
+    def primary_attributes
+      {
+        id: @bank_detail.public_id,
+        status: @bank_detail.status_code
+      }
+    end
 
     def serialized_candidate
       candidate = @bank_detail.candidate_assignment.candidate
@@ -48,12 +53,35 @@ module Admin
       ::Candidates::BankDetails::AccountNumberMasker.call(account_number: @bank_detail.account_number)
     end
 
+    def account_attributes
+      {
+        account_title: @bank_detail.account_title,
+        account_number: serialized_account_number,
+        bank_name: @bank_detail.bank_name
+      }
+    end
+
     def serialized_proof
       {
         file_name: @bank_detail.proof_filename,
         content_type: @bank_detail.proof_content_type,
         file_size: @bank_detail.proof_byte_size,
-        uploaded_at: @bank_detail.submitted_at.utc.iso8601
+        uploaded_at: submitted_at
+      }
+    end
+
+    def submitted_at
+      @bank_detail.submitted_at.utc.iso8601
+    end
+
+    def updated_at
+      @bank_detail.updated_at.utc.iso8601
+    end
+
+    def timestamp_attributes
+      {
+        submitted_at: submitted_at,
+        updated_at: updated_at
       }
     end
   end
