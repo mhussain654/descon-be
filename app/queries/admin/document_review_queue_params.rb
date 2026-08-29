@@ -6,7 +6,9 @@ module Admin
     DEFAULT_PAGE_SIZE = 20
     DEFAULT_STATUSES = %w[pending_review partially_reviewed].freeze
     MAX_PAGE_SIZE = 100
-    REVIEW_STATES = %w[pending_review partially_reviewed changes_required verified].freeze
+    REVIEW_STATES = %w[
+      pending_review partially_reviewed changes_required verified rejected expired_pcc near_expiry_pcc
+    ].freeze
 
     def initialize(params:)
       @params = params

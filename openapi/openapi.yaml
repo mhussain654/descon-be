@@ -85,7 +85,7 @@ components:
       name: filter[status]
       schema:
         type: string
-      description: Comma-separated review states. Supported values are `pending_review`, `partially_reviewed`, `changes_required`, and `verified`.
+      description: Comma-separated review states. Supported values are `pending_review`, `partially_reviewed`, `changes_required`, `verified`, `rejected`, `expired_pcc`, and `near_expiry_pcc`.
     DocumentSubmissionCandidateFilter:
       in: query
       name: filter[candidate_public_id]
@@ -158,7 +158,28 @@ components:
           format: date-time
         pagination:
           $ref: '#/components/schemas/PaginationMeta'
+        summary:
+          $ref: '#/components/schemas/AdminDocumentReviewQueueSummary'
       required: [request_id, timestamp]
+    AdminDocumentReviewQueueSummary:
+      type: object
+      description: >-
+        Distinct-candidate counts per review bucket, present only on the
+        admin document-submissions queue index. Scoped by every active
+        filter except `filter[status]`, so each count reflects what
+        selecting that status chip would show.
+      properties:
+        pending_review:
+          type: integer
+        verified:
+          type: integer
+        rejected:
+          type: integer
+        expired_pcc:
+          type: integer
+        near_expiry_pcc:
+          type: integer
+      required: [pending_review, verified, rejected, expired_pcc, near_expiry_pcc]
     PaginationMeta:
       type: object
       properties:
@@ -420,6 +441,13 @@ components:
               enum: [current, near_expiry, expired, not_applicable]
             - type: 'null'
           description: Present only for the `police_character` requirement. Non-PCC responses omit the field instead of returning `not_applicable`.
+        reviewed_at:
+          type: string
+          format: date-time
+          description: Present only once the document has been verified or rejected.
+        rejection_reason:
+          type: string
+          description: Present only when this document's current status is `rejected`.
       required: [id, file_name, content_type, file_size, uploaded_at]
     CandidateDocumentChecklistItem:
       type: object
@@ -596,6 +624,17 @@ components:
         review_state:
           $ref: '#/components/schemas/AdminReviewState'
       required: [pending_review, verified, rejected, required_total, review_state]
+    AdminReviewer:
+      type: object
+      description: Safe reviewer identity. No personal name or email is ever included -- `role` is the only detail available (`User` has no display-name field).
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [admin, hr, mps, finance, management]
+      required: [id, role]
     AdminDocumentSubmissionCandidate:
       type: object
       properties:
@@ -670,10 +709,10 @@ components:
           anyOf:
             - type: string
             - type: 'null'
-        reviewer_id:
+        reviewer:
+          description: Present once the document has been reviewed. Never includes a personal name or email -- role is the only safe reviewer detail available.
           anyOf:
-            - type: string
-              format: uuid
+            - $ref: '#/components/schemas/AdminReviewer'
             - type: 'null'
         issued_on:
           anyOf:
@@ -2172,6 +2211,12 @@ paths:
                         per_page: 20
                         total_count: 1
                         total_pages: 1
+                      summary:
+                        pending_review: 1
+                        verified: 0
+                        rejected: 0
+                        expired_pcc: 0
+                        near_expiry_pcc: 0
                     errors: []
                 queueUr:
                   value:
@@ -2207,6 +2252,12 @@ paths:
                         per_page: 20
                         total_count: 1
                         total_pages: 1
+                      summary:
+                        pending_review: 1
+                        verified: 0
+                        rejected: 0
+                        expired_pcc: 0
+                        near_expiry_pcc: 0
                     errors: []
         '400':
           description: Unsupported or malformed queue filter or pagination request

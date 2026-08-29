@@ -14,7 +14,8 @@ module Api
 
           render_collection(
             data: submissions.map { |submission| ::Admin::DocumentReviewQueueItemSerializer.new(submission).as_json },
-            pagination: query.pagination
+            pagination: query.pagination,
+            meta: { summary: query.summary }
           )
         end
 
