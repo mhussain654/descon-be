@@ -64,6 +64,9 @@ ur:
       document_attachment_missing: "درخواست کردہ دستاویز فائل دستیاب نہیں ہے۔"
       document_access_forbidden: "آپ کو اس دستاویز تک رسائی کی اجازت نہیں ہے۔"
       review_not_allowed: "آپ کو اس دستاویز کا جائزہ لینے کی اجازت نہیں ہے۔"
+      invalid_workflow_transition: "درخواست کردہ ورک فلو تبدیلی کی اجازت نہیں ہے۔"
+      workflow_transition_prerequisite_missing: "آگے بڑھنے سے پہلے مطلوبہ ورک فلو ثبوت مکمل کریں۔"
+      workflow_transition_stale: "یہ درخواست لاگو ہونے سے پہلے ورک فلو تبدیل ہو گیا۔ تازہ کریں اور دوبارہ کوشش کریں۔"
     authentication:
       login_succeeded: "لاگ اِن کامیاب رہا۔"
       refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"

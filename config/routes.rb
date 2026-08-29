@@ -25,11 +25,18 @@ Rails.application.routes.draw do
         resources :document_submissions, only: :create
         resource :application_progress, only: :show, controller: :application_progress
         resource :profile, only: :show
+        resource :workflow_state, only: :show
+        resource :workflow_history, only: :show
       end
 
       namespace :admin do
         resources :candidate_imports, only: :create
         resources :document_submissions, only: %i[index show]
+        resources :candidates, only: [] do
+          resource :workflow_state, only: :show, controller: :candidate_workflow_states
+          resource :workflow_history, only: :show, controller: :candidate_workflow_histories
+          resources :workflow_transitions, only: %i[index create], controller: :candidate_workflow_transitions
+        end
         resources :candidate_documents, only: [] do
           resource :access, only: :create, controller: :document_accesses
           resources :rejections, only: :create, controller: :document_rejections

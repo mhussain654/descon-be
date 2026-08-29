@@ -180,6 +180,7 @@ FactoryBot.define do
     occurred_at { Time.current }
     reason_code { nil }
     note { nil }
+    metadata { {} }
   end
 
   factory :candidate_document do

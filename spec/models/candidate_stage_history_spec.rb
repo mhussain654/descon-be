@@ -60,4 +60,11 @@ RSpec.describe CandidateStageHistory, type: :model do
       )
     end.to raise_error(ActiveRecord::StatementInvalid)
   end
+
+  it 'requires metadata to be present even when no extra evidence is stored' do
+    candidate_stage_history.metadata = nil
+
+    expect(candidate_stage_history).not_to be_valid
+    expect(candidate_stage_history.errors[:metadata]).to be_present
+  end
 end

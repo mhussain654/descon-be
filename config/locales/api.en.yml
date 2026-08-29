@@ -65,6 +65,9 @@ en:
       document_attachment_missing: "The requested document file is unavailable."
       document_access_forbidden: "You are not allowed to access this document."
       review_not_allowed: "You are not allowed to review this document."
+      invalid_workflow_transition: "The requested workflow transition is not allowed."
+      workflow_transition_prerequisite_missing: "Complete the required workflow evidence before continuing."
+      workflow_transition_stale: "The workflow changed before this request could be applied. Refresh and try again."
     authentication:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."

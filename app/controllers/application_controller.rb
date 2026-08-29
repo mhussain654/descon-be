@@ -19,6 +19,11 @@ class ApplicationController < ActionController::API
     I18n.with_locale(resolved_locale) { super }
   end
 
+  def set_private_state_headers(updated_at:, etag_key:)
+    response.set_header('Cache-Control', 'private, no-store')
+    response.set_header('ETag', %("#{Digest::SHA256.hexdigest("#{etag_key}:#{updated_at&.to_i || 'none'}")}"))
+  end
+
   def resolved_locale
     Localization::LocaleResolver.call(
       explicit_locale: request.headers['X-Locale'],
