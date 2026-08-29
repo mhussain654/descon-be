@@ -33,13 +33,9 @@ module Api
         end
 
         def transition_params
-          params.expect(candidate_workflow_transition: [
-                          :to_stage_code,
-                          :expected_current_stage_code,
-                          :reason_code,
-                          :note,
-                          { evidence: {} }
-                        ]).to_h.deep_symbolize_keys
+          raw_transition = raw_transition_params
+          validate_evidence_keys!(raw_transition[:to_stage_code], raw_transition[:evidence])
+          permitted_transition_params(raw_transition[:to_stage_code]).to_h.deep_symbolize_keys
         end
 
         def transition_fingerprint
@@ -80,6 +76,46 @@ module Api
             updated_at: candidate.current_assignment&.reload&.updated_at,
             etag_key:
           )
+        end
+
+        def raw_transition_params
+          params.expect(candidate_workflow_transition: [
+                          :to_stage_code,
+                          :expected_current_stage_code,
+                          :reason_code,
+                          :note,
+                          { evidence: {} }
+                        ])
+        end
+
+        def permitted_transition_params(stage_code)
+          params.expect(candidate_workflow_transition: [
+                          :to_stage_code,
+                          :expected_current_stage_code,
+                          :reason_code,
+                          :note,
+                          { evidence: permitted_evidence_fields(stage_code) }
+                        ])
+        end
+
+        def validate_evidence_keys!(stage_code, evidence)
+          return if evidence.blank? || !known_stage_code?(stage_code)
+
+          field_name = ::CandidateWorkflows::StageRequirements.unexpected_fields_for(stage_code, evidence.to_h).first
+          return if field_name.blank?
+
+          raise ValidationError.new(
+            field: "candidate_workflow_transition.evidence.#{field_name}",
+            message: I18n.t('api.errors.workflow_transition_evidence_field_unexpected')
+          )
+        end
+
+        def known_stage_code?(stage_code)
+          WorkflowStage::CANONICAL_STAGES.any? { |stage| stage[:code] == stage_code.to_s.strip.downcase }
+        end
+
+        def permitted_evidence_fields(stage_code)
+          ::CandidateWorkflows::StageRequirements.allowed_fields_for(stage_code)
         end
       end
     end

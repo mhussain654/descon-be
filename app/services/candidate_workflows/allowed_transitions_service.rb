@@ -8,10 +8,10 @@ module CandidateWorkflows
     end
 
     def call
-      return [] unless manageable_workflow?
+      return [] if assignment.blank? || !@candidate.active?
 
       next_stage = next_stage_for(assignment.current_workflow_stage)
-      return [] if next_stage.blank? || !allowed_next_stage?(next_stage)
+      return [] if next_stage.blank?
 
       [serialize_stage(next_stage)]
     end
@@ -22,12 +22,12 @@ module CandidateWorkflows
       @assignment ||= @candidate.current_assignment
     end
 
-    def manageable_workflow?
-      @actor&.permission?('manage_workflow') && assignment.present? && @candidate.active?
+    def workflow_manageable?
+      @actor&.permission?('manage_workflow')
     end
 
-    def allowed_next_stage?(next_stage)
-      TransitionService.transition_prerequisites_satisfied?(
+    def next_stage_preview(next_stage)
+      TransitionService.transition_prerequisite_result(
         candidate: @candidate,
         assignment:,
         destination_stage: next_stage
@@ -41,12 +41,29 @@ module CandidateWorkflows
     end
 
     def serialize_stage(stage)
+      return blocked_for_unauthorized_actor(stage) unless workflow_manageable?
+
+      prerequisite_result = next_stage_preview(stage)
+      stage_payload(stage).merge(
+        allowed: prerequisite_result.allowed,
+        blocking_reasons: prerequisite_result.blocking_reasons
+      )
+    end
+
+    def stage_payload(stage)
       {
         code: stage.code,
         name: stage.name_for,
         position: stage.position,
         required_fields: TransitionService.required_fields_for(stage.code)
       }
+    end
+
+    def blocked_for_unauthorized_actor(stage)
+      stage_payload(stage).merge(
+        allowed: false,
+        blocking_reasons: ['unauthorized_transition']
+      )
     end
   end
 end

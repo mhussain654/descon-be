@@ -76,6 +76,44 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.headers['Content-Language']).to eq('ur')
     end
 
+    it 'reports stage 4 progress using only completed prior stages and uses started_at for the current stage' do
+      travel_to(Time.zone.parse('2026-08-29T12:00:00Z')) do
+        candidate = create(:candidate)
+        assignment = create(
+          :candidate_assignment,
+          candidate:,
+          current_workflow_stage: WorkflowStage.find_by!(code: 'under_verification'),
+          created_at: Time.zone.parse('2026-08-29T08:00:00Z'),
+          updated_at: Time.zone.parse('2026-08-29T10:00:00Z')
+        )
+
+        create(
+          :candidate_stage_history,
+          candidate_assignment: assignment,
+          from_workflow_stage: WorkflowStage.find_by!(code: 'registered'),
+          to_workflow_stage: WorkflowStage.find_by!(code: 'documents_pending'),
+          occurred_at: Time.zone.parse('2026-08-29T09:00:00Z')
+        )
+        create(
+          :candidate_stage_history,
+          candidate_assignment: assignment,
+          from_workflow_stage: WorkflowStage.find_by!(code: 'documents_pending'),
+          to_workflow_stage: WorkflowStage.find_by!(code: 'documents_uploaded'),
+          occurred_at: Time.zone.parse('2026-08-29T10:00:00Z')
+        )
+
+        get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body.dig('data', 'workflow', 'completed_count')).to eq(3)
+        expect(response.parsed_body.dig('data', 'workflow', 'total_count')).to eq(15)
+        expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(20)
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'status')).to eq('current')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'started_at')).to eq('2026-08-29T10:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'completed_at')).to be_nil
+      end
+    end
+
     it 'treats an expired required PCC as a blocking requirement with stable expired reason' do
       travel_to(Time.zone.local(2026, 8, 28, 12, 0, 0)) do
         candidate = create(:candidate)

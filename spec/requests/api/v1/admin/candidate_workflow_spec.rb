@@ -139,22 +139,49 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     expect(response.parsed_body.dig('data', 'history', 0, 'to_stage', 'code')).to eq('documents_pending')
   end
 
-  it 'returns allowed next transitions only for workflow-manage roles' do
+  it 'returns explicit next-stage authorization and prerequisite blocking details' do
     hr = create(:user, role: 'hr')
     mps = create(:user, role: 'mps')
     candidate = create(:candidate)
     assignment = create(:candidate_assignment, candidate:, current_workflow_stage: workflow_stage('documents_pending'))
-    create_uploaded_requirement(assignment:)
 
     get "/api/v1/admin/candidates/#{candidate.public_id}/workflow_transitions",
         headers: { 'Authorization' => "Bearer #{access_token_for(hr)}" }
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.dig('data', 'allowed_next_transitions')).to eq([])
+    expect(response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'code')).to eq('documents_uploaded')
+    expect(response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'allowed')).to be(false)
+    expect(response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'blocking_reasons')).to eq(
+      ['unauthorized_transition']
+    )
 
     get "/api/v1/admin/candidates/#{candidate.public_id}/workflow_transitions",
         headers: { 'Authorization' => "Bearer #{access_token_for(mps)}" }
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'code')).to eq('documents_uploaded')
+    expect(response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'allowed')).to be(false)
+    expect(
+      response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'blocking_reasons')
+    ).to eq(['documents_required'])
+
+    create_uploaded_requirement(assignment:)
+
+    get "/api/v1/admin/candidates/#{candidate.public_id}/workflow_transitions",
+        headers: { 'Authorization' => "Bearer #{access_token_for(mps)}" }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'allowed')).to be(true)
+    expect(response.parsed_body.dig('data', 'allowed_next_transitions', 0, 'blocking_reasons')).to eq([])
+  end
+
+  it 'returns no next transitions once the workflow is at terminal mobilized' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate)
+    create(:candidate_assignment, candidate:, current_workflow_stage: workflow_stage('mobilized'))
+
+    get "/api/v1/admin/candidates/#{candidate.public_id}/workflow_transitions",
+        headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig('data', 'allowed_next_transitions')).to eq([])
   end
 
   it 'performs an idempotent transition, replays duplicate keys, and does not keep failed idempotency rows' do
@@ -243,6 +270,58 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
       body: { candidate_workflow_transition: { to_stage_code: 'documents_uploaded' } }
     )
     expect(response).to have_http_status(:unauthorized)
+  end
+
+  it 'rejects unsupported evidence values and unexpected evidence keys' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate)
+    create(
+      :candidate_assignment,
+      candidate:,
+      current_workflow_stage: workflow_stage('qvc_appointment_booked')
+    )
+
+    transition_request(
+      candidate:,
+      token: access_token_for(actor),
+      headers: { 'Idempotency-Key' => 'wf-bad-qvc' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'qvc_completed_outcome_received',
+          evidence: {
+            appointment_date: 'anything',
+            qvc_outcome_code: 'unknown',
+            qvc_outcome_date: 'not-a-date'
+          }
+        }
+      }
+    )
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('validation_failed')
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq(
+      'candidate_workflow_transition.evidence.appointment_date'
+    )
+
+    transition_request(
+      candidate:,
+      token: access_token_for(actor),
+      headers: { 'Idempotency-Key' => 'wf-bad-visa' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'visa_issued_or_rejected',
+          evidence: {
+            visa_outcome_code: 'issued',
+            visa_outcome_date: '2026-09-10',
+            cnic: '35202-1234567-8'
+          }
+        }
+      }
+    )
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq(
+      'candidate_workflow_transition.evidence.cnic'
+    )
+    expect(IdempotencyKey.find_by(key_digest: Digest::SHA256.hexdigest('wf-bad-visa'))).to be_nil
   end
 
   it 'prevents concurrent or stale duplicate transitions from overwriting the winning state' do

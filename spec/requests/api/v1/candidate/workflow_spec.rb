@@ -18,7 +18,9 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       assignment = create(
         :candidate_assignment,
         candidate:,
-        current_workflow_stage: WorkflowStage.find_by!(code: 'documents_pending')
+        current_workflow_stage: WorkflowStage.find_by!(code: 'documents_pending'),
+        created_at: Time.zone.parse('2026-08-29T08:00:00Z'),
+        updated_at: Time.zone.parse('2026-08-29T09:00:00Z')
       )
       create(
         :candidate_stage_history,
@@ -44,10 +46,15 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       expect(response.headers['Content-Language']).to eq('ur')
       expect(response.parsed_body.dig('data', 'candidate_id')).to eq(candidate.public_id)
       expect(response.parsed_body.dig('data', 'current_stage', 'code')).to eq('documents_pending')
+      expect(response.parsed_body.dig('data', 'current_stage', 'started_at')).to eq('2026-08-29T08:00:00Z')
+      expect(response.parsed_body.dig('data', 'current_stage', 'completed_at')).to be_nil
       expect(response.parsed_body.dig('data', 'timeline', 1, 'name')).to eq(
         WorkflowStage.find_by!(code: 'documents_pending').name_for(locale: :ur)
       )
+      expect(response.parsed_body.dig('data', 'timeline', 0, 'completed_at')).to eq('2026-08-29T08:00:00Z')
       expect(response.parsed_body.dig('data', 'timeline', 3, 'code')).to eq('under_verification')
+      expect(response.parsed_body.dig('data', 'completed_count')).to eq(1)
+      expect(response.parsed_body.dig('data', 'progress_percentage')).to eq(6)
       expect(response.parsed_body.dig('data', 'total_count')).to eq(15)
     end
 
@@ -66,6 +73,39 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       get '/api/v1/candidate/workflow_state',
           headers: { 'Authorization' => "Bearer #{response.parsed_body.dig('data', 'access_token')}" }
       expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'treats mobilized as terminal while still excluding the current stage from completed counts' do
+      candidate = create(:candidate)
+      assignment = create(
+        :candidate_assignment,
+        candidate:,
+        current_workflow_stage: WorkflowStage.find_by!(code: 'mobilized'),
+        created_at: Time.zone.parse('2026-08-29T08:00:00Z'),
+        updated_at: Time.zone.parse('2026-09-12T08:00:00Z')
+      )
+      previous_stage = WorkflowStage.find_by!(code: 'registered')
+
+      WorkflowStage.order(:position).offset(1).limit(13).each_with_index do |stage, index|
+        create(
+          :candidate_stage_history,
+          candidate_assignment: assignment,
+          from_workflow_stage: previous_stage,
+          to_workflow_stage: stage,
+          occurred_at: Time.zone.parse('2026-08-29T08:00:00Z') + (index + 1).days,
+          metadata: {}
+        )
+        previous_stage = stage
+      end
+
+      get '/api/v1/candidate/workflow_state',
+          headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'current_stage', 'code')).to eq('mobilized')
+      expect(response.parsed_body.dig('data', 'current_stage', 'started_at')).to eq('2026-09-11T08:00:00Z')
+      expect(response.parsed_body.dig('data', 'completed_count')).to eq(14)
+      expect(response.parsed_body.dig('data', 'progress_percentage')).to eq(93)
     end
   end
 

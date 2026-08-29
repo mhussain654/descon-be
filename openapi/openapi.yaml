@@ -532,12 +532,85 @@ components:
         status:
           type: string
           enum: [completed, current, pending]
+        started_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
         completed_at:
           anyOf:
             - type: string
               format: date-time
             - type: 'null'
       required: [code, name, position, status]
+    WorkflowTransitionEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        appointment_date:
+          type: string
+          format: date
+        qvc_outcome_code:
+          type: string
+          enum: [approved, re_medical_required, rejected]
+        qvc_outcome_date:
+          type: string
+          format: date
+        visa_outcome_code:
+          type: string
+          enum: [issued, rejected]
+        visa_outcome_date:
+          type: string
+          format: date
+        appeared_for_protection_on:
+          type: string
+          format: date
+        protected_on:
+          type: string
+          format: date
+        flight_reference:
+          type: string
+        flight_date:
+          type: string
+          format: date
+        mobilized_on:
+          type: string
+          format: date
+    WorkflowTransitionHistoryDetails:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+        appointment_date:
+          type: string
+          format: date
+        qvc_outcome_code:
+          type: string
+          enum: [approved, re_medical_required, rejected]
+        qvc_outcome_date:
+          type: string
+          format: date
+        visa_outcome_code:
+          type: string
+          enum: [issued, rejected]
+        visa_outcome_date:
+          type: string
+          format: date
+        appeared_for_protection_on:
+          type: string
+          format: date
+        protected_on:
+          type: string
+          format: date
+        flight_reference:
+          type: string
+        flight_date:
+          type: string
+          format: date
+        mobilized_on:
+          type: string
+          format: date
     CandidateWorkflowProgress:
       type: object
       properties:
@@ -691,8 +764,9 @@ components:
             - type: string
             - type: 'null'
         details:
-          type: object
-          additionalProperties: true
+          anyOf:
+            - $ref: '#/components/schemas/WorkflowTransitionHistoryDetails'
+            - type: 'null'
       required: [to_stage, occurred_at]
     CandidateWorkflowHistory:
       type: object
@@ -731,8 +805,7 @@ components:
             note:
               type: string
             evidence:
-              type: object
-              additionalProperties: true
+              $ref: '#/components/schemas/WorkflowTransitionEvidence'
       required: [candidate_workflow_transition]
     AdminAllowedWorkflowTransition:
       type: object
@@ -747,7 +820,13 @@ components:
           type: array
           items:
             type: string
-      required: [code, name, position, required_fields]
+        allowed:
+          type: boolean
+        blocking_reasons:
+          type: array
+          items:
+            type: string
+      required: [code, name, position, required_fields, allowed, blocking_reasons]
     AdminAllowedWorkflowTransitions:
       type: object
       properties:
@@ -2026,10 +2105,10 @@ paths:
                             name: Registered
                             position: 1
                             status: current
-                            completed_at: '2026-08-26T12:00:00Z'
-                        completed_count: 1
+                            started_at: '2026-08-26T12:00:00Z'
+                        completed_count: 0
                         total_count: 15
-                        progress_percentage: 6
+                        progress_percentage: 0
                         updated_at: '2026-08-26T12:00:00Z'
                       documents:
                         required_total: 1
@@ -2098,10 +2177,10 @@ paths:
                             name: Documents Pending
                             position: 2
                             status: current
-                            completed_at: '2026-08-28T12:00:00Z'
-                        completed_count: 2
+                            started_at: '2026-08-28T11:00:00Z'
+                        completed_count: 1
                         total_count: 15
-                        progress_percentage: 13
+                        progress_percentage: 6
                         updated_at: '2026-08-28T12:00:00Z'
                       documents:
                         required_total: 1
@@ -2164,7 +2243,7 @@ paths:
                         name: Documents Pending
                         position: 2
                         status: current
-                        completed_at: '2026-08-29T09:00:00Z'
+                        started_at: '2026-08-29T08:00:00Z'
                       timeline:
                         - code: registered
                           name: Registered
@@ -2175,10 +2254,10 @@ paths:
                           name: Documents Pending
                           position: 2
                           status: current
-                          completed_at: '2026-08-29T09:00:00Z'
-                      completed_count: 2
+                          started_at: '2026-08-29T08:00:00Z'
+                      completed_count: 1
                       total_count: 15
-                      progress_percentage: 13
+                      progress_percentage: 6
                       updated_at: '2026-08-29T09:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -2610,6 +2689,22 @@ paths:
                           name: Documents Uploaded
                           position: 3
                           required_fields: []
+                          allowed: true
+                          blocking_reasons: []
+                blockedTransition:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      updated_at: '2026-08-29T12:00:00Z'
+                      allowed_next_transitions:
+                        - code: qvc_appointment_booked
+                          name: QVC Appointment Booked
+                          position: 9
+                          required_fields:
+                            - appointment_date
+                          allowed: false
+                          blocking_reasons:
+                            - appointment_date_required
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                       timestamp: '2026-08-29T12:00:00Z'
@@ -2671,7 +2766,7 @@ paths:
                           name: Documents Pending
                           position: 2
                           status: current
-                          completed_at: '2026-08-29T09:00:00Z'
+                          started_at: '2026-08-29T08:00:00Z'
                         timeline:
                           - code: registered
                             name: Registered
@@ -2682,10 +2777,10 @@ paths:
                             name: Documents Pending
                             position: 2
                             status: current
-                            completed_at: '2026-08-29T09:00:00Z'
-                        completed_count: 2
+                            started_at: '2026-08-29T08:00:00Z'
+                        completed_count: 1
                         total_count: 15
-                        progress_percentage: 13
+                        progress_percentage: 6
                         updated_at: '2026-08-29T09:00:00Z'
                       transition:
                         from_stage:

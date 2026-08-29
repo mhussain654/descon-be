@@ -13,7 +13,7 @@ module CandidateWorkflows
         current_stage: current_stage_hash,
         timeline:,
         history:,
-        completed_count: current_position || 0,
+        completed_count:,
         total_count: @stages.length,
         progress_percentage: progress_percentage,
         updated_at: serialized_updated_at
@@ -61,9 +61,19 @@ module CandidateWorkflows
         code: stage.code,
         name: stage.name_for,
         position: stage.position,
-        status:,
-        completed_at: completed_at_for(stage)&.utc&.iso8601
-      }.compact
+        status:
+      }.merge(timestamp_attributes_for(stage, status:))
+    end
+
+    def timestamp_attributes_for(stage, status:)
+      case status
+      when 'completed'
+        { completed_at: completed_at_for(stage)&.utc&.iso8601 }.compact
+      when 'current'
+        { started_at: started_at_for(stage)&.utc&.iso8601 }.compact
+      else
+        {}
+      end
     end
 
     def completed_at_for(stage)
@@ -72,6 +82,15 @@ module CandidateWorkflows
       return @assignment&.created_at if stage.code == WorkflowStage.registered.code && current_position.present?
 
       nil
+    end
+
+    def started_at_for(stage)
+      return completed_at_for(stage) if stage.position == 1
+
+      previous_stage = @stages.find { |candidate_stage| candidate_stage.position == stage.position - 1 }
+      return if previous_stage.blank?
+
+      completed_at_for(previous_stage)
     end
 
     def timeline_status_for(stage)
@@ -84,10 +103,16 @@ module CandidateWorkflows
 
     def stage_reference(stage) = { code: stage.code, name: stage.name_for, position: stage.position }
 
-    def progress_percentage
-      return 0 if current_position.blank? || @stages.empty?
+    def completed_count
+      return 0 if current_position.blank?
 
-      ((current_position * 100.0) / @stages.length).floor
+      current_position - 1
+    end
+
+    def progress_percentage
+      return 0 if completed_count.zero? || @stages.empty?
+
+      ((completed_count * 100.0) / @stages.length).floor
     end
 
     def serialized_updated_at

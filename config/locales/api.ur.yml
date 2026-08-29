@@ -67,6 +67,10 @@ ur:
       invalid_workflow_transition: "درخواست کردہ ورک فلو تبدیلی کی اجازت نہیں ہے۔"
       workflow_transition_prerequisite_missing: "آگے بڑھنے سے پہلے مطلوبہ ورک فلو ثبوت مکمل کریں۔"
       workflow_transition_stale: "یہ درخواست لاگو ہونے سے پہلے ورک فلو تبدیل ہو گیا۔ تازہ کریں اور دوبارہ کوشش کریں۔"
+      workflow_transition_evidence_field_unexpected: "درخواست کردہ ورک فلو مرحلے کے لیے یہ ثبوتی فیلڈ مجاز نہیں ہے۔"
+      workflow_transition_evidence_date_invalid: "YYYY-MM-DD فارمیٹ میں درست تاریخ درج کریں۔"
+      workflow_transition_evidence_enum_invalid: "اس ثبوتی فیلڈ کے لیے معاونت یافتہ قدر منتخب کریں۔"
+      workflow_transition_evidence_value_invalid: "اس ثبوتی فیلڈ کے لیے درست قدر درج کریں۔"
     authentication:
       login_succeeded: "لاگ اِن کامیاب رہا۔"
       refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"

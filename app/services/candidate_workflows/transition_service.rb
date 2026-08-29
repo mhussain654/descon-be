@@ -4,7 +4,7 @@ module CandidateWorkflows
   class TransitionService < ApplicationService
     def self.required_fields_for(stage_code) = StageRequirements.required_fields_for(stage_code)
 
-    def self.transition_prerequisites_satisfied?(candidate:, assignment:, destination_stage:)
+    def self.transition_prerequisite_result(candidate:, assignment:, destination_stage:)
       new(
         actor: nil,
         candidate:,
@@ -51,12 +51,16 @@ module CandidateWorkflows
     end
 
     def validate_prerequisites!(candidate:, assignment:, destination_stage:)
-      validator = prerequisite_validator(candidate:, assignment:, destination_stage:)
-      return if validator.call
+      result = prerequisite_validator(candidate:, assignment:, destination_stage:).call
+      return if result.allowed
 
       raise WorkflowTransitionPrerequisiteError.new(
-        field: validator.field,
-        details: { to_stage_code: destination_stage.code }
+        field: result.field,
+        details: {
+          to_stage_code: destination_stage.code,
+          required_fields: result.required_fields,
+          blocking_reasons: result.blocking_reasons
+        }
       )
     end
 
