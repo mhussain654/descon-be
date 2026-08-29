@@ -7,6 +7,8 @@ module Admin
       { submission_items: :candidate_document }
     ].freeze
 
+    SUMMARY_STATUSES = %w[pending_review verified rejected expired_pcc near_expiry_pcc].freeze
+
     attr_reader :pagination
 
     def initialize(scope:, params:)
@@ -21,21 +23,42 @@ module Admin
       paginated_scope.preload(*PRELOADS)
     end
 
+    # Distinct-candidate counts per review bucket, scoped by every filter
+    # except `status` (so the chip counts describe "if you filtered by this
+    # status" the same way the list itself would, matching the ticket's
+    # "counts that reconcile with the review queue" requirement). Distinct
+    # by candidate, not submission -- a candidate can have more than one
+    # submission row over time (e.g. rejection then resubmission), and this
+    # is new reporting code with no existing behavior to preserve, so it's
+    # built correctly from the start.
+    def summary
+      SUMMARY_STATUSES.index_with { |status| distinct_candidate_count(status) }
+    end
+
     private
+
+    def distinct_candidate_count(status)
+      DocumentReviewQueueStatusFilter.new(scope: scope_without_status, statuses: [status]).call
+                                     .joins(candidate_assignment: :candidate)
+                                     .distinct
+                                     .count('candidates.id')
+    end
 
     def ordered_scope
       filtered_scope.order(submitted_at: :desc, public_id: :asc)
     end
 
     def filtered_scope
+      DocumentReviewQueueStatusFilter.new(scope: scope_without_status, statuses: @filters.statuses).call
+    end
+
+    def scope_without_status
       scope = @scope
       scope = filter_candidate_public_id(scope)
       scope = filter_country_code(scope)
       scope = filter_project_code(scope)
       scope = filter_submitted_from(scope)
-      scope = filter_submitted_to(scope)
-
-      DocumentReviewQueueStatusFilter.new(scope:, statuses: @filters.statuses).call
+      filter_submitted_to(scope)
     end
 
     def filter_candidate_public_id(scope)

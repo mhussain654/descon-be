@@ -42,7 +42,18 @@ module Candidates
           content_type: @document.content_type,
           file_size: @document.byte_size,
           uploaded_at: @document.uploaded_at.utc.iso8601
-        }.merge(pcc_metadata)
+        }.merge(pcc_metadata).merge(review_metadata)
+      end
+
+      # Omitted (not merged as `nil`) until the document has actually been
+      # reviewed -- matches the admin serializer's identical `.compact`
+      # treatment of the same underlying `verified_at`/`rejection_reason`
+      # columns, so the candidate sees review state the same way staff do.
+      def review_metadata
+        {
+          reviewed_at: @document.verified_at&.utc&.iso8601,
+          rejection_reason: @document.rejection_reason
+        }.compact
       end
 
       def pcc_metadata

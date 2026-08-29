@@ -37,8 +37,18 @@ module Admin
       {
         verified_at: document.verified_at&.utc&.iso8601,
         rejection_reason: document.rejection_reason,
-        reviewer_id: document.verified_by&.public_id
+        reviewer: serialized_reviewer
       }.compact
+    end
+
+    # No display name exists on User -- role is the only safe, non-personal
+    # identifier the backend has to give (the frontend translates it into a
+    # localized label; never a raw id or an invented name).
+    def serialized_reviewer
+      reviewer = document.verified_by
+      return if reviewer.blank?
+
+      { id: reviewer.public_id, role: reviewer.role }
     end
 
     def pcc_metadata

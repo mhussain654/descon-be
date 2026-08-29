@@ -132,6 +132,85 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response.body).not_to include('/storage/')
     end
 
+    def create_pcc_document(assignment:, issued_on:)
+      document_type = create_requirement(assignment:, code: pcc_code)
+      create(
+        :candidate_document, candidate_assignment: assignment, document_type:,
+                             status_code: 'under_verification', issued_on:
+      )
+    end
+
+    def create_pcc_submission(issued_on:)
+      assignment = create(:candidate_assignment, candidate: create(:candidate))
+      document = create_pcc_document(assignment:, issued_on:)
+      submission = create(:candidate_document_submission, candidate_assignment: assignment, submitted_at: Time.current)
+      create(
+        :candidate_document_submission_item, candidate_document_submission: submission,
+                                             candidate_document: document, requirement_code: pcc_code, required: true
+      )
+      submission
+    end
+
+    it 'filters by rejected, expired PCC, and near-expiry PCC, and reconciles the aggregate summary' do
+      actor = create(:user, role: 'admin')
+
+      rejected_submission = create_submission(review_statuses: %w[rejected])
+      expired_submission = create_pcc_submission(issued_on: Date.current - 8.months)
+      near_expiry_submission = create_pcc_submission(issued_on: Date.current - 6.months + 10.days)
+
+      get '/api/v1/admin/document_submissions',
+          params: { filter: { status: 'rejected' } },
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      expect(response.parsed_body['data'].pluck('id')).to contain_exactly(rejected_submission.public_id)
+
+      get '/api/v1/admin/document_submissions',
+          params: { filter: { status: 'expired_pcc' } },
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      expect(response.parsed_body['data'].pluck('id')).to contain_exactly(expired_submission.public_id)
+
+      get '/api/v1/admin/document_submissions',
+          params: { filter: { status: 'near_expiry_pcc' } },
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      expect(response.parsed_body['data'].pluck('id')).to contain_exactly(near_expiry_submission.public_id)
+
+      get '/api/v1/admin/document_submissions',
+          params: { filter: { status: 'rejected,expired_pcc,near_expiry_pcc,pending_review,verified' } },
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      summary = response.parsed_body.dig('meta', 'summary')
+      expect(summary).to eq(
+        'pending_review' => 2,
+        'verified' => 0,
+        'rejected' => 1,
+        'expired_pcc' => 1,
+        'near_expiry_pcc' => 1
+      )
+    end
+
+    it 'counts a candidate with two submissions only once in the summary' do
+      actor = create(:user, role: 'admin')
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+
+      create_submission_documents(assignment:, statuses: %w[rejected], required: true, prefix: 'required_doc')
+      create_manual_submission(assignment:)
+      # Superseded so the second submission's item set (built from
+      # `current_version` documents) doesn't try to re-attach the same
+      # already-submitted document, mirroring a real rejection-then-
+      # resubmit history for one candidate.
+      CandidateDocument.current_version.where(candidate_assignment: assignment)
+                       .find_each { |doc| doc.update!(superseded_at: Time.current) }
+
+      create_submission_documents(assignment:, statuses: %w[rejected], required: true, prefix: 'required_doc')
+      create_manual_submission(assignment:)
+
+      get '/api/v1/admin/document_submissions',
+          params: { filter: { status: 'rejected' } },
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response.parsed_body['data'].size).to eq(2)
+      expect(response.parsed_body.dig('meta', 'summary', 'rejected')).to eq(1)
+    end
+
     it 'rejects unauthorized roles, inactive staff, and candidate tokens safely' do
       create_submission(review_statuses: %w[under_verification])
       finance_user = create(:user, role: 'finance')
@@ -189,6 +268,7 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response.parsed_body.dig('data', 'documents', 0, 'compliance_status')).to eq('current')
       expect(response.parsed_body.dig('data', 'documents', 0)).not_to have_key('storage_key')
       expect(response.parsed_body.dig('data', 'documents', 0)).not_to have_key('internal_id')
+      expect(response.parsed_body.dig('data', 'documents', 0)).not_to have_key('reviewer')
     end
 
     it 'returns a specific not found error for unknown public ids' do
@@ -259,6 +339,10 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response).to have_http_status(:created)
       expect(response.parsed_body.dig('data', 'document', 'status')).to eq('verified')
       expect(response.parsed_body.dig('data', 'submission', 'review', 'review_state')).to eq('verified')
+      expect(response.parsed_body.dig('data', 'document', 'reviewer', 'id')).to eq(actor.public_id)
+      expect(response.parsed_body.dig('data', 'document', 'reviewer', 'role')).to eq('admin')
+      expect(response.body).not_to include(actor.email)
+      expect(response.parsed_body.dig('data', 'document')).not_to have_key('reviewer_id')
 
       post "/api/v1/admin/candidate_documents/#{document.public_id}/verifications",
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'Idempotency-Key' => 'verify-doc-1' }

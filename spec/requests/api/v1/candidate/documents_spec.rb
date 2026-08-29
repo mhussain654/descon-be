@@ -105,6 +105,61 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       expect(item.dig('document', 'compliance_status')).to eq('current')
     end
 
+    it 'returns the rejection reason and review date for a rejected document' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      create(
+        :candidate_document,
+        candidate_assignment: candidate.current_assignment,
+        document_type:,
+        status_code: 'rejected',
+        verified_by: create(:user),
+        verified_at: Time.zone.parse('2026-08-20T10:00:00Z'),
+        rejection_reason: 'Document is unreadable.'
+      )
+
+      get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      item = response.parsed_body.fetch('data').first
+      expect(item['status']).to eq('rejected')
+      expect(item.dig('document', 'rejection_reason')).to eq('Document is unreadable.')
+      expect(item.dig('document', 'reviewed_at')).to eq('2026-08-20T10:00:00Z')
+    end
+
+    it 'returns the review date without a rejection reason for a verified document' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      create(
+        :candidate_document,
+        candidate_assignment: candidate.current_assignment,
+        document_type:,
+        status_code: 'verified',
+        verified_by: create(:user),
+        verified_at: Time.zone.parse('2026-08-20T10:00:00Z')
+      )
+
+      get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      item = response.parsed_body.fetch('data').first
+      expect(item.dig('document', 'reviewed_at')).to eq('2026-08-20T10:00:00Z')
+      expect(item['document']).not_to have_key('rejection_reason')
+    end
+
+    it 'omits the rejection reason and review date for a document that has not been reviewed' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      create(:candidate_document, candidate_assignment: candidate.current_assignment, document_type:)
+
+      get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      item = response.parsed_body.fetch('data').first
+      expect(item.fetch('document')).not_to have_key('rejection_reason')
+      expect(item.fetch('document')).not_to have_key('reviewed_at')
+    end
+
     it 'rejects inactive candidates and staff tokens' do
       inactive_candidate = create(:candidate, active: false)
 
