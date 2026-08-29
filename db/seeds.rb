@@ -112,7 +112,10 @@ end
     requires_expiry: true },
   { code: 'bank_details', name_en: 'Bank Account Details', name_ur: 'بینک اکاؤنٹ کی تفصیلات' },
   { code: 'cheque_image', name_en: 'Cancelled Cheque Image', name_ur: 'منسوخ شدہ چیک کی تصویر' },
-  { code: 'cv', name_en: 'CV / Resume', name_ur: 'سی وی / ریزیومے' }
+  { code: 'cv', name_en: 'CV / Resume', name_ur: 'سی وی / ریزیومے' },
+  { code: 'experience_letter', name_en: 'Experience Letter', name_ur: 'تجربے کا سرٹیفکیٹ' },
+  { code: 'certificates', name_en: 'Certificates', name_ur: 'سرٹیفیکیٹس' },
+  { code: 'polio_certificate', name_en: 'Polio Certificate', name_ur: 'پولیو سرٹیفکیٹ' }
 ].each do |attributes|
   document_type = DocumentType.find_or_initialize_by(code: attributes.fetch(:code))
   document_type.assign_attributes(
@@ -123,6 +126,26 @@ end
     active: true
   )
   document_type.save!
+end
+
+# Global document requirements (no country/project/craft scope, so they
+# apply to every candidate via RequirementResolver's `[nil, assignment.xxx]`
+# matching) -- one per document type above so a candidate's checklist always
+# reflects every type this catalog defines, not just the first few seeded.
+# `police_character_certificate` is deliberately excluded: it's a stray
+# duplicate of `police_character` (missing `requires_expiry`) already linked
+# to real candidate_documents rows -- reconciling that duplicate is a
+# separate, consequential data-migration decision, not part of this seed.
+%w[
+  cnic_back next_of_kin_cnic bank_details cheque_image cv
+  experience_letter certificates polio_certificate
+].each do |code|
+  document_type = DocumentType.find_by!(code: code)
+  requirement = DocumentRequirement.find_or_initialize_by(
+    document_type: document_type, country: nil, project: nil, craft: nil
+  )
+  requirement.assign_attributes(required: true, active: true)
+  requirement.save!
 end
 
 # --- Demo/reserved data for exercising MPS-201's candidate OTP API ---------
