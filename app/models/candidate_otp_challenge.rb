@@ -36,6 +36,7 @@ class CandidateOtpChallenge < ApplicationRecord
   # for the real-candidate case.
   def self.generate_for(candidate: nil, cnic: candidate&.cnic, requested_ip: nil)
     code = SecureRandom.random_number(10**CODE_LENGTH).to_s.rjust(CODE_LENGTH, '0')
+    puts "Generated OTP code------: #{code}"
     challenge = create!(
       candidate:,
       cnic:,

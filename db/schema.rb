@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_163000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_28_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -112,6 +112,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_163000) do
     t.index ["reference_number"], name: "index_candidate_assignments_on_reference_number", unique: true
     t.check_constraint "qvc_outcome_code IS NULL AND qvc_outcome_date IS NULL OR qvc_outcome_code IS NOT NULL AND qvc_outcome_date IS NOT NULL", name: "candidate_assignments_qvc_pair"
     t.check_constraint "qvc_outcome_code IS NULL OR qvc_outcome_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_assignments_qvc_outcome_code_format"
+  end
+
+  create_table "candidate_bank_details", force: :cascade do |t|
+    t.text "account_number", null: false
+    t.text "account_title", null: false
+    t.string "bank_name", null: false
+    t.bigint "candidate_assignment_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "proof_byte_size", null: false
+    t.string "proof_checksum_sha256"
+    t.string "proof_content_type", null: false
+    t.string "proof_filename", null: false
+    t.string "public_id", null: false
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
+    t.string "status_code", default: "submitted", null: false
+    t.datetime "submitted_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "superseded_at"
+    t.datetime "updated_at", null: false
+    t.index ["candidate_assignment_id", "status_code"], name: "index_candidate_bank_details_on_assignment_status"
+    t.index ["candidate_assignment_id"], name: "index_candidate_bank_details_on_candidate_assignment_id"
+    t.index ["candidate_assignment_id"], name: "index_candidate_bank_details_on_current_assignment", unique: true, where: "(superseded_at IS NULL)"
+    t.index ["public_id"], name: "index_candidate_bank_details_on_public_id", unique: true
+    t.index ["reviewed_by_id"], name: "index_candidate_bank_details_on_reviewed_by_id"
+    t.check_constraint "proof_byte_size > 0", name: "candidate_bank_details_proof_byte_size_positive"
+    t.check_constraint "status_code::text = 'submitted'::text", name: "candidate_bank_details_status_code"
   end
 
   create_table "candidate_document_submission_items", force: :cascade do |t|
@@ -526,6 +552,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_163000) do
   add_foreign_key "candidate_assignments", "projects"
   add_foreign_key "candidate_assignments", "users", column: "created_by_id"
   add_foreign_key "candidate_assignments", "workflow_stages", column: "current_workflow_stage_id"
+  add_foreign_key "candidate_bank_details", "candidate_assignments"
+  add_foreign_key "candidate_bank_details", "users", column: "reviewed_by_id"
   add_foreign_key "candidate_document_submission_items", "candidate_document_submissions"
   add_foreign_key "candidate_document_submission_items", "candidate_documents"
   add_foreign_key "candidate_document_submissions", "candidate_assignments"
