@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module CandidateWorkflows
+  # rubocop:disable Metrics/ClassLength
   class PrerequisiteValidator < ApplicationService
     def initialize(candidate:, assignment:, destination_stage:, evidence:)
       @candidate = candidate
@@ -21,10 +22,10 @@ module CandidateWorkflows
       case @destination_stage.code
       when 'documents_uploaded'
         documents_uploaded_result
-      when 'verified'
+      when 'fee_pending', 'verified'
         verified_documents_result
       when 'fee_paid'
-        payment_result
+        fee_paid_result
       else
         evidence_result
       end
@@ -87,8 +88,16 @@ module CandidateWorkflows
       document.compliance_status != 'expired'
     end
 
+    def fee_paid_result
+      verification_result = verified_documents_result
+      return verification_result unless verification_result.allowed
+
+      payment_result
+    end
+
     def payment_result
-      payment_record_exists = @assignment.payments.where(status_code: 'paid').where.not(paid_at: nil).exists?
+      payments = @assignment.payments.where(status_code: 'paid')
+      payment_record_exists = payments.where.not(paid_at: nil).where.not(external_reference: nil).exists?
       return allowed_result if payment_record_exists
 
       blocked_result(field: 'candidate_workflow_transition.to_stage_code', blocking_reasons: ['payment_required'])
@@ -124,4 +133,5 @@ module CandidateWorkflows
       PrerequisiteResult.blocked(field:, blocking_reasons:, required_fields:)
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

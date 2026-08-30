@@ -6,6 +6,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
   self.use_transactional_tests = false
 
   around do |example|
+    CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
@@ -15,6 +16,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     User.delete_all
     example.run
   ensure
+    CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
@@ -28,14 +30,59 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     ensure_staff_authorization_reference_data!
   end
 
+  def resolved_required_requirements(candidate:, assignment:)
+    Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
+  end
+
+  # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
   def reviewable_document
     candidate = create(:candidate)
-    assignment = create(:candidate_assignment, candidate:)
-    document = create(:candidate_document, candidate_assignment: assignment, status_code: 'under_verification')
+    assignment = create(
+      :candidate_assignment,
+      candidate:,
+      current_workflow_stage: WorkflowStage.find_by!(code: 'under_verification')
+    )
+    candidate.update!(status_code: 'under_verification')
+    document_type = DocumentType.find_or_create_by!(code: 'passport') do |record|
+      record.name_en = 'Passport'
+      record.name_ur = 'پاسپورٹ'
+      record.active = true
+      record.requires_number = false
+      record.requires_expiry = false
+    end
+    create(
+      :document_requirement,
+      document_type:,
+      country: assignment.country,
+      project: assignment.project,
+      craft: assignment.craft,
+      required: true
+    )
+    requirements = resolved_required_requirements(candidate:, assignment:)
+    pending_requirement = requirements.first
+
+    requirements.drop(1).each do |requirement|
+      create(
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type: requirement.document_type,
+        status_code: 'verified',
+        verified_by: create(:user),
+        verified_at: Time.current
+      )
+    end
+
+    document = create(
+      :candidate_document,
+      candidate_assignment: assignment,
+      document_type: pending_requirement.document_type,
+      status_code: 'under_verification'
+    )
     submission = create(:candidate_document_submission, candidate_assignment: assignment)
     create(:candidate_document_submission_item, candidate_document_submission: submission, candidate_document: document)
     document
   end
+  # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
   it 'verifies a pending current document atomically and returns updated submission summary' do
     actor = create(:user, role: 'admin')
@@ -46,7 +93,9 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     expect(result.document.reload.status_code).to eq('verified')
     expect(result.document.verified_by).to eq(actor)
     expect(result.summary.review_state).to eq('verified')
-    expect(AuditEvent.last.action_code).to eq('candidate_document_verified')
+    expect(AuditEvent.where(action_code: 'candidate_document_verified').count).to eq(1)
+    expect(document.candidate_assignment.reload.current_workflow_stage.code).to eq('verified')
+    expect(document.candidate_assignment.candidate.reload.status_code).to eq('verified')
   end
 
   it 'rejects with a normalized reason and blocks missing or invalid reasons' do

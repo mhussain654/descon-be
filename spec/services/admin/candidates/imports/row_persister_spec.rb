@@ -51,7 +51,14 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
           .to change(Candidate, :count).by(1)
           .and change(CandidateAssignment, :count).by(1)
 
+        assignment = CandidateAssignment.order(:id).last
+
         expect(result.to_h).to include(successful_rows: 1, failed_rows: 0, skipped_rows: 0)
+        expect(assignment.current_workflow_stage.code).to eq('documents_pending')
+        expect(assignment.candidate.status_code).to eq('documents_pending')
+        expect(assignment.candidate_stage_histories.order(:occurred_at, :id).pluck(:reason_code)).to eq(
+          ['auto_assignment_created']
+        )
       end
     end
 

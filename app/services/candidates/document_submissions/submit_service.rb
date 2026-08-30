@@ -2,6 +2,7 @@
 
 module Candidates
   module DocumentSubmissions
+    # rubocop:disable Metrics/ClassLength
     class SubmitService < ApplicationService
       def initialize(candidate:, request_id:)
         @candidate = candidate
@@ -48,6 +49,7 @@ module Candidates
           requirements_by_document_type_id:
         )
         create_audit_event!(submission:)
+        advance_workflow!
         build_result(submission)
       end
 
@@ -122,6 +124,15 @@ module Candidates
       def submit_document!(document)
         document.update!(status_code: 'under_verification')
       end
+
+      def advance_workflow!
+        CandidateWorkflows::AutomaticTransitionService.call(
+          candidate: @candidate,
+          event: :documents_submitted,
+          request_id: @request_id
+        )
+      end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

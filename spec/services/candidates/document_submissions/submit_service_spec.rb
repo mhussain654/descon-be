@@ -6,6 +6,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
   self.use_transactional_tests = false
 
   around do |example|
+    CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
@@ -15,6 +16,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     User.delete_all
     example.run
   ensure
+    CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
@@ -96,7 +98,12 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
   describe '.call' do
     it 'submits uploaded documents atomically and creates immutable evidence' do
       candidate = create(:candidate)
-      assignment = create(:candidate_assignment, candidate:)
+      assignment = create(
+        :candidate_assignment,
+        candidate:,
+        current_workflow_stage: WorkflowStage.find_by!(code: 'documents_uploaded')
+      )
+      candidate.update!(status_code: 'documents_uploaded')
       passport = create_requirement(assignment:, code: 'passport')
       cv = create_requirement(assignment:, code: 'cv', required: false)
       create_required_documents(
@@ -128,7 +135,9 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
           document_type: cv
         ).status_code
       ).to eq('under_verification')
-      expect(AuditEvent.last.action_code).to eq('candidate_documents_submitted')
+      expect(AuditEvent.where(action_code: 'candidate_documents_submitted').count).to eq(1)
+      expect(assignment.reload.current_workflow_stage.code).to eq('under_verification')
+      expect(candidate.reload.status_code).to eq('under_verification')
     end
 
     it 'does not change data when a required document is missing' do

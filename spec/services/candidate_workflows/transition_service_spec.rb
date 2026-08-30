@@ -130,7 +130,13 @@ RSpec.describe CandidateWorkflows::TransitionService do
     end
     transition!(candidate:, actor:, to_stage_code: 'verified')
     transition!(candidate:, actor:, to_stage_code: 'fee_pending')
-    create(:payment, candidate_assignment: assignment, status_code: 'paid', paid_at: Time.current)
+    create(
+      :payment,
+      candidate_assignment: assignment,
+      status_code: 'paid',
+      paid_at: Time.current,
+      external_reference: 'PAY-123'
+    )
     transition!(candidate:, actor:, to_stage_code: 'fee_paid')
     transition!(candidate:, actor:, to_stage_code: 'documents_shared_with_qatar_bu')
     transition!(
@@ -342,6 +348,99 @@ RSpec.describe CandidateWorkflows::TransitionService do
     expect do
       transition!(candidate:, actor:, to_stage_code: 'documents_pending')
     end.to raise_error(InvalidWorkflowTransitionError)
+  end
+
+  it 'blocks fee_pending when a previously verified required document is rejected' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'verified')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+    requirement_for(assignment:, code: 'passport')
+    create_required_documents(candidate:, assignment:, default_status: 'verified')
+
+    rejected_requirement = resolved_required_requirements(candidate:, assignment:).first
+    assignment.candidate_documents.current_version.find_by!(document_type: rejected_requirement.document_type).update!(
+      status_code: 'rejected',
+      rejection_reason: 'Document is unreadable.',
+      verified_at: Time.current,
+      verified_by: actor
+    )
+
+    expect do
+      transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['required_documents_not_verified'])
+    }
+  end
+
+  it 'blocks fee_pending when a new required global requirement is introduced after verification' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'verified')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+    requirement_for(assignment:, code: 'passport')
+    create_required_documents(candidate:, assignment:, default_status: 'verified')
+    medical_clearance_type = document_type_for('medical_clearance')
+    create(:document_requirement, document_type: medical_clearance_type, required: true, active: true)
+
+    expect do
+      transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['required_documents_not_verified'])
+    }
+  end
+
+  it 'blocks fee_pending for expired pcc and fee_paid without a full authoritative payment record' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'verified')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+    requirement_for(assignment:, code: 'passport')
+    pcc_type = requirement_for(assignment:, code: CandidateDocument::PCC_REQUIREMENT_CODE)
+    create(
+      :candidate_document,
+      candidate_assignment: assignment,
+      document_type: document_type_for('passport'),
+      status_code: 'verified',
+      verified_by: actor,
+      verified_at: Time.current
+    )
+    expired_pcc = create(
+      :candidate_document,
+      candidate_assignment: assignment,
+      document_type: pcc_type,
+      status_code: 'verified',
+      issued_on: Date.new(2026, 1, 1),
+      verified_by: actor,
+      verified_at: Time.current
+    )
+
+    expect(expired_pcc.compliance_status).to eq('expired')
+
+    expect do
+      transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['required_documents_not_verified'])
+    }
+
+    expired_pcc.update!(
+      issued_on: Date.new(2026, 8, 30),
+      expires_on: Date.new(2027, 2, 28),
+      status_code: 'verified',
+      verified_at: Time.current,
+      verified_by: actor
+    )
+    transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+    create(
+      :payment,
+      candidate_assignment: assignment,
+      status_code: 'paid',
+      paid_at: Time.current,
+      external_reference: nil
+    )
+
+    expect do
+      transition!(candidate:, actor:, to_stage_code: 'fee_paid')
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['payment_required'])
+    }
   end
 
   it 'creates immutable history and rolls back assignment changes when audit creation fails' do
