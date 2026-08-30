@@ -124,6 +124,15 @@ components:
       schema:
         type: string
       description: Locale used for the translated parts of the standard JSON API response.
+    CacheControlPrivateNoStoreHeader:
+      schema:
+        type: string
+        example: private, no-store
+      description: Prevents shared caches from storing sensitive candidate or workflow data.
+    EntityTagHeader:
+      schema:
+        type: string
+      description: Opaque freshness validator for authoritative state responses.
     VaryLanguageHeaders:
       schema:
         type: string
@@ -640,6 +649,118 @@ components:
         name:
           type: string
       required: [code, name]
+    CandidateWorkflowTimelineStage:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        position:
+          type: integer
+        status:
+          type: string
+          enum: [completed, current, pending]
+        started_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        completed_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [code, name, position, status]
+    WorkflowTransitionEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        appointment_date:
+          type: string
+          format: date
+        qvc_outcome_code:
+          type: string
+          enum: [approved, re_medical_required, rejected]
+        qvc_outcome_date:
+          type: string
+          format: date
+        visa_outcome_code:
+          type: string
+          enum: [issued, rejected]
+        visa_outcome_date:
+          type: string
+          format: date
+        appeared_for_protection_on:
+          type: string
+          format: date
+        protected_on:
+          type: string
+          format: date
+        flight_reference:
+          type: string
+        flight_date:
+          type: string
+          format: date
+        mobilized_on:
+          type: string
+          format: date
+    WorkflowTransitionHistoryDetails:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+        appointment_date:
+          type: string
+          format: date
+        qvc_outcome_code:
+          type: string
+          enum: [approved, re_medical_required, rejected]
+        qvc_outcome_date:
+          type: string
+          format: date
+        visa_outcome_code:
+          type: string
+          enum: [issued, rejected]
+        visa_outcome_date:
+          type: string
+          format: date
+        appeared_for_protection_on:
+          type: string
+          format: date
+        protected_on:
+          type: string
+          format: date
+        flight_reference:
+          type: string
+        flight_date:
+          type: string
+          format: date
+        mobilized_on:
+          type: string
+          format: date
+    CandidateWorkflowProgress:
+      type: object
+      properties:
+        timeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateWorkflowTimelineStage'
+        completed_count:
+          type: integer
+        total_count:
+          type: integer
+        progress_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [timeline, completed_count, total_count, progress_percentage, updated_at]
     CandidateApplicationProgressDocuments:
       type: object
       properties:
@@ -700,9 +821,165 @@ components:
           anyOf:
             - $ref: '#/components/schemas/CandidateProgressWorkflowStage'
             - type: 'null'
+        workflow:
+          $ref: '#/components/schemas/CandidateWorkflowProgress'
         documents:
           $ref: '#/components/schemas/CandidateApplicationProgressDocuments'
-      required: [candidate_status, current_workflow_stage, documents]
+      required: [candidate_status, current_workflow_stage, workflow, documents]
+    CandidateWorkflowState:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        candidate_status:
+          type: string
+        current_stage:
+          anyOf:
+            - $ref: '#/components/schemas/CandidateWorkflowTimelineStage'
+            - type: 'null'
+        timeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateWorkflowTimelineStage'
+        completed_count:
+          type: integer
+        total_count:
+          type: integer
+        progress_percentage:
+          type: integer
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [candidate_id, assignment_id, candidate_status, current_stage, timeline, completed_count, total_count,
+        progress_percentage, updated_at]
+    CandidateWorkflowHistoryItem:
+      type: object
+      properties:
+        from_stage:
+          anyOf:
+            - type: object
+              properties:
+                code:
+                  type: string
+                name:
+                  type: string
+                position:
+                  type: integer
+              required: [code, name, position]
+            - type: 'null'
+        to_stage:
+          type: object
+          properties:
+            code:
+              type: string
+            name:
+              type: string
+            position:
+              type: integer
+          required: [code, name, position]
+        occurred_at:
+          type: string
+          format: date-time
+        reason_code:
+          anyOf:
+            - type: string
+            - type: 'null'
+        details:
+          anyOf:
+            - $ref: '#/components/schemas/WorkflowTransitionHistoryDetails'
+            - type: 'null'
+      required: [to_stage, occurred_at]
+    CandidateWorkflowHistory:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateWorkflowHistoryItem'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [candidate_id, assignment_id, history, updated_at]
+    AdminWorkflowTransitionRequest:
+      type: object
+      properties:
+        candidate_workflow_transition:
+          type: object
+          required: [to_stage_code]
+          properties:
+            to_stage_code:
+              type: string
+            expected_current_stage_code:
+              type: string
+            reason_code:
+              type: string
+            note:
+              type: string
+            evidence:
+              $ref: '#/components/schemas/WorkflowTransitionEvidence'
+      required: [candidate_workflow_transition]
+    AdminAllowedWorkflowTransition:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        position:
+          type: integer
+        required_fields:
+          type: array
+          items:
+            type: string
+        allowed:
+          type: boolean
+        blocking_reasons:
+          type: array
+          items:
+            type: string
+      required: [code, name, position, required_fields, allowed, blocking_reasons]
+    AdminAllowedWorkflowTransitions:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        allowed_next_transitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAllowedWorkflowTransition'
+      required: [candidate_id, updated_at, allowed_next_transitions]
+    AdminWorkflowTransitionResult:
+      type: object
+      properties:
+        workflow:
+          $ref: '#/components/schemas/CandidateWorkflowState'
+        transition:
+          $ref: '#/components/schemas/CandidateWorkflowHistoryItem'
+      required: [workflow, transition]
     CandidateDocumentSubmissionResult:
       type: object
       properties:
@@ -2127,6 +2404,10 @@ paths:
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
             X-Request-Id:
@@ -2144,6 +2425,17 @@ paths:
                       current_workflow_stage:
                         code: registered
                         name: Registered
+                      workflow:
+                        timeline:
+                          - code: registered
+                            name: Registered
+                            position: 1
+                            status: current
+                            started_at: '2026-08-26T12:00:00Z'
+                        completed_count: 0
+                        total_count: 15
+                        progress_percentage: 0
+                        updated_at: '2026-08-26T12:00:00Z'
                       documents:
                         required_total: 1
                         missing: 0
@@ -2166,6 +2458,16 @@ paths:
                     data:
                       candidate_status: registered
                       current_workflow_stage: null
+                      workflow:
+                        timeline:
+                          - code: registered
+                            name: رجسٹرڈ
+                            position: 1
+                            status: pending
+                        completed_count: 0
+                        total_count: 15
+                        progress_percentage: 0
+                        updated_at: null
                       documents:
                         required_total: 0
                         missing: 0
@@ -2190,6 +2492,22 @@ paths:
                       current_workflow_stage:
                         code: documents_pending
                         name: Documents Pending
+                      workflow:
+                        timeline:
+                          - code: registered
+                            name: Registered
+                            position: 1
+                            status: completed
+                            completed_at: '2026-08-28T11:00:00Z'
+                          - code: documents_pending
+                            name: Documents Pending
+                            position: 2
+                            status: current
+                            started_at: '2026-08-28T11:00:00Z'
+                        completed_count: 1
+                        total_count: 15
+                        progress_percentage: 6
+                        updated_at: '2026-08-28T12:00:00Z'
                       documents:
                         required_total: 1
                         missing: 0
@@ -2208,6 +2526,121 @@ paths:
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                       timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/candidate/workflow_state:
+    get:
+      summary: Fetch the authenticated candidate workflow state
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate workflow state retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                workflowState:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                      candidate_status: documents_pending
+                      current_stage:
+                        code: documents_pending
+                        name: Documents Pending
+                        position: 2
+                        status: current
+                        started_at: '2026-08-29T09:00:00Z'
+                      timeline:
+                        - code: registered
+                          name: Registered
+                          position: 1
+                          status: completed
+                          completed_at: '2026-08-29T09:00:00Z'
+                        - code: documents_pending
+                          name: Documents Pending
+                          position: 2
+                          status: current
+                          started_at: '2026-08-29T09:00:00Z'
+                      completed_count: 1
+                      total_count: 15
+                      progress_percentage: 6
+                      updated_at: '2026-08-29T09:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-29T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/candidate/workflow_history:
+    get:
+      summary: Fetch the authenticated candidate workflow history
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate workflow history retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                workflowHistory:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                      history:
+                        - from_stage:
+                            code: registered
+                            name: Registered
+                            position: 1
+                          to_stage:
+                            code: documents_pending
+                            name: Documents Pending
+                            position: 2
+                          occurred_at: '2026-08-29T09:00:00Z'
+                          details:
+                            source: manual
+                      updated_at: '2026-08-29T09:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-29T12:00:00Z'
                     errors: []
         '401':
           description: Missing, invalid, expired, or revoked candidate session
@@ -2467,6 +2900,244 @@ paths:
             does not cover invalid row content (bad CNIC format, unknown reference codes,
             duplicate rows, etc.) — those are row-level outcomes returned inside a `200`/`201`
             response's `data.errors` array, not this status.
+  /api/v1/admin/candidates/{candidate_id}/workflow_state:
+    get:
+      summary: Fetch a candidate workflow state for authorized staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate workflow state retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow state
+  /api/v1/admin/candidates/{candidate_id}/workflow_history:
+    get:
+      summary: Fetch a candidate workflow history for authorized staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate workflow history retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow history
+  /api/v1/admin/candidates/{candidate_id}/workflow_transitions:
+    get:
+      summary: Fetch the allowed next workflow transitions for the authenticated staff member
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Allowed workflow transitions retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                allowedTransitions:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      updated_at: '2026-08-29T12:00:00Z'
+                      allowed_next_transitions:
+                        - code: documents_uploaded
+                          name: Documents Uploaded
+                          position: 3
+                          required_fields: []
+                          allowed: true
+                          blocking_reasons: []
+                blockedTransition:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      updated_at: '2026-08-29T12:00:00Z'
+                      allowed_next_transitions:
+                        - code: qvc_appointment_booked
+                          name: QVC Appointment Booked
+                          position: 9
+                          required_fields:
+                            - appointment_date
+                          allowed: false
+                          blocking_reasons:
+                            - appointment_date_required
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-29T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow transitions
+    post:
+      summary: Transition a candidate to the next allowed workflow stage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminWorkflowTransitionRequest'
+      responses:
+        '201':
+          description: Workflow transitioned or prior idempotent result replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                transitioned:
+                  value:
+                    data:
+                      workflow:
+                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        candidate_status: documents_pending
+                        current_stage:
+                          code: documents_pending
+                          name: Documents Pending
+                          position: 2
+                          status: current
+                          started_at: '2026-08-29T09:00:00Z'
+                        timeline:
+                          - code: registered
+                            name: Registered
+                            position: 1
+                            status: completed
+                            completed_at: '2026-08-29T09:00:00Z'
+                          - code: documents_pending
+                            name: Documents Pending
+                            position: 2
+                            status: current
+                            started_at: '2026-08-29T09:00:00Z'
+                        completed_count: 1
+                        total_count: 15
+                        progress_percentage: 6
+                        updated_at: '2026-08-29T09:00:00Z'
+                      transition:
+                        from_stage:
+                          code: registered
+                          name: Registered
+                          position: 1
+                        to_stage:
+                          code: documents_pending
+                          name: Documents Pending
+                          position: 2
+                        occurred_at: '2026-08-29T09:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-29T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to transition workflow
+        '409':
+          description: Stale expectation or idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Invalid next stage or missing prerequisite evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/admin/document_submissions:
     get:
       summary: List candidate document submissions waiting for review

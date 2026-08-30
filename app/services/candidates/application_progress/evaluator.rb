@@ -17,7 +17,12 @@ module Candidates
         Summary.new(
           candidate_status: @candidate.status_code,
           current_workflow_stage: @assignment&.current_workflow_stage,
-          documents: documents_summary
+          documents: documents_summary,
+          workflow_timeline: workflow_snapshot.timeline,
+          workflow_completed_count: workflow_snapshot.completed_count,
+          workflow_total_count: workflow_snapshot.total_count,
+          workflow_progress_percentage: workflow_snapshot.progress_percentage,
+          workflow_updated_at: workflow_snapshot.updated_at
         )
       end
 
@@ -25,11 +30,7 @@ module Candidates
 
       def documents_summary
         DocumentsSummary.new(
-          **document_counts,
-          blocking_requirements:,
-          can_submit:,
-          completion_percentage:,
-          submission_state:
+          **document_counts, blocking_requirements:, can_submit:, completion_percentage:, submission_state:
         )
       end
 
@@ -122,12 +123,12 @@ module Candidates
 
       def submission_state
         StateResolver.call(
-          assignment: @assignment,
-          blocking_requirements:,
-          can_submit:,
-          required_documents:,
-          required_requirements:
+          assignment: @assignment, blocking_requirements:, can_submit:, required_documents:, required_requirements:
         )
+      end
+
+      def workflow_snapshot
+        @workflow_snapshot ||= CandidateWorkflows::StateSnapshotService.call(candidate: @candidate)
       end
     end
   end

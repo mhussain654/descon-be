@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -251,6 +251,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_190000) do
     t.bigint "candidate_assignment_id", null: false
     t.datetime "created_at", null: false
     t.bigint "from_workflow_stage_id"
+    t.jsonb "metadata", default: {}, null: false
     t.text "note"
     t.datetime "occurred_at", null: false
     t.string "reason_code"
@@ -258,6 +259,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_190000) do
     t.datetime "updated_at", null: false
     t.index ["actor_id"], name: "index_candidate_stage_histories_on_actor_id"
     t.index ["candidate_assignment_id", "occurred_at"], name: "index_candidate_stage_histories_on_assignment_and_occurred_at"
+    t.index ["candidate_assignment_id", "to_workflow_stage_id"], name: "index_stage_histories_on_assignment_and_destination_stage", unique: true
     t.index ["candidate_assignment_id"], name: "index_candidate_stage_histories_on_candidate_assignment_id"
     t.index ["from_workflow_stage_id", "occurred_at"], name: "index_candidate_stage_histories_on_from_stage_and_occurred_at"
     t.index ["from_workflow_stage_id"], name: "index_candidate_stage_histories_on_from_workflow_stage_id"

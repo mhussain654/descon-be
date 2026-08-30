@@ -10,6 +10,7 @@ module Candidates
       {
         candidate_status: @progress.candidate_status,
         current_workflow_stage: serialized_workflow_stage,
+        workflow: serialized_workflow,
         documents: serialized_documents
       }
     end
@@ -32,6 +33,16 @@ module Candidates
         submission_state: @progress.documents.submission_state,
         blocking_requirements: serialized_blocking_requirements
       )
+    end
+
+    def serialized_workflow
+      {
+        timeline: @progress.workflow_timeline,
+        completed_count: @progress.workflow_completed_count,
+        total_count: @progress.workflow_total_count,
+        progress_percentage: @progress.workflow_progress_percentage,
+        updated_at: @progress.workflow_updated_at
+      }
     end
 
     def serialized_workflow_stage

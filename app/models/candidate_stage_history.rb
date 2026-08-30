@@ -11,6 +11,7 @@ class CandidateStageHistory < ApplicationRecord
   belongs_to :actor, class_name: 'User', optional: true
 
   validates :occurred_at, presence: true
+  validates :metadata, exclusion: { in: [nil] }
   validates :reason_code, format: { with: CODE_FORMAT }, allow_blank: true
   validate :transition_stages_are_distinct
 

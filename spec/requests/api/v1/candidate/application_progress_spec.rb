@@ -46,8 +46,12 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
 
       expect(response).to have_http_status(:ok)
+      expect(response.headers['Cache-Control']).to eq('private, no-store')
+      expect(response.headers['ETag']).to be_present
       expect(response.parsed_body.dig('data', 'documents', 'submission_state')).to eq('no_assignment')
       expect(response.parsed_body.dig('data', 'documents', 'required_total')).to eq(0)
+      expect(response.parsed_body.dig('data', 'workflow', 'timeline').size).to eq(15)
+      expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(0)
     end
 
     it 'returns blocking requirements and localized names for the authenticated candidate only' do
@@ -67,7 +71,62 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.parsed_body.dig('data', 'documents', 'required_total')).to eq(1)
       expect(response.parsed_body.dig('data', 'documents', 'submission_state')).to eq('ready')
       expect(response.parsed_body.dig('data', 'current_workflow_stage', 'name')).to be_present
+      expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'code')).to eq('registered')
+      expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'status')).to eq('current')
       expect(response.headers['Content-Language']).to eq('ur')
+    end
+
+    it 'reports stage 4 progress using completed exit timestamps and current-stage entry timestamps' do
+      travel_to(Time.zone.parse('2026-08-29T12:00:00Z')) do
+        candidate = create(:candidate)
+        assignment = create(
+          :candidate_assignment,
+          candidate:,
+          current_workflow_stage: WorkflowStage.find_by!(code: 'under_verification'),
+          created_at: Time.zone.parse('2026-08-29T08:00:00Z'),
+          updated_at: Time.zone.parse('2026-08-29T11:00:00Z')
+        )
+
+        create(
+          :candidate_stage_history,
+          candidate_assignment: assignment,
+          from_workflow_stage: WorkflowStage.find_by!(code: 'registered'),
+          to_workflow_stage: WorkflowStage.find_by!(code: 'documents_pending'),
+          occurred_at: Time.zone.parse('2026-08-29T09:00:00Z')
+        )
+        create(
+          :candidate_stage_history,
+          candidate_assignment: assignment,
+          from_workflow_stage: WorkflowStage.find_by!(code: 'documents_pending'),
+          to_workflow_stage: WorkflowStage.find_by!(code: 'documents_uploaded'),
+          occurred_at: Time.zone.parse('2026-08-29T10:00:00Z')
+        )
+        create(
+          :candidate_stage_history,
+          candidate_assignment: assignment,
+          from_workflow_stage: WorkflowStage.find_by!(code: 'documents_uploaded'),
+          to_workflow_stage: WorkflowStage.find_by!(code: 'under_verification'),
+          occurred_at: Time.zone.parse('2026-08-29T11:00:00Z')
+        )
+
+        get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body.dig('data', 'workflow', 'completed_count')).to eq(3)
+        expect(response.parsed_body.dig('data', 'workflow', 'total_count')).to eq(15)
+        expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(20)
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'completed_at'))
+          .to eq('2026-08-29T09:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 1, 'completed_at'))
+          .to eq('2026-08-29T10:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 2, 'completed_at'))
+          .to eq('2026-08-29T11:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'status')).to eq('current')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'started_at')).to eq('2026-08-29T11:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'completed_at')).to be_nil
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 4, 'started_at')).to be_nil
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 4, 'completed_at')).to be_nil
+      end
     end
 
     it 'treats an expired required PCC as a blocking requirement with stable expired reason' do
@@ -88,11 +147,12 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
         get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
 
         expect(response).to have_http_status(:ok)
+        blocking_requirements = response.parsed_body.dig('data', 'documents', 'blocking_requirements')
+        blocking_requirement = blocking_requirements.find { |item| item['requirement_code'] == pcc_code }
+
         expect(response.parsed_body.dig('data', 'documents', 'can_submit')).to be(false)
-        expect(
-          response.parsed_body.dig('data', 'documents', 'blocking_requirements', 0, 'requirement_code')
-        ).to eq(pcc_code)
-        expect(response.parsed_body.dig('data', 'documents', 'blocking_requirements', 0, 'reason')).to eq('expired')
+        expect(blocking_requirement).to be_present
+        expect(blocking_requirement.fetch('reason')).to eq('expired')
         expect(response.parsed_body.dig('data', 'documents', 'verified')).to eq(1)
       end
     end

@@ -8,6 +8,10 @@ module Api
           authorize current_candidate, policy_class: ::Candidates::ApplicationProgressPolicy
 
           progress = ::Candidates::ApplicationProgress::SummaryService.call(candidate: current_candidate)
+          set_private_state_headers(
+            updated_at: current_candidate.current_assignment&.updated_at,
+            etag_key: "#{current_candidate.public_id}:application_progress"
+          )
           render_success(data: ::Candidates::ApplicationProgressSerializer.new(progress).as_json)
         end
       end
