@@ -111,6 +111,50 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       expect(response.parsed_body.dig('data', 'completed_count')).to eq(15)
       expect(response.parsed_body.dig('data', 'progress_percentage')).to eq(100)
     end
+
+    it 'exposes candidate-safe qvc attempts and protection details without internal notes or staff identity' do
+      candidate = create(:candidate)
+      assignment = create(
+        :candidate_assignment,
+        candidate:,
+        current_workflow_stage: WorkflowStage.find_by!(code: 'protected_ready_to_fly')
+      )
+      actor = create(:user, role: 'mps')
+      create(
+        :candidate_qvc_attempt,
+        candidate_assignment: assignment,
+        scheduled_by: actor,
+        attempt_number: 1,
+        appointment_date: Date.new(2026, 9, 1),
+        outcome_code: 'approved',
+        outcome_recorded_at: Time.zone.parse('2026-09-02T10:00:00Z'),
+        outcome_recorded_by: actor,
+        internal_note: 'internal scheduling note'
+      )
+      create(
+        :candidate_protection_record,
+        candidate_assignment: assignment,
+        appeared_on: Date.new(2026, 9, 10),
+        appeared_recorded_at: Time.zone.parse('2026-09-10T10:00:00Z'),
+        appeared_recorded_by: actor,
+        protected_on: Date.new(2026, 9, 12),
+        ready_to_fly_at: Time.zone.parse('2026-09-12T14:00:00Z'),
+        ready_recorded_by: actor
+      )
+
+      get '/api/v1/candidate/workflow_state',
+          headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'qvc_attempts', 0, 'outcome_code')).to eq('approved')
+      expect(response.parsed_body.dig('data', 'qvc_attempts', 0, 'status')).to eq('approved')
+      expect(response.parsed_body.dig('data', 'protection', 'appeared_on')).to eq('2026-09-10')
+      expect(response.parsed_body.dig('data', 'protection', 'ready_to_fly_at')).to eq('2026-09-12T14:00:00Z')
+      expect(response.body).not_to include('internal scheduling note')
+      expect(response.body).not_to include(actor.public_id)
+      expect(response.body).not_to include('scheduled_by')
+      expect(response.body).not_to include('outcome_recorded_by')
+    end
   end
 
   describe 'GET /api/v1/candidate/workflow_history' do

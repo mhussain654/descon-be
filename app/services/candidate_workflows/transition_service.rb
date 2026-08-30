@@ -93,7 +93,7 @@ module CandidateWorkflows
     end
 
     def record_post_transition_events!(history_entry:, context:, transitioned_at:)
-      PostTransitionEventRecorder.call(
+      TransitionSideEffectRecorder.call(
         history_entry:,
         context:,
         transition: transition_record(transitioned_at)

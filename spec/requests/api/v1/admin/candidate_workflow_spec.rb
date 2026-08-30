@@ -335,8 +335,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
           to_stage_code: 'qvc_completed_outcome_received',
           evidence: {
             appointment_date: 'anything',
-            qvc_outcome_code: 'unknown',
-            qvc_outcome_date: 'not-a-date'
+            qvc_outcome_code: 'unknown'
           }
         }
       }

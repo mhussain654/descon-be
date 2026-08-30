@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_140500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_182400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -213,6 +213,58 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_140500) do
     t.index ["candidate_id"], name: "index_candidate_otp_challenges_on_candidate_id"
     t.index ["cnic", "created_at"], name: "index_candidate_otp_challenges_on_cnic_and_created_at"
     t.check_constraint "attempts >= 0", name: "candidate_otp_challenges_attempts_range"
+  end
+
+  create_table "candidate_protection_records", force: :cascade do |t|
+    t.date "appeared_on"
+    t.datetime "appeared_recorded_at"
+    t.bigint "appeared_recorded_by_id"
+    t.bigint "candidate_assignment_id", null: false
+    t.datetime "created_at", null: false
+    t.date "protected_on"
+    t.string "public_id", null: false
+    t.bigint "ready_recorded_by_id"
+    t.datetime "ready_to_fly_at"
+    t.datetime "updated_at", null: false
+    t.index ["appeared_on"], name: "index_candidate_protection_records_on_appeared_on"
+    t.index ["appeared_recorded_by_id"], name: "index_candidate_protection_records_on_appeared_recorded_by_id"
+    t.index ["candidate_assignment_id"], name: "index_candidate_protection_records_on_candidate_assignment_id", unique: true
+    t.index ["public_id"], name: "index_candidate_protection_records_on_public_id", unique: true
+    t.index ["ready_recorded_by_id"], name: "index_candidate_protection_records_on_ready_recorded_by_id"
+    t.index ["ready_to_fly_at"], name: "index_candidate_protection_records_on_ready_to_fly_at"
+    t.check_constraint "appeared_on IS NULL AND appeared_recorded_at IS NULL AND appeared_recorded_by_id IS NULL OR appeared_on IS NOT NULL AND appeared_recorded_at IS NOT NULL AND appeared_recorded_by_id IS NOT NULL", name: "candidate_protection_records_appearance_fields_consistent"
+    t.check_constraint "protected_on IS NULL AND ready_to_fly_at IS NULL AND ready_recorded_by_id IS NULL OR protected_on IS NOT NULL AND ready_to_fly_at IS NOT NULL AND ready_recorded_by_id IS NOT NULL", name: "candidate_protection_records_ready_fields_consistent"
+    t.check_constraint "protected_on IS NULL OR appeared_on IS NOT NULL", name: "candidate_protection_records_ready_requires_appearance"
+    t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "candidate_protection_records_public_id_format"
+  end
+
+  create_table "candidate_qvc_attempts", force: :cascade do |t|
+    t.date "appointment_date", null: false
+    t.integer "attempt_number", null: false
+    t.bigint "candidate_assignment_id", null: false
+    t.datetime "created_at", null: false
+    t.text "internal_note"
+    t.boolean "no_show", default: false, null: false
+    t.string "outcome_code"
+    t.datetime "outcome_recorded_at"
+    t.bigint "outcome_recorded_by_id"
+    t.string "public_id", null: false
+    t.bigint "scheduled_by_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["candidate_assignment_id", "appointment_date"], name: "index_qvc_attempts_on_assignment_and_appointment_date"
+    t.index ["candidate_assignment_id", "attempt_number"], name: "index_qvc_attempts_on_assignment_and_attempt_number", unique: true
+    t.index ["candidate_assignment_id"], name: "index_qvc_attempts_on_assignment_when_open", unique: true, where: "(outcome_recorded_at IS NULL)"
+    t.index ["no_show"], name: "index_candidate_qvc_attempts_on_no_show"
+    t.index ["outcome_code"], name: "index_candidate_qvc_attempts_on_outcome_code"
+    t.index ["outcome_recorded_at"], name: "index_candidate_qvc_attempts_on_outcome_recorded_at"
+    t.index ["outcome_recorded_by_id"], name: "index_candidate_qvc_attempts_on_outcome_recorded_by_id"
+    t.index ["public_id"], name: "index_candidate_qvc_attempts_on_public_id", unique: true
+    t.index ["scheduled_by_id"], name: "index_candidate_qvc_attempts_on_scheduled_by_id"
+    t.check_constraint "NOT (no_show = true AND outcome_code IS NOT NULL)", name: "candidate_qvc_attempts_no_show_outcome_exclusive"
+    t.check_constraint "attempt_number > 0", name: "candidate_qvc_attempts_attempt_number_positive"
+    t.check_constraint "outcome_code IS NULL AND no_show = false AND outcome_recorded_at IS NULL AND outcome_recorded_by_id IS NULL OR (outcome_code IS NOT NULL OR no_show = true) AND outcome_recorded_at IS NOT NULL AND outcome_recorded_by_id IS NOT NULL", name: "candidate_qvc_attempts_outcome_fields_consistent"
+    t.check_constraint "outcome_code IS NULL OR (outcome_code::text = ANY (ARRAY['approved'::text, 're_medical'::text, 'rejected'::text]))", name: "candidate_qvc_attempts_outcome_code_values"
+    t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "candidate_qvc_attempts_public_id_format"
   end
 
   create_table "candidate_refresh_tokens", force: :cascade do |t|
@@ -586,6 +638,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_140500) do
   add_foreign_key "candidate_documents", "users", column: "uploaded_by_id"
   add_foreign_key "candidate_documents", "users", column: "verified_by_id"
   add_foreign_key "candidate_otp_challenges", "candidates"
+  add_foreign_key "candidate_protection_records", "candidate_assignments"
+  add_foreign_key "candidate_protection_records", "users", column: "appeared_recorded_by_id"
+  add_foreign_key "candidate_protection_records", "users", column: "ready_recorded_by_id"
+  add_foreign_key "candidate_qvc_attempts", "candidate_assignments"
+  add_foreign_key "candidate_qvc_attempts", "users", column: "outcome_recorded_by_id"
+  add_foreign_key "candidate_qvc_attempts", "users", column: "scheduled_by_id"
   add_foreign_key "candidate_refresh_tokens", "candidate_refresh_tokens", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "candidate_refresh_tokens", "candidate_sessions"
   add_foreign_key "candidate_sessions", "candidates"

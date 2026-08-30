@@ -22,10 +22,18 @@ module CandidateWorkflows
       case @destination_stage.code
       when 'documents_uploaded'
         documents_uploaded_result
+      when 'under_verification'
+        documents_uploaded_result
       when 'fee_pending', 'verified'
         verified_documents_result
       when 'fee_paid', 'documents_shared_with_qatar_bu'
         fee_paid_result
+      when 'visa_issued_or_rejected'
+        qvc_approved_result
+      when 'appeared_for_protection'
+        appeared_for_protection_result
+      when 'protected_ready_to_fly'
+        protected_ready_to_fly_result
       else
         evidence_result
       end
@@ -118,6 +126,35 @@ module CandidateWorkflows
       blocked_result(field: 'candidate_workflow_transition.to_stage_code', blocking_reasons: ['payment_required'])
     end
 
+    def qvc_approved_result
+      latest_attempt = latest_completed_qvc_attempt
+
+      return blocked_result(field: 'candidate_workflow_transition.to_stage_code',
+                            blocking_reasons: ['qvc_approval_required']) if latest_attempt.blank?
+      return blocked_result(field: 'candidate_workflow_transition.to_stage_code',
+                            blocking_reasons: ['qvc_rejected']) if latest_attempt.outcome_code == 'rejected'
+      return allowed_with_evidence_result if latest_attempt.outcome_code == 'approved'
+
+      blocked_result(field: 'candidate_workflow_transition.to_stage_code', blocking_reasons: ['qvc_approval_required'])
+    end
+
+    def appeared_for_protection_result
+      qvc_result = qvc_approved_result
+      return qvc_result unless qvc_result.allowed
+
+      return blocked_result(field: 'candidate_workflow_transition.to_stage_code',
+                            blocking_reasons: ['visa_issued_required']) unless latest_visa_outcome_code == 'issued'
+
+      evidence_result
+    end
+
+    def protected_ready_to_fly_result
+      return blocked_result(field: 'candidate_workflow_transition.to_stage_code',
+                            blocking_reasons: ['protection_appearance_required']) if protection_record&.appeared_on.blank?
+
+      evidence_result
+    end
+
     def evidence_result
       required_fields = TransitionService.required_fields_for(@destination_stage.code)
       return allowed_result if required_fields.empty?
@@ -130,6 +167,36 @@ module CandidateWorkflows
         required_fields: required_fields,
         blocking_reasons: [StageRequirements.field_required_blocking_reason(missing_field)]
       )
+    end
+
+    def allowed_with_evidence_result
+      evidence_fields = TransitionService.required_fields_for(@destination_stage.code)
+      return allowed_result if evidence_fields.empty?
+
+      evidence_result
+    end
+
+    def latest_completed_qvc_attempt
+      @latest_completed_qvc_attempt ||= @assignment.candidate_qvc_attempts
+                                                  .where.not(outcome_recorded_at: nil)
+                                                  .latest_first
+                                                  .first
+    end
+
+    def latest_visa_outcome_code
+      latest_visa_history_entry&.metadata&.[]('visa_outcome_code')
+    end
+
+    def latest_visa_history_entry
+      @latest_visa_history_entry ||= @assignment.candidate_stage_histories
+                                                .joins(:to_workflow_stage)
+                                                .where(workflow_stages: { code: 'visa_issued_or_rejected' })
+                                                .order(occurred_at: :desc, id: :desc)
+                                                .first
+    end
+
+    def protection_record
+      @protection_record ||= @assignment.candidate_protection_record
     end
 
     def evidence_field(field_name)

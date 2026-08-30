@@ -2,7 +2,7 @@
 
 module CandidateWorkflows
   module StageRequirements
-    QVC_OUTCOME_CODES = %w[approved re_medical_required rejected].freeze
+    QVC_OUTCOME_CODES = %w[approved re_medical rejected].freeze
     VISA_OUTCOME_CODES = %w[issued rejected].freeze
 
     STAGE_RULES = {
@@ -12,11 +12,10 @@ module CandidateWorkflows
         field_types: { 'appointment_date' => :iso_date }
       },
       'qvc_completed_outcome_received' => {
-        required_fields: %w[qvc_outcome_code qvc_outcome_date],
-        allowed_fields: %w[qvc_outcome_code qvc_outcome_date],
+        required_fields: %w[qvc_outcome_code],
+        allowed_fields: %w[qvc_outcome_code],
         field_types: {
-          'qvc_outcome_code' => { type: :enum, values: QVC_OUTCOME_CODES },
-          'qvc_outcome_date' => :iso_date
+          'qvc_outcome_code' => { type: :enum, values: QVC_OUTCOME_CODES }
         }
       },
       'visa_issued_or_rejected' => {

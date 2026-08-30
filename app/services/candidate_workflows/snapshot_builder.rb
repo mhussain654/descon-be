@@ -16,6 +16,8 @@ module CandidateWorkflows
         timeline:,
         history:,
         history_entries: stage_histories,
+        qvc_attempts: loaded_qvc_attempts,
+        protection_record: loaded_protection_record,
         completed_count:,
         total_count: @stages.length,
         progress_percentage: progress_percentage,
@@ -126,6 +128,18 @@ module CandidateWorkflows
                  .order(:occurred_at, :id)
       relation = relation.includes(:actor) if @include_history_actor
       relation.to_a
+    end
+
+    def loaded_qvc_attempts
+      return [] if @assignment.blank?
+
+      @assignment.candidate_qvc_attempts.ordered.to_a
+    end
+
+    def loaded_protection_record
+      return if @assignment.blank?
+
+      @assignment.candidate_protection_record
     end
 
     def current_stage_status = terminal_workflow? ? 'completed' : 'current'
