@@ -8,7 +8,7 @@ module Candidates
 
       def initialize(candidate:, attributes:, request_id:)
         @candidate = candidate
-        @attributes = Attributes.new(**attributes.slice(:account_title, :account_number, :bank_name, :proof))
+        @attributes = Attributes.new(**normalized_attributes(attributes))
         @request_id = request_id
       end
 
@@ -27,6 +27,15 @@ module Candidates
       end
 
       private
+
+      def normalized_attributes(attributes)
+        {
+          account_title: attributes[:account_title],
+          account_number: attributes[:account_number],
+          bank_name: attributes[:bank_name],
+          proof: attributes[:proof]
+        }
+      end
 
       def validate_request!
         Candidates::BankDetails::RequestValidator.call(
