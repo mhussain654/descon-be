@@ -71,6 +71,14 @@ ur:
       workflow_transition_evidence_date_invalid: "YYYY-MM-DD فارمیٹ میں درست تاریخ درج کریں۔"
       workflow_transition_evidence_enum_invalid: "اس ثبوتی فیلڈ کے لیے معاونت یافتہ قدر منتخب کریں۔"
       workflow_transition_evidence_value_invalid: "اس ثبوتی فیلڈ کے لیے درست قدر درج کریں۔"
+      candidate_bank_detail_not_found: "امیدوار کے بینک کی تفصیلات نہیں ملیں۔"
+      bank_detail_proof_access_forbidden: "آپ کو اس بینک پروف تک رسائی کی اجازت نہیں ہے۔"
+      bank_proof_attachment_missing: "درخواست کردہ بینک پروف فائل دستیاب نہیں ہے۔"
+      missing_account_title: "اکاؤنٹ ٹائٹل درج کریں۔"
+      missing_account_number: "اکاؤنٹ نمبر یا آئی بین درج کریں۔"
+      missing_bank_name: "بینک کا نام درج کریں۔"
+      missing_proof: "چیک یا اے ٹی ایم پروف فائل منسلک کریں۔"
+      invalid_account_number: "درست اکاؤنٹ نمبر یا آئی بین درج کریں۔"
     authentication:
       login_succeeded: "لاگ اِن کامیاب رہا۔"
       refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"
@@ -115,6 +123,9 @@ ur:
         validation_failed: "یہ قطار امپورٹ نہیں ہو سکی۔"
     candidate_document_submissions:
       submitted: "دستاویزات جانچ کے لیے جمع کرا دی گئی ہیں۔"
+    candidate_bank_details:
+      submitted: "بینک کی تفصیلات کامیابی سے جمع کرا دی گئی ہیں۔"
+      updated: "بینک کی تفصیلات کامیابی سے اپ ڈیٹ کر دی گئی ہیں۔"
     pagination:
       page: "صفحہ"
       per_page: "فی صفحہ آئٹمز"

@@ -7,5 +7,5 @@
 # See the ActiveSupport::ParameterFilter documentation for supported notations and behaviors.
 Rails.application.config.filter_parameters += %i[
   passw email secret token refresh_token authorization _key crypt salt certificate
-  otp ssn cvv cvc cnic phone phone_number
+  otp ssn cvv cvc cnic phone phone_number account_title account_number iban bank_detail proof
 ]

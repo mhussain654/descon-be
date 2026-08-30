@@ -416,6 +416,135 @@ components:
         active:
           type: boolean
       required: [id, full_name, masked_cnic, reference_number, preferred_locale, candidate_status, active]
+    CandidateBankProofMetadata:
+      type: object
+      properties:
+        file_name:
+          type: string
+        content_type:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png]
+        file_size:
+          type: integer
+        uploaded_at:
+          type: string
+          format: date-time
+      required: [file_name, content_type, file_size, uploaded_at]
+    CandidateBankDetailRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [submitted]
+        account_title:
+          type: string
+        account_number:
+          type: string
+          description: Masked candidate-facing account number that preserves no more than the final four characters.
+        bank_name:
+          type: string
+        proof:
+          $ref: '#/components/schemas/CandidateBankProofMetadata'
+        submitted_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, status, account_title, account_number, bank_name, proof, submitted_at, updated_at]
+    CandidateBankDetailState:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [missing, submitted]
+        bank_detail:
+          anyOf:
+            - $ref: '#/components/schemas/CandidateBankDetailRecord'
+            - type: 'null'
+        message:
+          type: string
+      required: [status, bank_detail]
+    CandidateBankDetailUpsertRequest:
+      type: object
+      properties:
+        bank_detail:
+          type: object
+          required: [account_title, account_number, bank_name, proof]
+          properties:
+            account_title:
+              type: string
+            account_number:
+              type: string
+              description: Account number or IBAN. The backend strips spaces and validates the normalized alphanumeric value.
+            bank_name:
+              type: string
+            proof:
+              type: string
+              format: binary
+      required: [bank_detail]
+    AdminCandidateBankDetailCandidate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+      required: [id, full_name]
+    AdminCandidateBankDetailAssignment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference_number:
+          type: string
+      required: [id, reference_number]
+    AdminCandidateBankDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        candidate:
+          $ref: '#/components/schemas/AdminCandidateBankDetailCandidate'
+        assignment:
+          $ref: '#/components/schemas/AdminCandidateBankDetailAssignment'
+        status:
+          type: string
+          enum: [submitted]
+        account_title:
+          type: string
+        account_number:
+          type: string
+          description: Masked unless the authenticated staff policy grants unmasked banking access.
+        bank_name:
+          type: string
+        proof:
+          $ref: '#/components/schemas/CandidateBankProofMetadata'
+        submitted_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, candidate, assignment, status, account_title, account_number, bank_name, proof, submitted_at, updated_at]
+    AdminCandidateBankProofAccess:
+      type: object
+      properties:
+        bank_detail_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required: [bank_detail_id, url, expires_at]
     CandidateDocumentMetadata:
       type: object
       properties:
@@ -1814,6 +1943,203 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/bank_details:
+    get:
+      summary: Fetch the authenticated candidate bank-detail submission state
+      description: >-
+        Returns only the authenticated candidate's current bank-detail state for the
+        current assignment. Candidate identity is derived exclusively from the candidate
+        bearer token, staff tokens are rejected, and account numbers are always masked.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate bank-detail state retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                missingEn:
+                  value:
+                    data:
+                      status: missing
+                      bank_detail: null
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
+                submittedUr:
+                  value:
+                    data:
+                      status: submitted
+                      bank_detail:
+                        id: d86f5c87-4379-433a-9a29-c8c3d51f859a
+                        status: submitted
+                        account_title: احمد علی
+                        account_number: '****************6702'
+                        bank_name: میزان بینک
+                        proof:
+                          file_name: cheque.pdf
+                          content_type: application/pdf
+                          file_size: 123456
+                          uploaded_at: '2026-08-28T12:00:00Z'
+                        submitted_at: '2026-08-28T12:00:00Z'
+                        updated_at: '2026-08-28T12:00:00Z'
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+    put:
+      summary: Submit or replace the authenticated candidate bank details
+      description: >-
+        Accepts a private multipart upload for the authenticated candidate's current
+        assignment. The backend validates the account fields, requires one cheque or ATM
+        proof file, stores the proof privately, masks account numbers in the response,
+        and replays the original result when the same authenticated candidate retries
+        with the same idempotency key and payload. The stored fingerprint excludes both
+        bearer tokens and plaintext banking values.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateBankDetailUpsertRequest'
+      responses:
+        '201':
+          description: Bank details created or idempotent create replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                createdEn:
+                  value:
+                    data:
+                      status: submitted
+                      bank_detail:
+                        id: d86f5c87-4379-433a-9a29-c8c3d51f859a
+                        status: submitted
+                        account_title: Ahmed Ali
+                        account_number: '****************6702'
+                        bank_name: Meezan Bank
+                        proof:
+                          file_name: cheque.pdf
+                          content_type: application/pdf
+                          file_size: 123456
+                          uploaded_at: '2026-08-28T12:00:00Z'
+                        submitted_at: '2026-08-28T12:00:00Z'
+                        updated_at: '2026-08-28T12:00:00Z'
+                      message: Bank details submitted successfully.
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
+        '200':
+          description: Bank details replaced successfully
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updatedUr:
+                  value:
+                    data:
+                      status: submitted
+                      bank_detail:
+                        id: d86f5c87-4379-433a-9a29-c8c3d51f859a
+                        status: submitted
+                        account_title: احمد علی
+                        account_number: '****************6702'
+                        bank_name: میزان بینک
+                        proof:
+                          file_name: atm-proof.png
+                          content_type: image/png
+                          file_size: 123456
+                          uploaded_at: '2026-08-28T12:15:00Z'
+                        submitted_at: '2026-08-28T12:15:00Z'
+                        updated_at: '2026-08-28T12:15:00Z'
+                      message: بینک کی تفصیلات کامیابی سے اپ ڈیٹ کر دی گئی ہیں۔
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-08-28T12:15:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '409':
+          description: Idempotency conflict or in-progress duplicate request
+        '422':
+          description: Validation failure for missing banking fields, invalid account number, unsupported proof file, empty proof, oversized proof, or missing current assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingProof:
+                  value:
+                    errors:
+                      - code: missing_proof
+                        field: bank_detail.proof
+                        message: Attach a cheque or ATM proof file.
+                    request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                    timestamp: '2026-08-28T12:00:00Z'
+                invalidAccountNumberUr:
+                  value:
+                    errors:
+                      - code: invalid_account_number
+                        field: bank_detail.account_number
+                        message: درست اکاؤنٹ نمبر یا آئی بین درج کریں۔
+                    request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                    timestamp: '2026-08-28T12:00:00Z'
+                noAssignment:
+                  value:
+                    errors:
+                      - code: no_current_assignment
+                        message: No current assignment is available for this candidate.
+                    request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                    timestamp: '2026-08-28T12:00:00Z'
+        '429':
+          description: Rate limited
   /api/v1/candidate/documents:
     get:
       summary: Fetch the authenticated candidate document checklist
@@ -3042,6 +3368,153 @@ paths:
                         message: Document submission not found.
                     request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
                     timestamp: '2026-08-27T10:00:02Z'
+  /api/v1/admin/candidates/{candidate_id}/bank_details:
+    get:
+      summary: Retrieve the current bank details for one candidate
+      description: >-
+        Returns the current bank details for the candidate's current assignment. Access
+        is policy-controlled. Roles with `view_payments` receive masked account numbers.
+        Roles with `manage_payments` may receive the unmasked account number, and each
+        unmasked read is audited.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: candidate_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Candidate bank details retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                maskedManagement:
+                  value:
+                    data:
+                      id: d86f5c87-4379-433a-9a29-c8c3d51f859a
+                      candidate:
+                        id: 8eb86882-f506-4dba-83df-1cfdcc84d872
+                        full_name: Ahmed Ali
+                      assignment:
+                        id: 1a48e789-5f08-44bf-84e5-7f6b17a4cab1
+                        reference_number: DES-001001
+                      status: submitted
+                      account_title: Ahmed Ali
+                      account_number: '****************6702'
+                      bank_name: Meezan Bank
+                      proof:
+                        file_name: cheque.pdf
+                        content_type: application/pdf
+                        file_size: 123456
+                        uploaded_at: '2026-08-28T12:00:00Z'
+                      submitted_at: '2026-08-28T12:00:00Z'
+                      updated_at: '2026-08-28T12:00:00Z'
+                    meta:
+                      request_id: c7fb2c54-1d39-4ebf-829d-7d4d5d4ce896
+                      timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
+                unmaskedFinanceUr:
+                  value:
+                    data:
+                      id: d86f5c87-4379-433a-9a29-c8c3d51f859a
+                      candidate:
+                        id: 8eb86882-f506-4dba-83df-1cfdcc84d872
+                        full_name: احمد علی
+                      assignment:
+                        id: 1a48e789-5f08-44bf-84e5-7f6b17a4cab1
+                        reference_number: DES-001001
+                      status: submitted
+                      account_title: احمد علی
+                      account_number: PK24SCBL0000001123456702
+                      bank_name: میزان بینک
+                      proof:
+                        file_name: cheque.pdf
+                        content_type: application/pdf
+                        file_size: 123456
+                        uploaded_at: '2026-08-28T12:00:00Z'
+                      submitted_at: '2026-08-28T12:00:00Z'
+                      updated_at: '2026-08-28T12:00:00Z'
+                    meta:
+                      request_id: c7fb2c54-1d39-4ebf-829d-7d4d5d4ce896
+                      timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks bank-detail permission or is inactive
+        '404':
+          description: Candidate bank details not found for the candidate's current assignment
+  /api/v1/admin/candidates/{candidate_id}/bank_details/proof_access:
+    post:
+      summary: Generate a short-lived private proof access path for candidate bank details
+      description: >-
+        Returns a private Active Storage proxy path for the current bank proof belonging
+        to the candidate's current assignment. Access requires the unmasked banking-data
+        permission because the proof itself can disclose full banking details. The path
+        is short-lived, non-public, and every successful access is audited.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: candidate_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Short-lived private proof access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                proofAccess:
+                  value:
+                    data:
+                      bank_detail_id: d86f5c87-4379-433a-9a29-c8c3d51f859a
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/cheque.pdf?disposition=inline
+                      expires_at: '2026-08-28T12:05:00Z'
+                    meta:
+                      request_id: c7fb2c54-1d39-4ebf-829d-7d4d5d4ce896
+                      timestamp: '2026-08-28T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks proof-access permission or is inactive
+        '404':
+          description: Candidate bank details not found for the candidate's current assignment
+        '422':
+          description: Proof attachment is unavailable
   /api/v1/admin/candidate_documents/{candidate_document_id}/access:
     post:
       summary: Generate a short-lived private access path for a submitted document

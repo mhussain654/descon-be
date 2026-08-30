@@ -211,6 +211,33 @@ FactoryBot.define do
     end
   end
 
+  factory :candidate_bank_detail do
+    candidate_assignment
+    reviewed_by { nil }
+    public_id { SecureRandom.uuid }
+    status_code { 'submitted' }
+    account_title { 'Ahmed Ali' }
+    account_number { 'PK24SCBL0000001123456702' }
+    bank_name { 'Sample Bank' }
+    proof_filename { 'cheque.pdf' }
+    proof_content_type { 'application/pdf' }
+    proof_byte_size { 1024 }
+    proof_checksum_sha256 { 'b' * 64 }
+    submitted_at { Time.current }
+    reviewed_at { nil }
+    superseded_at { nil }
+
+    after(:build) do |bank_detail|
+      next if bank_detail.proof.attached?
+
+      bank_detail.proof.attach(
+        io: Rails.root.join('spec/fixtures/files/test.pdf').open,
+        filename: 'cheque.pdf',
+        content_type: 'application/pdf'
+      )
+    end
+  end
+
   factory :candidate_document_submission do
     candidate_assignment
     public_id { SecureRandom.uuid }
