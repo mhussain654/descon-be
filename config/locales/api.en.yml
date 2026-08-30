@@ -65,6 +65,14 @@ en:
       document_attachment_missing: "The requested document file is unavailable."
       document_access_forbidden: "You are not allowed to access this document."
       review_not_allowed: "You are not allowed to review this document."
+      candidate_bank_detail_not_found: "Candidate bank details not found."
+      bank_detail_proof_access_forbidden: "You are not allowed to access this bank proof."
+      bank_proof_attachment_missing: "The requested bank proof file is unavailable."
+      missing_account_title: "Enter the account title."
+      missing_account_number: "Enter the account number or IBAN."
+      missing_bank_name: "Enter the bank name."
+      missing_proof: "Attach a cheque or ATM proof file."
+      invalid_account_number: "Enter a valid account number or IBAN."
     authentication:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."
@@ -109,6 +117,9 @@ en:
         validation_failed: "This row could not be imported."
     candidate_document_submissions:
       submitted: "Documents submitted for review."
+    candidate_bank_details:
+      submitted: "Bank details submitted successfully."
+      updated: "Bank details updated successfully."
     pagination:
       page: "Page"
       per_page: "Items per page"

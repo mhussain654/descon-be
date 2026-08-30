@@ -11,6 +11,7 @@ class CandidateAssignment < ApplicationRecord
   belongs_to :created_by, class_name: 'User'
 
   has_many :candidate_stage_histories, dependent: :restrict_with_exception
+  has_many :candidate_bank_details, dependent: :restrict_with_exception
   has_many :candidate_documents, dependent: :restrict_with_exception
   has_many :candidate_document_submissions, dependent: :restrict_with_exception
   has_many :payments, dependent: :restrict_with_exception

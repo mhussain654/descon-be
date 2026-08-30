@@ -417,6 +417,77 @@ Production storage note:
 - The production environment no longer falls back to `local` storage for uploads
 - Leaving `ACTIVE_STORAGE_SERVICE` unset in production now fails fast during boot instead of silently storing candidate documents on local disk
 
+## Candidate bank details
+
+Candidate bank-detail capture is isolated from the candidate-document checklist and future payment workflows.
+
+- `GET /api/v1/candidate/bank_details` returns the authenticated candidate's current bank-detail submission state
+- `PUT /api/v1/candidate/bank_details` creates or replaces the current bank detail and proof for the authenticated candidate
+- `GET /api/v1/admin/candidates/:candidate_id/bank_details` returns the current bank detail for one candidate's current assignment
+- `POST /api/v1/admin/candidates/:candidate_id/bank_details/proof_access` returns a short-lived private proof-access path
+
+Candidate behavior:
+
+- Candidate identity comes only from the candidate bearer token; staff tokens are rejected
+- Active candidates may create or replace exactly one current bank-detail record for their current assignment
+- The mutation is multipart and accepts `bank_detail[account_title]`, `bank_detail[account_number]`, `bank_detail[bank_name]`, and one mandatory `bank_detail[proof]`
+- `Idempotency-Key` is supported for safe retry; replay is scoped to the authenticated candidate and the request fingerprint excludes the bearer token so retries still succeed after token renewal
+- Reusing an idempotency key with a different payload returns `409 idempotency_conflict`
+- Proof uploads reuse the existing private Active Storage validation rules: PDF, JPEG, and PNG only, non-empty file, and the configured `CANDIDATE_DOCUMENT_MAX_BYTES` maximum size
+- Replacement is atomic: if validation, persistence, or audit creation fails, the previous current bank detail and proof remain in place and unattached new blobs are purged
+
+Data protection:
+
+- `account_title` and `account_number` are encrypted at rest with Rails Active Record encryption
+- Production must provide `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`, `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY`, and `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT`
+- Candidate responses always return a masked account number with only the final four characters preserved
+- Internal numeric IDs, encryption ciphertext, storage keys, disk paths, checksums, and proof contents are never returned
+- Parameter filtering excludes bank-detail plaintext values and proof payloads from application logs
+
+Staff authorization and access:
+
+- Staff access uses the existing policy layer and backend-issued effective permissions
+- Roles with active `view_payments` receive masked bank details
+- Roles with active `manage_payments` may receive the unmasked account number and request proof access
+- Candidate tokens are rejected from the admin banking endpoints
+- The proof-access endpoint returns a short-lived private Active Storage proxy path, not a public URL
+- Both the JSON proof-access response and the proxied proof response are returned with `Cache-Control: private, no-store`
+
+Audit behavior:
+
+- Audit events are recorded for initial bank-detail submission, replacement, unmasked staff reads, and proof access
+- Audit metadata is limited to safe public identifiers, request ID, and timestamp context
+- Audit records never include plaintext bank values, proof metadata beyond the current record, storage keys, checksums, or raw multipart payloads
+
+Example candidate bank-detail submission:
+
+```bash
+curl -X PUT http://localhost:3000/api/v1/candidate/bank_details \
+  -H "Authorization: Bearer <candidate_access_token>" \
+  -H "X-Locale: en" \
+  -H "Idempotency-Key: candidate-bank-detail-20260829-001" \
+  -F "bank_detail[account_title]=Ahmed Ali" \
+  -F "bank_detail[account_number]=PK24SCBL0000001123456702" \
+  -F "bank_detail[bank_name]=Meezan Bank" \
+  -F "bank_detail[proof]=@spec/fixtures/files/test.pdf;type=application/pdf"
+```
+
+Example staff bank-detail lookup:
+
+```bash
+curl \
+  -H "Authorization: Bearer <staff_access_token>" \
+  http://localhost:3000/api/v1/admin/candidates/<candidate_public_id>/bank_details
+```
+
+Example staff proof-access request:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <staff_access_token>" \
+  http://localhost:3000/api/v1/admin/candidates/<candidate_public_id>/bank_details/proof_access
+```
+
 ## Admin document review and verification
 
 Admin review is isolated from candidate-facing upload/submission APIs.
