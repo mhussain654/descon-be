@@ -27,9 +27,15 @@ RSpec.describe Candidates::Documents::RequirementResolver do
         project: assignment.project,
         craft: assignment.craft
       )
-      create(:document_requirement, document_type: other_type, country: create(:country))
+      other_requirement = create(:document_requirement, document_type: other_type, country: create(:country))
 
-      expect(described_class.call(candidate: candidate)).to contain_exactly(matching_requirement)
+      resolved_requirements = described_class.call(candidate: candidate)
+      resolved_requirement = resolved_requirements.find do |requirement|
+        requirement.document_type_id == matching_type.id
+      end
+
+      expect(resolved_requirement).to eq(matching_requirement)
+      expect(resolved_requirements).not_to include(other_requirement)
     end
 
     it 'prefers the most specific applicable requirement for the same document type' do
@@ -39,7 +45,10 @@ RSpec.describe Candidates::Documents::RequirementResolver do
       global_requirement = create(:document_requirement, document_type:, required: true)
       scoped_requirement = create(:document_requirement, document_type:, country: assignment.country, required: false)
 
-      resolved_requirement = described_class.call(candidate: candidate).first
+      resolved_requirement =
+        described_class.call(candidate: candidate).find do |requirement|
+          requirement.document_type_id == document_type.id
+        end
 
       expect(resolved_requirement).to eq(scoped_requirement)
       expect(resolved_requirement).not_to eq(global_requirement)

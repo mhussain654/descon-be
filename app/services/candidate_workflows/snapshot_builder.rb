@@ -34,15 +34,13 @@ module CandidateWorkflows
       @history_by_stage_code ||= stage_histories.index_by { |history_entry| history_entry.to_workflow_stage.code }
     end
 
-    def current_stage_hash
-      return if current_stage.blank?
-
-      serialize_stage(current_stage, status: 'current')
+    def history_from_stage_code
+      @history_from_stage_code ||= stage_histories.index_by { |history_entry| history_entry.from_workflow_stage&.code }
     end
 
-    def timeline
-      @stages.map { |stage| serialize_stage(stage, status: timeline_status_for(stage)) }
-    end
+    def current_stage_hash = current_stage.present? ? serialize_stage(current_stage, status: current_stage_status) : nil
+
+    def timeline = @stages.map { |stage| serialize_stage(stage, status: timeline_status_for(stage)) }
 
     def history
       stage_histories.map do |history_entry|
@@ -77,24 +75,20 @@ module CandidateWorkflows
     end
 
     def completed_at_for(stage)
-      history_entry = history_by_stage_code[stage.code]
-      return history_entry.occurred_at if history_entry.present?
-      return @assignment&.created_at if stage.code == WorkflowStage.registered.code && current_position.present?
+      return history_by_stage_code[stage.code]&.occurred_at if terminal_stage?(stage) && terminal_workflow?
 
-      nil
+      history_from_stage_code[stage.code]&.occurred_at
     end
 
     def started_at_for(stage)
-      return completed_at_for(stage) if stage.position == 1
+      return @assignment&.created_at if stage.code == WorkflowStage.registered.code
 
-      previous_stage = @stages.find { |candidate_stage| candidate_stage.position == stage.position - 1 }
-      return if previous_stage.blank?
-
-      completed_at_for(previous_stage)
+      history_by_stage_code[stage.code]&.occurred_at
     end
 
     def timeline_status_for(stage)
       return 'pending' if current_position.blank?
+      return 'completed' if terminal_workflow? && stage.position <= current_position
       return 'completed' if stage.position < current_position
       return 'current' if stage.position == current_position
 
@@ -106,7 +100,7 @@ module CandidateWorkflows
     def completed_count
       return 0 if current_position.blank?
 
-      current_position - 1
+      terminal_workflow? ? current_position : current_position - 1
     end
 
     def progress_percentage
@@ -116,9 +110,8 @@ module CandidateWorkflows
     end
 
     def serialized_updated_at
-      return if @assignment.blank? || @assignment.updated_at.blank?
-
-      @assignment.updated_at.utc.iso8601
+      updated_at = @assignment&.updated_at
+      updated_at&.utc&.iso8601
     end
 
     def loaded_stage_histories
@@ -129,6 +122,14 @@ module CandidateWorkflows
         .includes(:from_workflow_stage, :to_workflow_stage)
         .order(:occurred_at, :id)
         .to_a
+    end
+
+    def current_stage_status = terminal_workflow? ? 'completed' : 'current'
+
+    def terminal_workflow? = terminal_stage?(current_stage)
+
+    def terminal_stage?(stage)
+      stage&.code == 'mobilized'
     end
   end
 end

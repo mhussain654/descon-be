@@ -76,7 +76,7 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.headers['Content-Language']).to eq('ur')
     end
 
-    it 'reports stage 4 progress using only completed prior stages and uses started_at for the current stage' do
+    it 'reports stage 4 progress using completed exit timestamps and current-stage entry timestamps' do
       travel_to(Time.zone.parse('2026-08-29T12:00:00Z')) do
         candidate = create(:candidate)
         assignment = create(
@@ -84,7 +84,7 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
           candidate:,
           current_workflow_stage: WorkflowStage.find_by!(code: 'under_verification'),
           created_at: Time.zone.parse('2026-08-29T08:00:00Z'),
-          updated_at: Time.zone.parse('2026-08-29T10:00:00Z')
+          updated_at: Time.zone.parse('2026-08-29T11:00:00Z')
         )
 
         create(
@@ -101,6 +101,13 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
           to_workflow_stage: WorkflowStage.find_by!(code: 'documents_uploaded'),
           occurred_at: Time.zone.parse('2026-08-29T10:00:00Z')
         )
+        create(
+          :candidate_stage_history,
+          candidate_assignment: assignment,
+          from_workflow_stage: WorkflowStage.find_by!(code: 'documents_uploaded'),
+          to_workflow_stage: WorkflowStage.find_by!(code: 'under_verification'),
+          occurred_at: Time.zone.parse('2026-08-29T11:00:00Z')
+        )
 
         get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
 
@@ -108,9 +115,17 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
         expect(response.parsed_body.dig('data', 'workflow', 'completed_count')).to eq(3)
         expect(response.parsed_body.dig('data', 'workflow', 'total_count')).to eq(15)
         expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(20)
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'completed_at'))
+          .to eq('2026-08-29T09:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 1, 'completed_at'))
+          .to eq('2026-08-29T10:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 2, 'completed_at'))
+          .to eq('2026-08-29T11:00:00Z')
         expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'status')).to eq('current')
-        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'started_at')).to eq('2026-08-29T10:00:00Z')
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'started_at')).to eq('2026-08-29T11:00:00Z')
         expect(response.parsed_body.dig('data', 'workflow', 'timeline', 3, 'completed_at')).to be_nil
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 4, 'started_at')).to be_nil
+        expect(response.parsed_body.dig('data', 'workflow', 'timeline', 4, 'completed_at')).to be_nil
       end
     end
 
@@ -132,11 +147,12 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
         get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
 
         expect(response).to have_http_status(:ok)
+        blocking_requirements = response.parsed_body.dig('data', 'documents', 'blocking_requirements')
+        blocking_requirement = blocking_requirements.find { |item| item['requirement_code'] == pcc_code }
+
         expect(response.parsed_body.dig('data', 'documents', 'can_submit')).to be(false)
-        expect(
-          response.parsed_body.dig('data', 'documents', 'blocking_requirements', 0, 'requirement_code')
-        ).to eq(pcc_code)
-        expect(response.parsed_body.dig('data', 'documents', 'blocking_requirements', 0, 'reason')).to eq('expired')
+        expect(blocking_requirement).to be_present
+        expect(blocking_requirement.fetch('reason')).to eq('expired')
         expect(response.parsed_body.dig('data', 'documents', 'verified')).to eq(1)
       end
     end

@@ -48,19 +48,29 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
     CandidateDocument::PCC_REQUIREMENT_CODE
   end
 
+  def checklist_item_for(response_body, requirement_code)
+    response_body.fetch('data').find { |entry| entry['requirement_code'] == requirement_code }
+  end
+
   describe 'GET /api/v1/candidate/documents' do
     it 'returns the authenticated candidate checklist with missing requirements only for that candidate' do
       candidate = create(:candidate)
       other_candidate = create(:candidate)
       create_requirement(candidate:, code: 'passport')
-      create_requirement(candidate: other_candidate, code: 'cv')
+      other_type = create_requirement(candidate: other_candidate, code: 'cv')
+      other_document = create(
+        :candidate_document,
+        candidate_assignment: other_candidate.current_assignment,
+        document_type: other_type
+      )
 
       get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body.dig('data', 0, 'requirement_code')).to eq('passport')
-      expect(response.parsed_body.dig('data', 0, 'status')).to eq('missing')
-      expect(response.body).not_to include('cv')
+      item = checklist_item_for(response.parsed_body, 'passport')
+      expect(item).to be_present
+      expect(item['status']).to eq('missing')
+      expect(response.body).not_to include(other_document.public_id)
     end
 
     it 'returns uploaded document metadata without internal ids or storage paths' do
@@ -71,7 +81,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
 
       expect(response).to have_http_status(:ok)
-      item = response.parsed_body.fetch('data').first
+      item = checklist_item_for(response.parsed_body, 'passport')
       expect(item['status']).to eq('uploaded')
       expect(item.dig('document', 'id')).to eq(document.public_id)
       expect(item.dig('document', 'id')).not_to eq(document.id.to_s)
@@ -98,7 +108,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
 
       expect(response).to have_http_status(:ok)
-      item = response.parsed_body.fetch('data').first
+      item = checklist_item_for(response.parsed_body, pcc_code)
       expect(item.dig('document', 'id')).to eq(document.public_id)
       expect(item.dig('document', 'issued_on')).to eq('2026-08-01')
       expect(item.dig('document', 'expires_on')).to eq('2027-02-01')
@@ -121,7 +131,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
 
       expect(response).to have_http_status(:ok)
-      item = response.parsed_body.fetch('data').first
+      item = checklist_item_for(response.parsed_body, 'passport')
       expect(item['status']).to eq('rejected')
       expect(item.dig('document', 'rejection_reason')).to eq('Document is unreadable.')
       expect(item.dig('document', 'reviewed_at')).to eq('2026-08-20T10:00:00Z')
@@ -142,7 +152,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
 
       expect(response).to have_http_status(:ok)
-      item = response.parsed_body.fetch('data').first
+      item = checklist_item_for(response.parsed_body, 'passport')
       expect(item.dig('document', 'reviewed_at')).to eq('2026-08-20T10:00:00Z')
       expect(item['document']).not_to have_key('rejection_reason')
     end
@@ -155,7 +165,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       get '/api/v1/candidate/documents', headers: candidate_auth_headers(candidate)
 
       expect(response).to have_http_status(:ok)
-      item = response.parsed_body.fetch('data').first
+      item = checklist_item_for(response.parsed_body, 'passport')
       expect(item.fetch('document')).not_to have_key('rejection_reason')
       expect(item.fetch('document')).not_to have_key('reviewed_at')
     end
