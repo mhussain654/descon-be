@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module CandidateWorkflows
+  # rubocop:disable Metrics/ClassLength
   class TransitionService < ApplicationService
     def self.required_fields_for(stage_code) = StageRequirements.required_fields_for(stage_code)
 
@@ -34,7 +35,7 @@ module CandidateWorkflows
     def assign_transition_attributes(transition_options)
       @to_stage_code = normalized_code(transition_options[:to_stage_code])
       @expected_current_stage_code = normalized_code(transition_options[:expected_current_stage_code])
-      @reason_code = normalized_code(transition_options[:reason_code])
+      @reason_code = resolved_reason_code(transition_options[:reason_code])
       @note = transition_options[:note].to_s.strip.presence
       @evidence = normalized_evidence(transition_options[:evidence])
     end
@@ -47,6 +48,7 @@ module CandidateWorkflows
       transitioned_at = Time.current
       persist_workflow_state!(context:, transitioned_at:)
       history_entry = record_transition!(context:, transitioned_at:)
+      record_post_transition_events!(history_entry:, context:, transitioned_at:)
       { history_entry:, snapshot: StateSnapshotService.call(candidate: context.fetch(:candidate)) }
     end
 
@@ -90,7 +92,21 @@ module CandidateWorkflows
       )
     end
 
+    def record_post_transition_events!(history_entry:, context:, transitioned_at:)
+      PostTransitionEventRecorder.call(
+        history_entry:,
+        context:,
+        transition: transition_record(transitioned_at)
+      )
+    end
+
     def normalized_code(value) = value.to_s.strip.downcase.presence
+
+    def resolved_reason_code(value)
+      return 'qatar_bu_shared' if @to_stage_code == 'documents_shared_with_qatar_bu'
+
+      normalized_code(value)
+    end
 
     def normalized_evidence(evidence)
       evidence.to_h.each_with_object({}) do |(key, value), normalized|
@@ -120,4 +136,5 @@ module CandidateWorkflows
       }
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

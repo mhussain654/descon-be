@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
 module CandidateWorkflows
+  # rubocop:disable Metrics/ClassLength
   class SnapshotBuilder < ApplicationService
-    def initialize(assignment:, candidate_status:, stages:)
+    def initialize(assignment:, candidate_status:, stages:, include_history_actor: false)
       @assignment = assignment
       @candidate_status = candidate_status
       @stages = stages
+      @include_history_actor = include_history_actor
     end
 
     def call
@@ -13,6 +15,7 @@ module CandidateWorkflows
         current_stage: current_stage_hash,
         timeline:,
         history:,
+        history_entries: stage_histories,
         completed_count:,
         total_count: @stages.length,
         progress_percentage: progress_percentage,
@@ -117,11 +120,12 @@ module CandidateWorkflows
     def loaded_stage_histories
       return [] if @assignment.blank?
 
-      @assignment
-        .candidate_stage_histories
-        .includes(:from_workflow_stage, :to_workflow_stage)
-        .order(:occurred_at, :id)
-        .to_a
+      relation = @assignment
+                 .candidate_stage_histories
+                 .includes(:from_workflow_stage, :to_workflow_stage)
+                 .order(:occurred_at, :id)
+      relation = relation.includes(:actor) if @include_history_actor
+      relation.to_a
     end
 
     def current_stage_status = terminal_workflow? ? 'completed' : 'current'
@@ -132,4 +136,5 @@ module CandidateWorkflows
       stage&.code == 'mobilized'
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

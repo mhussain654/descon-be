@@ -183,6 +183,18 @@ FactoryBot.define do
     metadata { {} }
   end
 
+  factory :candidate_workflow_event do
+    candidate_assignment
+    candidate { candidate_assignment.candidate }
+    candidate_stage_history { association(:candidate_stage_history, candidate_assignment:) }
+    actor { nil }
+    event_code { 'documents_shared_with_qatar_bu_confirmed' }
+    request_id { SecureRandom.uuid }
+    occurred_at { Time.current }
+    payload { {} }
+    published_at { nil }
+  end
+
   factory :candidate_document do
     candidate_assignment
     document_type

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_140500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -144,7 +144,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
     t.bigint "candidate_document_id", null: false
     t.bigint "candidate_document_submission_id", null: false
     t.datetime "created_at", null: false
-    t.boolean "required", null: false
+    t.boolean "required", default: false, null: false
     t.string "requirement_code", null: false
     t.datetime "updated_at", null: false
     t.index ["candidate_document_id"], name: "index_candidate_doc_submission_items_on_document_id", unique: true
@@ -196,8 +196,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
     t.index ["public_id"], name: "index_candidate_documents_on_public_id", unique: true
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
-    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
-    t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_documents_status_code"
+    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying]::text[])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
+    t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])", name: "candidate_documents_status_code"
   end
 
   create_table "candidate_otp_challenges", force: :cascade do |t|
@@ -269,6 +269,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
     t.check_constraint "reason_code IS NULL OR reason_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_stage_histories_reason_code_format"
   end
 
+  create_table "candidate_workflow_events", force: :cascade do |t|
+    t.bigint "actor_id"
+    t.bigint "candidate_assignment_id", null: false
+    t.bigint "candidate_id", null: false
+    t.bigint "candidate_stage_history_id", null: false
+    t.datetime "created_at", null: false
+    t.string "event_code", null: false
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "published_at"
+    t.string "request_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_candidate_workflow_events_on_actor_id"
+    t.index ["candidate_assignment_id", "occurred_at"], name: "index_workflow_events_on_assignment_and_occurred_at"
+    t.index ["candidate_assignment_id"], name: "index_candidate_workflow_events_on_candidate_assignment_id"
+    t.index ["candidate_id"], name: "index_candidate_workflow_events_on_candidate_id"
+    t.index ["candidate_stage_history_id", "event_code"], name: "index_workflow_events_on_history_and_event_code", unique: true
+    t.index ["candidate_stage_history_id"], name: "index_candidate_workflow_events_on_candidate_stage_history_id"
+    t.index ["event_code"], name: "index_candidate_workflow_events_on_event_code"
+    t.check_constraint "event_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_workflow_events_event_code_format"
+  end
+
   create_table "candidates", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "cnic", null: false
@@ -290,8 +312,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
     t.check_constraint "cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_cnic_format"
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
-    t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
-    t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
+    t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidates_preferred_locale"
+    t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying, 'csv_import'::character varying]::text[])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"
   end
 
@@ -318,9 +340,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
     t.index ["provider_reference"], name: "index_communications_on_provider_reference"
     t.index ["public_id"], name: "index_communications_on_public_id", unique: true
     t.check_constraint "channel_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_channel_code_format"
-    t.check_constraint "direction_code::text = ANY (ARRAY['inbound'::character varying::text, 'outbound'::character varying::text])", name: "communications_direction_code"
+    t.check_constraint "direction_code::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying]::text[])", name: "communications_direction_code"
     t.check_constraint "error_code IS NULL OR error_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_error_code_format"
-    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "communications_locale"
+    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "communications_locale"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_status_code_format"
     t.check_constraint "template_code IS NULL OR template_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_template_code_format"
   end
@@ -397,7 +419,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
     t.check_constraint "char_length(key_digest::text) = 64", name: "idempotency_keys_key_digest_length"
     t.check_constraint "request_method::text ~ '^[A-Z]+$'::text", name: "idempotency_keys_request_method_format"
     t.check_constraint "status::text = 'processing'::text AND response_status IS NULL AND response_payload IS NULL AND completed_at IS NULL OR status::text = 'completed'::text AND response_status IS NOT NULL AND response_payload IS NOT NULL AND completed_at IS NOT NULL", name: "idempotency_keys_response_consistency"
-    t.check_constraint "status::text = ANY (ARRAY['processing'::character varying::text, 'completed'::character varying::text])", name: "idempotency_keys_status"
+    t.check_constraint "status::text = ANY (ARRAY['processing'::character varying, 'completed'::character varying]::text[])", name: "idempotency_keys_status"
   end
 
   create_table "payments", force: :cascade do |t|
@@ -525,8 +547,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
     t.index ["role"], name: "index_users_on_role"
     t.index ["staff_state"], name: "index_users_on_staff_state"
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
-    t.check_constraint "staff_state::text = 'active'::text AND active = true OR (staff_state::text = ANY (ARRAY['invited'::character varying::text, 'suspended'::character varying::text])) AND active = false", name: "users_staff_state_matches_active"
-    t.check_constraint "staff_state::text = ANY (ARRAY['invited'::character varying::text, 'active'::character varying::text, 'suspended'::character varying::text])", name: "users_staff_state"
+    t.check_constraint "staff_state::text = 'active'::text AND active = true OR (staff_state::text = ANY (ARRAY['invited'::character varying, 'suspended'::character varying]::text[])) AND active = false", name: "users_staff_state_matches_active"
+    t.check_constraint "staff_state::text = ANY (ARRAY['invited'::character varying, 'active'::character varying, 'suspended'::character varying]::text[])", name: "users_staff_state"
   end
 
   create_table "workflow_stages", force: :cascade do |t|
@@ -571,6 +593,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_103000) do
   add_foreign_key "candidate_stage_histories", "users", column: "actor_id"
   add_foreign_key "candidate_stage_histories", "workflow_stages", column: "from_workflow_stage_id"
   add_foreign_key "candidate_stage_histories", "workflow_stages", column: "to_workflow_stage_id"
+  add_foreign_key "candidate_workflow_events", "candidate_assignments"
+  add_foreign_key "candidate_workflow_events", "candidate_stage_histories"
+  add_foreign_key "candidate_workflow_events", "candidates"
+  add_foreign_key "candidate_workflow_events", "users", column: "actor_id"
   add_foreign_key "candidates", "users", column: "created_by_id"
   add_foreign_key "communications", "candidate_assignments"
   add_foreign_key "communications", "users", column: "initiated_by_id"

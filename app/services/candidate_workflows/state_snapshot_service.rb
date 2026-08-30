@@ -9,14 +9,16 @@ module CandidateWorkflows
       :current_stage,
       :timeline,
       :history,
+      :history_entries,
       :completed_count,
       :total_count,
       :progress_percentage,
       :updated_at
     )
 
-    def initialize(candidate:)
+    def initialize(candidate:, include_history_actor: false)
       @candidate = candidate
+      @include_history_actor = include_history_actor
     end
 
     def call
@@ -33,7 +35,8 @@ module CandidateWorkflows
       SnapshotBuilder.call(
         assignment:,
         candidate_status: @candidate.status_code,
-        stages:
+        stages:,
+        include_history_actor: @include_history_actor
       )
     end
   end

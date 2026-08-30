@@ -68,6 +68,7 @@ en:
       invalid_workflow_transition: "The requested workflow transition is not allowed."
       workflow_transition_prerequisite_missing: "Complete the required workflow evidence before continuing."
       workflow_transition_stale: "The workflow changed before this request could be applied. Refresh and try again."
+      workflow_transition_expected_stage_required: "Provide the expected current workflow stage before confirming Qatar BU sharing."
       workflow_transition_evidence_field_unexpected: "This evidence field is not allowed for the requested workflow stage."
       workflow_transition_evidence_date_invalid: "Enter a valid date in YYYY-MM-DD format."
       workflow_transition_evidence_enum_invalid: "Select a supported value for this evidence field."
