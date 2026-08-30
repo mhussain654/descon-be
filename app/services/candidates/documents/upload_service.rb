@@ -2,6 +2,7 @@
 
 module Candidates
   module Documents
+    # rubocop:disable Metrics/ClassLength
     class UploadService < ApplicationService
       ALLOWED_CONTENT_TYPES = %w[application/pdf image/jpeg image/png].freeze
       MAX_FILE_BYTES = ENV.fetch('CANDIDATE_DOCUMENT_MAX_BYTES', 5.megabytes).to_i
@@ -16,7 +17,6 @@ module Candidates
         @expires_on_supplied = expires_on_supplied?(pcc_attributes)
       end
 
-      # rubocop:disable Metrics/MethodLength
       def call
         blob = nil
 
@@ -26,14 +26,12 @@ module Candidates
         raise UnsupportedFileTypeError unless ALLOWED_CONTENT_TYPES.include?(file_details.content_type)
 
         blob = build_blob
-        uploaded_document = persist_upload(file_details:, blob:)
-        advance_workflow!
+        uploaded_document = persist_upload_and_advance_workflow(file_details:, blob:)
         ChecklistItemBuilder.call(requirement:, document: uploaded_document)
       rescue StandardError
         purge_blob(blob)
         raise
       end
-      # rubocop:enable Metrics/MethodLength
 
       private
 
@@ -89,6 +87,14 @@ module Candidates
         )
       end
 
+      def persist_upload_and_advance_workflow(file_details:, blob:)
+        ActiveRecord::Base.transaction do
+          uploaded_document = persist_upload(file_details:, blob:)
+          advance_workflow!
+          uploaded_document
+        end
+      end
+
       def inspected_file_details
         @inspected_file_details ||= UploadedFileInspector.call(uploaded_file: @uploaded_file)
       end
@@ -125,5 +131,6 @@ module Candidates
         pcc_attributes.key?(:expires_on)
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

@@ -52,6 +52,10 @@ RSpec.describe Candidates::Documents::UploadService do
       expect(document.file).to be_attached
       expect(assignment.reload.current_workflow_stage.code).to eq('documents_uploaded')
       expect(candidate.reload.status_code).to eq('documents_uploaded')
+      expect(CandidateDocument.current_version.where(candidate_assignment: assignment, document_type:).count).to eq(1)
+      expect(AuditEvent.where(action_code: 'candidate_document_uploaded').count).to eq(1)
+      expect(AuditEvent.where(action_code: 'candidate_workflow_transitioned').count).to eq(2)
+      expect(assignment.candidate_stage_histories.where(reason_code: 'auto_documents_uploaded').count).to eq(2)
     end
 
     it 'captures issue date and calculates PCC expiry exactly six calendar months later' do
@@ -146,6 +150,9 @@ RSpec.describe Candidates::Documents::UploadService do
       expect(result.status).to eq('uploaded')
       expect(existing_document.reload.superseded_at).to be_present
       expect(CandidateDocument.current_version.where(candidate_assignment: assignment, document_type:).count).to eq(1)
+      expect(AuditEvent.where(action_code: 'candidate_document_replaced').count).to eq(1)
+      expect(AuditEvent.where(action_code: 'candidate_workflow_transitioned').count).to eq(2)
+      expect(assignment.candidate_stage_histories.where(reason_code: 'auto_documents_uploaded').count).to eq(2)
     end
 
     it 'advances to documents_uploaded only after every mandatory requirement has a compliant upload' do
@@ -261,6 +268,63 @@ RSpec.describe Candidates::Documents::UploadService do
 
       expect(existing_document.reload.superseded_at).to be_nil
       expect(CandidateDocument.current_version.where(candidate_assignment: assignment, document_type:).count).to eq(1)
+      expect(ActiveStorage::Blob.pluck(:id)).to match_array(original_blob_ids)
+    end
+
+    it 'rolls back a first-time upload when workflow transition persistence fails and purges the orphan blob' do
+      original_blob_ids = ActiveStorage::Blob.pluck(:id)
+
+      allow(CandidateWorkflows::TransitionRecorder).to receive(:call)
+        .and_raise(ActiveRecord::RecordInvalid.new(CandidateStageHistory.new))
+
+      expect do
+        described_class.call(
+          candidate:,
+          uploaded_file: fixture_upload('test.pdf', 'application/pdf'),
+          requirement_code: 'passport',
+          request_id: 'req-doc-upload-rollback-1'
+        )
+      end.to raise_error(ActiveRecord::RecordInvalid)
+
+      expect(CandidateDocument.current_version.where(candidate_assignment: assignment, document_type:).count).to eq(0)
+      expect(AuditEvent.where(action_code: 'candidate_document_uploaded')).to be_empty
+      expect(AuditEvent.where(action_code: 'candidate_workflow_transitioned')).to be_empty
+      expect(assignment.reload.candidate_stage_histories).to be_empty
+      expect(assignment.current_workflow_stage.code).to eq('registered')
+      expect(candidate.reload.status_code).to eq('registered')
+      expect(ActiveStorage::Blob.pluck(:id)).to match_array(original_blob_ids)
+    end
+
+    it 'rolls back a replacement upload when workflow transition persistence fails and keeps the previous ' \
+       'current document' do
+      existing_document = create(
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type:,
+        status_code: 'uploaded'
+      )
+      original_blob_ids = ActiveStorage::Blob.pluck(:id)
+
+      allow(CandidateWorkflows::TransitionRecorder).to receive(:call)
+        .and_raise(ActiveRecord::RecordInvalid.new(CandidateStageHistory.new))
+
+      expect do
+        described_class.call(
+          candidate:,
+          uploaded_file: fixture_upload('test.jpg', 'image/jpeg'),
+          requirement_code: 'passport',
+          request_id: 'req-doc-upload-rollback-2'
+        )
+      end.to raise_error(ActiveRecord::RecordInvalid)
+
+      expect(existing_document.reload.superseded_at).to be_nil
+      expect(CandidateDocument.current_version.where(candidate_assignment: assignment, document_type:).pluck(:id))
+        .to eq([existing_document.id])
+      expect(AuditEvent.where(action_code: 'candidate_document_replaced')).to be_empty
+      expect(AuditEvent.where(action_code: 'candidate_workflow_transitioned')).to be_empty
+      expect(assignment.reload.candidate_stage_histories).to be_empty
+      expect(assignment.current_workflow_stage.code).to eq('registered')
+      expect(candidate.reload.status_code).to eq('registered')
       expect(ActiveStorage::Blob.pluck(:id)).to match_array(original_blob_ids)
     end
 
