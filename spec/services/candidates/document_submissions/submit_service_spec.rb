@@ -47,13 +47,66 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     document_type
   end
 
+  def resolved_required_requirements(candidate:, assignment:)
+    Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
+  end
+
+  def create_required_documents(candidate:, assignment:, default_status:, overrides: {})
+    resolved_required_requirements(candidate:, assignment:).each do |requirement|
+      create_required_document(
+        assignment:,
+        requirement:,
+        default_status:,
+        overrides: overrides.fetch(requirement.document_type.code, {})
+      )
+    end
+  end
+
+  def create_required_document(assignment:, requirement:, default_status:, overrides:)
+    override_attributes = overrides.dup
+    return if override_attributes.delete(:skip_create)
+
+    status_code = override_attributes.fetch(:status_code, default_status)
+    attributes = {
+      candidate_assignment: assignment,
+      document_type: requirement.document_type,
+      status_code:
+    }.merge(default_status_attributes_for(status_code)).merge(override_attributes)
+
+    create(:candidate_document, **attributes)
+  end
+
+  def default_status_attributes_for(status_code)
+    case status_code
+    when 'verified'
+      { verified_by: create(:user), verified_at: Time.current }
+    when 'rejected'
+      { verified_by: create(:user), verified_at: Time.current, rejection_reason: 'blurred' }
+    else
+      {}
+    end
+  end
+
+  def blocking_requirement_for(error, requirement_code)
+    error.details[:blocking_requirements].find do |requirement|
+      requirement[:requirement_code] == requirement_code
+    end
+  end
+
   describe '.call' do
     it 'submits uploaded documents atomically and creates immutable evidence' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
       cv = create_requirement(assignment:, code: 'cv', required: false)
-      create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'uploaded')
+      create_required_documents(
+        candidate:,
+        assignment:,
+        default_status: 'verified',
+        overrides: {
+          'passport' => { document_type: passport, status_code: 'uploaded' }
+        }
+      )
       create(:candidate_document, candidate_assignment: assignment, document_type: cv, status_code: 'uploaded')
 
       result = described_class.call(candidate:, request_id: 'candidate-submit-1')
@@ -63,7 +116,18 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       expect(result.documents[:can_submit]).to be(false)
       expect(CandidateDocumentSubmission.count).to eq(1)
       expect(CandidateDocumentSubmissionItem.count).to eq(2)
-      expect(CandidateDocument.current_version.pluck(:status_code).uniq).to eq(['under_verification'])
+      expect(
+        CandidateDocument.current_version.find_by!(
+          candidate_assignment: assignment,
+          document_type: passport
+        ).status_code
+      ).to eq('under_verification')
+      expect(
+        CandidateDocument.current_version.find_by!(
+          candidate_assignment: assignment,
+          document_type: cv
+        ).status_code
+      ).to eq('under_verification')
       expect(AuditEvent.last.action_code).to eq('candidate_documents_submitted')
     end
 
@@ -71,11 +135,19 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       create_requirement(assignment:, code: 'passport')
+      create_required_documents(
+        candidate:,
+        assignment:,
+        default_status: 'verified',
+        overrides: {
+          'passport' => { skip_create: true }
+        }
+      )
 
       expect do
         described_class.call(candidate:, request_id: 'candidate-submit-2')
       end.to raise_error(DocumentsIncompleteError) { |error|
-        expect(error.details[:blocking_requirements].first[:reason]).to eq('missing')
+        expect(blocking_requirement_for(error, 'passport')&.fetch(:reason)).to eq('missing')
       }
 
       expect(CandidateDocumentSubmission.count).to eq(0)
@@ -86,20 +158,22 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
-      create(
-        :candidate_document,
-        candidate_assignment: assignment,
-        document_type: passport,
-        status_code: 'rejected',
-        verified_by: create(:user),
-        verified_at: Time.current,
-        rejection_reason: 'blurred'
+      create_required_documents(
+        candidate:,
+        assignment:,
+        default_status: 'verified',
+        overrides: {
+          'passport' => {
+            document_type: passport,
+            status_code: 'rejected'
+          }
+        }
       )
 
       expect do
         described_class.call(candidate:, request_id: 'candidate-submit-3')
       end.to raise_error(DocumentsRejectedError) { |error|
-        expect(error.details[:blocking_requirements].first[:reason]).to eq('rejected')
+        expect(blocking_requirement_for(error, 'passport')&.fetch(:reason)).to eq('rejected')
       }
     end
 
@@ -107,11 +181,13 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
-      create(
-        :candidate_document,
-        candidate_assignment: assignment,
-        document_type: passport,
-        status_code: 'under_verification'
+      create_required_documents(
+        candidate:,
+        assignment:,
+        default_status: 'verified',
+        overrides: {
+          'passport' => { document_type: passport, status_code: 'under_verification' }
+        }
       )
 
       expect do
@@ -123,12 +199,15 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
-      document = create(
-        :candidate_document,
-        candidate_assignment: assignment,
-        document_type: passport,
-        status_code: 'uploaded'
+      create_required_documents(
+        candidate:,
+        assignment:,
+        default_status: 'verified',
+        overrides: {
+          'passport' => { document_type: passport, status_code: 'uploaded' }
+        }
       )
+      document = CandidateDocument.current_version.find_by!(candidate_assignment: assignment, document_type: passport)
 
       allow(AuditEvent).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(AuditEvent.new))
 
@@ -144,7 +223,14 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
-      create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'uploaded')
+      create_required_documents(
+        candidate:,
+        assignment:,
+        default_status: 'verified',
+        overrides: {
+          'passport' => { document_type: passport, status_code: 'uploaded' }
+        }
+      )
       service = described_class.new(candidate:, request_id: 'candidate-submit-6')
       allow(service).to receive(:submit_document!).and_raise(ActiveRecord::RecordInvalid.new(CandidateDocument.new))
 
@@ -165,7 +251,14 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
-      create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'uploaded')
+      create_required_documents(
+        candidate:,
+        assignment:,
+        default_status: 'verified',
+        overrides: {
+          'passport' => { document_type: passport, status_code: 'uploaded' }
+        }
+      )
       outcomes = Queue.new
 
       worker = lambda do

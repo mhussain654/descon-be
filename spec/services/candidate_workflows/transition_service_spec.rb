@@ -56,6 +56,41 @@ RSpec.describe CandidateWorkflows::TransitionService do
     create(:candidate_document, candidate_assignment: assignment, document_type:, status_code: 'uploaded')
   end
 
+  def resolved_required_requirements(candidate:, assignment:)
+    Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
+  end
+
+  def create_required_documents(candidate:, assignment:, default_status:, overrides: {})
+    resolved_required_requirements(candidate:, assignment:).each do |requirement|
+      create_required_document(
+        assignment:,
+        requirement:,
+        default_status:,
+        overrides: overrides.fetch(requirement.document_type.code, {})
+      )
+    end
+  end
+
+  def create_required_document(assignment:, requirement:, default_status:, overrides:)
+    override_attributes = overrides.dup
+    return if override_attributes.delete(:skip_create)
+
+    status_code = override_attributes.fetch(:status_code, default_status)
+    attributes = {
+      candidate_assignment: assignment,
+      document_type: requirement.document_type,
+      status_code:
+    }.merge(default_status_attributes_for(status_code)).merge(override_attributes)
+
+    create(:candidate_document, **attributes)
+  end
+
+  def default_status_attributes_for(status_code)
+    return {} unless status_code == 'verified'
+
+    { verified_by: create(:user, role: 'admin'), verified_at: Time.current }
+  end
+
   def transition!(candidate:, actor:, to_stage_code:, **)
     described_class.call(
       actor:,
@@ -80,6 +115,14 @@ RSpec.describe CandidateWorkflows::TransitionService do
 
     transition!(candidate:, actor:, to_stage_code: 'documents_pending')
     create_uploaded_required_document(assignment:, code: 'passport')
+    create_required_documents(
+      candidate:,
+      assignment:,
+      default_status: 'uploaded',
+      overrides: {
+        'passport' => { skip_create: true }
+      }
+    )
     transition!(candidate:, actor:, to_stage_code: 'documents_uploaded')
     transition!(candidate:, actor:, to_stage_code: 'under_verification')
     CandidateDocument.current_version.where(candidate_assignment: assignment).find_each do |document|
