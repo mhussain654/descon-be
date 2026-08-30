@@ -24,7 +24,7 @@ module CandidateWorkflows
         documents_uploaded_result
       when 'fee_pending', 'verified'
         verified_documents_result
-      when 'fee_paid'
+      when 'fee_paid', 'documents_shared_with_qatar_bu'
         fee_paid_result
       else
         evidence_result
@@ -50,7 +50,7 @@ module CandidateWorkflows
       documents_by_type = current_documents(required_requirements)
       return allowed_result if requirements_verified?(required_requirements, documents_by_type)
 
-      requirements_not_verified_result
+      requirements_not_verified_result(required_requirements:, documents_by_type:)
     end
 
     def required_requirements_for_verification
@@ -64,10 +64,18 @@ module CandidateWorkflows
       required_requirements.all? { |requirement| verified_requirement?(requirement, documents_by_type) }
     end
 
-    def requirements_not_verified_result
+    def requirements_not_verified_result(required_requirements: required_requirements_for_verification,
+                                         documents_by_type: current_documents(required_requirements))
+      blocking_reason =
+        if expired_required_pcc?(required_requirements, documents_by_type)
+          'expired_pcc'
+        else
+          'required_documents_not_verified'
+        end
+
       blocked_result(
         field: 'candidate_workflow_transition.to_stage_code',
-        blocking_reasons: ['required_documents_not_verified']
+        blocking_reasons: [blocking_reason]
       )
     end
 
@@ -86,6 +94,13 @@ module CandidateWorkflows
       return true unless requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE
 
       document.compliance_status != 'expired'
+    end
+
+    def expired_required_pcc?(required_requirements, documents_by_type)
+      required_requirements.any? do |requirement|
+        requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE &&
+          documents_by_type[requirement.document_type_id]&.compliance_status == 'expired'
+      end
     end
 
     def fee_paid_result

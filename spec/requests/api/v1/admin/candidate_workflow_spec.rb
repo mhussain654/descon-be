@@ -16,6 +16,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     AuditEvent.delete_all
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
+    CandidateWorkflowEvent.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -35,6 +36,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     AuditEvent.delete_all
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
+    CandidateWorkflowEvent.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -89,6 +91,49 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     document_type = requirement_for(assignment:, code:)
     create(:candidate_document, candidate_assignment: assignment, document_type:, status_code: 'uploaded')
   end
+
+  def create_verified_requirement(assignment:, code:, issued_on: nil)
+    document_type = requirement_for(assignment:, code:)
+    create(
+      :candidate_document,
+      candidate_assignment: assignment,
+      document_type:,
+      status_code: 'verified',
+      verified_by: create(:user, role: 'admin'),
+      verified_at: Time.current,
+      issued_on:
+    )
+  end
+
+  # rubocop:disable Metrics/MethodLength
+  def prepare_fee_paid_candidate(include_pcc: false, pcc_issued_on: nil, payment_attributes: {})
+    candidate = create(:candidate, status_code: 'fee_paid')
+    assignment = create(
+      :candidate_assignment,
+      candidate:,
+      current_workflow_stage: workflow_stage('fee_paid')
+    )
+    create_verified_requirement(assignment:, code: 'passport')
+    if include_pcc
+      create_verified_requirement(
+        assignment:,
+        code: CandidateDocument::PCC_REQUIREMENT_CODE,
+        issued_on: pcc_issued_on || Date.current
+      )
+    end
+    create(
+      :payment,
+      {
+        candidate_assignment: assignment,
+        status_code: 'paid',
+        paid_at: Time.current,
+        external_reference: "PAY-QA-REQ-#{SecureRandom.hex(4)}"
+      }.merge(payment_attributes)
+    )
+
+    [candidate, assignment]
+  end
+  # rubocop:enable Metrics/MethodLength
 
   def transition_request(candidate:, token:, body:, headers: {})
     post "/api/v1/admin/candidates/#{candidate.public_id}/workflow_transitions",
@@ -352,6 +397,296 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     expect([results.pop, results.pop]).to contain_exactly(201, 409)
     expect(assignment.reload.current_workflow_stage.code).to eq('documents_pending')
     expect(CandidateStageHistory.count).to eq(1)
+  end
+
+  it 'confirms qatar bu sharing with one durable event, replays identical retries, and rejects same-key drift' do
+    actor = create(:user, role: 'mps')
+    candidate, assignment = prepare_fee_paid_candidate
+    token = access_token_for(actor)
+    body = {
+      candidate_workflow_transition: {
+        to_stage_code: 'documents_shared_with_qatar_bu',
+        expected_current_stage_code: 'fee_paid'
+      }
+    }
+
+    transition_request(candidate:, token:, headers: { 'Idempotency-Key' => 'wf-qatar-1' }, body:)
+    expect(response).to have_http_status(:created)
+    expect(response.parsed_body.dig('data', 'workflow', 'current_stage', 'code')).to eq(
+      'documents_shared_with_qatar_bu'
+    )
+    expect(response.parsed_body.dig('data', 'transition', 'reason_code')).to eq('qatar_bu_shared')
+    expect(response.parsed_body.dig('data', 'transition', 'actor', 'id')).to eq(actor.public_id)
+    expect(response.parsed_body.dig('data', 'transition', 'actor', 'role')).to eq('mps')
+    expect(CandidateWorkflowEvent.count).to eq(1)
+    expect(CandidateStageHistory.where(candidate_assignment: assignment).count).to eq(1)
+
+    transition_request(candidate:, token:, headers: { 'Idempotency-Key' => 'wf-qatar-1' }, body:)
+    expect(response).to have_http_status(:created)
+    expect(response.headers['Idempotency-Replayed']).to eq('true')
+    expect(CandidateWorkflowEvent.count).to eq(1)
+    expect(CandidateStageHistory.where(candidate_assignment: assignment).count).to eq(1)
+
+    transition_request(
+      candidate:,
+      token:,
+      headers: { 'Idempotency-Key' => 'wf-qatar-1' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid',
+          note: 'different payload'
+        }
+      }
+    )
+    expect(response).to have_http_status(:conflict)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
+    expect(CandidateWorkflowEvent.count).to eq(1)
+  end
+
+  it 'revalidates qatar bu sharing eligibility and returns stable blocking reasons' do
+    actor = create(:user, role: 'mps')
+    token = access_token_for(actor)
+
+    candidate_missing_document, _assignment_missing_document = prepare_fee_paid_candidate
+    CandidateDocument.delete_all
+
+    transition_request(
+      candidate: candidate_missing_document,
+      token:,
+      headers: { 'Idempotency-Key' => 'wf-qatar-missing-doc' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('workflow_transition_prerequisite_missing')
+    expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons')).to eq(
+      ['required_documents_not_verified']
+    )
+    expect(CandidateWorkflowEvent.count).to eq(0)
+
+    candidate_expired_pcc, assignment_expired_pcc = prepare_fee_paid_candidate(
+      include_pcc: true,
+      pcc_issued_on: Date.new(2026, 1, 1)
+    )
+    transition_request(
+      candidate: candidate_expired_pcc,
+      token:,
+      headers: { 'Idempotency-Key' => 'wf-qatar-expired-pcc', 'X-Locale' => 'ur' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.headers['Content-Language']).to eq('ur')
+    expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons')).to eq(['expired_pcc'])
+    expect(assignment_expired_pcc.reload.current_workflow_stage.code).to eq('fee_paid')
+
+    candidate_invalid_payment, assignment_invalid_payment = prepare_fee_paid_candidate(
+      payment_attributes: { external_reference: nil }
+    )
+    transition_request(
+      candidate: candidate_invalid_payment,
+      token:,
+      headers: { 'Idempotency-Key' => 'wf-qatar-payment' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons')).to eq(['payment_required'])
+    expect(assignment_invalid_payment.reload.current_workflow_stage.code).to eq('fee_paid')
+  end
+
+  it 'rejects qatar bu sharing for wrong stage, missing expected stage, unauthorized actors, and inactive staff' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'verified')
+    create(:candidate_assignment, candidate:, current_workflow_stage: workflow_stage('verified'))
+
+    transition_request(
+      candidate:,
+      token: access_token_for(actor),
+      headers: { 'Idempotency-Key' => 'wf-qatar-wrong-stage' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'verified'
+        }
+      }
+    )
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_workflow_transition')
+    expect(CandidateWorkflowEvent.count).to eq(0)
+
+    sharable_candidate, = prepare_fee_paid_candidate
+    transition_request(
+      candidate: sharable_candidate,
+      token: access_token_for(actor),
+      headers: { 'Idempotency-Key' => 'wf-qatar-missing-expected', 'X-Locale' => 'ur' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu'
+        }
+      }
+    )
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.headers['Content-Language']).to eq('ur')
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq(
+      'candidate_workflow_transition.expected_current_stage_code'
+    )
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('validation_failed')
+
+    hr = create(:user, role: 'hr')
+    transition_request(
+      candidate: sharable_candidate,
+      token: access_token_for(hr),
+      headers: { 'Idempotency-Key' => 'wf-qatar-hr' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+    expect(response).to have_http_status(:forbidden)
+
+    management = create(:user, role: 'management')
+    transition_request(
+      candidate: sharable_candidate,
+      token: access_token_for(management),
+      headers: { 'Idempotency-Key' => 'wf-qatar-management' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+    expect(response).to have_http_status(:forbidden)
+
+    inactive_mps = create(:user, role: 'mps')
+    inactive_token = access_token_for(inactive_mps)
+    inactive_mps.update!(active: false)
+    transition_request(
+      candidate: sharable_candidate,
+      token: inactive_token,
+      headers: { 'Idempotency-Key' => 'wf-qatar-inactive' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+    expect(response).to have_http_status(:forbidden)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('inactive_account')
+
+    transition_request(
+      candidate: sharable_candidate,
+      token: candidate_token_for(sharable_candidate),
+      headers: { 'Idempotency-Key' => 'wf-qatar-candidate' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+    expect(response).to have_http_status(:unauthorized)
+    expect(CandidateWorkflowEvent.count).to eq(0)
+  end
+
+  it 'protects qatar bu sharing against stale and concurrent confirmations and exposes actor only to staff history' do
+    actor = create(:user, role: 'mps')
+    candidate, assignment = prepare_fee_paid_candidate
+    token = access_token_for(actor)
+
+    transition_request(
+      candidate:,
+      token:,
+      headers: { 'Idempotency-Key' => 'wf-qatar-stale' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'verified'
+        }
+      }
+    )
+    expect(response).to have_http_status(:conflict)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('workflow_transition_stale')
+    expect(CandidateWorkflowEvent.count).to eq(0)
+
+    results = Queue.new
+    worker = lambda do |key|
+      ActiveRecord::Base.connection_pool.with_connection do
+        post "/api/v1/admin/candidates/#{candidate.public_id}/workflow_transitions",
+             params: {
+               candidate_workflow_transition: {
+                 to_stage_code: 'documents_shared_with_qatar_bu',
+                 expected_current_stage_code: 'fee_paid'
+               }
+             },
+             headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => key }
+        results << response.status
+      end
+    end
+
+    first_thread = Thread.new { worker.call('wf-qatar-concurrent-1') }
+    second_thread = Thread.new { worker.call('wf-qatar-concurrent-2') }
+    [first_thread, second_thread].each(&:join)
+
+    expect([results.pop, results.pop]).to contain_exactly(201, 409)
+    expect(assignment.reload.current_workflow_stage.code).to eq('documents_shared_with_qatar_bu')
+    expect(CandidateStageHistory.where(candidate_assignment: assignment).count).to eq(1)
+    expect(CandidateWorkflowEvent.where(candidate_assignment: assignment).count).to eq(1)
+
+    get "/api/v1/admin/candidates/#{candidate.public_id}/workflow_history",
+        headers: { 'Authorization' => "Bearer #{token}" }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig('data', 'history', 0, 'actor', 'id')).to eq(actor.public_id)
+    expect(response.parsed_body.dig('data', 'history', 0, 'actor', 'role')).to eq('mps')
+    expect(response.parsed_body.dig('data', 'history', 0, 'occurred_at')).to be_present
+
+    get '/api/v1/candidate/workflow_history',
+        headers: { 'Authorization' => "Bearer #{candidate_token_for(candidate)}" }
+    expect(response).to have_http_status(:ok)
+    expect(response.body).not_to include(actor.public_id)
+  end
+
+  it 'rolls back qatar bu sharing when the durable event write fails' do
+    actor = create(:user, role: 'mps')
+    candidate, assignment = prepare_fee_paid_candidate
+
+    allow(CandidateWorkflowEvent).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(CandidateWorkflowEvent.new))
+
+    transition_request(
+      candidate:,
+      token: access_token_for(actor),
+      headers: { 'Idempotency-Key' => 'wf-qatar-event-rollback' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'documents_shared_with_qatar_bu',
+          expected_current_stage_code: 'fee_paid'
+        }
+      }
+    )
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(assignment.reload.current_workflow_stage.code).to eq('fee_paid')
+    expect(candidate.reload.status_code).to eq('fee_paid')
+    expect(CandidateStageHistory.where(candidate_assignment: assignment)).to be_empty
+    expect(AuditEvent.where(action_code: 'candidate_workflow_transitioned')).to be_empty
+    expect(CandidateWorkflowEvent.where(candidate_assignment: assignment)).to be_empty
   end
 
   it 'keeps the timeline endpoint query shape bounded as history grows' do

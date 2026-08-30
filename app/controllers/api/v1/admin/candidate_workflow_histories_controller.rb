@@ -7,13 +7,13 @@ module Api
         def show
           authorize candidate, :history?, policy_class: ::Admin::CandidateWorkflowPolicy
 
-          snapshot = ::CandidateWorkflows::StateSnapshotService.call(candidate:)
+          snapshot = ::CandidateWorkflows::StateSnapshotService.call(candidate:, include_history_actor: true)
           set_private_state_headers(
             updated_at: candidate.current_assignment&.updated_at,
             etag_key: "#{candidate.public_id}:history"
           )
 
-          render_success(data: ::CandidateWorkflows::HistorySerializer.new(snapshot).as_json)
+          render_success(data: ::CandidateWorkflows::AdminHistorySerializer.new(snapshot).as_json)
         end
 
         private

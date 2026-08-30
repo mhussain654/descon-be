@@ -918,6 +918,36 @@ components:
               format: date-time
             - type: 'null'
       required: [candidate_id, assignment_id, history, updated_at]
+    AdminWorkflowHistoryItem:
+      allOf:
+        - $ref: '#/components/schemas/CandidateWorkflowHistoryItem'
+        - type: object
+          properties:
+            actor:
+              anyOf:
+                - $ref: '#/components/schemas/AdminReviewer'
+                - type: 'null'
+    AdminWorkflowHistory:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminWorkflowHistoryItem'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [candidate_id, assignment_id, history, updated_at]
     AdminWorkflowTransitionRequest:
       type: object
       properties:
@@ -978,7 +1008,7 @@ components:
         workflow:
           $ref: '#/components/schemas/CandidateWorkflowState'
         transition:
-          $ref: '#/components/schemas/CandidateWorkflowHistoryItem'
+          $ref: '#/components/schemas/AdminWorkflowHistoryItem'
       required: [workflow, transition]
     CandidateDocumentSubmissionResult:
       type: object
@@ -2968,6 +2998,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                workflowHistory:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                      history:
+                        - from_stage:
+                            code: fee_paid
+                            name: Fee Paid
+                            position: 7
+                          to_stage:
+                            code: documents_shared_with_qatar_bu
+                            name: Documents Shared with Qatar BU
+                            position: 8
+                          occurred_at: '2026-08-30T09:00:00Z'
+                          reason_code: qatar_bu_shared
+                          details: null
+                          actor:
+                            id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                            role: mps
+                      updated_at: '2026-08-30T09:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-30T12:00:00Z'
+                    errors: []
         '401':
           description: Missing, invalid, expired, or revoked staff session
         '403':
@@ -3035,6 +3091,23 @@ paths:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                       timestamp: '2026-08-29T12:00:00Z'
                     errors: []
+                blockedForPayment:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      updated_at: '2026-08-30T12:00:00Z'
+                      allowed_next_transitions:
+                        - code: documents_shared_with_qatar_bu
+                          name: Documents Shared with Qatar BU
+                          position: 8
+                          required_fields: []
+                          allowed: false
+                          blocking_reasons:
+                            - payment_required
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-08-30T12:00:00Z'
+                    errors: []
         '401':
           description: Missing, invalid, expired, or revoked staff session
         '403':
@@ -3086,41 +3159,50 @@ paths:
                       workflow:
                         candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                         assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
-                        candidate_status: documents_pending
+                        candidate_status: documents_shared_with_qatar_bu
                         current_stage:
-                          code: documents_pending
-                          name: Documents Pending
-                          position: 2
+                          code: documents_shared_with_qatar_bu
+                          name: Documents Shared with Qatar BU
+                          position: 8
                           status: current
-                          started_at: '2026-08-29T09:00:00Z'
+                          started_at: '2026-08-30T09:00:00Z'
                         timeline:
                           - code: registered
                             name: Registered
                             position: 1
                             status: completed
                             completed_at: '2026-08-29T09:00:00Z'
-                          - code: documents_pending
-                            name: Documents Pending
-                            position: 2
+                          - code: fee_paid
+                            name: Fee Paid
+                            position: 7
+                            status: completed
+                            completed_at: '2026-08-30T09:00:00Z'
+                          - code: documents_shared_with_qatar_bu
+                            name: Documents Shared with Qatar BU
+                            position: 8
                             status: current
-                            started_at: '2026-08-29T09:00:00Z'
-                        completed_count: 1
+                            started_at: '2026-08-30T09:00:00Z'
+                        completed_count: 7
                         total_count: 15
-                        progress_percentage: 6
-                        updated_at: '2026-08-29T09:00:00Z'
+                        progress_percentage: 46
+                        updated_at: '2026-08-30T09:00:00Z'
                       transition:
                         from_stage:
-                          code: registered
-                          name: Registered
-                          position: 1
+                          code: fee_paid
+                          name: Fee Paid
+                          position: 7
                         to_stage:
-                          code: documents_pending
-                          name: Documents Pending
-                          position: 2
-                        occurred_at: '2026-08-29T09:00:00Z'
+                          code: documents_shared_with_qatar_bu
+                          name: Documents Shared with Qatar BU
+                          position: 8
+                        occurred_at: '2026-08-30T09:00:00Z'
+                        reason_code: qatar_bu_shared
+                        actor:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: mps
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
-                      timestamp: '2026-08-29T12:00:00Z'
+                      timestamp: '2026-08-30T12:00:00Z'
                     errors: []
         '401':
           description: Missing, invalid, expired, or revoked staff session
@@ -3132,12 +3214,63 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                staleExpectation:
+                  value:
+                    errors:
+                      - code: workflow_transition_stale
+                        field: candidate_workflow_transition.expected_current_stage_code
+                        message: The workflow changed before this request could be applied. Refresh and try again.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-08-30T12:00:00Z'
+                idempotencyConflict:
+                  value:
+                    errors:
+                      - code: idempotency_conflict
+                        message: The idempotency key does not match the original request.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-08-30T12:00:00Z'
         '422':
           description: Invalid next stage or missing prerequisite evidence
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingExpectedStage:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: candidate_workflow_transition.expected_current_stage_code
+                        message: Provide the expected current workflow stage before confirming Qatar BU sharing.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-08-30T12:00:00Z'
+                paymentRequired:
+                  value:
+                    errors:
+                      - code: workflow_transition_prerequisite_missing
+                        field: candidate_workflow_transition.to_stage_code
+                        message: Complete the required workflow evidence before continuing.
+                        details:
+                          to_stage_code: documents_shared_with_qatar_bu
+                          required_fields: []
+                          blocking_reasons:
+                            - payment_required
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-08-30T12:00:00Z'
+                expiredPcc:
+                  value:
+                    errors:
+                      - code: workflow_transition_prerequisite_missing
+                        field: candidate_workflow_transition.to_stage_code
+                        message: Complete the required workflow evidence before continuing.
+                        details:
+                          to_stage_code: documents_shared_with_qatar_bu
+                          required_fields: []
+                          blocking_reasons:
+                            - expired_pcc
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-08-30T12:00:00Z'
   /api/v1/admin/document_submissions:
     get:
       summary: List candidate document submissions waiting for review

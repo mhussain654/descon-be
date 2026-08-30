@@ -10,6 +10,8 @@ class CandidateStageHistory < ApplicationRecord
   belongs_to :to_workflow_stage, class_name: 'WorkflowStage'
   belongs_to :actor, class_name: 'User', optional: true
 
+  has_many :candidate_workflow_events, dependent: :restrict_with_exception
+
   validates :occurred_at, presence: true
   validates :metadata, exclusion: { in: [nil] }
   validates :reason_code, format: { with: CODE_FORMAT }, allow_blank: true

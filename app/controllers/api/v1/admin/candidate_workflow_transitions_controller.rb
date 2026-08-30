@@ -3,6 +3,7 @@
 module Api
   module V1
     module Admin
+      # rubocop:disable Metrics/ClassLength
       class CandidateWorkflowTransitionsController < ProtectedStaffController
         def index
           authorize candidate, :index_transitions?, policy_class: ::Admin::CandidateWorkflowPolicy
@@ -34,6 +35,7 @@ module Api
 
         def transition_params
           raw_transition = raw_transition_params
+          validate_expected_current_stage_requirement!(raw_transition)
           validate_evidence_keys!(raw_transition[:to_stage_code], raw_transition[:evidence])
           permitted_transition_params(raw_transition[:to_stage_code]).to_h.deep_symbolize_keys
         end
@@ -68,7 +70,7 @@ module Api
         end
 
         def serialized_transition_result(result)
-          ::CandidateWorkflows::TransitionResultSerializer.new(result).as_json
+          ::CandidateWorkflows::AdminTransitionResultSerializer.new(result).as_json
         end
 
         def apply_state_headers(etag_key)
@@ -110,6 +112,16 @@ module Api
           )
         end
 
+        def validate_expected_current_stage_requirement!(raw_transition)
+          return unless raw_transition[:to_stage_code].to_s.strip.downcase == 'documents_shared_with_qatar_bu'
+          return if raw_transition[:expected_current_stage_code].present?
+
+          raise ValidationError.new(
+            field: 'candidate_workflow_transition.expected_current_stage_code',
+            message: I18n.t('api.errors.workflow_transition_expected_stage_required')
+          )
+        end
+
         def known_stage_code?(stage_code)
           WorkflowStage::CANONICAL_STAGES.any? { |stage| stage[:code] == stage_code.to_s.strip.downcase }
         end
@@ -118,6 +130,7 @@ module Api
           ::CandidateWorkflows::StageRequirements.allowed_fields_for(stage_code)
         end
       end
+      # rubocop:enable Metrics/ClassLength
     end
   end
 end

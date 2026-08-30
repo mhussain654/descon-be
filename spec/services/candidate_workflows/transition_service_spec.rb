@@ -417,7 +417,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
     expect do
       transition!(candidate:, actor:, to_stage_code: 'fee_pending')
     end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
-      expect(error.details[:blocking_reasons]).to eq(['required_documents_not_verified'])
+      expect(error.details[:blocking_reasons]).to eq(['expired_pcc'])
     }
 
     expired_pcc.update!(
@@ -441,6 +441,145 @@ RSpec.describe CandidateWorkflows::TransitionService do
     end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
       expect(error.details[:blocking_reasons]).to eq(['payment_required'])
     }
+  end
+
+  it 'creates exactly one qatar bu sharing event with server-owned reason code and safe payload' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'fee_paid')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_paid'))
+    requirement_for(assignment:, code: 'passport')
+    create_required_documents(candidate:, assignment:, default_status: 'verified')
+    create(
+      :payment,
+      candidate_assignment: assignment,
+      status_code: 'paid',
+      paid_at: Time.zone.parse('2026-08-30T08:00:00Z'),
+      external_reference: 'PAY-QA-001'
+    )
+
+    result = transition!(
+      candidate:,
+      actor:,
+      to_stage_code: 'documents_shared_with_qatar_bu',
+      expected_current_stage_code: 'fee_paid',
+      reason_code: 'frontend_value_should_not_win'
+    )
+
+    history_entry = result.fetch(:history_entry)
+    event = CandidateWorkflowEvent.find_by!(candidate_stage_history: history_entry)
+
+    expect(history_entry.reason_code).to eq('qatar_bu_shared')
+    expect(event.event_code).to eq('documents_shared_with_qatar_bu_confirmed')
+    expect(event.request_id).to be_present
+    expect(event.actor).to eq(actor)
+    expect(event.occurred_at).to eq(history_entry.occurred_at)
+    expect(event.payload).to eq(
+      'candidate_public_id' => candidate.public_id,
+      'candidate_assignment_public_id' => assignment.public_id,
+      'actor_public_id' => actor.public_id,
+      'to_stage_code' => 'documents_shared_with_qatar_bu',
+      'occurred_at' => history_entry.occurred_at.utc.iso8601
+    )
+    expect(event.payload.to_json).not_to include(candidate.cnic)
+    expect(event.payload.to_json).not_to include('PAY-QA-001')
+  end
+
+  it 'blocks qatar bu sharing when mandatory documents are no longer verified or compliant' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'fee_paid')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_paid'))
+    requirement_for(assignment:, code: 'passport')
+    create_required_documents(candidate:, assignment:, default_status: 'verified')
+    create(
+      :payment,
+      candidate_assignment: assignment,
+      status_code: 'paid',
+      paid_at: Time.current,
+      external_reference: 'PAY-QA-002'
+    )
+    assignment.candidate_documents.current_version.first.update!(
+      status_code: 'rejected',
+      rejection_reason: 'Document is unreadable.',
+      verified_by: actor,
+      verified_at: Time.current
+    )
+
+    expect do
+      transition!(candidate:, actor:, to_stage_code: 'documents_shared_with_qatar_bu')
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['required_documents_not_verified'])
+    }
+
+    expect(CandidateWorkflowEvent.count).to eq(0)
+  end
+
+  it 'blocks qatar bu sharing when the mandatory pcc is expired' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'fee_paid')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_paid'))
+    requirement_for(assignment:, code: 'passport')
+    pcc_type = requirement_for(assignment:, code: CandidateDocument::PCC_REQUIREMENT_CODE)
+    create(
+      :candidate_document,
+      candidate_assignment: assignment,
+      document_type: document_type_for('passport'),
+      status_code: 'verified',
+      verified_by: actor,
+      verified_at: Time.current
+    )
+    create(
+      :candidate_document,
+      candidate_assignment: assignment,
+      document_type: pcc_type,
+      status_code: 'verified',
+      issued_on: Date.new(2026, 1, 1),
+      verified_by: actor,
+      verified_at: Time.current
+    )
+    create(
+      :payment,
+      candidate_assignment: assignment,
+      status_code: 'paid',
+      paid_at: Time.current,
+      external_reference: 'PAY-QA-003'
+    )
+
+    expect do
+      transition!(candidate:, actor:, to_stage_code: 'documents_shared_with_qatar_bu')
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['expired_pcc'])
+    }
+  end
+
+  it 'rolls back workflow state, history, audit, and qatar bu event creation when event persistence fails' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'fee_paid')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_paid'))
+    requirement_for(assignment:, code: 'passport')
+    create_required_documents(candidate:, assignment:, default_status: 'verified')
+    create(
+      :payment,
+      candidate_assignment: assignment,
+      status_code: 'paid',
+      paid_at: Time.current,
+      external_reference: 'PAY-QA-004'
+    )
+
+    allow(CandidateWorkflowEvent).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(CandidateWorkflowEvent.new))
+
+    expect do
+      transition!(candidate:, actor:, to_stage_code: 'documents_shared_with_qatar_bu')
+    end.to raise_error(ActiveRecord::RecordInvalid)
+
+    expect(candidate.reload.status_code).to eq('fee_paid')
+    expect(assignment.reload.current_workflow_stage.code).to eq('fee_paid')
+    expect(
+      assignment.candidate_stage_histories.where(to_workflow_stage: stage_for('documents_shared_with_qatar_bu'))
+    ).to be_empty
+    expect(
+      AuditEvent.where(action_code: 'candidate_workflow_transitioned', reason_code: 'qatar_bu_shared')
+    ).to be_empty
+    expect(CandidateWorkflowEvent.count).to eq(0)
   end
 
   it 'creates immutable history and rolls back assignment changes when audit creation fails' do
