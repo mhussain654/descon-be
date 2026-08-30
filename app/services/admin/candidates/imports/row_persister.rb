@@ -45,13 +45,25 @@ module Admin
 
         def create_candidate!(row_plan)
           candidate = ::Candidate.create!(row_plan.candidate_attributes)
-          candidate.candidate_assignments.create!(row_plan.assignment_attributes)
+          assignment = candidate.candidate_assignments.create!(row_plan.assignment_attributes)
+          advance_workflow!(candidate:, assignment:)
         end
 
         def persist_row!(row_plan)
           ActiveRecord::Base.transaction(requires_new: true) do
             create_candidate!(row_plan)
           end
+        end
+
+        def advance_workflow!(candidate:, assignment:)
+          return unless assignment.current_workflow_stage.code == 'registered'
+
+          ::CandidateWorkflows::AutomaticTransitionService.call(
+            candidate:,
+            event: :assignment_created,
+            actor: assignment.created_by,
+            request_id: "candidate-assignment-#{assignment.public_id}"
+          )
         end
       end
     end

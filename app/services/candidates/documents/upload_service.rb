@@ -16,6 +16,7 @@ module Candidates
         @expires_on_supplied = expires_on_supplied?(pcc_attributes)
       end
 
+      # rubocop:disable Metrics/MethodLength
       def call
         blob = nil
 
@@ -26,11 +27,13 @@ module Candidates
 
         blob = build_blob
         uploaded_document = persist_upload(file_details:, blob:)
+        advance_workflow!
         ChecklistItemBuilder.call(requirement:, document: uploaded_document)
       rescue StandardError
         purge_blob(blob)
         raise
       end
+      # rubocop:enable Metrics/MethodLength
 
       private
 
@@ -102,6 +105,14 @@ module Candidates
         return unless pcc_requirement?
 
         pcc_issued_on
+      end
+
+      def advance_workflow!
+        CandidateWorkflows::AutomaticTransitionService.call(
+          candidate: @candidate,
+          event: :documents_uploaded,
+          request_id: @request_id
+        )
       end
 
       def pcc_requirement?

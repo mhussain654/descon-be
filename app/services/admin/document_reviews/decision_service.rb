@@ -15,11 +15,13 @@ module Admin
         @rejection_reason = rejection_reason.to_s.strip
       end
 
+      # rubocop:disable Metrics/MethodLength
       def call
         CandidateDocument.transaction do
           document = lock_reviewable_document!
           apply_decision!(document)
           create_audit_event!(document)
+          advance_workflow!(document)
 
           DecisionResult.new(
             document:,
@@ -28,6 +30,7 @@ module Admin
           )
         end
       end
+      # rubocop:enable Metrics/MethodLength
 
       private
 
@@ -41,6 +44,15 @@ module Admin
       def create_audit_event!(document)
         AuditEvent.create!(
           audit_attributes(document)
+        )
+      end
+
+      def advance_workflow!(document)
+        CandidateWorkflows::AutomaticTransitionService.call(
+          candidate: document.candidate_assignment.candidate,
+          event: :documents_reviewed,
+          actor: @actor,
+          request_id: @request_id
         )
       end
 

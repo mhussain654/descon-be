@@ -42,9 +42,13 @@ module Candidates
       end
 
       def validate_replacement!(current_document)
-        return if current_document.blank? || current_document.replacement_allowed?
+        return if current_document.blank? || replacement_allowed?(current_document)
 
         raise ReplacementNotAllowedError
+      end
+
+      def replacement_allowed?(current_document)
+        current_document.replacement_allowed? || expired_pcc_replacement?(current_document)
       end
 
       def supersede_current_document!(current_document)
@@ -101,6 +105,10 @@ module Candidates
           issued_on: uploaded_document.issued_on.iso8601,
           expires_on: uploaded_document.expires_on.iso8601
         }
+      end
+
+      def expired_pcc_replacement?(current_document)
+        current_document.police_character? && current_document.compliance_status == 'expired'
       end
     end
   end
