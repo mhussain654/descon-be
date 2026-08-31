@@ -36,6 +36,8 @@ Metrics/MethodLength:
     - db/migrate/20260822111400_add_core_relational_constraints.rb
     - db/migrate/20260823130000_create_candidate_sessions_and_refresh_tokens.rb
     - db/migrate/20260823130001_create_candidate_otp_challenges.rb
+    - db/migrate/20260831050000_create_candidate_visa_decisions.rb
+    - db/migrate/20260831050100_create_candidate_flight_details.rb
     - spec/requests/api/v1/admin/candidate_imports_spec.rb
     - spec/services/admin/candidates/import_service_spec.rb
 
@@ -46,6 +48,7 @@ Metrics/AbcSize:
     - db/migrate/20260822111100_create_candidates_and_candidate_assignments.rb
     - db/migrate/20260822111200_create_candidate_histories_and_documents.rb
     - db/migrate/20260822111300_create_payments_communications_and_audit_events.rb
+    - db/migrate/20260831050100_create_candidate_flight_details.rb
 
 # These exact migrations remain intentionally exempt because they are generated
 # auth foundation snapshots or schema snapshots whose table/constraint shape is

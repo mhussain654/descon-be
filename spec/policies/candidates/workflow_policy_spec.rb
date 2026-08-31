@@ -9,7 +9,9 @@ RSpec.describe Candidates::WorkflowPolicy do
 
     expect(described_class.new(candidate, candidate).show?).to be(true)
     expect(described_class.new(candidate, candidate).history?).to be(true)
+    expect(described_class.new(candidate, candidate).access?).to be(true)
     expect(described_class.new(candidate, other_candidate).show?).to be(false)
     expect(described_class.new(candidate, other_candidate).history?).to be(false)
+    expect(described_class.new(candidate, other_candidate).access?).to be(false)
   end
 end

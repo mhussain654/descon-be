@@ -12,6 +12,8 @@ module CandidateWorkflows
     def call
       record_qvc_attempt!
       record_protection_record!
+      record_visa_decision!
+      record_flight_detail!
       PostTransitionEventRecorder.call(
         history_entry: @history_entry,
         context: @context,
@@ -64,6 +66,69 @@ module CandidateWorkflows
 
     def protection_record
       @protection_record ||= assignment.candidate_protection_record || assignment.build_candidate_protection_record
+    end
+
+    def record_visa_decision!
+      return unless destination_stage_code == 'visa_issued_or_rejected'
+
+      decision = assignment.candidate_visa_decisions.create!(visa_decision_attributes)
+      VisaDecisionAuditRecorder.call(
+        actor:,
+        request_id: @transition.fetch(:request_id),
+        context: { candidate:, assignment:, decision: }
+      )
+    end
+
+    def visa_decision_attributes
+      {
+        candidate_stage_history: @history_entry,
+        recorded_by: actor,
+        outcome_code: evidence.fetch('visa_outcome_code'),
+        decision_date: Date.iso8601(evidence.fetch('visa_outcome_date')),
+        rejection_reason_code: evidence['rejection_reason_code']
+      }
+    end
+
+    def record_flight_detail!
+      create_flight_detail! if destination_stage_code == 'flight_details_uploaded'
+      mobilize_flight_detail! if destination_stage_code == 'mobilized'
+    end
+
+    def create_flight_detail!
+      detail = assignment.create_candidate_flight_detail!(flight_detail_attributes)
+      record_flight_detail_audit!(event: :recorded, detail:)
+    end
+
+    def flight_detail_attributes
+      {
+        candidate_stage_history: @history_entry,
+        recorded_by: actor,
+        airline: evidence.fetch('airline'),
+        flight_number: evidence.fetch('flight_reference'),
+        sector: evidence.fetch('sector'),
+        flight_departure_at: DateTime.iso8601(evidence.fetch('flight_date'))
+      }
+    end
+
+    def mobilize_flight_detail!
+      detail = assignment.candidate_flight_detail
+      raise InvalidWorkflowTransitionError.new(field: 'candidate_workflow_transition.to_stage_code') if detail.blank?
+
+      detail.update!(
+        mobilized_on: Date.iso8601(evidence.fetch('mobilized_on')),
+        mobilized_stage_history: @history_entry,
+        mobilized_recorded_by: actor
+      )
+      record_flight_detail_audit!(event: :mobilized, detail:)
+    end
+
+    def record_flight_detail_audit!(event:, detail:)
+      FlightDetailAuditRecorder.call(
+        event:,
+        actor:,
+        request_id: @transition.fetch(:request_id),
+        context: { candidate:, assignment:, detail: }
+      )
     end
 
     def next_attempt_number

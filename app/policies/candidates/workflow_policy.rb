@@ -10,6 +10,10 @@ module Candidates
       show?
     end
 
+    def access?
+      show?
+    end
+
     private
 
     def candidate_authenticated?

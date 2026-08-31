@@ -18,6 +18,10 @@ module Admin
       permission_granted?('manage_workflow')
     end
 
+    def access?
+      show?
+    end
+
     class Scope < Scope
       def resolve
         return scope.none unless permission_granted?('view_workflow') || permission_granted?('manage_workflow')

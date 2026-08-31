@@ -168,7 +168,12 @@ RSpec.describe CandidateWorkflows::TransitionService do
       candidate:,
       actor:,
       to_stage_code: 'flight_details_uploaded',
-      evidence: { flight_reference: 'QR-123', flight_date: '2026-09-20' }
+      evidence: {
+        airline: 'Qatar Airways',
+        flight_reference: 'QR-123',
+        sector: 'LHE-DOH',
+        flight_date: '2026-09-20T14:30:00Z'
+      }
     )
     transition!(candidate:, actor:, to_stage_code: 'mobilized', evidence: { mobilized_on: '2026-09-22' })
 
@@ -432,7 +437,11 @@ RSpec.describe CandidateWorkflows::TransitionService do
       candidate:,
       actor:,
       to_stage_code: 'visa_issued_or_rejected',
-      evidence: { visa_outcome_code: 'rejected', visa_outcome_date: '2026-09-10' }
+      evidence: {
+        visa_outcome_code: 'rejected',
+        visa_outcome_date: '2026-09-10',
+        rejection_reason_code: 'document_discrepancy'
+      }
     )
 
     expect do
