@@ -273,7 +273,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
              }
            },
            headers: auth_header
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('validation_failed')
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.issued_on')
       expect(response.headers['Content-Language']).to eq('ur')
@@ -287,7 +287,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
              }
            },
            headers: candidate_auth_headers(candidate)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.issued_on')
 
       post '/api/v1/candidate/documents',
@@ -299,7 +299,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
              }
            },
            headers: candidate_auth_headers(candidate)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.issued_on')
 
       post '/api/v1/candidate/documents',
@@ -312,7 +312,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
              }
            },
            headers: candidate_auth_headers(candidate)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('pcc_expiry_not_editable')
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.expires_on')
 
@@ -326,7 +326,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
              }
            },
            headers: candidate_auth_headers(candidate)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('pcc_expiry_not_editable')
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_document.expires_on')
     end
@@ -439,7 +439,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       post '/api/v1/candidate/documents',
            params: { candidate_document: { requirement_code: 'passport' } },
            headers: auth_header
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_file')
 
       post '/api/v1/candidate/documents',
@@ -461,7 +461,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
            params: { candidate_document: { requirement_code: 'passport' } },
            headers: candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-doc-missing-file')
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_file')
     end
 
@@ -556,7 +556,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
            },
            headers: candidate_auth_headers(candidate)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('replacement_not_allowed')
     end
   end

@@ -44,6 +44,7 @@ Rails.application.routes.draw do
           resource :workflow_state, only: :show, controller: :candidate_workflow_states
           resource :workflow_history, only: :show, controller: :candidate_workflow_histories
           resources :workflow_transitions, only: %i[index create], controller: :candidate_workflow_transitions
+          resources :qvc_attempts, only: %i[index create update], controller: :candidate_qvc_attempts
         end
         resources :candidate_documents, only: [] do
           resource :access, only: :create, controller: :document_accesses

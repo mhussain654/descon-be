@@ -149,7 +149,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
       candidate:,
       actor:,
       to_stage_code: 'qvc_completed_outcome_received',
-      evidence: { qvc_outcome_code: 'approved', qvc_outcome_date: '2026-09-05' }
+      evidence: { qvc_outcome_code: 'approved' }
     )
     transition!(
       candidate:,
@@ -269,45 +269,51 @@ RSpec.describe CandidateWorkflows::TransitionService do
         candidate:,
         current_workflow_stage: stage_for('qvc_appointment_booked')
       )
+      create(
+        :candidate_qvc_attempt,
+        candidate_assignment: assignment,
+        scheduled_by: actor,
+        attempt_number: 1,
+        appointment_date: Date.new(2026, 9, 1)
+      )
 
       result = transition!(
         candidate:,
         actor:,
         to_stage_code: 'qvc_completed_outcome_received',
-        evidence: { qvc_outcome_code: outcome_code, qvc_outcome_date: '2026-09-05' }
+        evidence: { qvc_outcome_code: outcome_code }
       )
 
-      expect(result.fetch(:history_entry).metadata).to eq(
-        'qvc_outcome_code' => outcome_code,
-        'qvc_outcome_date' => '2026-09-05'
-      )
+      attempt = assignment.candidate_qvc_attempts.latest_first.first
+
+      expect(result.fetch(:history_entry).metadata).to eq('qvc_outcome_code' => outcome_code)
       expect(assignment.reload.current_workflow_stage.code).to eq('qvc_completed_outcome_received')
       expect(candidate.reload.status_code).to eq('qvc_completed_outcome_received')
-      expect(assignment.qvc_outcome_code).to be_nil
-      expect(assignment.qvc_outcome_date).to be_nil
+      expect(assignment.qvc_outcome_code).to eq(outcome_code)
+      expect(assignment.qvc_outcome_date).to be_present
+      expect(attempt.outcome_code).to eq(outcome_code)
+      expect(attempt.outcome_recorded_at).to be_present
     end
   end
 
   it 'rejects unsupported qvc outcomes, malformed dates, and unexpected evidence keys with field-addressable errors' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate)
-    create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('qvc_appointment_booked'))
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('qvc_appointment_booked'))
+    create(
+      :candidate_qvc_attempt,
+      candidate_assignment: assignment,
+      scheduled_by: actor,
+      attempt_number: 1,
+      appointment_date: Date.new(2026, 9, 1)
+    )
 
     expect_validation_error(field: 'candidate_workflow_transition.evidence.qvc_outcome_code') do
       transition!(
         candidate:,
         actor:,
         to_stage_code: 'qvc_completed_outcome_received',
-        evidence: { qvc_outcome_code: 'failed', qvc_outcome_date: '2026-09-05' }
-      )
-    end
-
-    expect_validation_error(field: 'candidate_workflow_transition.evidence.qvc_outcome_date') do
-      transition!(
-        candidate:,
-        actor:,
-        to_stage_code: 'qvc_completed_outcome_received',
-        evidence: { qvc_outcome_code: 'approved', qvc_outcome_date: 'not-a-date' }
+        evidence: { qvc_outcome_code: 'failed' }
       )
     end
 
@@ -318,9 +324,29 @@ RSpec.describe CandidateWorkflows::TransitionService do
         to_stage_code: 'qvc_completed_outcome_received',
         evidence: {
           qvc_outcome_code: 'approved',
-          qvc_outcome_date: '2026-09-05',
           passport_number: 'AB123456'
         }
+      )
+    end
+
+    assignment.update!(current_workflow_stage: stage_for('visa_issued_or_rejected'))
+    candidate.update!(status_code: 'visa_issued_or_rejected')
+    create(
+      :candidate_stage_history,
+      candidate_assignment: assignment,
+      from_workflow_stage: stage_for('qvc_completed_outcome_received'),
+      to_workflow_stage: stage_for('visa_issued_or_rejected'),
+      actor:,
+      occurred_at: Time.current,
+      metadata: { 'visa_outcome_code' => 'issued', 'visa_outcome_date' => '2026-09-10' }
+    )
+
+    expect_validation_error(field: 'candidate_workflow_transition.evidence.appeared_for_protection_on') do
+      transition!(
+        candidate:,
+        actor:,
+        to_stage_code: 'appeared_for_protection',
+        evidence: { appeared_for_protection_on: 'not-a-date' }
       )
     end
   end
@@ -328,7 +354,21 @@ RSpec.describe CandidateWorkflows::TransitionService do
   it 'rejects unsupported visa outcomes' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate)
-    create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('qvc_completed_outcome_received'))
+    assignment = create(
+      :candidate_assignment,
+      candidate:,
+      current_workflow_stage: stage_for('qvc_completed_outcome_received')
+    )
+    create(
+      :candidate_qvc_attempt,
+      candidate_assignment: assignment,
+      scheduled_by: actor,
+      attempt_number: 1,
+      appointment_date: Date.new(2026, 9, 1),
+      outcome_code: 'approved',
+      outcome_recorded_at: Time.zone.parse('2026-09-05T10:00:00Z'),
+      outcome_recorded_by: actor
+    )
 
     expect_validation_error(field: 'candidate_workflow_transition.evidence.visa_outcome_code') do
       transition!(
@@ -348,6 +388,63 @@ RSpec.describe CandidateWorkflows::TransitionService do
     expect do
       transition!(candidate:, actor:, to_stage_code: 'documents_pending')
     end.to raise_error(InvalidWorkflowTransitionError)
+  end
+
+  it 'requires an approved qvc outcome before visa progression and a visa-issued result before protection' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'qvc_completed_outcome_received')
+    assignment = create(
+      :candidate_assignment,
+      candidate:,
+      current_workflow_stage: stage_for('qvc_completed_outcome_received')
+    )
+
+    create(
+      :candidate_qvc_attempt,
+      candidate_assignment: assignment,
+      scheduled_by: actor,
+      attempt_number: 1,
+      appointment_date: Date.new(2026, 9, 1),
+      outcome_code: 're_medical',
+      outcome_recorded_at: Time.zone.parse('2026-09-02T10:00:00Z'),
+      outcome_recorded_by: actor
+    )
+
+    expect do
+      transition!(
+        candidate:,
+        actor:,
+        to_stage_code: 'visa_issued_or_rejected',
+        evidence: { visa_outcome_code: 'issued', visa_outcome_date: '2026-09-10' }
+      )
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['qvc_approval_required'])
+    }
+
+    assignment.candidate_qvc_attempts.last.update!(
+      outcome_code: 'approved',
+      outcome_recorded_at: Time.zone.parse('2026-09-03T10:00:00Z'),
+      outcome_recorded_by: actor
+    )
+    assignment.update!(qvc_outcome_code: 'approved', qvc_outcome_date: Date.new(2026, 9, 3))
+
+    transition!(
+      candidate:,
+      actor:,
+      to_stage_code: 'visa_issued_or_rejected',
+      evidence: { visa_outcome_code: 'rejected', visa_outcome_date: '2026-09-10' }
+    )
+
+    expect do
+      transition!(
+        candidate:,
+        actor:,
+        to_stage_code: 'appeared_for_protection',
+        evidence: { appeared_for_protection_on: '2026-09-12' }
+      )
+    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+      expect(error.details[:blocking_reasons]).to eq(['visa_issued_required'])
+    }
   end
 
   it 'blocks fee_pending when a previously verified required document is rejected' do

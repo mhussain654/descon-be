@@ -5,7 +5,7 @@ class MissingAccountTitleError < BaseError
     super(
       code: 'missing_account_title',
       message: I18n.t('api.errors.missing_account_title'),
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       field: 'bank_detail.account_title'
     )
   end

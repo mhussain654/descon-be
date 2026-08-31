@@ -5,7 +5,7 @@ class MissingFileError < BaseError
     super(
       code: 'missing_file',
       message: I18n.t('api.errors.missing_file'),
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       field: 'candidate_document.file'
     )
   end

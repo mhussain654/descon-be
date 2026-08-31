@@ -13,12 +13,12 @@ RSpec.describe CandidateAssignment, type: :model do
 
   it 'normalizes the reference number and QVC outcome code' do
     candidate_assignment.reference_number = ' des-0001 '
-    candidate_assignment.qvc_outcome_code = ' PASSED '
+    candidate_assignment.qvc_outcome_code = ' RE_MEDICAL_REQUIRED '
     candidate_assignment.qvc_outcome_date = Date.current
     candidate_assignment.validate
 
     expect(candidate_assignment.reference_number).to eq('DES-0001')
-    expect(candidate_assignment.qvc_outcome_code).to eq('passed')
+    expect(candidate_assignment.qvc_outcome_code).to eq('re_medical')
   end
 
   it 'validates reference number uniqueness' do
@@ -30,7 +30,7 @@ RSpec.describe CandidateAssignment, type: :model do
   end
 
   it 'requires the QVC outcome code and date together' do
-    candidate_assignment.qvc_outcome_code = 'passed'
+    candidate_assignment.qvc_outcome_code = 'approved'
     candidate_assignment.qvc_outcome_date = nil
     candidate_assignment.valid?
 

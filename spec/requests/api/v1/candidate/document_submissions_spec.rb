@@ -116,7 +116,7 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
 
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate, 'X-Locale' => 'ur')
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('documents_incomplete')
       expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements', 0, 'reason')).to eq('missing')
       expect(response.headers['Content-Language']).to eq('ur')
@@ -133,7 +133,7 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
 
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('documents_rejected')
     end
 
@@ -152,7 +152,7 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
 
         post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate, 'X-Locale' => 'ur')
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(response.parsed_body.dig('errors', 0, 'code')).to eq('documents_incomplete')
         expect(
           response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements', 0, 'requirement_code')
@@ -165,13 +165,13 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
     it 'rejects no-assignment, no-requirements, inactive-candidate, and staff-token cases safely' do
       candidate = create(:candidate)
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('no_current_assignment')
 
       candidate_with_assignment = create(:candidate)
       create(:candidate_assignment, candidate: candidate_with_assignment)
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate_with_assignment)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('no_document_requirements')
 
       inactive_candidate = create(:candidate, active: false)

@@ -73,7 +73,7 @@ RSpec.describe 'ApplicationController behavior', type: :request do
   it 'localizes validation error messages in Urdu' do
     post '/foundation-test/invalid-in-urdu', headers: { 'X-Locale' => 'ur' }
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.headers['Content-Language']).to eq('ur')
     expect(response.parsed_body.dig('errors', 0, 'message')).to be_present
   end

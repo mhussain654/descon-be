@@ -10,6 +10,8 @@ module CandidateWorkflows
       :timeline,
       :history,
       :history_entries,
+      :qvc_attempts,
+      :protection_record,
       :completed_count,
       :total_count,
       :progress_percentage,

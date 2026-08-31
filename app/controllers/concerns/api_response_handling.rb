@@ -41,7 +41,7 @@ module ApiResponseHandling
       )
     end
 
-    render_api_errors(validation_errors.presence || [ValidationError.new], status: :unprocessable_entity)
+    render_api_errors(validation_errors.presence || [ValidationError.new], status: :unprocessable_content)
   end
 
   def render_parameter_missing(error)

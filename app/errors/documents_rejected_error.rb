@@ -6,7 +6,7 @@ class DocumentsRejectedError < BaseError
     super(
       code: 'documents_rejected',
       message:,
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       details: { blocking_requirements: }
     )
   end

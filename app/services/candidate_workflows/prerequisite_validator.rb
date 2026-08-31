@@ -1,6 +1,18 @@
 # frozen_string_literal: true
 
 module CandidateWorkflows
+  STAGE_RESULT_METHODS = {
+    'documents_uploaded' => :documents_uploaded_result,
+    'under_verification' => :documents_uploaded_result,
+    'fee_pending' => :verified_documents_result,
+    'verified' => :verified_documents_result,
+    'fee_paid' => :fee_paid_result,
+    'documents_shared_with_qatar_bu' => :fee_paid_result,
+    'visa_issued_or_rejected' => :qvc_approved_result,
+    'appeared_for_protection' => :appeared_for_protection_result,
+    'protected_ready_to_fly' => :protected_ready_to_fly_result
+  }.freeze
+
   # rubocop:disable Metrics/ClassLength
   class PrerequisiteValidator < ApplicationService
     def initialize(candidate:, assignment:, destination_stage:, evidence:)
@@ -19,16 +31,7 @@ module CandidateWorkflows
     private
 
     def stage_result
-      case @destination_stage.code
-      when 'documents_uploaded'
-        documents_uploaded_result
-      when 'fee_pending', 'verified'
-        verified_documents_result
-      when 'fee_paid', 'documents_shared_with_qatar_bu'
-        fee_paid_result
-      else
-        evidence_result
-      end
+      send(::CandidateWorkflows::STAGE_RESULT_METHODS.fetch(@destination_stage.code, :evidence_result))
     end
 
     def documents_uploaded_result
@@ -118,6 +121,41 @@ module CandidateWorkflows
       blocked_result(field: 'candidate_workflow_transition.to_stage_code', blocking_reasons: ['payment_required'])
     end
 
+    def qvc_approved_result
+      latest_attempt = latest_completed_qvc_attempt
+
+      return missing_qvc_approval_result if latest_attempt.blank?
+      return rejected_qvc_result if latest_attempt.outcome_code == 'rejected'
+      return allowed_with_evidence_result if latest_attempt.outcome_code == 'approved'
+
+      missing_qvc_approval_result
+    end
+
+    def appeared_for_protection_result
+      qvc_result = qvc_approved_result
+      return qvc_result unless qvc_result.allowed
+
+      unless latest_visa_outcome_code == 'issued'
+        return blocked_result(
+          field: 'candidate_workflow_transition.to_stage_code',
+          blocking_reasons: ['visa_issued_required']
+        )
+      end
+
+      evidence_result
+    end
+
+    def protected_ready_to_fly_result
+      if protection_record&.appeared_on.blank?
+        return blocked_result(
+          field: 'candidate_workflow_transition.to_stage_code',
+          blocking_reasons: ['protection_appearance_required']
+        )
+      end
+
+      evidence_result
+    end
+
     def evidence_result
       required_fields = TransitionService.required_fields_for(@destination_stage.code)
       return allowed_result if required_fields.empty?
@@ -130,6 +168,37 @@ module CandidateWorkflows
         required_fields: required_fields,
         blocking_reasons: [StageRequirements.field_required_blocking_reason(missing_field)]
       )
+    end
+
+    def allowed_with_evidence_result
+      evidence_fields = TransitionService.required_fields_for(@destination_stage.code)
+      return allowed_result if evidence_fields.empty?
+
+      evidence_result
+    end
+
+    def latest_completed_qvc_attempt
+      @latest_completed_qvc_attempt ||= completed_qvc_attempts_scope.first
+    end
+
+    def completed_qvc_attempts_scope
+      @assignment.candidate_qvc_attempts.where.not(outcome_recorded_at: nil).latest_first
+    end
+
+    def latest_visa_outcome_code
+      latest_visa_history_entry&.metadata&.[]('visa_outcome_code')
+    end
+
+    def latest_visa_history_entry
+      @latest_visa_history_entry ||= @assignment.candidate_stage_histories
+                                                .joins(:to_workflow_stage)
+                                                .where(workflow_stages: { code: 'visa_issued_or_rejected' })
+                                                .order(occurred_at: :desc, id: :desc)
+                                                .first
+    end
+
+    def protection_record
+      @protection_record ||= @assignment.candidate_protection_record
     end
 
     def evidence_field(field_name)
@@ -146,6 +215,20 @@ module CandidateWorkflows
       required_fields: TransitionService.required_fields_for(@destination_stage.code)
     )
       PrerequisiteResult.blocked(field:, blocking_reasons:, required_fields:)
+    end
+
+    def missing_qvc_approval_result
+      blocked_result(
+        field: 'candidate_workflow_transition.to_stage_code',
+        blocking_reasons: ['qvc_approval_required']
+      )
+    end
+
+    def rejected_qvc_result
+      blocked_result(
+        field: 'candidate_workflow_transition.to_stage_code',
+        blocking_reasons: ['qvc_rejected']
+      )
     end
   end
   # rubocop:enable Metrics/ClassLength

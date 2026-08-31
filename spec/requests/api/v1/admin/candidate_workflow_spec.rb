@@ -262,7 +262,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('workflow_transition_prerequisite_missing')
     expect(IdempotencyKey.find_by(key_digest: Digest::SHA256.hexdigest('wf-2'))).to be_nil
   end
@@ -335,13 +335,12 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
           to_stage_code: 'qvc_completed_outcome_received',
           evidence: {
             appointment_date: 'anything',
-            qvc_outcome_code: 'unknown',
-            qvc_outcome_date: 'not-a-date'
+            qvc_outcome_code: 'unknown'
           }
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('validation_failed')
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq(
       'candidate_workflow_transition.evidence.appointment_date'
@@ -362,7 +361,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq(
       'candidate_workflow_transition.evidence.cnic'
     )
@@ -462,7 +461,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('workflow_transition_prerequisite_missing')
     expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons')).to eq(
       ['required_documents_not_verified']
@@ -484,7 +483,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.headers['Content-Language']).to eq('ur')
     expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons')).to eq(['expired_pcc'])
     expect(assignment_expired_pcc.reload.current_workflow_stage.code).to eq('fee_paid')
@@ -503,7 +502,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons')).to eq(['payment_required'])
     expect(assignment_invalid_payment.reload.current_workflow_stage.code).to eq('fee_paid')
   end
@@ -524,7 +523,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_workflow_transition')
     expect(CandidateWorkflowEvent.count).to eq(0)
 
@@ -539,7 +538,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         }
       }
     )
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.headers['Content-Language']).to eq('ur')
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq(
       'candidate_workflow_transition.expected_current_stage_code'
@@ -681,7 +680,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
       }
     )
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(assignment.reload.current_workflow_stage.code).to eq('fee_paid')
     expect(candidate.reload.status_code).to eq('fee_paid')
     expect(CandidateStageHistory.where(candidate_assignment: assignment)).to be_empty

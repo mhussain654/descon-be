@@ -70,7 +70,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
            params: { user: { email: 'duplicate.staff@example.com', role: 'finance' } },
            headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('email')
     end
 
@@ -81,7 +81,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
            params: { user: { email: 'invalid-role@example.com', role: 'ghost_role' } },
            headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('role')
     end
 
@@ -92,7 +92,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
            params: { user: { email: 'mass-assign@example.com', role: 'hr', active: true } },
            headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('user.active')
     end
 
@@ -103,7 +103,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
            params: { user: { email: 'mass-assign-ur@example.com', role: 'hr', active: true } },
            headers: { 'Authorization' => "Bearer #{login_as(admin)}", 'X-Locale' => 'ur' }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'message')).to eq(
         I18n.t('api.errors.unsupported_attribute', locale: :ur)
       )
@@ -149,7 +149,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
             params: { user: { staff_state: 'suspended' } },
             headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('user.staff_state')
     end
 
@@ -160,7 +160,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
             params: { user: { staff_state: 'suspended' } },
             headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'message')).to eq(I18n.t('api.errors.last_active_admin'))
     end
 
@@ -171,7 +171,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
             params: { user: { role: 'hr' } },
             headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('user.role')
     end
 
@@ -183,7 +183,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
             params: { user: { staff_state: 'ghost_state' } },
             headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('staff_state')
     end
 
@@ -195,7 +195,7 @@ RSpec.describe 'API V1 Users Management', type: :request do
             params: { user: { role: 'finance', email: 'nope@example.com' } },
             headers: { 'Authorization' => "Bearer #{login_as(admin)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('user.email')
     end
   end

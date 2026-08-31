@@ -195,6 +195,30 @@ FactoryBot.define do
     published_at { nil }
   end
 
+  factory :candidate_qvc_attempt do
+    candidate_assignment
+    association :scheduled_by, factory: :user
+    public_id { SecureRandom.uuid }
+    sequence(:attempt_number) { |n| n }
+    appointment_date { Date.current }
+    outcome_code { nil }
+    no_show { false }
+    outcome_recorded_at { nil }
+    outcome_recorded_by { nil }
+    internal_note { nil }
+  end
+
+  factory :candidate_protection_record do
+    candidate_assignment
+    public_id { SecureRandom.uuid }
+    appeared_on { nil }
+    appeared_recorded_at { nil }
+    appeared_recorded_by { nil }
+    protected_on { nil }
+    ready_to_fly_at { nil }
+    ready_recorded_by { nil }
+  end
+
   factory :candidate_document do
     candidate_assignment
     document_type

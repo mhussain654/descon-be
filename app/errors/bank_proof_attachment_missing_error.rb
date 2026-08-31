@@ -5,7 +5,7 @@ class BankProofAttachmentMissingError < BaseError
     super(
       code: 'bank_proof_attachment_missing',
       message: I18n.t('api.errors.bank_proof_attachment_missing'),
-      status: :unprocessable_entity
+      status: :unprocessable_content
     )
   end
 end

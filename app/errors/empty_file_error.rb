@@ -5,7 +5,7 @@ class EmptyFileError < BaseError
     super(
       code: 'empty_file',
       message: I18n.t('api.errors.empty_file'),
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       field: 'candidate_document.file'
     )
   end

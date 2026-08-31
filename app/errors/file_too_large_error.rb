@@ -5,7 +5,7 @@ class FileTooLargeError < BaseError
     super(
       code: 'file_too_large',
       message: I18n.t('api.errors.file_too_large'),
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       field: 'candidate_document.file'
     )
   end

@@ -11,19 +11,30 @@ module CandidateWorkflows
     end
 
     def call
+      snapshot.merge(progress_attributes)
+    end
+
+    private
+
+    def snapshot
       {
         current_stage: current_stage_hash,
         timeline:,
         history:,
         history_entries: stage_histories,
-        completed_count:,
-        total_count: @stages.length,
-        progress_percentage: progress_percentage,
+        qvc_attempts: loaded_qvc_attempts,
+        protection_record: loaded_protection_record,
         updated_at: serialized_updated_at
       }
     end
 
-    private
+    def progress_attributes
+      {
+        completed_count:,
+        total_count: @stages.length,
+        progress_percentage: progress_percentage
+      }
+    end
 
     def current_stage = @assignment&.current_workflow_stage
 
@@ -126,6 +137,18 @@ module CandidateWorkflows
                  .order(:occurred_at, :id)
       relation = relation.includes(:actor) if @include_history_actor
       relation.to_a
+    end
+
+    def loaded_qvc_attempts
+      return [] if @assignment.blank?
+
+      @assignment.candidate_qvc_attempts.ordered.to_a
+    end
+
+    def loaded_protection_record
+      return if @assignment.blank?
+
+      @assignment.candidate_protection_record
     end
 
     def current_stage_status = terminal_workflow? ? 'completed' : 'current'

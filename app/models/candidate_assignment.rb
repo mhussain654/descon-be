@@ -14,6 +14,8 @@ class CandidateAssignment < ApplicationRecord
   has_many :candidate_bank_details, dependent: :restrict_with_exception
   has_many :candidate_documents, dependent: :restrict_with_exception
   has_many :candidate_document_submissions, dependent: :restrict_with_exception
+  has_many :candidate_qvc_attempts, dependent: :restrict_with_exception
+  has_one :candidate_protection_record, dependent: :restrict_with_exception
   has_many :payments, dependent: :restrict_with_exception
   has_many :communications, dependent: :restrict_with_exception
   has_many :candidate_workflow_events, dependent: :restrict_with_exception
@@ -39,10 +41,13 @@ class CandidateAssignment < ApplicationRecord
   end
 
   def normalize_qvc_outcome_code
-    self.qvc_outcome_code = qvc_outcome_code.to_s.strip.downcase.presence
+    normalized = qvc_outcome_code.to_s.strip.downcase.presence
+    self.qvc_outcome_code = 're_medical' if normalized == 're_medical_required'
+    self.qvc_outcome_code ||= normalized
   end
 
   def qvc_outcome_fields_are_paired
+    return if qvc_outcome_code.blank? && qvc_outcome_date.blank?
     return if qvc_outcome_fields_paired?
 
     errors.add(:qvc_outcome_code, :blank) if qvc_outcome_code.blank?
