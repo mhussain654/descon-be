@@ -28,6 +28,9 @@ Rails.application.routes.draw do
         resource :profile, only: :show
         resource :workflow_state, only: :show
         resource :workflow_history, only: :show
+        resource :flight_detail, only: :show, controller: :flight_details do
+          resource :ticket_access, only: :create, controller: :flight_detail_ticket_accesses
+        end
       end
 
       namespace :admin do
@@ -45,6 +48,12 @@ Rails.application.routes.draw do
           resource :workflow_history, only: :show, controller: :candidate_workflow_histories
           resources :workflow_transitions, only: %i[index create], controller: :candidate_workflow_transitions
           resources :qvc_attempts, only: %i[index create update], controller: :candidate_qvc_attempts
+          resources :visa_decisions, only: %i[index create], controller: :candidate_visa_decisions do
+            resource :visa_copy_access, only: :create, controller: :candidate_visa_decision_visa_copy_accesses
+          end
+          resource :flight_detail, only: %i[show create update], controller: :candidate_flight_details do
+            resource :ticket_access, only: :create, controller: :candidate_flight_detail_ticket_accesses
+          end
         end
         resources :candidate_documents, only: [] do
           resource :access, only: :create, controller: :document_accesses

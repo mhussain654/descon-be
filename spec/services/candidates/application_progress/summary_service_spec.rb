@@ -26,6 +26,24 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
     document_type
   end
 
+  def build_requirement(document_type:, required: true)
+    instance_double(
+      DocumentRequirement,
+      required:,
+      document_type_id: document_type.id,
+      document_type:
+    )
+  end
+
+  def progress_for(candidate:, assignment:, requirements:, current_documents_by_type: {})
+    described_class.call(
+      candidate:,
+      assignment:,
+      requirements:,
+      current_documents_by_type:
+    )
+  end
+
   describe '.call' do
     it 'returns no_assignment when the candidate has no assignment' do
       progress = described_class.call(candidate: create(:candidate))
@@ -37,9 +55,9 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
 
     it 'returns no_requirements when the assignment has no required documents' do
       candidate = create(:candidate)
-      create(:candidate_assignment, candidate:)
+      assignment = create(:candidate_assignment, candidate:)
 
-      progress = described_class.call(candidate:)
+      progress = progress_for(candidate:, assignment:, requirements: [])
 
       expect(progress.documents.submission_state).to eq('no_requirements')
       expect(progress.documents.completion_percentage).to eq(0)
@@ -50,9 +68,18 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
       cv = create_requirement(assignment:, code: 'cv')
+      requirements = [
+        build_requirement(document_type: passport),
+        build_requirement(document_type: cv)
+      ]
 
-      create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'uploaded')
-      create(
+      passport_document = create(
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type: passport,
+        status_code: 'uploaded'
+      )
+      cv_document = create(
         :candidate_document,
         candidate_assignment: assignment,
         document_type: cv,
@@ -62,7 +89,15 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
         rejection_reason: nil
       )
 
-      progress = described_class.call(candidate:)
+      progress = progress_for(
+        candidate:,
+        assignment:,
+        requirements:,
+        current_documents_by_type: {
+          passport.id => passport_document,
+          cv.id => cv_document
+        }
+      )
 
       expect(progress.documents.submission_state).to eq('ready')
       expect(progress.documents.required_total).to eq(2)
@@ -74,16 +109,27 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
     it 'ignores optional requirements when calculating readiness' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      create_requirement(assignment:, code: 'passport', required: true)
+      passport = create_requirement(assignment:, code: 'passport', required: true)
       optional_type = create_requirement(assignment:, code: 'cv', required: false)
-      create(
+      optional_document = create(
         :candidate_document,
         candidate_assignment: assignment,
         document_type: optional_type,
         status_code: 'uploaded'
       )
+      requirements = [
+        build_requirement(document_type: passport, required: true),
+        build_requirement(document_type: optional_type, required: false)
+      ]
 
-      progress = described_class.call(candidate:)
+      progress = progress_for(
+        candidate:,
+        assignment:,
+        requirements:,
+        current_documents_by_type: {
+          optional_type.id => optional_document
+        }
+      )
 
       expect(progress.documents.required_total).to eq(1)
       expect(progress.documents.missing).to eq(1)
@@ -95,7 +141,7 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
       assignment = create(:candidate_assignment, candidate:)
       missing_type = create_requirement(assignment:, code: 'passport')
       rejected_type = create_requirement(assignment:, code: 'cv')
-      create(
+      rejected_document = create(
         :candidate_document,
         candidate_assignment: assignment,
         document_type: rejected_type,
@@ -104,8 +150,19 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
         verified_at: Time.current,
         rejection_reason: 'blurred'
       )
+      requirements = [
+        build_requirement(document_type: missing_type),
+        build_requirement(document_type: rejected_type)
+      ]
 
-      progress = described_class.call(candidate:)
+      progress = progress_for(
+        candidate:,
+        assignment:,
+        requirements:,
+        current_documents_by_type: {
+          rejected_type.id => rejected_document
+        }
+      )
 
       expect(progress.documents.submission_state).to eq('changes_required')
       expect(progress.documents.blocking_requirements.map(&:requirement_code)).to contain_exactly('passport', 'cv')
@@ -122,14 +179,18 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
       assignment = create(:candidate_assignment, candidate:)
       passport = create_requirement(assignment:, code: 'passport')
       cv = create_requirement(assignment:, code: 'cv')
+      requirements = [
+        build_requirement(document_type: passport),
+        build_requirement(document_type: cv)
+      ]
 
-      create(
+      passport_document = create(
         :candidate_document,
         candidate_assignment: assignment,
         document_type: passport,
         status_code: 'under_verification'
       )
-      create(
+      cv_document = create(
         :candidate_document,
         candidate_assignment: assignment,
         document_type: cv,
@@ -138,18 +199,34 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
         verified_at: Time.current
       )
 
-      progress = described_class.call(candidate:)
+      progress = progress_for(
+        candidate:,
+        assignment:,
+        requirements:,
+        current_documents_by_type: {
+          passport.id => passport_document,
+          cv.id => cv_document
+        }
+      )
       expect(progress.documents.submission_state).to eq('partially_verified')
 
-      CandidateDocument.find_by!(candidate_assignment: assignment, document_type: cv).destroy
-      create(
+      cv_document.destroy
+      replacement_cv_document = create(
         :candidate_document,
         candidate_assignment: assignment,
         document_type: cv,
         status_code: 'under_verification'
       )
 
-      progress = described_class.call(candidate:)
+      progress = progress_for(
+        candidate:,
+        assignment:,
+        requirements:,
+        current_documents_by_type: {
+          passport.id => passport_document,
+          cv.id => replacement_cv_document
+        }
+      )
       expect(progress.documents.submission_state).to eq('submitted')
       expect(progress.documents.can_submit).to be(false)
     end

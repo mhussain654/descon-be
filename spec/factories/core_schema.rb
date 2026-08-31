@@ -219,6 +219,41 @@ FactoryBot.define do
     ready_recorded_by { nil }
   end
 
+  factory :candidate_visa_decision do
+    candidate_assignment
+    candidate_stage_history { association(:candidate_stage_history, candidate_assignment:) }
+    association :recorded_by, factory: :user
+    public_id { SecureRandom.uuid }
+    outcome_code { 'issued' }
+    decision_date { Date.current }
+    rejection_reason_code { nil }
+
+    trait :rejected do
+      outcome_code { 'rejected' }
+      rejection_reason_code { 'document_discrepancy' }
+    end
+  end
+
+  factory :candidate_flight_detail do
+    candidate_assignment
+    candidate_stage_history { association(:candidate_stage_history, candidate_assignment:) }
+    mobilized_stage_history { nil }
+    association :recorded_by, factory: :user
+    mobilized_recorded_by { nil }
+    public_id { SecureRandom.uuid }
+    airline { 'Qatar Airways' }
+    flight_number { 'QR-123' }
+    sector { 'LHE-DOH' }
+    flight_departure_at { 1.week.from_now.change(hour: 14, min: 30) }
+    mobilized_on { nil }
+
+    trait :mobilized do
+      mobilized_on { flight_departure_at.to_date + 1.day }
+      mobilized_stage_history { association(:candidate_stage_history, candidate_assignment:) }
+      association :mobilized_recorded_by, factory: :user
+    end
+  end
+
   factory :candidate_document do
     candidate_assignment
     document_type

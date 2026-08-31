@@ -1144,6 +1144,242 @@ components:
         qvc_attempt:
           $ref: '#/components/schemas/AdminQvcAttempt'
       required: [workflow, qvc_attempt]
+    CandidateVisaDecision:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        outcome_code:
+          type: string
+          enum: [issued, rejected]
+        decision_date:
+          type: string
+          format: date
+        rejection_reason_code:
+          anyOf:
+            - type: string
+              enum:
+                - document_discrepancy
+                - medical_issue
+                - security_clearance
+                - embassy_rejection
+                - incomplete_application
+                - other
+            - type: 'null'
+        visa_copy_attached:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required: [id, outcome_code, decision_date, rejection_reason_code, visa_copy_attached, created_at]
+    AdminVisaDecision:
+      allOf:
+        - $ref: '#/components/schemas/CandidateVisaDecision'
+        - type: object
+          properties:
+            recorded_by:
+              $ref: '#/components/schemas/AdminReviewer'
+          required: [recorded_by]
+    AdminCandidateVisaDecisionsCollection:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        visa_decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminVisaDecision'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [candidate_id, assignment_id, visa_decisions, updated_at]
+    AdminVisaDecisionRequest:
+      type: object
+      properties:
+        candidate_visa_decision:
+          type: object
+          required: [outcome_code, decision_date, expected_current_stage_code]
+          properties:
+            outcome_code:
+              type: string
+              enum: [issued, rejected]
+            decision_date:
+              type: string
+              format: date
+            rejection_reason_code:
+              type: string
+              enum:
+                - document_discrepancy
+                - medical_issue
+                - security_clearance
+                - embassy_rejection
+                - incomplete_application
+                - other
+              description: Required when outcome_code is rejected; must be absent when issued.
+            visa_copy:
+              type: string
+              format: binary
+              description: Required when outcome_code is issued. Stored privately; never returned as a permanent URL.
+            expected_current_stage_code:
+              type: string
+              description: Required for stale-state protection.
+            note:
+              type: string
+          additionalProperties: false
+      required: [candidate_visa_decision]
+    AdminVisaDecisionResult:
+      type: object
+      properties:
+        workflow:
+          $ref: '#/components/schemas/CandidateWorkflowState'
+        visa_decision:
+          $ref: '#/components/schemas/AdminVisaDecision'
+      required: [workflow, visa_decision]
+    AdminVisaDecisionAccess:
+      type: object
+      properties:
+        visa_decision_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required: [visa_decision_id, url, expires_at]
+    CandidateFlightDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        airline:
+          type: string
+        flight_number:
+          type: string
+        sector:
+          type: string
+        flight_departure_at:
+          type: string
+          format: date-time
+        ticket_attached:
+          type: boolean
+        mobilized_on:
+          anyOf:
+            - type: string
+              format: date
+            - type: 'null'
+        mobilized:
+          type: boolean
+      required: [id, airline, flight_number, sector, flight_departure_at, ticket_attached, mobilized_on, mobilized]
+    AdminFlightDetail:
+      allOf:
+        - $ref: '#/components/schemas/CandidateFlightDetail'
+        - type: object
+          properties:
+            recorded_by:
+              $ref: '#/components/schemas/AdminReviewer'
+            mobilized_recorded_by:
+              anyOf:
+                - $ref: '#/components/schemas/AdminReviewer'
+                - type: 'null'
+          required: [recorded_by, mobilized_recorded_by]
+    AdminCandidateFlightDetailShow:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        flight_detail:
+          anyOf:
+            - $ref: '#/components/schemas/AdminFlightDetail'
+            - type: 'null'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [candidate_id, assignment_id, flight_detail, updated_at]
+    AdminFlightDetailCreateRequest:
+      type: object
+      properties:
+        candidate_flight_detail:
+          type: object
+          required: [airline, flight_number, sector, flight_date, ticket, expected_current_stage_code]
+          properties:
+            airline:
+              type: string
+            flight_number:
+              type: string
+            sector:
+              type: string
+            flight_date:
+              type: string
+              format: date-time
+              description: Full flight date and time, ISO 8601.
+            ticket:
+              type: string
+              format: binary
+              description: Required. Stored privately; never returned as a permanent URL.
+            expected_current_stage_code:
+              type: string
+              description: Required for stale-state protection.
+            note:
+              type: string
+          additionalProperties: false
+      required: [candidate_flight_detail]
+    AdminFlightDetailMobilizeRequest:
+      type: object
+      properties:
+        candidate_flight_detail:
+          type: object
+          required: [mobilized_on, expected_current_stage_code]
+          properties:
+            mobilized_on:
+              type: string
+              format: date
+              description: Must be on or after the recorded flight date.
+            expected_current_stage_code:
+              type: string
+              description: Required for stale-state protection.
+            note:
+              type: string
+          additionalProperties: false
+      required: [candidate_flight_detail]
+    AdminFlightDetailResult:
+      type: object
+      properties:
+        workflow:
+          $ref: '#/components/schemas/CandidateWorkflowState'
+        flight_detail:
+          $ref: '#/components/schemas/AdminFlightDetail'
+      required: [workflow, flight_detail]
+    FlightTicketAccess:
+      type: object
+      properties:
+        flight_detail_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required: [flight_detail_id, url, expires_at]
     CandidateDocumentSubmissionResult:
       type: object
       properties:
@@ -3677,6 +3913,650 @@ paths:
           description: Idempotency conflict or stale request
         '422':
           description: Invalid outcome, conflicting no-show payload, or closed attempt
+  /api/v1/admin/candidates/{candidate_id}/visa_decisions:
+    get:
+      summary: List structured visa decisions for a candidate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Visa decisions retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                visaDecisions:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                      visa_decisions:
+                        - id: 9b8a5883-70d5-4040-8823-424f4b4b669b
+                          outcome_code: issued
+                          decision_date: '2026-09-05'
+                          rejection_reason_code: null
+                          visa_copy_attached: true
+                          created_at: '2026-09-05T10:00:00Z'
+                          recorded_by:
+                            id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                            role: mps
+                      updated_at: '2026-09-05T10:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-05T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow history
+    post:
+      summary: Record a visa decision (issued or rejected)
+      description: >-
+        Records the outcome of a candidate's visa application, moving the
+        candidate from `qvc_completed_outcome_received` to
+        `visa_issued_or_rejected` through the canonical workflow transition
+        service. An `issued` outcome requires a private visa copy upload and
+        a decision date; a `rejected` outcome requires a structured
+        rejection reason and a decision date. The transition is blocked
+        (`workflow_transition_prerequisite_missing`) unless the candidate's
+        latest completed QVC attempt outcome is `approved`. Existing
+        workflow history is never rewritten.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminVisaDecisionRequest'
+      responses:
+        '201':
+          description: Visa decision recorded or replayed idempotently
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                issued:
+                  value:
+                    data:
+                      workflow:
+                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        candidate_status: visa_issued_or_rejected
+                        current_stage:
+                          code: visa_issued_or_rejected
+                          name: Visa Issued / Visa Rejected
+                          position: 11
+                          status: current
+                          started_at: '2026-09-05T10:00:00Z'
+                        timeline: []
+                        qvc_attempts: []
+                        protection: null
+                        completed_count: 10
+                        total_count: 15
+                        progress_percentage: 66
+                        updated_at: '2026-09-05T10:00:00Z'
+                      visa_decision:
+                        id: 9b8a5883-70d5-4040-8823-424f4b4b669b
+                        outcome_code: issued
+                        decision_date: '2026-09-05'
+                        rejection_reason_code: null
+                        visa_copy_attached: true
+                        created_at: '2026-09-05T10:00:00Z'
+                        recorded_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: mps
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-05T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to manage workflow
+        '409':
+          description: Idempotency conflict or stale expected_current_stage_code
+        '422':
+          description: >-
+            Missing visa copy for an issued outcome, missing/unsupported rejection
+            reason for a rejected outcome, invalid decision date, missing
+            expected_current_stage_code, or the latest QVC outcome was not approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingVisaCopy:
+                  value:
+                    errors:
+                      - code: document_attachment_missing
+                        message: The requested document file is unavailable.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-05T10:00:00Z'
+  /api/v1/admin/candidates/{candidate_id}/visa_decisions/{visa_decision_id}/visa_copy_access:
+    post:
+      summary: Generate a short-lived private access path for a recorded visa copy
+      description: >-
+        Returns a private Active Storage proxy path for the visa copy attached
+        to a recorded visa decision. The path is time-limited, does not expose
+        storage keys, and every successful access is audited.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: visa_decision_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      visa_decision_id: 9b8a5883-70d5-4040-8823-424f4b4b669b
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/visa.pdf?disposition=inline
+                      expires_at: '2026-09-05T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-05T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow history
+        '404':
+          description: Visa decision not found
+        '422':
+          description: Visa decision exists but has no attached visa copy (a rejected decision)
+  /api/v1/admin/candidates/{candidate_id}/flight_detail:
+    get:
+      summary: Show the candidate's structured flight and mobilization detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Flight detail retrieved (null before it has been recorded)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                flightDetail:
+                  value:
+                    data:
+                      candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                      flight_detail:
+                        id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                        airline: Qatar Airways
+                        flight_number: QR-123
+                        sector: LHE-DOH
+                        flight_departure_at: '2026-09-20T14:30:00Z'
+                        ticket_attached: true
+                        mobilized_on: null
+                        mobilized: false
+                        recorded_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: mps
+                        mobilized_recorded_by: null
+                      updated_at: '2026-09-15T10:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow history
+    post:
+      summary: Record flight details for a candidate ready to fly
+      description: >-
+        Records airline, flight number, sector, flight date/time, and a
+        private ticket upload, moving the candidate from
+        `protected_ready_to_fly` to `flight_details_uploaded` through the
+        canonical workflow transition service. Exactly one flight detail
+        record exists per assignment.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminFlightDetailCreateRequest'
+      responses:
+        '201':
+          description: Flight details recorded or replayed idempotently
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                created:
+                  value:
+                    data:
+                      workflow:
+                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        candidate_status: flight_details_uploaded
+                        current_stage:
+                          code: flight_details_uploaded
+                          name: Flight Details Uploaded
+                          position: 14
+                          status: current
+                          started_at: '2026-09-15T10:00:00Z'
+                        timeline: []
+                        qvc_attempts: []
+                        protection: null
+                        completed_count: 13
+                        total_count: 15
+                        progress_percentage: 86
+                        updated_at: '2026-09-15T10:00:00Z'
+                      flight_detail:
+                        id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                        airline: Qatar Airways
+                        flight_number: QR-123
+                        sector: LHE-DOH
+                        flight_departure_at: '2026-09-20T14:30:00Z'
+                        ticket_attached: true
+                        mobilized_on: null
+                        mobilized: false
+                        recorded_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: mps
+                        mobilized_recorded_by: null
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to manage workflow
+        '409':
+          description: Idempotency conflict or stale expected_current_stage_code
+        '422':
+          description: >-
+            Missing ticket file, missing required field, invalid flight date, or
+            missing expected_current_stage_code
+    patch:
+      summary: Record final mobilization for a candidate with recorded flight details
+      description: >-
+        Records the final mobilization date, moving the candidate from
+        `flight_details_uploaded` to `mobilized` (terminal) through the
+        canonical workflow transition service. The mobilization date must be
+        on or after the recorded flight date; inconsistent dates are rejected
+        deterministically. Once mobilized, the flight detail record's core
+        fields and workflow history become immutable and view-only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminFlightDetailMobilizeRequest'
+      responses:
+        '200':
+          description: Candidate mobilized or replayed idempotently
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                mobilized:
+                  value:
+                    data:
+                      workflow:
+                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        candidate_status: mobilized
+                        current_stage:
+                          code: mobilized
+                          name: Mobilized
+                          position: 15
+                          status: completed
+                          completed_at: '2026-09-21T09:00:00Z'
+                        timeline: []
+                        qvc_attempts: []
+                        protection: null
+                        completed_count: 15
+                        total_count: 15
+                        progress_percentage: 100
+                        updated_at: '2026-09-21T09:00:00Z'
+                      flight_detail:
+                        id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                        airline: Qatar Airways
+                        flight_number: QR-123
+                        sector: LHE-DOH
+                        flight_departure_at: '2026-09-20T14:30:00Z'
+                        ticket_attached: true
+                        mobilized_on: '2026-09-21'
+                        mobilized: true
+                        recorded_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: mps
+                        mobilized_recorded_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: mps
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-21T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to manage workflow
+        '409':
+          description: Idempotency conflict or stale expected_current_stage_code
+        '422':
+          description: >-
+            Missing or invalid mobilized_on, mobilized_on before the flight date,
+            already mobilized, or missing expected_current_stage_code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                inconsistentDate:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: candidate_flight_detail.mobilized_on
+                        message: The mobilization date must be on or after the flight date.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-21T09:00:00Z'
+  /api/v1/admin/candidates/{candidate_id}/flight_detail/ticket_access:
+    post:
+      summary: Generate a short-lived private access path for the recorded flight ticket
+      description: >-
+        Returns a private Active Storage proxy path for the ticket attached to
+        the candidate's flight detail. The path is time-limited, does not
+        expose storage keys, and every successful access is audited. The
+        candidate can independently fetch the same short-lived access for
+        their own ticket via `POST /api/v1/candidate/flight_detail/ticket_access`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      flight_detail_id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/ticket.pdf?disposition=inline
+                      expires_at: '2026-09-15T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow history
+        '404':
+          description: Flight detail not found
+        '422':
+          description: Flight detail exists but has no attached ticket
+  /api/v1/candidate/flight_detail:
+    get:
+      summary: Show the authenticated candidate's own structured flight detail
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Flight detail retrieved (null before it has been recorded)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                flightDetail:
+                  value:
+                    data:
+                      id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                      airline: Qatar Airways
+                      flight_number: QR-123
+                      sector: LHE-DOH
+                      flight_departure_at: '2026-09-20T14:30:00Z'
+                      ticket_attached: true
+                      mobilized_on: null
+                      mobilized: false
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/candidate/flight_detail/ticket_access:
+    post:
+      summary: Generate a short-lived private access path for the candidate's own flight ticket
+      description: >-
+        Returns a private Active Storage proxy path for the ticket attached
+        to the authenticated candidate's own flight detail. The path is
+        time-limited, does not expose storage keys, and every successful
+        access is audited.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      flight_detail_id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/ticket.pdf?disposition=inline
+                      expires_at: '2026-09-15T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '404':
+          description: Flight detail not found
+        '422':
+          description: Flight detail exists but has no attached ticket
   /api/v1/admin/document_submissions:
     get:
       summary: List candidate document submissions waiting for review

@@ -4,6 +4,9 @@ module CandidateWorkflows
   module StageRequirements
     QVC_OUTCOME_CODES = %w[approved re_medical rejected].freeze
     VISA_OUTCOME_CODES = %w[issued rejected].freeze
+    VISA_REJECTION_REASON_CODES = %w[
+      document_discrepancy medical_issue security_clearance embassy_rejection incomplete_application other
+    ].freeze
 
     STAGE_RULES = {
       'qvc_appointment_booked' => {
@@ -20,10 +23,11 @@ module CandidateWorkflows
       },
       'visa_issued_or_rejected' => {
         required_fields: %w[visa_outcome_code visa_outcome_date],
-        allowed_fields: %w[visa_outcome_code visa_outcome_date],
+        allowed_fields: %w[visa_outcome_code visa_outcome_date rejection_reason_code],
         field_types: {
           'visa_outcome_code' => { type: :enum, values: VISA_OUTCOME_CODES },
-          'visa_outcome_date' => :iso_date
+          'visa_outcome_date' => :iso_date,
+          'rejection_reason_code' => { type: :enum, values: VISA_REJECTION_REASON_CODES }
         }
       },
       'appeared_for_protection' => {
@@ -37,11 +41,13 @@ module CandidateWorkflows
         field_types: { 'protected_on' => :iso_date }
       },
       'flight_details_uploaded' => {
-        required_fields: %w[flight_reference flight_date],
-        allowed_fields: %w[flight_reference flight_date],
+        required_fields: %w[airline flight_reference sector flight_date],
+        allowed_fields: %w[airline flight_reference sector flight_date],
         field_types: {
+          'airline' => :string,
           'flight_reference' => :string,
-          'flight_date' => :iso_date
+          'sector' => :string,
+          'flight_date' => :iso_datetime
         }
       },
       'mobilized' => {

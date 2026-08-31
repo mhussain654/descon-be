@@ -168,7 +168,12 @@ RSpec.describe CandidateWorkflows::TransitionService do
       candidate:,
       actor:,
       to_stage_code: 'flight_details_uploaded',
-      evidence: { flight_reference: 'QR-123', flight_date: '2026-09-20' }
+      evidence: {
+        airline: 'Qatar Airways',
+        flight_reference: 'QR-123',
+        sector: 'LHE-DOH',
+        flight_date: '2026-09-20T14:30:00Z'
+      }
     )
     transition!(candidate:, actor:, to_stage_code: 'mobilized', evidence: { mobilized_on: '2026-09-22' })
 
@@ -432,7 +437,11 @@ RSpec.describe CandidateWorkflows::TransitionService do
       candidate:,
       actor:,
       to_stage_code: 'visa_issued_or_rejected',
-      evidence: { visa_outcome_code: 'rejected', visa_outcome_date: '2026-09-10' }
+      evidence: {
+        visa_outcome_code: 'rejected',
+        visa_outcome_date: '2026-09-10',
+        rejection_reason_code: 'document_discrepancy'
+      }
     )
 
     expect do
@@ -491,22 +500,29 @@ RSpec.describe CandidateWorkflows::TransitionService do
     assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
     requirement_for(assignment:, code: 'passport')
     pcc_type = requirement_for(assignment:, code: CandidateDocument::PCC_REQUIREMENT_CODE)
-    create(
-      :candidate_document,
-      candidate_assignment: assignment,
-      document_type: document_type_for('passport'),
-      status_code: 'verified',
-      verified_by: actor,
-      verified_at: Time.current
+    create_required_documents(
+      candidate:,
+      assignment:,
+      default_status: 'verified',
+      overrides: {
+        'passport' => {
+          document_type: document_type_for('passport'),
+          status_code: 'verified',
+          verified_by: actor,
+          verified_at: Time.current
+        },
+        CandidateDocument::PCC_REQUIREMENT_CODE => {
+          document_type: pcc_type,
+          status_code: 'verified',
+          issued_on: Date.new(2026, 1, 1),
+          verified_by: actor,
+          verified_at: Time.current
+        }
+      }
     )
-    expired_pcc = create(
-      :candidate_document,
+    expired_pcc = CandidateDocument.current_version.find_by!(
       candidate_assignment: assignment,
-      document_type: pcc_type,
-      status_code: 'verified',
-      issued_on: Date.new(2026, 1, 1),
-      verified_by: actor,
-      verified_at: Time.current
+      document_type: pcc_type
     )
 
     expect(expired_pcc.compliance_status).to eq('expired')

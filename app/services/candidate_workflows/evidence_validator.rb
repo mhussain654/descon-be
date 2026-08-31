@@ -34,6 +34,8 @@ module CandidateWorkflows
       case StageRequirements.field_type_for(@destination_stage.code, field_name)
       when :iso_date
         validate_iso_date!(field_name, value)
+      when :iso_datetime
+        validate_iso_datetime!(field_name, value)
       when :string
         validate_string!(field_name, value)
       when Hash
@@ -44,6 +46,15 @@ module CandidateWorkflows
     def validate_iso_date!(field_name, value)
       Date.iso8601(value.to_s)
     rescue ArgumentError
+      raise ValidationError.new(
+        field: evidence_field(field_name),
+        message: I18n.t('api.errors.workflow_transition_evidence_date_invalid')
+      )
+    end
+
+    def validate_iso_datetime!(field_name, value)
+      DateTime.iso8601(value.to_s)
+    rescue ArgumentError, TypeError
       raise ValidationError.new(
         field: evidence_field(field_name),
         message: I18n.t('api.errors.workflow_transition_evidence_date_invalid')

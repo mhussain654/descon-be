@@ -25,6 +25,38 @@ RSpec.describe Candidates::Documents::UploadService do
     )
   end
 
+  def resolved_required_requirements
+    Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
+  end
+
+  # rubocop:disable Metrics/MethodLength
+  def create_required_documents(overrides: {}, default_status: 'uploaded')
+    resolved_required_requirements.each do |requirement|
+      override_attributes = overrides.fetch(requirement.document_type.code, {}).dup
+      next if override_attributes.delete(:skip_create)
+
+      status_code = override_attributes.fetch(:status_code, default_status)
+      create(
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type: requirement.document_type,
+        status_code:,
+        **default_status_attributes_for(status_code),
+        **override_attributes
+      )
+    end
+  end
+  # rubocop:enable Metrics/MethodLength
+
+  def default_status_attributes_for(status_code)
+    case status_code
+    when 'verified'
+      { verified_by: create(:user), verified_at: Time.current }
+    else
+      {}
+    end
+  end
+
   before do
     create(
       :document_requirement,
@@ -37,6 +69,8 @@ RSpec.describe Candidates::Documents::UploadService do
 
   describe '.call' do
     it 'uploads a candidate document and returns a checklist item' do
+      create_required_documents(overrides: { 'passport' => { skip_create: true } })
+
       result = described_class.call(
         candidate:,
         uploaded_file: fixture_upload('test.pdf', 'application/pdf'),
@@ -133,6 +167,7 @@ RSpec.describe Candidates::Documents::UploadService do
     end
 
     it 'replaces an uploaded document and supersedes the previous current version' do
+      create_required_documents(overrides: { 'passport' => { skip_create: true } })
       existing_document = create(
         :candidate_document,
         candidate_assignment: assignment,
@@ -163,6 +198,12 @@ RSpec.describe Candidates::Documents::UploadService do
         country: assignment.country,
         project: assignment.project,
         craft: assignment.craft
+      )
+      create_required_documents(
+        overrides: {
+          'passport' => { skip_create: true },
+          'cv' => { skip_create: true }
+        }
       )
 
       described_class.call(
