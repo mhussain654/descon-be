@@ -1380,6 +1380,136 @@ components:
           type: string
           format: date-time
       required: [flight_detail_id, url, expires_at]
+    ReferenceDataItem:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+          description: Localized per the request's X-Locale/Accept-Language.
+      required: [code, name]
+    AdminCandidateAssignmentSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference_number:
+          type: string
+        country:
+          $ref: '#/components/schemas/ReferenceDataItem'
+        project:
+          $ref: '#/components/schemas/ReferenceDataItem'
+        craft:
+          $ref: '#/components/schemas/ReferenceDataItem'
+        current_workflow_stage:
+          $ref: '#/components/schemas/CandidateProgressWorkflowStage'
+        created_at:
+          type: string
+          format: date-time
+      required: [id, reference_number, country, project, craft, current_workflow_stage, created_at]
+    AdminCandidateDetail:
+      type: object
+      description: >-
+        Full, unmasked staff-facing candidate detail -- distinct from
+        CandidateProfile (the candidate's own masked self-service view).
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        cnic:
+          type: string
+          example: 42101-1234567-1
+        mobile_number:
+          type: string
+        passport_number:
+          type: string
+          nullable: true
+        preferred_locale:
+          type: string
+          enum: [en, ur]
+        candidate_status:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: The more recent of the candidate's and its current assignment's own updated_at -- echo this back as expected_updated_at on a subsequent update to guard against a stale write.
+        assignment:
+          $ref: '#/components/schemas/AdminCandidateAssignmentSummary'
+      required: [id, full_name, cnic, mobile_number, preferred_locale, candidate_status, active, created_at]
+    AdminCandidateCreateRequest:
+      type: object
+      properties:
+        candidate:
+          type: object
+          required: [full_name, cnic, mobile_number, preferred_locale, country_code, project_code, craft_code, reference_number]
+          properties:
+            full_name:
+              type: string
+            cnic:
+              type: string
+              example: 42101-1234567-1
+            mobile_number:
+              type: string
+              description: Stored as the candidate's own CNIC/OTP login identifier.
+            passport_number:
+              type: string
+            preferred_locale:
+              type: string
+              enum: [en, ur]
+            country_code:
+              type: string
+            project_code:
+              type: string
+            craft_code:
+              type: string
+            reference_number:
+              type: string
+          additionalProperties: false
+      required: [candidate]
+    AdminCandidateUpdateRequest:
+      type: object
+      description: >-
+        Every field is optional -- only the fields actually being changed
+        should be sent. cnic and reference_number are never accepted here;
+        both are immutable once the candidate is created.
+        country_code/project_code/craft_code are only accepted while the
+        candidate's assignment has not moved past documents_pending.
+      properties:
+        candidate:
+          type: object
+          properties:
+            full_name:
+              type: string
+            mobile_number:
+              type: string
+            passport_number:
+              type: string
+              description: Send blank to clear a previously recorded passport number.
+            preferred_locale:
+              type: string
+              enum: [en, ur]
+            country_code:
+              type: string
+            project_code:
+              type: string
+            craft_code:
+              type: string
+            expected_updated_at:
+              type: string
+              format: date-time
+              description: Echo the detail response's own updated_at to guard against overwriting a concurrent change.
+          additionalProperties: false
+      required: [candidate]
     CandidateDocumentSubmissionResult:
       type: object
       properties:
@@ -3302,6 +3432,349 @@ paths:
             does not cover invalid row content (bad CNIC format, unknown reference codes,
             duplicate rows, etc.) — those are row-level outcomes returned inside a `200`/`201`
             response's `data.errors` array, not this status.
+  /api/v1/admin/candidates:
+    post:
+      summary: Create a candidate and its initial assignment
+      description: >-
+        Creates a single candidate (source_code admin_ui) plus its initial
+        assignment (project/country/craft/reference_number), always starting
+        at the registered stage and immediately auto-advancing to
+        documents_pending (no document requirements yet exist to block it).
+        CNIC, mobile number and passport number (if given) must each be
+        unique across all candidates.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCandidateCreateRequest'
+      responses:
+        '201':
+          description: Candidate created or replayed idempotently
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                created:
+                  value:
+                    data:
+                      id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      full_name: Jane Applicant
+                      cnic: 42101-1234567-1
+                      mobile_number: '+923001234567'
+                      passport_number: null
+                      preferred_locale: en
+                      candidate_status: documents_pending
+                      active: true
+                      created_at: '2026-09-15T10:00:00Z'
+                      updated_at: '2026-09-15T10:00:00Z'
+                      assignment:
+                        id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        reference_number: DES-000123
+                        country: { code: qatar, name: Qatar }
+                        project: { code: qatar_infrastructure, name: Qatar Infrastructure }
+                        craft: { code: electrician, name: Electrician }
+                        current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        created_at: '2026-09-15T10:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Authenticated staff user lacks manage_candidates or is inactive
+        '409':
+          description: Idempotency conflict or in-progress request
+        '422':
+          description: >-
+            Missing/invalid field, duplicate CNIC, duplicate passport number,
+            duplicate reference number, or unknown country/project/craft code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                duplicateCnic:
+                  value:
+                    errors:
+                      - code: duplicate_cnic
+                        field: cnic
+                        message: A candidate with this CNIC already exists.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:00:00Z'
+  /api/v1/admin/candidates/{id}:
+    get:
+      summary: Show the full staff-facing candidate detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate detail retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                detail:
+                  value:
+                    data:
+                      id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      full_name: Jane Applicant
+                      cnic: 42101-1234567-1
+                      mobile_number: '+923001234567'
+                      passport_number: null
+                      preferred_locale: en
+                      candidate_status: documents_pending
+                      active: true
+                      created_at: '2026-09-15T10:00:00Z'
+                      updated_at: '2026-09-15T10:00:00Z'
+                      assignment:
+                        id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        reference_number: DES-000123
+                        country: { code: qatar, name: Qatar }
+                        project: { code: qatar_infrastructure, name: Qatar Infrastructure }
+                        craft: { code: electrician, name: Electrician }
+                        current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        created_at: '2026-09-15T10:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Authenticated staff user lacks view_candidates/manage_candidates
+        '404':
+          description: Candidate not found
+    patch:
+      summary: Update a candidate's profile and, only before documents_pending is left, its assignment
+      description: >-
+        cnic and reference_number are immutable. country_code/project_code/
+        craft_code are only accepted while the assignment has not moved past
+        documents_pending (document requirements are resolved live from
+        these, so changing them is only safe before any document has been
+        uploaded). Pass expected_updated_at (from a prior detail response) to
+        guard against overwriting a concurrent change.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCandidateUpdateRequest'
+      responses:
+        '200':
+          description: Candidate updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                      full_name: Jane A. Applicant
+                      cnic: 42101-1234567-1
+                      mobile_number: '+923001234567'
+                      passport_number: null
+                      preferred_locale: en
+                      candidate_status: documents_pending
+                      active: true
+                      created_at: '2026-09-15T10:00:00Z'
+                      updated_at: '2026-09-15T10:05:00Z'
+                      assignment:
+                        id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        reference_number: DES-000123
+                        country: { code: qatar, name: Qatar }
+                        project: { code: qatar_infrastructure, name: Qatar Infrastructure }
+                        craft: { code: electrician, name: Electrician }
+                        current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        created_at: '2026-09-15T10:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:05:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Authenticated staff user lacks manage_candidates or is inactive
+        '404':
+          description: Candidate not found
+        '409':
+          description: expected_updated_at no longer matches the current candidate/assignment state
+        '422':
+          description: >-
+            Missing/invalid field, duplicate passport number, or an
+            assignment field (country/project/craft) submitted after the
+            candidate has moved past documents_pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                assignmentFieldLocked:
+                  value:
+                    errors:
+                      - code: candidate_assignment_field_locked
+                        field: craft_code
+                        message: This field can only be changed while the candidate is still at the registered stage.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:05:00Z'
+  /api/v1/admin/countries:
+    get:
+      summary: List active countries
+      description: Reference data for the candidate creation/edit forms' country selection.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Active countries, ordered by code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                countries:
+                  value:
+                    data:
+                      - code: qatar
+                        name: Qatar
+                      - code: saudi_arabia
+                        name: Saudi Arabia
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Authenticated staff user lacks view_candidates/manage_candidates
+  /api/v1/admin/projects:
+    get:
+      summary: List active projects
+      description: Reference data for the candidate creation/edit forms' project selection.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Active projects, ordered by code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                projects:
+                  value:
+                    data:
+                      - code: qatar_infrastructure
+                        name: Qatar Infrastructure
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Authenticated staff user lacks view_candidates/manage_candidates
+  /api/v1/admin/crafts:
+    get:
+      summary: List active crafts
+      description: Reference data for the candidate creation/edit forms' craft selection.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Active crafts, ordered by code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                crafts:
+                  value:
+                    data:
+                      - code: electrician
+                        name: Electrician
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Authenticated staff user lacks view_candidates/manage_candidates
   /api/v1/admin/candidates/{candidate_id}/workflow_state:
     get:
       summary: Fetch a candidate workflow state for authorized staff
