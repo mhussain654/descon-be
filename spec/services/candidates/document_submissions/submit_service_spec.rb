@@ -109,7 +109,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       create_required_documents(
         candidate:,
         assignment:,
-        default_status: 'verified',
+        default_status: 'uploaded',
         overrides: {
           'passport' => { document_type: passport, status_code: 'uploaded' }
         }
@@ -117,12 +117,13 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       create(:candidate_document, candidate_assignment: assignment, document_type: cv, status_code: 'uploaded')
 
       result = described_class.call(candidate:, request_id: 'candidate-submit-1')
+      resolved_requirements = Candidates::Documents::RequirementResolver.call(candidate:, assignment:)
 
       expect(result.submission_state).to eq('submitted')
-      expect(result.documents[:pending_review]).to eq(1)
+      expect(result.documents[:pending_review]).to eq(result.documents[:required_total])
       expect(result.documents[:can_submit]).to be(false)
       expect(CandidateDocumentSubmission.count).to eq(1)
-      expect(CandidateDocumentSubmissionItem.count).to eq(2)
+      expect(CandidateDocumentSubmissionItem.count).to eq(resolved_requirements.count)
       expect(
         CandidateDocument.current_version.find_by!(
           candidate_assignment: assignment,

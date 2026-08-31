@@ -500,22 +500,29 @@ RSpec.describe CandidateWorkflows::TransitionService do
     assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
     requirement_for(assignment:, code: 'passport')
     pcc_type = requirement_for(assignment:, code: CandidateDocument::PCC_REQUIREMENT_CODE)
-    create(
-      :candidate_document,
-      candidate_assignment: assignment,
-      document_type: document_type_for('passport'),
-      status_code: 'verified',
-      verified_by: actor,
-      verified_at: Time.current
+    create_required_documents(
+      candidate:,
+      assignment:,
+      default_status: 'verified',
+      overrides: {
+        'passport' => {
+          document_type: document_type_for('passport'),
+          status_code: 'verified',
+          verified_by: actor,
+          verified_at: Time.current
+        },
+        CandidateDocument::PCC_REQUIREMENT_CODE => {
+          document_type: pcc_type,
+          status_code: 'verified',
+          issued_on: Date.new(2026, 1, 1),
+          verified_by: actor,
+          verified_at: Time.current
+        }
+      }
     )
-    expired_pcc = create(
-      :candidate_document,
+    expired_pcc = CandidateDocument.current_version.find_by!(
       candidate_assignment: assignment,
-      document_type: pcc_type,
-      status_code: 'verified',
-      issued_on: Date.new(2026, 1, 1),
-      verified_by: actor,
-      verified_at: Time.current
+      document_type: pcc_type
     )
 
     expect(expired_pcc.compliance_status).to eq('expired')
