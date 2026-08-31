@@ -34,13 +34,16 @@ Rails.application.routes.draw do
       end
 
       namespace :admin do
-        resources :candidates, only: [] do
+        resources :candidates, only: %i[create show update] do
           resource :bank_detail, path: 'bank_details', only: :show, controller: :candidate_bank_details do
             resource :proof_access,
                      only: :create,
                      controller: :candidate_bank_detail_proof_accesses
           end
         end
+        resources :countries, only: :index
+        resources :projects, only: :index
+        resources :crafts, only: :index
         resources :candidate_imports, only: :create
         resources :document_submissions, only: %i[index show]
         resources :candidates, only: [] do
