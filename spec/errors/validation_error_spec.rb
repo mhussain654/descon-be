@@ -7,7 +7,7 @@ RSpec.describe ValidationError do
     error = described_class.new(field: :email)
 
     expect(error.code).to eq('validation_failed')
-    expect(error.status).to eq(:unprocessable_entity)
+    expect(error.status).to eq(:unprocessable_content)
     expect(error.field).to eq(:email)
     expect(error.message).to eq(I18n.t('api.errors.validation_failed'))
   end

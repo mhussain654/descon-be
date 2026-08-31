@@ -323,7 +323,7 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       post "/api/v1/admin/candidate_documents/#{document.public_id}/access",
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('document_attachment_missing')
     end
   end
@@ -387,7 +387,7 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       actor = create(:user, role: 'admin')
       post "/api/v1/admin/candidate_documents/#{document.public_id}/verifications",
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'Idempotency-Key' => 'verify-doc-2' }
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('document_already_reviewed')
 
       post '/api/v1/admin/candidate_documents/unknown-id/verifications',
@@ -453,20 +453,20 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       post "/api/v1/admin/candidate_documents/#{document.public_id}/rejections",
            params: { rejection: { reason: '   ' } },
            headers: auth_headers
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('rejection_reason_required')
 
       post "/api/v1/admin/candidate_documents/#{document.public_id}/rejections",
            params: { rejection: { reason: '<b>too short</b>' } },
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'Idempotency-Key' => 'reject-doc-3' }
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('rejection_reason_invalid')
 
       document.update!(status_code: 'verified', verified_by: actor, verified_at: Time.current)
       post "/api/v1/admin/candidate_documents/#{document.public_id}/rejections",
            params: { rejection: { reason: 'Document is unreadable.' } },
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'Idempotency-Key' => 'reject-doc-4' }
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('document_already_reviewed')
     end
   end

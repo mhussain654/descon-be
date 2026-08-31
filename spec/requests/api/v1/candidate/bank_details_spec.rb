@@ -115,7 +115,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           },
           headers: headers
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_proof')
       expect(response.headers['Content-Language']).to eq('ur')
 
@@ -130,7 +130,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           },
           headers: candidate_auth_headers(candidate)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_account_number')
 
       put '/api/v1/candidate/bank_details',
@@ -174,7 +174,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           },
           headers: candidate_auth_headers(candidate)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_account_title')
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('bank_detail.account_title')
 
@@ -189,7 +189,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           },
           headers: candidate_auth_headers(candidate)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_account_number')
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('bank_detail.account_number')
 
@@ -204,7 +204,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           },
           headers: candidate_auth_headers(candidate)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('missing_bank_name')
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('bank_detail.bank_name')
     end
@@ -227,7 +227,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           },
           headers: candidate_auth_headers(candidate)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(original_record.reload).to be_current_version
       expect(original_record.account_number).to eq('PK24SCBL0001')
       expect(assignment.candidate_bank_details.current_version.count).to eq(1)

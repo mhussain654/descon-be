@@ -22,59 +22,28 @@ module CandidateWorkflows
     private
 
     def record_qvc_attempt!
-      return create_qvc_attempt! if destination_stage_code == 'qvc_appointment_booked'
-      return complete_qvc_attempt! if destination_stage_code == 'qvc_completed_outcome_received'
+      create_qvc_attempt! if destination_stage_code == 'qvc_appointment_booked'
+      complete_qvc_attempt! if destination_stage_code == 'qvc_completed_outcome_received'
     end
 
     def create_qvc_attempt!
-      attempt = assignment.candidate_qvc_attempts.create!(
-        scheduled_by: @history_entry.actor || assignment.created_by,
-        attempt_number: next_attempt_number,
-        appointment_date: Date.iso8601(evidence.fetch('appointment_date')),
-        internal_note: @history_entry.note
-      )
-
-      QvcAttemptAuditRecorder.call(
-        event: :scheduled,
-        candidate: candidate,
-        assignment:,
-        attempt:,
-        actor: @history_entry.actor,
-        request_id: @transition.fetch(:request_id)
-      )
+      attempt = assignment.candidate_qvc_attempts.create!(qvc_attempt_attributes)
+      record_qvc_attempt_audit!(event: :scheduled, attempt:)
     end
 
     def complete_qvc_attempt!
       attempt = assignment.candidate_qvc_attempts.open_attempts.latest_first.first
       raise InvalidWorkflowTransitionError.new(field: 'candidate_workflow_transition.to_stage_code') if attempt.blank?
 
-      recorded_at = @transition.fetch(:transitioned_at)
-      outcome_code = normalized_qvc_outcome_code(evidence.fetch('qvc_outcome_code'))
-      attempt.update!(
-        outcome_code:,
-        outcome_recorded_at: recorded_at,
-        outcome_recorded_by: @history_entry.actor || assignment.created_by,
-        internal_note: @history_entry.note
-      )
-      assignment.update!(
-        qvc_outcome_code: outcome_code,
-        qvc_outcome_date: recorded_at.to_date,
-        updated_at: recorded_at
-      )
+      update_qvc_attempt!(attempt)
+      update_assignment_qvc_summary!
 
-      QvcAttemptAuditRecorder.call(
-        event: :completed,
-        candidate: candidate,
-        assignment:,
-        attempt:,
-        actor: @history_entry.actor,
-        request_id: @transition.fetch(:request_id)
-      )
+      record_qvc_attempt_audit!(event: :completed, attempt:)
     end
 
     def record_protection_record!
-      return record_protection_appearance! if destination_stage_code == 'appeared_for_protection'
-      return record_ready_to_fly! if destination_stage_code == 'protected_ready_to_fly'
+      record_protection_appearance! if destination_stage_code == 'appeared_for_protection'
+      record_ready_to_fly! if destination_stage_code == 'protected_ready_to_fly'
     end
 
     def record_protection_appearance!
@@ -99,6 +68,49 @@ module CandidateWorkflows
 
     def next_attempt_number
       assignment.candidate_qvc_attempts.maximum(:attempt_number).to_i + 1
+    end
+
+    def qvc_attempt_attributes
+      {
+        scheduled_by: actor,
+        attempt_number: next_attempt_number,
+        appointment_date: Date.iso8601(evidence.fetch('appointment_date')),
+        internal_note: @history_entry.note
+      }
+    end
+
+    def record_qvc_attempt_audit!(event:, attempt:)
+      QvcAttemptAuditRecorder.call(
+        event:,
+        actor: @history_entry.actor,
+        request_id: @transition.fetch(:request_id),
+        context: { candidate:, assignment:, attempt: }
+      )
+    end
+
+    def actor
+      @history_entry.actor || assignment.created_by
+    end
+
+    def update_qvc_attempt!(attempt)
+      attempt.update!(
+        outcome_code: normalized_qvc_outcome_code(evidence.fetch('qvc_outcome_code')),
+        outcome_recorded_at: transitioned_at,
+        outcome_recorded_by: actor,
+        internal_note: @history_entry.note
+      )
+    end
+
+    def update_assignment_qvc_summary!
+      assignment.update!(
+        qvc_outcome_code: normalized_qvc_outcome_code(evidence.fetch('qvc_outcome_code')),
+        qvc_outcome_date: transitioned_at.to_date,
+        updated_at: transitioned_at
+      )
+    end
+
+    def transitioned_at
+      @transition.fetch(:transitioned_at)
     end
 
     def normalized_qvc_outcome_code(value)

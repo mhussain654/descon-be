@@ -354,7 +354,11 @@ RSpec.describe CandidateWorkflows::TransitionService do
   it 'rejects unsupported visa outcomes' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate)
-    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('qvc_completed_outcome_received'))
+    assignment = create(
+      :candidate_assignment,
+      candidate:,
+      current_workflow_stage: stage_for('qvc_completed_outcome_received')
+    )
     create(
       :candidate_qvc_attempt,
       candidate_assignment: assignment,

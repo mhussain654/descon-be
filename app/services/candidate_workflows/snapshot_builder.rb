@@ -11,6 +11,12 @@ module CandidateWorkflows
     end
 
     def call
+      snapshot.merge(progress_attributes)
+    end
+
+    private
+
+    def snapshot
       {
         current_stage: current_stage_hash,
         timeline:,
@@ -18,14 +24,17 @@ module CandidateWorkflows
         history_entries: stage_histories,
         qvc_attempts: loaded_qvc_attempts,
         protection_record: loaded_protection_record,
-        completed_count:,
-        total_count: @stages.length,
-        progress_percentage: progress_percentage,
         updated_at: serialized_updated_at
       }
     end
 
-    private
+    def progress_attributes
+      {
+        completed_count:,
+        total_count: @stages.length,
+        progress_percentage: progress_percentage
+      }
+    end
 
     def current_stage = @assignment&.current_workflow_stage
 

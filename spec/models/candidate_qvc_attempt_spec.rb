@@ -16,7 +16,12 @@ RSpec.describe CandidateQvcAttempt, type: :model do
   end
 
   it 'requires completed attempts to record the actor and timestamp' do
-    attempt = build(:candidate_qvc_attempt, outcome_code: 'approved', outcome_recorded_at: nil, outcome_recorded_by: nil)
+    attempt = build(
+      :candidate_qvc_attempt,
+      outcome_code: 'approved',
+      outcome_recorded_at: nil,
+      outcome_recorded_by: nil
+    )
 
     expect(attempt).not_to be_valid
     expect(attempt.errors[:outcome_recorded_at]).to include("can't be blank")

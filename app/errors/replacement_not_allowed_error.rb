@@ -5,7 +5,7 @@ class ReplacementNotAllowedError < BaseError
     super(
       code: 'replacement_not_allowed',
       message: I18n.t('api.errors.replacement_not_allowed'),
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       field: 'candidate_document.requirement_code'
     )
   end

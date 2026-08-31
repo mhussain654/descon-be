@@ -3,6 +3,6 @@
 class NoDocumentRequirementsError < BaseError
   def initialize(message: nil)
     message ||= I18n.t('api.errors.no_document_requirements')
-    super(code: 'no_document_requirements', message:, status: :unprocessable_entity)
+    super(code: 'no_document_requirements', message:, status: :unprocessable_content)
   end
 end

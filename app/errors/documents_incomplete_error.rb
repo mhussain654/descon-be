@@ -6,7 +6,7 @@ class DocumentsIncompleteError < BaseError
     super(
       code: 'documents_incomplete',
       message:,
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       details: { blocking_requirements: }
     )
   end

@@ -5,6 +5,15 @@ require 'rails_helper'
 RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
   let!(:candidate) { create(:candidate, mobile_number: '+923001234567') }
 
+  around do |example|
+    original_cache = Rack::Attack.cache.store
+    Rack::Attack.cache.store = ActiveSupport::Cache::MemoryStore.new
+    Rack::Attack.cache.store.clear
+    example.run
+  ensure
+    Rack::Attack.cache.store = original_cache
+  end
+
   def request_otp(cnic)
     post '/api/v1/candidate/auth/otp/request', params: { candidate: { cnic: cnic } }
   end
@@ -59,7 +68,7 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
     it 'returns a field-addressable validation error for a malformed CNIC' do
       request_otp('not-a-cnic')
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('cnic')
     end
 
@@ -197,7 +206,7 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
     it 'returns a field-addressable validation error for a malformed code' do
       verify_otp(cnic: candidate.cnic, code: 'abcdef')
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'field')).to eq('otp')
     end
 

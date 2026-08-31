@@ -59,6 +59,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     WorkflowStage.find_by!(code:)
   end
 
+  # rubocop:disable Metrics/MethodLength
   def create_attempt(candidate:, actor:, stage_code: 'qvc_appointment_booked', outcome_code: nil, no_show: false)
     assignment = create(:candidate_assignment, candidate:, current_workflow_stage: workflow_stage(stage_code))
     attempt = create(
@@ -73,6 +74,41 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
       outcome_recorded_by: outcome_code.present? || no_show ? actor : nil
     )
     [assignment, attempt]
+  end
+  # rubocop:enable Metrics/MethodLength
+
+  it 'lists qvc attempts with private no-store headers for staff' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'qvc_completed_outcome_received')
+    assignment, attempt = create_attempt(
+      candidate:,
+      actor:,
+      stage_code: 'qvc_completed_outcome_received',
+      outcome_code: 'approved'
+    )
+
+    get "/api/v1/admin/candidates/#{candidate.public_id}/qvc_attempts",
+        headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers['Cache-Control']).to eq('private, no-store')
+    expect(response.headers['ETag']).to be_present
+    expect(response.parsed_body.dig('data', 'candidate_id')).to eq(candidate.public_id)
+    expect(response.parsed_body.dig('data', 'assignment_id')).to eq(assignment.public_id)
+    expect(response.parsed_body.dig('data', 'qvc_attempts', 0, 'id')).to eq(attempt.public_id)
+  end
+
+  it 'returns an empty qvc attempt collection when the candidate has no current assignment' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'registered')
+
+    get "/api/v1/admin/candidates/#{candidate.public_id}/qvc_attempts",
+        headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig('data', 'assignment_id')).to be_nil
+    expect(response.parsed_body.dig('data', 'qvc_attempts')).to eq([])
+    expect(response.parsed_body.dig('data', 'updated_at')).to be_nil
   end
 
   it 'schedules the first qvc appointment through the canonical transition path and replays identical retries' do
@@ -138,9 +174,47 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
            'X-Locale' => 'ur'
          }
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.headers['Content-Language']).to eq('ur')
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_qvc_attempt.appointment_date')
+  end
+
+  it 'rejects conflicting no_show and unsupported outcome values' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'qvc_appointment_booked')
+    _, attempt = create_attempt(candidate:, actor:)
+    token = access_token_for(actor)
+
+    patch "/api/v1/admin/candidates/#{candidate.public_id}/qvc_attempts/#{attempt.public_id}",
+          params: {
+            candidate_qvc_attempt: {
+              outcome_code: 'approved',
+              no_show: true,
+              expected_current_stage_code: 'qvc_appointment_booked'
+            }
+          },
+          headers: {
+            'Authorization' => "Bearer #{token}",
+            'Idempotency-Key' => 'qvc-no-show-conflict'
+          }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_qvc_attempt.outcome_code')
+
+    patch "/api/v1/admin/candidates/#{candidate.public_id}/qvc_attempts/#{attempt.public_id}",
+          params: {
+            candidate_qvc_attempt: {
+              outcome_code: 'invalid-value',
+              expected_current_stage_code: 'qvc_appointment_booked'
+            }
+          },
+          headers: {
+            'Authorization' => "Bearer #{token}",
+            'Idempotency-Key' => 'qvc-invalid-outcome'
+          }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_qvc_attempt.outcome_code')
   end
 
   it 'records approved, re_medical, rejected, and no_show outcomes with server timestamps and no duplicate attempts' do
@@ -189,7 +263,8 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     end
   end
 
-  it 'supports re_medical follow-up attempts without overwriting prior attempts and blocks stale or unauthorized updates' do
+  it 'supports re_medical follow-up attempts without overwriting prior attempts ' \
+     'and blocks stale or unauthorized updates' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate, status_code: 'qvc_completed_outcome_received')
     assignment = create(
@@ -237,7 +312,8 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
           headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'qvc-remedical-approved' }
 
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.dig('data', 'workflow', 'current_stage', 'code')).to eq('qvc_completed_outcome_received')
+    expect(response.parsed_body.dig('data', 'workflow', 'current_stage', 'code'))
+      .to eq('qvc_completed_outcome_received')
     expect(response.parsed_body.dig('data', 'qvc_attempt', 'outcome_code')).to eq('approved')
     expect(assignment.reload.qvc_outcome_code).to eq('approved')
     expect(CandidateQvcAttempt.where(candidate_assignment: assignment).count).to eq(2)
@@ -304,7 +380,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
            'Idempotency-Key' => 'qvc-audit-rollback'
          }
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(CandidateQvcAttempt.where(candidate_assignment: assignment).count).to eq(1)
     expect(assignment.reload.current_workflow_stage.code).to eq('qvc_completed_outcome_received')
   end

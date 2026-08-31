@@ -6,7 +6,7 @@ class PccExpiryNotEditableError < BaseError
     super(
       code: 'pcc_expiry_not_editable',
       message:,
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       field: 'candidate_document.expires_on'
     )
   end

@@ -11,11 +11,21 @@ module CandidateWorkflows
 
       {
         id: @record.public_id,
-        appeared_on: @record.appeared_on&.iso8601,
-        appeared_recorded_at: @record.appeared_recorded_at&.utc&.iso8601,
-        protected_on: @record.protected_on&.iso8601,
-        ready_to_fly_at: @record.ready_to_fly_at&.utc&.iso8601
+        appeared_on: serialize_date(@record.appeared_on),
+        appeared_recorded_at: serialize_time(@record.appeared_recorded_at),
+        protected_on: serialize_date(@record.protected_on),
+        ready_to_fly_at: serialize_time(@record.ready_to_fly_at)
       }
+    end
+
+    private
+
+    def serialize_date(value)
+      value&.iso8601
+    end
+
+    def serialize_time(value)
+      value&.utc&.iso8601
     end
   end
 end

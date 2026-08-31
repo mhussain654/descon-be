@@ -5,7 +5,7 @@ class UnsupportedFileTypeError < BaseError
     super(
       code: 'unsupported_file_type',
       message: I18n.t('api.errors.unsupported_file_type'),
-      status: :unprocessable_entity,
+      status: :unprocessable_content,
       field: 'candidate_document.file'
     )
   end

@@ -48,9 +48,21 @@ class CandidateQvcAttempt < ApplicationRecord
   end
 
   def outcome_fields_are_consistent
-    return if !completed? && outcome_recorded_at.blank? && outcome_recorded_by.blank?
-    return if completed? && outcome_recorded_at.present? && outcome_recorded_by.present?
+    return if outcome_fields_blank_without_completion?
+    return if outcome_fields_complete?
 
+    add_missing_outcome_errors
+  end
+
+  def outcome_fields_blank_without_completion?
+    !completed? && outcome_recorded_at.blank? && outcome_recorded_by.blank?
+  end
+
+  def outcome_fields_complete?
+    completed? && outcome_recorded_at.present? && outcome_recorded_by.present?
+  end
+
+  def add_missing_outcome_errors
     errors.add(:outcome_recorded_at, :blank) if completed? && outcome_recorded_at.blank?
     errors.add(:outcome_recorded_by, :blank) if completed? && outcome_recorded_by.blank?
   end

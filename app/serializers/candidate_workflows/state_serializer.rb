@@ -10,7 +10,9 @@ module CandidateWorkflows
 
     private
 
-    def base_attributes
+    def base_attributes = workflow_attributes.merge(progress_attributes)
+
+    def workflow_attributes
       {
         candidate_id: @snapshot.candidate.public_id,
         assignment_id: @snapshot.assignment&.public_id,
@@ -18,7 +20,12 @@ module CandidateWorkflows
         current_stage: @snapshot.current_stage,
         timeline: @snapshot.timeline,
         qvc_attempts: serialized_qvc_attempts,
-        protection: serialized_protection,
+        protection: serialized_protection
+      }
+    end
+
+    def progress_attributes
+      {
         completed_count: @snapshot.completed_count,
         total_count: @snapshot.total_count,
         progress_percentage: @snapshot.progress_percentage

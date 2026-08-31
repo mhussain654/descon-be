@@ -105,7 +105,7 @@ RSpec.describe 'API V1 Admin Candidate Bank Details', type: :request do
       post "/api/v1/admin/candidates/#{candidate.public_id}/bank_details/proof_access",
            headers: { 'Authorization' => "Bearer #{access_token_for(finance)}" }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('bank_proof_attachment_missing')
     end
   end
