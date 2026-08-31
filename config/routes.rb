@@ -24,6 +24,7 @@ Rails.application.routes.draw do
         resource :bank_detail, path: 'bank_details', only: %i[show update], controller: :bank_details
         resources :documents, only: %i[index create]
         resources :document_submissions, only: :create
+        resource :payment, only: %i[show create], controller: :payments
         resource :application_progress, only: :show, controller: :application_progress
         resource :profile, only: :show
         resource :workflow_state, only: :show
@@ -67,6 +68,13 @@ Rails.application.routes.draw do
 
       namespace :users do
         resource :profile, only: :show
+      end
+
+      namespace :payments do
+        scope 'hosted_checkout/:provider_code' do
+          get :return, to: 'hosted_checkout_returns#show'
+          post :callback, to: 'hosted_checkout_callbacks#create'
+        end
       end
 
       get 'health/live', to: 'health#live'

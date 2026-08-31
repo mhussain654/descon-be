@@ -3,6 +3,7 @@
 module Candidates
   module ApplicationProgress
     Summary = Data.define(
+      :candidate,
       :candidate_status,
       :current_workflow_stage,
       :documents,

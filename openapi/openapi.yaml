@@ -413,9 +413,11 @@ components:
             name:
               type: string
           required: [code, name]
+        payment:
+          $ref: '#/components/schemas/CandidatePaymentEligibility'
         active:
           type: boolean
-      required: [id, full_name, masked_cnic, reference_number, preferred_locale, candidate_status, active]
+      required: [id, full_name, masked_cnic, reference_number, preferred_locale, candidate_status, payment, active]
     CandidateBankProofMetadata:
       type: object
       properties:
@@ -755,6 +757,98 @@ components:
               format: date-time
             - type: 'null'
       required: [timeline, completed_count, total_count, progress_percentage, updated_at]
+    CandidatePaymentRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        payment_type_code:
+          type: string
+          example: onboarding_fee
+        status:
+          type: string
+          enum: [checkout_pending, paid, failed, cancelled]
+        amount:
+          type: string
+          example: '1500.0'
+        currency_code:
+          type: string
+          example: PKR
+        provider:
+          type: string
+          enum: [mock_hosted_checkout, kuickpay]
+        checkout_url:
+          anyOf:
+            - type: string
+            - type: 'null'
+        checkout_expires_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        paid_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [id, payment_type_code, status, amount, currency_code, provider]
+    CandidatePaymentEligibility:
+      type: object
+      properties:
+        eligible:
+          type: boolean
+        checkout_available:
+          type: boolean
+        required_stage_code:
+          type: string
+          example: fee_pending
+        current_stage_code:
+          anyOf:
+            - type: string
+            - type: 'null'
+        blocking_reasons:
+          type: array
+          items:
+            type: string
+            enum:
+              - no_current_assignment
+              - payment_stage_not_reached
+              - required_documents_not_verified
+              - payment_already_completed
+              - payment_provider_unavailable
+        amount:
+          type: string
+          example: '1500.0'
+        currency_code:
+          type: string
+          example: PKR
+        latest_payment:
+          anyOf:
+            - $ref: '#/components/schemas/CandidatePaymentRecord'
+            - type: 'null'
+      required:
+        - eligible
+        - checkout_available
+        - required_stage_code
+        - current_stage_code
+        - blocking_reasons
+        - amount
+        - currency_code
+        - latest_payment
+    CandidatePaymentCheckoutResponse:
+      type: object
+      properties:
+        eligibility:
+          $ref: '#/components/schemas/CandidatePaymentEligibility'
+        payment:
+          $ref: '#/components/schemas/CandidatePaymentRecord'
+      required: [eligibility, payment]
     CandidateApplicationProgressDocuments:
       type: object
       properties:
@@ -819,7 +913,9 @@ components:
           $ref: '#/components/schemas/CandidateWorkflowProgress'
         documents:
           $ref: '#/components/schemas/CandidateApplicationProgressDocuments'
-      required: [candidate_status, current_workflow_stage, workflow, documents]
+        payment:
+          $ref: '#/components/schemas/CandidatePaymentEligibility'
+      required: [candidate_status, current_workflow_stage, workflow, documents, payment]
     CandidateWorkflowState:
       type: object
       properties:
@@ -1643,6 +1739,37 @@ components:
           items:
             $ref: '#/components/schemas/CandidateImportRowError'
       required: [successful_rows, failed_rows, skipped_rows, total_rows, errors]
+    HostedCheckoutNotificationRequest:
+      type: object
+      properties:
+        orderid:
+          type: string
+        transactionid:
+          anyOf:
+            - type: string
+            - type: 'null'
+        amount:
+          type: string
+        currency:
+          anyOf:
+            - type: string
+            - type: 'null'
+        status:
+          type: string
+          enum: [SUCCESS, FAILED, CANCELLED]
+        responsecode:
+          type: string
+        signature:
+          type: string
+      required: [orderid, amount, status, responsecode, signature]
+    HostedCheckoutNotificationResult:
+      type: object
+      properties:
+        payment:
+          $ref: '#/components/schemas/CandidatePaymentRecord'
+        workflow:
+          $ref: '#/components/schemas/CandidateWorkflowState'
+      required: [payment, workflow]
     CandidateSessionPayload:
       type: object
       properties:
@@ -2296,6 +2423,10 @@ paths:
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
             Vary:
               $ref: '#/components/headers/VaryLanguageHeaders'
             X-Request-Id:
@@ -2317,6 +2448,16 @@ paths:
                       current_workflow_stage:
                         code: registered
                         name: Registered
+                      payment:
+                        eligible: false
+                        checkout_available: false
+                        required_stage_code: fee_pending
+                        current_stage_code: registered
+                        blocking_reasons:
+                          - payment_stage_not_reached
+                        amount: '1500.0'
+                        currency_code: PKR
+                        latest_payment: null
                       active: true
                     meta:
                       request_id: c0f3c0af-1bf0-48ba-bf9d-6ec0229247f0
@@ -2334,6 +2475,16 @@ paths:
                       current_workflow_stage:
                         code: registered
                         name: رجسٹرڈ
+                      payment:
+                        eligible: false
+                        checkout_available: false
+                        required_stage_code: fee_pending
+                        current_stage_code: registered
+                        blocking_reasons:
+                          - payment_stage_not_reached
+                        amount: '1500.0'
+                        currency_code: PKR
+                        latest_payment: null
                       active: true
                     meta:
                       request_id: c0f3c0af-1bf0-48ba-bf9d-6ec0229247f0
@@ -2343,6 +2494,189 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/payment:
+    get:
+      summary: Fetch payment eligibility and latest candidate payment
+      description: >-
+        Returns the authenticated candidate's authoritative onboarding-fee eligibility,
+        stable blocking reasons, and latest safe hosted-checkout payment state.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate payment state retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                blockedBeforeFee:
+                  value:
+                    data:
+                      eligible: false
+                      checkout_available: false
+                      required_stage_code: fee_pending
+                      current_stage_code: documents_uploaded
+                      blocking_reasons:
+                        - payment_stage_not_reached
+                      amount: '1500.0'
+                      currency_code: PKR
+                      latest_payment: null
+                    meta:
+                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                      timestamp: '2026-08-31T09:00:00Z'
+                    errors: []
+                eligibleWithPendingCheckout:
+                  value:
+                    data:
+                      eligible: true
+                      checkout_available: true
+                      required_stage_code: fee_pending
+                      current_stage_code: fee_pending
+                      blocking_reasons: []
+                      amount: '1500.0'
+                      currency_code: PKR
+                      latest_payment:
+                        id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        payment_type_code: onboarding_fee
+                        status: checkout_pending
+                        amount: '1500.0'
+                        currency_code: PKR
+                        provider: mock_hosted_checkout
+                        checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
+                        checkout_expires_at: '2026-08-31T09:30:00Z'
+                        paid_at: null
+                        updated_at: '2026-08-31T09:00:00Z'
+                    meta:
+                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                      timestamp: '2026-08-31T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+    post:
+      summary: Initiate or replay an idempotent hosted checkout session
+      description: >-
+        Requires a candidate bearer token and an `Idempotency-Key` header. The backend
+        controls the amount, currency, provider, and order reference. Checkout initiation
+        never marks a payment paid.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      responses:
+        '201':
+          description: Checkout session created or idempotent replay returned
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                checkoutInitiated:
+                  value:
+                    data:
+                      eligibility:
+                        eligible: true
+                        checkout_available: true
+                        required_stage_code: fee_pending
+                        current_stage_code: fee_pending
+                        blocking_reasons: []
+                        amount: '1500.0'
+                        currency_code: PKR
+                        latest_payment:
+                          id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          payment_type_code: onboarding_fee
+                          status: checkout_pending
+                          amount: '1500.0'
+                          currency_code: PKR
+                          provider: mock_hosted_checkout
+                          checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
+                          checkout_expires_at: '2026-08-31T09:30:00Z'
+                          paid_at: null
+                          updated_at: '2026-08-31T09:00:00Z'
+                      payment:
+                        id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        payment_type_code: onboarding_fee
+                        status: checkout_pending
+                        amount: '1500.0'
+                        currency_code: PKR
+                        provider: mock_hosted_checkout
+                        checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
+                        checkout_expires_at: '2026-08-31T09:30:00Z'
+                        paid_at: null
+                        updated_at: '2026-08-31T09:00:00Z'
+                    meta:
+                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                      timestamp: '2026-08-31T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '409':
+          description: Idempotency conflict or duplicate request currently in progress
+        '422':
+          description: Payment prerequisites are not satisfied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                notEligible:
+                  value:
+                    errors:
+                      - code: payment_not_eligible
+                        field: payment
+                        message: This candidate is not eligible to start payment.
+                        details:
+                          blocking_reasons:
+                            - required_documents_not_verified
+                    request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                    timestamp: '2026-08-31T09:00:00Z'
+        '503':
+          description: Hosted checkout provider is unavailable or not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                providerUnavailable:
+                  value:
+                    errors:
+                      - code: payment_checkout_unavailable
+                        message: Hosted checkout is not available right now.
+                    request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                    timestamp: '2026-08-31T09:00:00Z'
   /api/v1/candidate/bank_details:
     get:
       summary: Fetch the authenticated candidate bank-detail submission state
@@ -4557,6 +4891,176 @@ paths:
           description: Flight detail not found
         '422':
           description: Flight detail exists but has no attached ticket
+  /api/v1/payments/hosted_checkout/{provider_code}/return:
+    post:
+      summary: Process a signed hosted-checkout browser return
+      description: >-
+        Processes a signed hosted-checkout return after server-side signature verification.
+        The signed payload must match the stored payment order, amount, and currency when
+        currency is present. Safe duplicates replay without creating duplicate payment or
+        workflow history records.
+      parameters:
+        - name: provider_code
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [mock_hosted_checkout, kuickpay]
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+      responses:
+        '200':
+          description: Signed return processed or safely replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                paid:
+                  value:
+                    data:
+                      payment:
+                        id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        payment_type_code: onboarding_fee
+                        status: paid
+                        amount: '1500.0'
+                        currency_code: PKR
+                        provider: mock_hosted_checkout
+                        checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
+                        checkout_expires_at: '2026-08-31T09:30:00Z'
+                        paid_at: '2026-08-31T09:05:00Z'
+                        updated_at: '2026-08-31T09:05:00Z'
+                      workflow:
+                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        candidate_status: fee_paid
+                        current_stage:
+                          code: fee_paid
+                          name: Fee Paid
+                          position: 7
+                          status: current
+                          started_at: '2026-08-31T09:05:00Z'
+                        timeline: []
+                        qvc_attempts: []
+                        protection: null
+                        completed_count: 6
+                        total_count: 15
+                        progress_percentage: 40
+                        updated_at: '2026-08-31T09:05:00Z'
+                    meta:
+                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                      timestamp: '2026-08-31T09:05:00Z'
+                    errors: []
+        '401':
+          description: Signature missing or invalid
+        '404':
+          description: Stored payment order not found
+        '409':
+          description: Signed payload conflicts with an already-finalized payment
+        '422':
+          description: Signed payload does not match the stored payment state
+        '503':
+          description: Provider is unavailable or not configured
+  /api/v1/payments/hosted_checkout/{provider_code}/callback:
+    post:
+      summary: Process a signed hosted-checkout provider callback
+      description: >-
+        Processes a signed provider callback transactionally. Payment updates and any
+        resulting workflow transition to `fee_paid` succeed or fail together.
+      parameters:
+        - name: provider_code
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [mock_hosted_checkout, kuickpay]
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+      responses:
+        '200':
+          description: Signed callback processed or safely replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                cancelled:
+                  value:
+                    data:
+                      payment:
+                        id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        payment_type_code: onboarding_fee
+                        status: cancelled
+                        amount: '1500.0'
+                        currency_code: PKR
+                        provider: mock_hosted_checkout
+                        checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
+                        checkout_expires_at: '2026-08-31T09:30:00Z'
+                        paid_at: null
+                        updated_at: '2026-08-31T09:07:00Z'
+                      workflow:
+                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                        candidate_status: fee_pending
+                        current_stage:
+                          code: fee_pending
+                          name: Fee Pending
+                          position: 6
+                          status: current
+                          started_at: '2026-08-31T09:00:00Z'
+                        timeline: []
+                        qvc_attempts: []
+                        protection: null
+                        completed_count: 5
+                        total_count: 15
+                        progress_percentage: 33
+                        updated_at: '2026-08-31T09:07:00Z'
+                    meta:
+                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                      timestamp: '2026-08-31T09:07:00Z'
+                    errors: []
+        '401':
+          description: Signature missing or invalid
+        '404':
+          description: Stored payment order not found
+        '409':
+          description: Signed payload conflicts with an already-finalized payment
+        '422':
+          description: Signed payload does not match the stored payment state
+        '503':
+          description: Provider is unavailable or not configured
   /api/v1/admin/document_submissions:
     get:
       summary: List candidate document submissions waiting for review
