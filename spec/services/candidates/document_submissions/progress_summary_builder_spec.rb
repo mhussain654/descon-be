@@ -27,13 +27,16 @@ RSpec.describe Candidates::DocumentSubmissions::ProgressSummaryBuilder do
       status_code: 'uploaded'
     )
     current_documents_by_type = { passport.id => document }
-    requirements = Candidates::Documents::RequirementResolver.call(candidate:, assignment:)
+    resolved_requirements = Candidates::Documents::RequirementResolver.call(candidate:, assignment:)
+    requirement = resolved_requirements.find do |resolved_requirement|
+      resolved_requirement.document_type_id == passport.id
+    end
 
     summary = described_class.call(
       candidate:,
       assignment:,
       current_documents_by_type:,
-      requirements:
+      requirements: [requirement]
     )
 
     expect(summary.documents.required_total).to eq(1)

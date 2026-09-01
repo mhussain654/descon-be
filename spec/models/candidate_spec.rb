@@ -37,6 +37,27 @@ RSpec.describe Candidate, type: :model do
       expect(candidate.errors[:mobile_number]).to be_present
     end
 
+    it 'normalizes and accepts a complete next-of-kin contact set' do
+      candidate = build(
+        :candidate,
+        next_of_kin_name: '  Ayesha Ali ',
+        next_of_kin_relationship: ' Sister ',
+        next_of_kin_mobile_number: '+92 300 123 4567',
+        next_of_kin_cnic: '4210112345671'
+      )
+
+      expect(candidate).to be_valid
+      expect(candidate.next_of_kin_mobile_number).to eq('+923001234567')
+      expect(candidate.next_of_kin_cnic).to eq('42101-1234567-1')
+    end
+
+    it 'rejects an incomplete next-of-kin contact set' do
+      candidate = build(:candidate, next_of_kin_name: 'Ayesha Ali')
+
+      expect(candidate).not_to be_valid
+      expect(candidate.errors[:next_of_kin_cnic]).to be_present
+    end
+
     it 'rejects malformed status codes' do
       candidate = build(:candidate, status_code: 'Needs Review')
 
@@ -50,6 +71,14 @@ RSpec.describe Candidate, type: :model do
 
       expect(duplicate).not_to be_valid
       expect(duplicate.errors[:cnic]).to include('has already been taken')
+    end
+
+    it 'enforces mobile number uniqueness at the application layer' do
+      create(:candidate, mobile_number: '+923001112222')
+      duplicate = build(:candidate, mobile_number: '+923001112222')
+
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:mobile_number]).to include('has already been taken')
     end
 
     it 'rejects concurrent duplicate CNIC inserts at the database layer' do

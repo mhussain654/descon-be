@@ -18,6 +18,8 @@ class Candidate < ApplicationRecord
   before_validation :assign_public_id, on: :create
   before_validation :normalize_cnic
   before_validation :normalize_mobile_number
+  before_validation :normalize_next_of_kin_mobile_number
+  before_validation :normalize_next_of_kin_cnic
   before_validation :normalize_passport_number
   before_validation :normalize_status_code
 
@@ -27,7 +29,15 @@ class Candidate < ApplicationRecord
   validates :public_id, presence: true, uniqueness: true
   validates :full_name, presence: true
   validates :cnic, presence: true, uniqueness: true, format: { with: CNIC_FORMAT }
-  validates :mobile_number, presence: true, format: { with: MOBILE_NUMBER_FORMAT }
+  # No DB-level unique index yet -- the existing dev/test data already has a
+  # collision, so adding one needs a data-cleanup migration step that is a
+  # separate, deliberate decision, not something to bundle into this
+  # duplicate-mobile-number validation. Tracked as a known follow-up.
+  # rubocop:disable Rails/UniqueValidationWithoutIndex
+  validates :mobile_number, presence: true, uniqueness: true, format: { with: MOBILE_NUMBER_FORMAT }
+  # rubocop:enable Rails/UniqueValidationWithoutIndex
+  validates :next_of_kin_mobile_number, format: { with: MOBILE_NUMBER_FORMAT }, allow_blank: true
+  validates :next_of_kin_cnic, format: { with: CNIC_FORMAT }, allow_blank: true
   validates :passport_number,
             uniqueness: true,
             allow_blank: true,
@@ -36,6 +46,7 @@ class Candidate < ApplicationRecord
   validates :preferred_locale, inclusion: { in: PREFERRED_LOCALES }
   validates :source_code, inclusion: { in: SOURCE_CODES }
   validates :status_code, presence: true, format: { with: STATUS_CODE_FORMAT }
+  validate :next_of_kin_fields_are_complete
 
   def active_for_authentication? = active?
 
@@ -64,6 +75,24 @@ class Candidate < ApplicationRecord
   def normalize_passport_number
     normalized_value = passport_number.to_s.upcase.gsub(/\s+/, '')
     self.passport_number = normalized_value.presence
+  end
+
+  def normalize_next_of_kin_mobile_number
+    raw_value = next_of_kin_mobile_number.to_s.strip
+    digits = raw_value.gsub(/\D/, '')
+    self.next_of_kin_mobile_number = raw_value.start_with?('+') ? "+#{digits}" : digits.presence
+  end
+
+  def normalize_next_of_kin_cnic
+    self.next_of_kin_cnic = Candidates::CnicNormalizer.call(next_of_kin_cnic).presence
+  end
+
+  def next_of_kin_fields_are_complete
+    next_of_kin_fields = %i[next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic]
+    return if next_of_kin_fields.all? { |field| public_send(field).blank? }
+    return if next_of_kin_fields.all? { |field| public_send(field).present? }
+
+    next_of_kin_fields.each { |field| errors.add(field, :blank) if public_send(field).blank? }
   end
 
   def normalize_status_code

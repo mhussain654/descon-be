@@ -294,7 +294,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
            params: {
              candidate_document: {
                requirement_code: pcc_code,
-               issued_on: '2026-09-01',
+               issued_on: (Date.current + 1.day).iso8601,
                file: fixture_upload('test.pdf', 'application/pdf')
              }
            },

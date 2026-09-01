@@ -22,9 +22,18 @@ module Admin
         full_name: @candidate.full_name,
         cnic: @candidate.cnic,
         mobile_number: @candidate.mobile_number,
-        passport_number: @candidate.passport_number,
+        passport_number: @candidate.passport_number
+      }.merge(next_of_kin_attributes).merge(candidate_status_attributes)
+    end
+
+    def next_of_kin_attributes
+      {
+        next_of_kin_name: @candidate.next_of_kin_name,
+        next_of_kin_relationship: @candidate.next_of_kin_relationship,
+        next_of_kin_mobile_number: @candidate.next_of_kin_mobile_number,
+        next_of_kin_cnic: @candidate.next_of_kin_cnic,
         preferred_locale: @candidate.preferred_locale
-      }.merge(candidate_status_attributes)
+      }
     end
 
     def candidate_status_attributes
@@ -58,7 +67,8 @@ module Admin
       {
         id: assignment.public_id,
         reference_number: assignment.reference_number,
-        created_at: assignment.created_at.utc.iso8601
+        created_at: assignment.created_at.utc.iso8601,
+        fields_editable: ::Admin::Candidates::UpdateService.assignment_fields_editable?(assignment)
       }
     end
 

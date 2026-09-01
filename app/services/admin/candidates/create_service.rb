@@ -12,11 +12,13 @@ module Admin
     class CreateService < ApplicationService
       AUDITED_FIELDS = %w[
         full_name cnic mobile_number passport_number preferred_locale
+        next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
         country_code project_code craft_code reference_number
       ].freeze
 
       Params = Struct.new(
         :actor, :full_name, :cnic, :mobile_number, :passport_number, :preferred_locale,
+        :next_of_kin_name, :next_of_kin_relationship, :next_of_kin_mobile_number, :next_of_kin_cnic,
         :country_code, :project_code, :craft_code, :reference_number, :request_id,
         keyword_init: true
       )
@@ -47,6 +49,15 @@ module Admin
           mobile_number: normalized_mobile_number(params[:mobile_number]),
           passport_number: normalized_passport_number(params[:passport_number]),
           preferred_locale: params[:preferred_locale].to_s.strip.downcase.presence || 'en'
+        }.merge(normalized_next_of_kin_attributes(params))
+      end
+
+      def normalized_next_of_kin_attributes(params)
+        {
+          next_of_kin_name: params[:next_of_kin_name].to_s.strip.presence,
+          next_of_kin_relationship: params[:next_of_kin_relationship].to_s.strip.presence,
+          next_of_kin_mobile_number: normalized_mobile_number(params[:next_of_kin_mobile_number]).presence,
+          next_of_kin_cnic: ::Candidates::CnicNormalizer.call(params[:next_of_kin_cnic]).presence
         }
       end
 
@@ -77,6 +88,7 @@ module Admin
         validate_cnic!
         validate_mobile_number!
         validate_passport_number! if @params.passport_number.present?
+        validate_next_of_kin!
         validate_preferred_locale!
         validate_reference_number!
         @country = validated_reference(Country, @params.country_code, field: 'country_code')
@@ -96,9 +108,10 @@ module Admin
       end
 
       def validate_mobile_number!
-        return if @params.mobile_number.match?(Candidate::MOBILE_NUMBER_FORMAT)
-
-        raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+        unless @params.mobile_number.match?(Candidate::MOBILE_NUMBER_FORMAT)
+          raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+        end
+        raise DuplicateMobileNumberError if Candidate.exists?(mobile_number: @params.mobile_number)
       end
 
       def validate_passport_number!
@@ -112,6 +125,27 @@ module Admin
         return if Candidate::PREFERRED_LOCALES.include?(@params.preferred_locale)
 
         raise_validation_error('preferred_locale', 'api.errors.candidate_preferred_locale_invalid')
+      end
+
+      def validate_next_of_kin!
+        fields = %i[next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic]
+        return if fields.all? { |field| @params.public_send(field).blank? }
+
+        fields.each do |field|
+          validate_next_of_kin_field!(field)
+        end
+        unless @params.next_of_kin_mobile_number.match?(Candidate::MOBILE_NUMBER_FORMAT)
+          raise_validation_error('next_of_kin_mobile_number', 'api.errors.next_of_kin_mobile_number_invalid')
+        end
+        return if @params.next_of_kin_cnic.match?(Candidate::CNIC_FORMAT)
+
+        raise_validation_error('next_of_kin_cnic', 'api.errors.next_of_kin_cnic_invalid')
+      end
+
+      def validate_next_of_kin_field!(field)
+        return if @params.public_send(field).present?
+
+        raise_validation_error(field.to_s, 'api.errors.next_of_kin_field_required')
       end
 
       def validate_reference_number!
@@ -140,6 +174,10 @@ module Admin
         {
           full_name: @params.full_name, cnic: @params.cnic, mobile_number: @params.mobile_number,
           passport_number: @params.passport_number, preferred_locale: @params.preferred_locale,
+          next_of_kin_name: @params.next_of_kin_name,
+          next_of_kin_relationship: @params.next_of_kin_relationship,
+          next_of_kin_mobile_number: @params.next_of_kin_mobile_number,
+          next_of_kin_cnic: @params.next_of_kin_cnic,
           status_code: 'registered', active: true, source_code: 'admin_ui', created_by: @params.actor
         }
       end

@@ -8,11 +8,13 @@ module Api
 
         CREATE_PARAMS = %i[
           full_name cnic mobile_number passport_number preferred_locale
+          next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
           country_code project_code craft_code reference_number
         ].freeze
 
         UPDATE_PARAMS = %i[
           full_name mobile_number passport_number preferred_locale
+          next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
           country_code project_code craft_code expected_updated_at
         ].freeze
 

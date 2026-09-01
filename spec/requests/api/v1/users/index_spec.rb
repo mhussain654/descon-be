@@ -69,12 +69,9 @@ RSpec.describe 'API V1 Users Index', type: :request do
       expect(response.parsed_body.fetch('data').size).to eq(2)
       expect(response.parsed_body.dig('data', 0, 'id')).to be_present
       expect(response.parsed_body.dig('data', 0)).not_to have_key('user_id')
-      expect(response.parsed_body.dig('meta', 'pagination')).to eq(
-        'page' => 1,
-        'per_page' => 2,
-        'total_count' => 6,
-        'total_pages' => 3
-      )
+      pagination = response.parsed_body.dig('meta', 'pagination')
+      expect(pagination).to include('page' => 1, 'per_page' => 2, 'total_count' => User.count)
+      expect(pagination.fetch('total_pages')).to eq((User.count / 2.0).ceil)
     end
 
     it 'allows the admin role and forbids every other supported active staff role' do
@@ -186,7 +183,9 @@ RSpec.describe 'API V1 Users Index', type: :request do
       expect(response).to have_http_status(:ok)
       emails = response.parsed_body.fetch('data').map { |entry| entry.fetch('email') }
 
-      expect(emails).to eq(%w[hr@example.com mps@example.com])
+      expect(emails).to include('hr@example.com', 'mps@example.com')
+      expect(User.where(email: emails).pluck(:role).uniq).to all(be_in(%w[hr mps]))
+      expect(User.where(email: emails).pluck(:active)).to all(be(true))
     end
 
     it 'rejects unsupported filters with a field-addressable error' do

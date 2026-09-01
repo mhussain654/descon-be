@@ -22,6 +22,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
     Payment.delete_all
+    CandidateDocumentSubmission.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     Candidate.delete_all
@@ -99,6 +100,32 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(AuditEvent.where(action_code: 'candidate_created').count).to eq(1)
     end
 
+    it 'persists and returns normalized next-of-kin profile fields' do
+      actor = create(:user, role: 'hr')
+      params = create_candidate_params(
+        next_of_kin_name: 'Ayesha Ali',
+        next_of_kin_relationship: 'Sister',
+        next_of_kin_mobile_number: '+92 300 123 4567',
+        next_of_kin_cnic: '4210112345671'
+      )
+
+      headers = {
+        'Authorization' => "Bearer #{access_token_for(actor)}",
+        'Idempotency-Key' => 'candidate-next-kin'
+      }
+      post '/api/v1/admin/candidates', params: { candidate: params }, headers: headers
+
+      expect(response).to have_http_status(:created)
+      data = response.parsed_body.fetch('data')
+      expect(data).to include(
+        'next_of_kin_name' => 'Ayesha Ali',
+        'next_of_kin_relationship' => 'Sister',
+        'next_of_kin_mobile_number' => '+923001234567',
+        'next_of_kin_cnic' => '42101-1234567-1'
+      )
+      expect(AuditEvent.last.metadata.fetch('changed_fields')).to include('next_of_kin_cnic')
+    end
+
     it 'replays an identical retry under the same idempotency key without creating a second candidate' do
       actor = create(:user, role: 'hr')
       token = access_token_for(actor)
@@ -140,6 +167,21 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       error = response.parsed_body.dig('errors', 0)
       expect(error.fetch('code')).to eq('duplicate_cnic')
       expect(error.fetch('field')).to eq('cnic')
+    end
+
+    it 'rejects a duplicate mobile number clearly' do
+      actor = create(:user, role: 'hr')
+      create(:candidate, mobile_number: '+923009998888')
+
+      post '/api/v1/admin/candidates',
+           params: { candidate: create_candidate_params(mobile_number: '+923009998888', cnic: '42101-7654321-9') },
+           headers: { 'Authorization' => "Bearer #{access_token_for(actor)}",
+                      'Idempotency-Key' => 'candidate-create-dup-mobile' }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      error = response.parsed_body.dig('errors', 0)
+      expect(error.fetch('code')).to eq('duplicate_mobile_number')
+      expect(error.fetch('field')).to eq('mobile_number')
     end
 
     it 'rejects a duplicate passport number clearly' do
@@ -266,6 +308,25 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
   end
 
   describe 'PATCH /api/v1/admin/candidates/:id' do
+    it 'updates a complete next-of-kin contact set' do
+      actor = create(:user, role: 'hr')
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:)
+
+      patch "/api/v1/admin/candidates/#{candidate.public_id}",
+            params: { candidate: {
+              next_of_kin_name: 'Ayesha Ali',
+              next_of_kin_relationship: 'Sister',
+              next_of_kin_mobile_number: '+92 300 123 4567',
+              next_of_kin_cnic: '4210112345671'
+            } },
+            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'next_of_kin_cnic')).to eq('42101-1234567-1')
+      expect(AuditEvent.last.metadata.fetch('changed_fields')).to include('next_of_kin_name')
+    end
+
     it "updates the candidate's own profile fields" do
       actor = create(:user, role: 'hr')
       candidate = create(:candidate)
@@ -374,6 +435,22 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('duplicate_passport_number')
     end
 
+    it 'rejects a duplicate mobile number on update' do
+      actor = create(:user, role: 'hr')
+      create(:candidate, mobile_number: '+923007776666')
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:, current_workflow_stage: create(:workflow_stage, :registered))
+
+      patch "/api/v1/admin/candidates/#{candidate.public_id}",
+            params: { candidate: { mobile_number: '+923007776666' } },
+            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      error = response.parsed_body.dig('errors', 0)
+      expect(error.fetch('code')).to eq('duplicate_mobile_number')
+      expect(error.fetch('field')).to eq('mobile_number')
+    end
+
     it 'allows editing project/country/craft while the assignment has not moved past documents_pending' do
       actor = create(:user, role: 'hr')
       candidate = create(:candidate)
@@ -386,6 +463,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.dig('data', 'assignment', 'project', 'code')).to eq(new_project.code)
+      expect(response.parsed_body.dig('data', 'assignment', 'fields_editable')).to be(true)
     end
 
     it 'locks project/country/craft once a document has been uploaded' do
@@ -402,6 +480,18 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       error = response.parsed_body.dig('errors', 0)
       expect(error.fetch('code')).to eq('candidate_assignment_field_locked')
       expect(error.fetch('field')).to eq('craft_code')
+    end
+
+    it 'exposes fields_editable: false on GET once a document is uploaded, so the frontend need not infer the lock' do
+      actor = create(:user, role: 'hr')
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:, current_workflow_stage: workflow_stage('documents_uploaded'))
+
+      get "/api/v1/admin/candidates/#{candidate.public_id}",
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'assignment', 'fields_editable')).to be(false)
     end
 
     it 'rejects a stale update when expected_updated_at does not match the current state' do

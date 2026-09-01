@@ -1485,6 +1485,37 @@ components:
           type: string
           description: Localized per the request's X-Locale/Accept-Language.
       required: [code, name]
+    ReferenceDataCreateRequest:
+      type: object
+      properties:
+        reference_data:
+          type: object
+          required: [code, name_en, name_ur]
+          properties:
+            code:
+              type: string
+              pattern: '^[a-z0-9_]+$'
+            name_en:
+              type: string
+            name_ur:
+              type: string
+          additionalProperties: false
+      required: [reference_data]
+    ReferenceDataUpdateRequest:
+      type: object
+      properties:
+        reference_data:
+          type: object
+          properties:
+            name_en:
+              type: string
+            name_ur:
+              type: string
+            expected_updated_at:
+              type: string
+              format: date-time
+          additionalProperties: false
+      required: [reference_data]
     AdminCandidateAssignmentSummary:
       type: object
       properties:
@@ -1504,7 +1535,15 @@ components:
         created_at:
           type: string
           format: date-time
-      required: [id, reference_number, country, project, craft, current_workflow_stage, created_at]
+        fields_editable:
+          type: boolean
+          description: >-
+            Whether country/project/craft may still be changed via
+            PATCH /api/v1/admin/candidates/{id} -- false once a document has
+            been uploaded against the current requirement set. The frontend
+            must render these fields read-only when this is false rather
+            than inferring the boundary from workflow stage itself.
+      required: [id, reference_number, country, project, craft, current_workflow_stage, created_at, fields_editable]
     AdminCandidateDetail:
       type: object
       description: >-
@@ -1522,6 +1561,18 @@ components:
         mobile_number:
           type: string
         passport_number:
+          type: string
+          nullable: true
+        next_of_kin_name:
+          type: string
+          nullable: true
+        next_of_kin_relationship:
+          type: string
+          nullable: true
+        next_of_kin_mobile_number:
+          type: string
+          nullable: true
+        next_of_kin_cnic:
           type: string
           nullable: true
         preferred_locale:
@@ -1559,6 +1610,14 @@ components:
               description: Stored as the candidate's own CNIC/OTP login identifier.
             passport_number:
               type: string
+            next_of_kin_name:
+              type: string
+            next_of_kin_relationship:
+              type: string
+            next_of_kin_mobile_number:
+              type: string
+            next_of_kin_cnic:
+              type: string
             preferred_locale:
               type: string
               enum: [en, ur]
@@ -1591,6 +1650,15 @@ components:
             passport_number:
               type: string
               description: Send blank to clear a previously recorded passport number.
+            next_of_kin_name:
+              type: string
+              description: Must be supplied with every other next-of-kin field, or all next-of-kin fields may be blank.
+            next_of_kin_relationship:
+              type: string
+            next_of_kin_mobile_number:
+              type: string
+            next_of_kin_cnic:
+              type: string
             preferred_locale:
               type: string
               enum: [en, ur]
@@ -3829,6 +3897,7 @@ paths:
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
                         current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        fields_editable: true
                         created_at: '2026-09-15T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -3842,8 +3911,9 @@ paths:
           description: Idempotency conflict or in-progress request
         '422':
           description: >-
-            Missing/invalid field, duplicate CNIC, duplicate passport number,
-            duplicate reference number, or unknown country/project/craft code
+            Missing/invalid field, duplicate CNIC, duplicate mobile number,
+            duplicate passport number, duplicate reference number, or unknown
+            country/project/craft code
           content:
             application/json:
               schema:
@@ -3855,6 +3925,14 @@ paths:
                       - code: duplicate_cnic
                         field: cnic
                         message: A candidate with this CNIC already exists.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:00:00Z'
+                duplicateMobileNumber:
+                  value:
+                    errors:
+                      - code: duplicate_mobile_number
+                        field: mobile_number
+                        message: A candidate with this mobile number already exists.
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                     timestamp: '2026-09-15T10:00:00Z'
   /api/v1/admin/candidates/{id}:
@@ -3910,6 +3988,7 @@ paths:
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
                         current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        fields_editable: true
                         created_at: '2026-09-15T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -3986,6 +4065,7 @@ paths:
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
                         current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        fields_editable: true
                         created_at: '2026-09-15T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -4049,6 +4129,25 @@ paths:
           description: Missing, invalid, expired, or revoked staff session
         '403':
           description: Authenticated staff user lacks view_candidates/manage_candidates
+    post:
+      summary: Create a country reference value
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferenceDataCreateRequest'
+      responses:
+        '201':
+          description: Country created
+        '409':
+          description: Idempotency conflict or in-progress request
+        '422':
+          description: Invalid or duplicate reference code
   /api/v1/admin/projects:
     get:
       summary: List active projects
@@ -4079,6 +4178,22 @@ paths:
           description: Missing, invalid, expired, or revoked staff session
         '403':
           description: Authenticated staff user lacks view_candidates/manage_candidates
+    post:
+      summary: Create a project reference value
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferenceDataCreateRequest'
+      responses:
+        '201': { description: Project created }
+        '409': { description: Idempotency conflict or in-progress request }
+        '422': { description: Invalid or duplicate reference code }
   /api/v1/admin/crafts:
     get:
       summary: List active crafts
@@ -4109,6 +4224,114 @@ paths:
           description: Missing, invalid, expired, or revoked staff session
         '403':
           description: Authenticated staff user lacks view_candidates/manage_candidates
+    post:
+      summary: Create a craft reference value
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferenceDataCreateRequest'
+      responses:
+        '201': { description: Craft created }
+        '409': { description: Idempotency conflict or in-progress request }
+        '422': { description: Invalid or duplicate reference code }
+  /api/v1/admin/countries/{code}:
+    patch:
+      summary: Update a country reference value
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReferenceDataUpdateRequest' }
+      responses:
+        '200': { description: Country updated }
+        '409': { description: Stale reference-data state }
+        '422': { description: Invalid reference-data attributes }
+  /api/v1/admin/countries/{code}/retirement:
+    post:
+      summary: Retire a country while preserving historical assignments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReferenceDataUpdateRequest' }
+      responses:
+        '200': { description: Country retired }
+        '409': { description: Stale reference-data state }
+  /api/v1/admin/projects/{code}:
+    patch:
+      summary: Update a project reference value
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReferenceDataUpdateRequest' }
+      responses:
+        '200': { description: Project updated }
+        '409': { description: Stale reference-data state }
+  /api/v1/admin/projects/{code}/retirement:
+    post:
+      summary: Retire a project while preserving historical assignments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Project retired }
+        '409': { description: Stale reference-data state }
+  /api/v1/admin/crafts/{code}:
+    patch:
+      summary: Update a craft reference value
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReferenceDataUpdateRequest' }
+      responses:
+        '200': { description: Craft updated }
+        '409': { description: Stale reference-data state }
+  /api/v1/admin/crafts/{code}/retirement:
+    post:
+      summary: Retire a craft while preserving historical assignments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Craft retired }
+        '409': { description: Stale reference-data state }
   /api/v1/admin/candidates/{candidate_id}/workflow_state:
     get:
       summary: Fetch a candidate workflow state for authorized staff

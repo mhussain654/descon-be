@@ -29,12 +29,22 @@ module Admin
     class UpdateService < ApplicationService
       DOCUMENTS_PENDING_POSITION = 2
 
+      # Shared with Admin::CandidateSerializer, which exposes this same
+      # boolean to the frontend as `assignment.fields_editable` -- the single
+      # source of truth for the lock boundary, so the frontend never has to
+      # duplicate this business rule to decide whether to render the
+      # project/country/craft fields as read-only.
+      def self.assignment_fields_editable?(assignment)
+        assignment.present? && assignment.current_workflow_stage.position <= DOCUMENTS_PENDING_POSITION
+      end
+
       # Symbols, not strings -- `@provided_fields` comes from a
       # double-splatted keyword-argument hash, whose keys are always symbols.
       ASSIGNMENT_FIELD_CODES = %i[country_code project_code craft_code].freeze
 
       Params = Struct.new(
         :actor, :candidate, :full_name, :mobile_number, :passport_number, :preferred_locale,
+        :next_of_kin_name, :next_of_kin_relationship, :next_of_kin_mobile_number, :next_of_kin_cnic,
         :country_code, :project_code, :craft_code, :expected_updated_at,
         keyword_init: true
       )
@@ -92,11 +102,51 @@ module Admin
         validate_mobile_number! if @provided_fields.include?(:mobile_number)
         validate_passport_number! if @provided_fields.include?(:passport_number)
         validate_preferred_locale! if @provided_fields.include?(:preferred_locale)
+        validate_next_of_kin! if next_of_kin_fields_provided?
         validate_assignment_fields! if assignment_fields_provided?
       end
 
       def assignment_fields_provided?
         @provided_fields.intersect?(ASSIGNMENT_FIELD_CODES)
+      end
+
+      def next_of_kin_fields_provided?
+        @provided_fields.intersect?(next_of_kin_fields)
+      end
+
+      def next_of_kin_fields
+        %i[next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic]
+      end
+
+      def validate_next_of_kin!
+        values = next_of_kin_fields.index_with { |field| next_of_kin_value(field) }
+        return if values.values.all?(&:blank?)
+
+        validate_next_of_kin_presence!(values)
+        validate_next_of_kin_mobile_number!(values.fetch(:next_of_kin_mobile_number))
+        return if values.fetch(:next_of_kin_cnic).match?(Candidate::CNIC_FORMAT)
+
+        raise_validation_error('next_of_kin_cnic', 'api.errors.next_of_kin_cnic_invalid')
+      end
+
+      def validate_next_of_kin_presence!(values)
+        values.each do |field, value|
+          raise_validation_error(field.to_s, 'api.errors.next_of_kin_field_required') if value.blank?
+        end
+      end
+
+      def validate_next_of_kin_mobile_number!(value)
+        return if value.match?(Candidate::MOBILE_NUMBER_FORMAT)
+
+        raise_validation_error('next_of_kin_mobile_number', 'api.errors.next_of_kin_mobile_number_invalid')
+      end
+
+      def next_of_kin_value(field)
+        raw_value = provided?(field) ? @params.public_send(field) : @params.candidate.public_send(field)
+        return normalized_mobile_number(raw_value).presence if field == :next_of_kin_mobile_number
+        return ::Candidates::CnicNormalizer.call(raw_value).presence if field == :next_of_kin_cnic
+
+        raw_value.to_s.strip.presence
       end
 
       def validate_full_name!
@@ -107,9 +157,14 @@ module Admin
 
       def validate_mobile_number!
         value = normalized_mobile_number(@params.mobile_number)
-        return if value.match?(Candidate::MOBILE_NUMBER_FORMAT)
+        unless value.match?(Candidate::MOBILE_NUMBER_FORMAT)
+          raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+        end
+        raise DuplicateMobileNumberError if other_candidate_has_mobile_number?(value)
+      end
 
-        raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+      def other_candidate_has_mobile_number?(value)
+        Candidate.where(mobile_number: value).where.not(id: @params.candidate.id).exists?
       end
 
       def validate_passport_number!
@@ -148,7 +203,7 @@ module Admin
       end
 
       def assignment_fields_editable?
-        assignment.present? && assignment.current_workflow_stage.position <= DOCUMENTS_PENDING_POSITION
+        self.class.assignment_fields_editable?(assignment)
       end
 
       def raise_locked_error(field)
@@ -178,7 +233,11 @@ module Admin
           full_name: @params.full_name.to_s.strip,
           mobile_number: normalized_mobile_number(@params.mobile_number),
           passport_number: normalized_passport_number(@params.passport_number),
-          preferred_locale: @params.preferred_locale.to_s.strip.downcase
+          preferred_locale: @params.preferred_locale.to_s.strip.downcase,
+          next_of_kin_name: next_of_kin_value(:next_of_kin_name),
+          next_of_kin_relationship: next_of_kin_value(:next_of_kin_relationship),
+          next_of_kin_mobile_number: next_of_kin_value(:next_of_kin_mobile_number),
+          next_of_kin_cnic: next_of_kin_value(:next_of_kin_cnic)
         }.slice(*@provided_fields)
       end
 

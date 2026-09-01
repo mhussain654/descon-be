@@ -437,7 +437,7 @@ RSpec.describe Candidates::Documents::UploadService do
           candidate:,
           uploaded_file: fixture_upload('test.pdf', 'application/pdf'),
           requirement_code: pcc_code,
-          pcc_attributes: { issued_on: '2026-09-01' },
+          pcc_attributes: { issued_on: (Date.current + 1.day).iso8601 },
           request_id: 'req-doc-upload-pcc-6'
         )
       end.to raise_error(ValidationError, I18n.t('api.errors.pcc_issue_date_in_future'))
