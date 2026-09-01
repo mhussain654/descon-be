@@ -5,16 +5,13 @@ require 'rails_helper'
 RSpec.describe Users::CreateService do
   include ActiveJob::TestHelper
 
-  around do |example|
-    AuditEvent.delete_all
-    User.delete_all
+  before do
     clear_enqueued_jobs
     ensure_staff_authorization_reference_data!
-    example.run
-  ensure
+  end
+
+  after do
     clear_enqueued_jobs
-    AuditEvent.delete_all
-    User.delete_all
   end
 
   def call(actor:, attributes:)

@@ -3834,7 +3834,54 @@ paths:
             does not cover invalid row content (bad CNIC format, unknown reference codes,
             duplicate rows, etc.) — those are row-level outcomes returned inside a `200`/`201`
             response's `data.errors` array, not this status.
+  /api/v1/admin/candidate_imports/template:
+    get:
+      summary: Download the versioned candidate import CSV template
+      description: >-
+        Returns the UTF-8 `candidate-import-template-v1.csv` file. Required columns
+        match the existing candidate-import parser; passport and next-of-kin columns are optional.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: CSV template with a synthetic example row
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        '403': { description: Staff user lacks candidate-management permission }
   /api/v1/admin/candidates:
+    get:
+      summary: List candidates for authorized staff
+      description: Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports partial matching.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: filter[status]
+          in: query
+          schema: { type: string }
+        - name: filter[country_code]
+          in: query
+          schema: { type: string }
+        - name: filter[project_code]
+          in: query
+          schema: { type: string }
+        - name: filter[craft_code]
+          in: query
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, reference_number, -reference_number] }
+        - name: page[number]
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page[size]
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200': { description: Paginated candidate results with applied_filters metadata }
+        '400': { description: Invalid filter, sort, or pagination parameter }
+        '403': { description: Staff user lacks candidate-view permission }
     post:
       summary: Create a candidate and its initial assignment
       description: >-

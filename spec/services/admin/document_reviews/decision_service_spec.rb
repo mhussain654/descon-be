@@ -6,6 +6,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
   self.use_transactional_tests = false
 
   around do |example|
+    AuthenticationEvent.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -16,6 +17,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     User.delete_all
     example.run
   ensure
+    AuthenticationEvent.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all

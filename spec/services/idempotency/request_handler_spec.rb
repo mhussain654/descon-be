@@ -6,6 +6,7 @@ RSpec.describe Idempotency::RequestHandler do
   self.use_transactional_tests = false
 
   around do |example|
+    AuthenticationEvent.delete_all
     CandidateAssignment.delete_all
     Candidate.delete_all
     RefreshToken.delete_all
@@ -14,6 +15,7 @@ RSpec.describe Idempotency::RequestHandler do
     IdempotencyKey.delete_all
     example.run
   ensure
+    AuthenticationEvent.delete_all
     IdempotencyKey.delete_all
     CandidateAssignment.delete_all
     Candidate.delete_all

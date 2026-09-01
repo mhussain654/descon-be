@@ -35,7 +35,7 @@ Rails.application.routes.draw do
       end
 
       namespace :admin do
-        resources :candidates, only: %i[create show update] do
+        resources :candidates, only: %i[index create show update] do
           resource :bank_detail, path: 'bank_details', only: :show, controller: :candidate_bank_details do
             resource :proof_access,
                      only: :create,
@@ -51,7 +51,9 @@ Rails.application.routes.draw do
         resources :crafts, only: %i[index create update], param: :code do
           post :retirement, on: :member
         end
-        resources :candidate_imports, only: :create
+        resources :candidate_imports, only: :create do
+          get :template, on: :collection, controller: :candidate_import_templates, action: :show
+        end
         resources :document_submissions, only: %i[index show]
         resources :candidates, only: [] do
           resource :workflow_state, only: :show, controller: :candidate_workflow_states

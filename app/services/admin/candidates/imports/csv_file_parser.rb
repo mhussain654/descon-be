@@ -21,6 +21,14 @@ module Admin
           craft_code
           active
         ].freeze
+        OPTIONAL_HEADERS = %w[
+          passport_number
+          next_of_kin_name
+          next_of_kin_relationship
+          next_of_kin_mobile_number
+          next_of_kin_cnic
+        ].freeze
+        SUPPORTED_HEADERS = (REQUIRED_HEADERS + OPTIONAL_HEADERS).freeze
         ALLOWED_CONTENT_TYPES = %w[
           text/csv
           application/csv

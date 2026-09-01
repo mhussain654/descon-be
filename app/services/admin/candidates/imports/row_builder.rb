@@ -19,7 +19,7 @@ module Admin
         private
 
         def normalized_row_attributes(row)
-          CsvFileParser::REQUIRED_HEADERS.index_with { |header| row[header].to_s.strip }
+          CsvFileParser::SUPPORTED_HEADERS.index_with { |header| row[header].to_s.strip }
         end
 
         def blank_row?(attributes)

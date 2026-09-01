@@ -12,27 +12,6 @@ RSpec.describe 'db:seed rake task' do
     Rake::Task['db:seed'].reenable
   end
 
-  around do |example|
-    CandidateAssignment.delete_all
-    CandidateOtpChallenge.delete_all
-    CandidateRefreshToken.delete_all
-    CandidateSession.delete_all
-    RefreshToken.delete_all
-    Session.delete_all
-    Candidate.delete_all
-    User.delete_all
-    example.run
-  ensure
-    CandidateAssignment.delete_all
-    CandidateOtpChallenge.delete_all
-    CandidateRefreshToken.delete_all
-    CandidateSession.delete_all
-    RefreshToken.delete_all
-    Session.delete_all
-    Candidate.delete_all
-    User.delete_all
-  end
-
   it 'runs cleanly against the current (fresh, migrated, empty) database' do
     expect { Rake::Task['db:seed'].invoke }.not_to raise_error
   end

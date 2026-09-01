@@ -6,6 +6,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
   self.use_transactional_tests = false
 
   around do |example|
+    AuthenticationEvent.delete_all
+    AuditEvent.delete_all
     CandidateAssignment.delete_all
     CandidateOtpChallenge.delete_all
     CandidateRefreshToken.delete_all
@@ -16,6 +18,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
     User.delete_all
     example.run
   ensure
+    AuthenticationEvent.delete_all
+    AuditEvent.delete_all
     CandidateAssignment.delete_all
     CandidateOtpChallenge.delete_all
     CandidateRefreshToken.delete_all

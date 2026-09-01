@@ -2,6 +2,10 @@
 
 module Admin
   class CandidatePolicy < ApplicationPolicy
+    def index?
+      show?
+    end
+
     def show?
       permission_granted?('view_candidates') || permission_granted?('manage_candidates')
     end
