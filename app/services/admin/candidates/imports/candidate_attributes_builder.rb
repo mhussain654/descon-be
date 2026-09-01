@@ -20,6 +20,12 @@ module Admin
         end
 
         def call(attributes:, row_errors:)
+          required_attributes(attributes, row_errors:).merge(optional_attributes(attributes))
+        end
+
+        private
+
+        def required_attributes(attributes, row_errors:)
           {
             full_name: required_value(attributes, 'full_name', row_errors:),
             cnic: validated_cnic(attributes.fetch('cnic'), row_errors:),
@@ -32,7 +38,15 @@ module Admin
           }
         end
 
-        private
+        def optional_attributes(attributes)
+          %w[passport_number next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic]
+            .index_with { |field| optional_value(attributes, field) }
+            .transform_keys(&:to_sym)
+        end
+
+        def optional_value(attributes, field_name)
+          attributes[field_name].to_s.strip.presence
+        end
 
         def required_value(attributes, field_name, row_errors:)
           value = attributes.fetch(field_name)

@@ -18,6 +18,17 @@ module Api
           country_code project_code craft_code expected_updated_at
         ].freeze
 
+        def index
+          authorize ::Candidate, :index?, policy_class: ::Admin::CandidatePolicy
+
+          query = ::Admin::Candidates::IndexQuery.new(
+            scope: policy_scope(::Candidate, policy_scope_class: ::Admin::CandidatePolicy::Scope), params:
+          )
+          candidates = query.call
+          data = candidates.map { |candidate| serialized_candidate(candidate) }
+          render_collection(data:, pagination: query.pagination, meta: { applied_filters: query.applied_filters })
+        end
+
         def show
           authorize candidate, :show?, policy_class: ::Admin::CandidatePolicy
 
