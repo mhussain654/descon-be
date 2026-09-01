@@ -7,6 +7,11 @@ module Admin
       MAX_PAGE_SIZE = 100
       ALLOWED_FILTERS = %w[status country_code project_code craft_code].freeze
       ALLOWED_SORTS = %w[created_at full_name reference_number].freeze
+      REFERENCE_FILTER_SQL = {
+        'country_code' => 'current_assignments.country_id = ?',
+        'project_code' => 'current_assignments.project_id = ?',
+        'craft_code' => 'current_assignments.craft_id = ?'
+      }.freeze
       attr_reader :pagination, :applied_filters
 
       def initialize(scope:, params:)
@@ -78,13 +83,7 @@ module Admin
           return scope.where(status_code: status)
         end
 
-        scope.where("current_assignments.#{reference_column(name)} = ?", reference_id(name, value))
-      end
-
-      def reference_column(filter_name)
-        {
-          'country_code' => 'country_id', 'project_code' => 'project_id', 'craft_code' => 'craft_id'
-        }.fetch(filter_name)
+        scope.where(REFERENCE_FILTER_SQL.fetch(name), reference_id(name, value))
       end
 
       def reference_id(filter_name, value)
@@ -103,11 +102,15 @@ module Admin
         field = raw.delete_prefix('-')
         raise UnsupportedSortError.new(sort_name: field) unless ALLOWED_SORTS.include?(field)
 
-        if field == 'reference_number'
-          return scope.order("current_assignments.reference_number #{direction.upcase}", public_id: :asc)
-        end
+        return reference_number_sort(scope, direction) if field == 'reference_number'
 
         scope.order(field => direction, public_id: :asc)
+      end
+
+      def reference_number_sort(scope, direction)
+        return scope.order('current_assignments.reference_number ASC', public_id: :asc) if direction == :asc
+
+        scope.order('current_assignments.reference_number DESC', public_id: :asc)
       end
 
       def paginate(scope)
