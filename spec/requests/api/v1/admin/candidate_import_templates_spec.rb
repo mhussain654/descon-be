@@ -23,6 +23,14 @@ RSpec.describe 'API V1 Admin Candidate Import Template', type: :request do
     expect(rows.headers).to eq(Admin::Candidates::Imports::Template.headers)
     expect(rows.first.fetch('cnic')).to eq('42101-1234567-1')
     expect(rows.first.fetch('next_of_kin_name')).to eq('مثالی سرپرست')
+    upload = Struct.new(:body) do
+      def read = body
+      def size = body.bytesize
+      def original_filename = 'template.csv'
+      def content_type = 'text/csv'
+      def rewind = nil
+    end.new(response.body)
+    expect(Admin::Candidates::Imports::CsvFileParser.call(file: upload).headers).to eq(rows.headers)
   end
 
   it 'requires candidate-management permission' do

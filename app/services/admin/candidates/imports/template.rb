@@ -7,13 +7,6 @@ module Admin
     module Imports
       class Template < ApplicationService
         VERSION = 'v1'
-        OPTIONAL_HEADERS = %w[
-          passport_number
-          next_of_kin_name
-          next_of_kin_relationship
-          next_of_kin_mobile_number
-          next_of_kin_cnic
-        ].freeze
 
         def call
           CSV.generate(encoding: Encoding::UTF_8) do |csv|
@@ -22,7 +15,7 @@ module Admin
           end
         end
 
-        def self.headers = CsvFileParser::REQUIRED_HEADERS + OPTIONAL_HEADERS
+        def self.headers = CsvFileParser::SUPPORTED_HEADERS
         def self.filename = "candidate-import-template-#{VERSION}.csv"
 
         private

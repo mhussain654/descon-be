@@ -63,6 +63,28 @@ RSpec.describe 'API V1 Admin Candidate Index', type: :request do
     expect(response.parsed_body.dig('meta', 'applied_filters')).to include('country_code' => country.code)
   end
 
+  it 'uses only the authoritative current assignment for filters, reference search, and sorting' do
+    actor = create(:user, role: 'hr')
+    old_country = create(:country, code: 'mps305_old_country')
+    current_country = create(:country, code: 'mps305_current_country')
+    candidate = indexed_candidate(
+      { full_name: 'Current Assignment', cnic: '42101-1234567-3', passport_number: nil },
+      { reference_number: 'DES-OLD-REF', country: old_country, created_at: 2.days.ago }
+    )
+    create(:candidate_assignment, candidate:, country: current_country, reference_number: 'DES-CURRENT-REF')
+    headers = { 'Authorization' => "Bearer #{token_for(actor)}" }
+
+    get '/api/v1/admin/candidates', params: { filter: { country_code: old_country.code } }, headers: headers
+    expect(response.parsed_body.fetch('data')).not_to include(hash_including('id' => candidate.public_id))
+
+    get '/api/v1/admin/candidates',
+        params: { filter: { country_code: current_country.code }, sort: 'reference_number' }, headers: headers
+    data = response.parsed_body.fetch('data')
+    expect(data.count { |item| item.fetch('id') == candidate.public_id }).to eq(1)
+    result = data.find { |item| item.fetch('id') == candidate.public_id }
+    expect(result.dig('assignment', 'reference_number')).to eq('DES-CURRENT-REF')
+  end
+
   it 'rejects invalid query inputs and unauthorized viewers' do
     actor = create(:user, role: 'finance')
     remove_permission!('finance', 'view_candidates')

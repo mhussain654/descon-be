@@ -51,9 +51,11 @@ class Candidate < ApplicationRecord
   def active_for_authentication? = active?
 
   def current_assignment
-    return candidate_assignments.max_by(&:created_at) if association(:candidate_assignments).loaded?
+    if association(:candidate_assignments).loaded?
+      return candidate_assignments.max_by { |assignment| [assignment.created_at, assignment.id] }
+    end
 
-    candidate_assignments.order(created_at: :desc).first
+    candidate_assignments.order(created_at: :desc, id: :desc).first
   end
 
   private

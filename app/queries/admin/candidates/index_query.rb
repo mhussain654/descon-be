@@ -24,7 +24,7 @@ module Admin
       private
 
       def preloaded_scope
-        @scope.includes(candidate_assignments: %i[country project craft current_workflow_stage])
+        CurrentAssignmentScope.call(scope: @scope)
       end
 
       def apply_search(scope)
@@ -40,13 +40,13 @@ module Admin
 
       def matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
         values = search_values(name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
-        scope.left_joins(:candidate_assignments).where(search_clause, values).distinct
+        scope.where(search_clause, values)
       end
 
       def search_clause
         <<~SQL.squish
           candidates.full_name ILIKE :name OR candidates.cnic = :cnic OR
-          candidates.passport_number = :passport OR candidate_assignments.reference_number = :reference
+          candidates.passport_number = :passport OR current_assignments.reference_number = :reference
         SQL
       end
 
@@ -78,13 +78,13 @@ module Admin
           return scope.where(status_code: status)
         end
 
-        scope.joins(:candidate_assignments).where(
-          candidate_assignments: { reference_column(name) => reference_id(name, value) }
-        )
+        scope.where("current_assignments.#{reference_column(name)} = ?", reference_id(name, value))
       end
 
       def reference_column(filter_name)
-        { 'country_code' => :country_id, 'project_code' => :project_id, 'craft_code' => :craft_id }.fetch(filter_name)
+        {
+          'country_code' => 'country_id', 'project_code' => 'project_id', 'craft_code' => 'craft_id'
+        }.fetch(filter_name)
       end
 
       def reference_id(filter_name, value)
@@ -104,7 +104,7 @@ module Admin
         raise UnsupportedSortError.new(sort_name: field) unless ALLOWED_SORTS.include?(field)
 
         if field == 'reference_number'
-          return scope.order(candidate_assignments: { reference_number: direction }, candidates: { public_id: :asc })
+          return scope.order("current_assignments.reference_number #{direction.upcase}", public_id: :asc)
         end
 
         scope.order(field => direction, public_id: :asc)
