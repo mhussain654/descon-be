@@ -5594,7 +5594,11 @@ paths:
         Processes a signed hosted-checkout return after server-side signature verification.
         The signed payload must match the stored payment order, amount, and currency when
         currency is present. Safe duplicates replay without creating duplicate payment or
-        workflow history records.
+        workflow history records. When `FRONTEND_PAYMENT_RETURN_URL` is configured, the
+        candidate's browser is redirected (302) there after processing instead of receiving
+        this JSON body directly -- the frontend must re-fetch
+        `GET /api/v1/candidate/payment` for the authoritative status rather than inferring
+        anything from having arrived at that URL.
       parameters:
         - name: provider_code
           in: path

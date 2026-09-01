@@ -52,6 +52,15 @@ module Payments
       ENV['KUICKPAY_RETURN_URL'].to_s.strip.presence
     end
 
+    # Where HostedCheckoutReturnsController sends the candidate's browser
+    # once it has processed the provider's return notification -- a
+    # frontend route (e.g. /payment/pending), never the API host itself.
+    # The frontend must treat this only as "come check payment status
+    # again," never as proof of success on its own.
+    def frontend_payment_return_url
+      ENV['FRONTEND_PAYMENT_RETURN_URL'].to_s.strip.presence
+    end
+
     def kuickpay_open_timeout
       ENV.fetch('KUICKPAY_OPEN_TIMEOUT_SECONDS', 5).to_i
     end

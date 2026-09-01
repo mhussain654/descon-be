@@ -63,6 +63,37 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
     expect(fee_paid_transitions.count).to eq(1)
   end
 
+  describe 'browser return redirect' do
+    around do |example|
+      original = ENV.fetch('FRONTEND_PAYMENT_RETURN_URL', nil)
+      ENV['FRONTEND_PAYMENT_RETURN_URL'] = 'https://app.example.test/payment/pending'
+      example.run
+    ensure
+      ENV['FRONTEND_PAYMENT_RETURN_URL'] = original
+    end
+
+    it 'redirects the candidate browser to the frontend, never exposing the payment status in the redirect itself' do
+      candidate = create(:candidate, status_code: 'fee_pending')
+      assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_pending'))
+      create_all_verified_required_documents(assignment:)
+      payment = create(
+        :payment,
+        candidate_assignment: assignment,
+        status_code: 'checkout_pending',
+        paid_at: nil,
+        external_reference: nil,
+        checkout_url: 'https://mock-payments.example.test/checkout?orderid=1',
+        checkout_expires_at: 30.minutes.from_now
+      )
+      payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-REDIRECT-1')
+
+      get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+
+      expect(response).to redirect_to('https://app.example.test/payment/pending')
+      expect(payment.reload.status_code).to eq('paid')
+    end
+  end
+
   it 'ignores out-of-order failure after a successful payment without downgrading workflow state' do
     candidate = create(:candidate, status_code: 'fee_pending')
     assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_pending'))
