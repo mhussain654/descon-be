@@ -67,7 +67,8 @@ module Admin
       {
         id: assignment.public_id,
         reference_number: assignment.reference_number,
-        created_at: assignment.created_at.utc.iso8601
+        created_at: assignment.created_at.utc.iso8601,
+        fields_editable: ::Admin::Candidates::UpdateService.assignment_fields_editable?(assignment)
       }
     end
 

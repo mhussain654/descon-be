@@ -29,6 +29,15 @@ module Admin
     class UpdateService < ApplicationService
       DOCUMENTS_PENDING_POSITION = 2
 
+      # Shared with Admin::CandidateSerializer, which exposes this same
+      # boolean to the frontend as `assignment.fields_editable` -- the single
+      # source of truth for the lock boundary, so the frontend never has to
+      # duplicate this business rule to decide whether to render the
+      # project/country/craft fields as read-only.
+      def self.assignment_fields_editable?(assignment)
+        assignment.present? && assignment.current_workflow_stage.position <= DOCUMENTS_PENDING_POSITION
+      end
+
       # Symbols, not strings -- `@provided_fields` comes from a
       # double-splatted keyword-argument hash, whose keys are always symbols.
       ASSIGNMENT_FIELD_CODES = %i[country_code project_code craft_code].freeze
@@ -148,9 +157,14 @@ module Admin
 
       def validate_mobile_number!
         value = normalized_mobile_number(@params.mobile_number)
-        return if value.match?(Candidate::MOBILE_NUMBER_FORMAT)
+        unless value.match?(Candidate::MOBILE_NUMBER_FORMAT)
+          raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+        end
+        raise DuplicateMobileNumberError if other_candidate_has_mobile_number?(value)
+      end
 
-        raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+      def other_candidate_has_mobile_number?(value)
+        Candidate.where(mobile_number: value).where.not(id: @params.candidate.id).exists?
       end
 
       def validate_passport_number!
@@ -189,7 +203,7 @@ module Admin
       end
 
       def assignment_fields_editable?
-        assignment.present? && assignment.current_workflow_stage.position <= DOCUMENTS_PENDING_POSITION
+        self.class.assignment_fields_editable?(assignment)
       end
 
       def raise_locked_error(field)

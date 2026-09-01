@@ -73,6 +73,14 @@ RSpec.describe Candidate, type: :model do
       expect(duplicate.errors[:cnic]).to include('has already been taken')
     end
 
+    it 'enforces mobile number uniqueness at the application layer' do
+      create(:candidate, mobile_number: '+923001112222')
+      duplicate = build(:candidate, mobile_number: '+923001112222')
+
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:mobile_number]).to include('has already been taken')
+    end
+
     it 'rejects concurrent duplicate CNIC inserts at the database layer' do
       create(:candidate, cnic: '42101-1234567-1')
 

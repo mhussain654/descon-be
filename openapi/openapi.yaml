@@ -1535,7 +1535,15 @@ components:
         created_at:
           type: string
           format: date-time
-      required: [id, reference_number, country, project, craft, current_workflow_stage, created_at]
+        fields_editable:
+          type: boolean
+          description: >-
+            Whether country/project/craft may still be changed via
+            PATCH /api/v1/admin/candidates/{id} -- false once a document has
+            been uploaded against the current requirement set. The frontend
+            must render these fields read-only when this is false rather
+            than inferring the boundary from workflow stage itself.
+      required: [id, reference_number, country, project, craft, current_workflow_stage, created_at, fields_editable]
     AdminCandidateDetail:
       type: object
       description: >-
@@ -3889,6 +3897,7 @@ paths:
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
                         current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        fields_editable: true
                         created_at: '2026-09-15T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -3902,8 +3911,9 @@ paths:
           description: Idempotency conflict or in-progress request
         '422':
           description: >-
-            Missing/invalid field, duplicate CNIC, duplicate passport number,
-            duplicate reference number, or unknown country/project/craft code
+            Missing/invalid field, duplicate CNIC, duplicate mobile number,
+            duplicate passport number, duplicate reference number, or unknown
+            country/project/craft code
           content:
             application/json:
               schema:
@@ -3915,6 +3925,14 @@ paths:
                       - code: duplicate_cnic
                         field: cnic
                         message: A candidate with this CNIC already exists.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:00:00Z'
+                duplicateMobileNumber:
+                  value:
+                    errors:
+                      - code: duplicate_mobile_number
+                        field: mobile_number
+                        message: A candidate with this mobile number already exists.
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                     timestamp: '2026-09-15T10:00:00Z'
   /api/v1/admin/candidates/{id}:
@@ -3970,6 +3988,7 @@ paths:
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
                         current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        fields_editable: true
                         created_at: '2026-09-15T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -4046,6 +4065,7 @@ paths:
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
                         current_workflow_stage: { code: documents_pending, name: Documents Pending }
+                        fields_editable: true
                         created_at: '2026-09-15T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363

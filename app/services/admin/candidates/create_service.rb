@@ -108,9 +108,10 @@ module Admin
       end
 
       def validate_mobile_number!
-        return if @params.mobile_number.match?(Candidate::MOBILE_NUMBER_FORMAT)
-
-        raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+        unless @params.mobile_number.match?(Candidate::MOBILE_NUMBER_FORMAT)
+          raise_validation_error('mobile_number', 'api.errors.candidate_mobile_number_invalid')
+        end
+        raise DuplicateMobileNumberError if Candidate.exists?(mobile_number: @params.mobile_number)
       end
 
       def validate_passport_number!

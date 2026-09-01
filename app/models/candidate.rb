@@ -29,7 +29,13 @@ class Candidate < ApplicationRecord
   validates :public_id, presence: true, uniqueness: true
   validates :full_name, presence: true
   validates :cnic, presence: true, uniqueness: true, format: { with: CNIC_FORMAT }
-  validates :mobile_number, presence: true, format: { with: MOBILE_NUMBER_FORMAT }
+  # No DB-level unique index yet -- the existing dev/test data already has a
+  # collision, so adding one needs a data-cleanup migration step that is a
+  # separate, deliberate decision, not something to bundle into this
+  # duplicate-mobile-number validation. Tracked as a known follow-up.
+  # rubocop:disable Rails/UniqueValidationWithoutIndex
+  validates :mobile_number, presence: true, uniqueness: true, format: { with: MOBILE_NUMBER_FORMAT }
+  # rubocop:enable Rails/UniqueValidationWithoutIndex
   validates :next_of_kin_mobile_number, format: { with: MOBILE_NUMBER_FORMAT }, allow_blank: true
   validates :next_of_kin_cnic, format: { with: CNIC_FORMAT }, allow_blank: true
   validates :passport_number,
