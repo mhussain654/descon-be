@@ -3,6 +3,10 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 Candidate Profile', type: :request do
+  before do
+    ensure_canonical_workflow_stages!
+  end
+
   def candidate_access_token_for(candidate)
     candidate_session = create(:candidate_session, candidate:)
     CandidateAuthentication::TokenIssuer.call(candidate:, candidate_session:)
@@ -16,11 +20,15 @@ RSpec.describe 'API V1 Candidate Profile', type: :request do
       get '/api/v1/candidate/profile', headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
 
       expect(response).to have_http_status(:ok)
+      expect(response.headers['Cache-Control']).to eq('private, no-store')
+      expect(response.headers['ETag']).to be_present
       expect(response.parsed_body.dig('data', 'id')).to eq(candidate.public_id)
       expect(response.parsed_body.dig('data', 'masked_cnic')).to eq('42101-*******-1')
       expect(response.parsed_body.dig('data', 'reference_number')).to eq('DES-000111')
       expect(response.parsed_body.dig('data', 'candidate_status')).to eq('registered')
       expect(response.parsed_body.dig('data', 'current_workflow_stage', 'code')).to eq('registered')
+      expect(response.parsed_body.dig('data', 'payment', 'required_stage_code')).to eq('fee_pending')
+      expect(response.parsed_body.dig('data', 'payment', 'blocking_reasons')).to eq(['payment_stage_not_reached'])
       expect(response.body).not_to include(candidate.cnic)
       expect(response.body).not_to include(candidate.mobile_number)
     end

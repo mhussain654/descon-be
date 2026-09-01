@@ -11,7 +11,8 @@ module Candidates
         candidate_status: @progress.candidate_status,
         current_workflow_stage: serialized_workflow_stage,
         workflow: serialized_workflow,
-        documents: serialized_documents
+        documents: serialized_documents,
+        payment: serialized_payment
       }
     end
 
@@ -66,6 +67,10 @@ module Candidates
         submitted_total: @progress.documents.submitted_total,
         completion_percentage: @progress.documents.completion_percentage
       }
+    end
+
+    def serialized_payment
+      Payments::EligibilitySerializer.new(Payments::EligibilityService.call(candidate: @progress.candidate)).as_json
     end
   end
 end

@@ -3,6 +3,10 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 Candidate Application Progress', type: :request do
+  before do
+    ensure_canonical_workflow_stages!
+  end
+
   def existing_or_create_document_type(code)
     DocumentType.find_or_create_by!(code:) do |document_type|
       document_type.name_en = code.humanize
@@ -52,6 +56,7 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.parsed_body.dig('data', 'documents', 'required_total')).to eq(0)
       expect(response.parsed_body.dig('data', 'workflow', 'timeline').size).to eq(15)
       expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(0)
+      expect(response.parsed_body.dig('data', 'payment', 'blocking_reasons')).to eq(['no_current_assignment'])
     end
 
     it 'returns blocking requirements and localized names for the authenticated candidate only' do
@@ -73,6 +78,7 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.parsed_body.dig('data', 'current_workflow_stage', 'name')).to be_present
       expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'code')).to eq('registered')
       expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'status')).to eq('current')
+      expect(response.parsed_body.dig('data', 'payment', 'blocking_reasons')).to eq(['payment_stage_not_reached'])
       expect(response.headers['Content-Language']).to eq('ur')
     end
 

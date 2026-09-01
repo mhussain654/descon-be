@@ -331,9 +331,35 @@ FactoryBot.define do
     status_code { 'paid' }
     amount { 1500.0 }
     currency_code { 'PKR' }
+    provider_code { 'mock_hosted_checkout' }
+    provider_order_id { "PAY-#{SecureRandom.hex(6).upcase}" }
+    provider_session_id { nil }
+    provider_transaction_id { nil }
+    provider_status_code { nil }
+    provider_response_code { nil }
+    checkout_url { nil }
+    checkout_expires_at { nil }
+    last_provider_event_at { nil }
     external_reference { nil }
     paid_at { Time.current }
     note { nil }
+  end
+
+  factory :payment_event do
+    payment
+    candidate_assignment { payment.candidate_assignment }
+    actor { nil }
+    provider_code { payment.provider_code || 'mock_hosted_checkout' }
+    event_source { 'callback' }
+    event_type { 'payment_succeeded' }
+    event_key { SecureRandom.hex(16) }
+    request_id { SecureRandom.uuid }
+    provider_order_id { payment.provider_order_id }
+    provider_transaction_id { "TXN-#{SecureRandom.hex(6).upcase}" }
+    provider_status_code { 'SUCCESS' }
+    occurred_at { Time.current }
+    processed_at { nil }
+    payload { {} }
   end
 
   factory :communication do
