@@ -7,6 +7,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
 
   around do |example|
     AuthenticationEvent.delete_all
+    AuditEvent.delete_all
     CandidateAssignment.delete_all
     CandidateOtpChallenge.delete_all
     CandidateRefreshToken.delete_all
@@ -18,6 +19,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
     example.run
   ensure
     AuthenticationEvent.delete_all
+    AuditEvent.delete_all
     CandidateAssignment.delete_all
     CandidateOtpChallenge.delete_all
     CandidateRefreshToken.delete_all
