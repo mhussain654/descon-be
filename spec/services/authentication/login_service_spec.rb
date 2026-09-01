@@ -9,6 +9,8 @@ RSpec.describe Authentication::LoginService do
     it 'creates the session, refresh token, and authentication event transactionally' do
       user = create(:user, password: 'Password123!')
       allow(Authentication::RefreshTokenIssuer).to receive(:call).and_raise(StandardError, 'boom')
+      refresh_token_count = RefreshToken.count
+      authentication_event_count = AuthenticationEvent.count
 
       expect do
         described_class.call(
@@ -21,8 +23,8 @@ RSpec.describe Authentication::LoginService do
       end.to raise_error(StandardError, 'boom')
 
       expect(Session.where(user:).count).to eq(0)
-      expect(RefreshToken.count).to eq(0)
-      expect(AuthenticationEvent.count).to eq(0)
+      expect(RefreshToken.count).to eq(refresh_token_count)
+      expect(AuthenticationEvent.count).to eq(authentication_event_count)
     end
 
     it 'records a masked failed-login event for an unknown email' do
