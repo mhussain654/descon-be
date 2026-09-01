@@ -28,6 +28,16 @@ RSpec.describe Admin::ReferenceDataPolicy do
     expect(described_class.new(actor, :reference_data).index?).to be(false)
   end
 
+  it 'allows mutations only to staff with manage_candidates' do
+    manager = create(:user, role: 'hr')
+    viewer = create(:user, role: 'mps')
+
+    expect(described_class.new(manager, :reference_data)).to be_create
+    expect(described_class.new(manager, :reference_data)).to be_update
+    expect(described_class.new(manager, :reference_data)).to be_retire
+    expect(described_class.new(viewer, :reference_data)).not_to be_create
+  end
+
   describe 'Scope' do
     it 'resolves to only active records for an authorized viewer' do
       create(:country, code: 'ref_policy_active', active: true)

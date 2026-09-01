@@ -99,6 +99,9 @@ en:
       candidate_passport_number_invalid: "Enter a valid passport number."
       candidate_preferred_locale_invalid: "Select a supported preferred language."
       candidate_reference_number_required: "Enter the assignment reference number."
+      next_of_kin_field_required: "Complete all next-of-kin fields or leave them all blank."
+      next_of_kin_mobile_number_invalid: "Enter a valid next-of-kin mobile number."
+      next_of_kin_cnic_invalid: "Enter a valid next-of-kin CNIC in the format 00000-0000000-0."
       duplicate_cnic: "A candidate with this CNIC already exists."
       duplicate_passport_number: "A candidate with this passport number already exists."
       duplicate_reference_number: "A candidate assignment with this reference number already exists."
@@ -106,6 +109,8 @@ en:
       unknown_project_code: "Select a valid project."
       unknown_craft_code: "Select a valid craft."
       stale_candidate: "This candidate changed before this update could be applied. Refresh and try again."
+      stale_reference_data: "This reference value changed before this update could be applied. Refresh and try again."
+      reference_data_code_taken: "This reference code is already in use."
       candidate_assignment_field_locked: "This field can only be changed while the candidate is still at the registered stage."
     authentication:
       login_succeeded: "Login succeeded."

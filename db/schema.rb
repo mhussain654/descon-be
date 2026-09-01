@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_110500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -65,6 +65,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_110500) do
     t.index ["entity_type", "entity_id", "occurred_at"], name: "index_audit_events_on_entity_and_occurred_at"
     t.index ["request_id"], name: "index_audit_events_on_request_id"
     t.check_constraint "action_code::text ~ '^[a-z0-9_]+$'::text", name: "audit_events_action_code_format"
+    t.check_constraint "entity_type::text <> 'ReferenceData'::text OR metadata ? 'reference_type'::text", name: "reference_data_audits_include_type"
     t.check_constraint "reason_code IS NULL OR reason_code::text ~ '^[a-z0-9_]+$'::text", name: "audit_events_reason_code_format"
   end
 
@@ -397,6 +398,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_110500) do
     t.bigint "created_by_id", null: false
     t.string "full_name", null: false
     t.string "mobile_number", null: false
+    t.string "next_of_kin_cnic"
+    t.string "next_of_kin_mobile_number"
+    t.string "next_of_kin_name"
+    t.string "next_of_kin_relationship"
     t.string "passport_number"
     t.string "preferred_locale", default: "en", null: false
     t.string "public_id", null: false
@@ -411,6 +416,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_110500) do
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
     t.check_constraint "cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_cnic_format"
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
+    t.check_constraint "next_of_kin_cnic IS NULL OR next_of_kin_cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_next_of_kin_cnic_format"
+    t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidates_preferred_locale"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying, 'csv_import'::character varying]::text[])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"

@@ -22,6 +22,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
     Payment.delete_all
+    CandidateDocumentSubmission.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     Candidate.delete_all
@@ -97,6 +98,32 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(data.dig('assignment', 'reference_number')).to eq('DES-REQ0001')
       expect(data.dig('assignment', 'current_workflow_stage', 'code')).to eq('documents_pending')
       expect(AuditEvent.where(action_code: 'candidate_created').count).to eq(1)
+    end
+
+    it 'persists and returns normalized next-of-kin profile fields' do
+      actor = create(:user, role: 'hr')
+      params = create_candidate_params(
+        next_of_kin_name: 'Ayesha Ali',
+        next_of_kin_relationship: 'Sister',
+        next_of_kin_mobile_number: '+92 300 123 4567',
+        next_of_kin_cnic: '4210112345671'
+      )
+
+      headers = {
+        'Authorization' => "Bearer #{access_token_for(actor)}",
+        'Idempotency-Key' => 'candidate-next-kin'
+      }
+      post '/api/v1/admin/candidates', params: { candidate: params }, headers: headers
+
+      expect(response).to have_http_status(:created)
+      data = response.parsed_body.fetch('data')
+      expect(data).to include(
+        'next_of_kin_name' => 'Ayesha Ali',
+        'next_of_kin_relationship' => 'Sister',
+        'next_of_kin_mobile_number' => '+923001234567',
+        'next_of_kin_cnic' => '42101-1234567-1'
+      )
+      expect(AuditEvent.last.metadata.fetch('changed_fields')).to include('next_of_kin_cnic')
     end
 
     it 'replays an identical retry under the same idempotency key without creating a second candidate' do
@@ -266,6 +293,25 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
   end
 
   describe 'PATCH /api/v1/admin/candidates/:id' do
+    it 'updates a complete next-of-kin contact set' do
+      actor = create(:user, role: 'hr')
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:)
+
+      patch "/api/v1/admin/candidates/#{candidate.public_id}",
+            params: { candidate: {
+              next_of_kin_name: 'Ayesha Ali',
+              next_of_kin_relationship: 'Sister',
+              next_of_kin_mobile_number: '+92 300 123 4567',
+              next_of_kin_cnic: '4210112345671'
+            } },
+            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'next_of_kin_cnic')).to eq('42101-1234567-1')
+      expect(AuditEvent.last.metadata.fetch('changed_fields')).to include('next_of_kin_name')
+    end
+
     it "updates the candidate's own profile fields" do
       actor = create(:user, role: 'hr')
       candidate = create(:candidate)

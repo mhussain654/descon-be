@@ -42,9 +42,15 @@ Rails.application.routes.draw do
                      controller: :candidate_bank_detail_proof_accesses
           end
         end
-        resources :countries, only: :index
-        resources :projects, only: :index
-        resources :crafts, only: :index
+        resources :countries, only: %i[index create update], param: :code do
+          post :retirement, on: :member
+        end
+        resources :projects, only: %i[index create update], param: :code do
+          post :retirement, on: :member
+        end
+        resources :crafts, only: %i[index create update], param: :code do
+          post :retirement, on: :member
+        end
         resources :candidate_imports, only: :create
         resources :document_submissions, only: %i[index show]
         resources :candidates, only: [] do
