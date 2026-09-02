@@ -6,6 +6,7 @@ RSpec.describe Users::UpdateService do
   self.use_transactional_tests = false
 
   around do |example|
+    AuthenticationEvent.delete_all
     AuditEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
@@ -13,6 +14,7 @@ RSpec.describe Users::UpdateService do
     ensure_staff_authorization_reference_data!
     example.run
   ensure
+    AuthenticationEvent.delete_all
     AuditEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
