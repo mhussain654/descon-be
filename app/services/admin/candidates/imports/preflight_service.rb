@@ -65,9 +65,18 @@ module Admin
 
         def database_duplicate(plan)
           return { field: 'cnic', code: 'duplicate_candidate' } if Candidate.exists?(cnic: plan.cnic)
-          return { field: 'passport_number', code: 'duplicate_passport' } if plan.passport_number.present? && Candidate.exists?(passport_number: plan.passport_number)
-          return { field: 'mobile_number', code: 'duplicate_mobile_number' } if Candidate.exists?(mobile_number: plan.mobile_number)
-          return { field: 'reference_number', code: 'duplicate_reference_number' } if CandidateAssignment.exists?(reference_number: plan.reference_number)
+          if plan.passport_number.present? && Candidate.exists?(passport_number: plan.passport_number)
+            return { field: 'passport_number',
+                     code: 'duplicate_passport' }
+          end
+          if Candidate.exists?(mobile_number: plan.mobile_number)
+            return { field: 'mobile_number',
+                     code: 'duplicate_mobile_number' }
+          end
+          if CandidateAssignment.exists?(reference_number: plan.reference_number)
+            return { field: 'reference_number',
+                     code: 'duplicate_reference_number' }
+          end
 
           nil
         end
@@ -75,7 +84,8 @@ module Admin
         def validate_template_version!(rows)
           return if rows.all? { |row| row['template_version'].to_s.strip == Template::VERSION }
 
-          raise ValidationError.new(field: 'candidate_import.template_version', message: I18n.t('api.candidate_imports.errors.unsupported_template_version'))
+          raise ValidationError.new(field: 'candidate_import.template_version',
+                                    message: I18n.t('api.candidate_imports.errors.unsupported_template_version'))
         end
 
         def file_fingerprint

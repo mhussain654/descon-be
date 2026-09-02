@@ -20,7 +20,8 @@ module Admin
         end
 
         def call(attributes:, row_errors:)
-          required_attributes(attributes, row_errors:).merge(optional_attributes(attributes)).tap do |candidate_attributes|
+          required_attributes(attributes,
+                              row_errors:).merge(optional_attributes(attributes)).tap do |candidate_attributes|
             validate_next_of_kin(candidate_attributes, row_errors:)
           end
         end

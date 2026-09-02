@@ -30,8 +30,14 @@ module Admin
         private
 
         def validate_batch!(batch)
-          raise ValidationError.new(field: 'candidate_import.preflight_token', message: I18n.t('api.candidate_imports.errors.invalid_preflight_token')) if batch.blank? || batch.actor_id != @actor.id
-          raise ValidationError.new(field: 'candidate_import.preflight_token', message: I18n.t('api.candidate_imports.errors.expired_preflight_token')) if batch.expired? || batch.status == 'invalidated'
+          if batch.blank? || batch.actor_id != @actor.id
+            raise ValidationError.new(field: 'candidate_import.preflight_token',
+                                      message: I18n.t('api.candidate_imports.errors.invalid_preflight_token'))
+          end
+          return unless batch.expired? || batch.status == 'invalidated'
+
+          raise ValidationError.new(field: 'candidate_import.preflight_token',
+                                    message: I18n.t('api.candidate_imports.errors.expired_preflight_token'))
         end
 
         def persist_row(row:, result:)
@@ -58,7 +64,12 @@ module Admin
         end
 
         def committed_payload(batch, result: nil)
-          summary = result ? result.to_h : { successful_rows: batch.imported_rows, failed_rows: batch.rejected_rows - batch.total_rows + batch.accepted_rows, skipped_rows: 0, errors: [] }
+          summary = if result
+                      result.to_h
+                    else
+                      { successful_rows: batch.imported_rows,
+                        failed_rows: batch.rejected_rows - batch.total_rows + batch.accepted_rows, skipped_rows: 0, errors: [] }
+                    end
           summary.merge(import_id: batch.public_id, status: batch.status, total_rows: batch.total_rows,
                         imported_rows: batch.imported_rows, rejected_rows: batch.rejected_rows,
                         warning_count: batch.warning_count)

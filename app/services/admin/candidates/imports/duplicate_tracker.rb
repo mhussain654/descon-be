@@ -13,8 +13,14 @@ module Admin
 
         def register(row_plan)
           return { field: 'cnic', code: 'duplicate_cnic_in_file' } if @seen_cnics.include?(row_plan.cnic)
-          return { field: 'passport_number', code: 'duplicate_passport_in_file' } if row_plan.passport_number.present? && @seen_passports.include?(row_plan.passport_number)
-          return { field: 'mobile_number', code: 'duplicate_mobile_number_in_file' } if @seen_mobile_numbers.include?(row_plan.mobile_number)
+          if row_plan.passport_number.present? && @seen_passports.include?(row_plan.passport_number)
+            return { field: 'passport_number',
+                     code: 'duplicate_passport_in_file' }
+          end
+          if @seen_mobile_numbers.include?(row_plan.mobile_number)
+            return { field: 'mobile_number',
+                     code: 'duplicate_mobile_number_in_file' }
+          end
           return duplicate_reference_number_error if @seen_reference_numbers.include?(row_plan.reference_number)
 
           @seen_cnics << row_plan.cnic

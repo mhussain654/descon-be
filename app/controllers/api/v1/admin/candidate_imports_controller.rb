@@ -14,7 +14,8 @@ module Api
 
         def preflight
           authorize :candidate_import, :preflight?, policy_class: ::Admin::CandidateImportPolicy
-          result = ::Admin::Candidates::Imports::PreflightService.call(actor: current_user, file: import_params.fetch(:file), request_id: request.request_id)
+          result = ::Admin::Candidates::Imports::PreflightService.call(actor: current_user,
+                                                                       file: import_params.fetch(:file), request_id: request.request_id)
           render_success_payload(success_payload(data: result, status: :created))
         end
 

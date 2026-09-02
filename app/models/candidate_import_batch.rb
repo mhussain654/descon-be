@@ -9,7 +9,8 @@ class CandidateImportBatch < ApplicationRecord
 
   before_validation :assign_public_id, on: :create
 
-  validates :public_id, :token_digest, :source_filename, :file_fingerprint, :template_version, :expires_at, presence: true
+  validates :public_id, :token_digest, :source_filename, :file_fingerprint, :template_version, :expires_at,
+            presence: true
   validates :public_id, :token_digest, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 

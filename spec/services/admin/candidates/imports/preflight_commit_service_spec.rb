@@ -31,7 +31,8 @@ RSpec.describe 'candidate import preflight and commit' do
   end
 
   it 'commits only the persisted accepted snapshot' do
-    preflight = Admin::Candidates::Imports::PreflightService.call(actor:, file: upload([valid_row]), request_id: 'preflight-1')
+    preflight = Admin::Candidates::Imports::PreflightService.call(actor:, file: upload([valid_row]),
+                                                                  request_id: 'preflight-1')
 
     expect(preflight).to include(accepted_rows: 1, rejected_rows: 0)
 
@@ -49,13 +50,17 @@ RSpec.describe 'candidate import preflight and commit' do
     )
 
     expect(result).to include(accepted_rows: 0, rejected_rows: 1)
-    expect(result.fetch(:errors)).to include(hash_including(field: 'next_of_kin_relationship', code: 'incomplete_next_of_kin'))
+    expect(result.fetch(:errors)).to include(hash_including(field: 'next_of_kin_relationship',
+                                                            code: 'incomplete_next_of_kin'))
   end
 
   it 'returns the completed result for an identical commit replay without duplicating candidates' do
-    preflight = Admin::Candidates::Imports::PreflightService.call(actor:, file: upload([valid_row]), request_id: 'preflight-replay')
-    first = Admin::Candidates::Imports::CommitService.call(actor:, token: preflight.fetch(:preflight_token), request_id: 'commit-replay')
-    second = Admin::Candidates::Imports::CommitService.call(actor:, token: preflight.fetch(:preflight_token), request_id: 'commit-replay')
+    preflight = Admin::Candidates::Imports::PreflightService.call(actor:, file: upload([valid_row]),
+                                                                  request_id: 'preflight-replay')
+    first = Admin::Candidates::Imports::CommitService.call(actor:, token: preflight.fetch(:preflight_token),
+                                                           request_id: 'commit-replay')
+    second = Admin::Candidates::Imports::CommitService.call(actor:, token: preflight.fetch(:preflight_token),
+                                                            request_id: 'commit-replay')
 
     expect(second).to include(status: 'committed', imported_rows: first.fetch(:imported_rows))
     expect(Candidate.where(cnic: '42101-1234567-1').count).to eq(1)
