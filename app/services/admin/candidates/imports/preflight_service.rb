@@ -19,7 +19,8 @@ module Admin
           validate_template_version!(rows)
           result = Result.new(total_rows: rows.size)
           token = SecureRandom.urlsafe_base64(32)
-          batch = persist_batch!(token:, rows: plan_rows(rows:, result:), result:)
+          planned_rows = plan_rows(rows:, result:)
+          batch = persist_batch!(token:, rows: planned_rows, result:)
           create_audit_event!(batch:)
           response(result:, batch:, token:)
         end
@@ -27,13 +28,18 @@ module Admin
         private
 
         def persist_batch!(token:, rows:, result:)
-          CandidateImportBatch.create!(batch_attributes(token:, rows:, result:))
+          CandidateImportBatch.transaction do
+            batch = CandidateImportBatch.create!(batch_attributes(token:, rows:, result:))
+            PreflightRowResultCreator.call(batch:, rows:, errors: result.to_h.fetch(:errors))
+            batch
+          end
         end
 
         def batch_attributes(token:, rows:, result:)
           summary = result.summary
           { actor: @actor, token_digest: digest(token), source_filename: File.basename(@file.original_filename.to_s),
             file_fingerprint: file_fingerprint, template_version: Template::VERSION, request_id: @request_id,
+            status: 'queued',
             preflight_payload: { rows: }.to_json, total_rows: summary.fetch(:total_rows),
             accepted_rows: result.persistable_rows.size,
             rejected_rows: summary.fetch(:failed_rows) + summary.fetch(:skipped_rows),
@@ -57,7 +63,10 @@ module Admin
           attributes = CsvFileParser::SUPPORTED_HEADERS.index_with { |header| row[header].to_s.strip }
           plan = builder.call(row:, row_number:)
           error = row_error(plan:, tracker:)
-          return result.record_failed(row_number:, errors: [error]) if error
+          if error
+            result.record_failed(row_number:, errors: [error])
+            return
+          end
 
           result.schedule(plan)
           attributes.merge('template_version' => Template::VERSION, 'row_number' => row_number)

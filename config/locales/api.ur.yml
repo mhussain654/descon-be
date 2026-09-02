@@ -141,6 +141,7 @@ ur:
         unsupported_template_version: "امیدوار امپورٹ ٹیمپلیٹ کا موجودہ ورژن استعمال کریں۔"
         invalid_preflight_token: "امپورٹ پری فلائٹ ٹوکن درست نہیں ہے۔"
         expired_preflight_token: "امپورٹ پری فلائٹ ٹوکن کی مدت ختم ہو چکی ہے۔"
+        retry_not_allowed: "صرف ناکام اور غیر ختم شدہ امپورٹ کو دوبارہ چلایا جا سکتا ہے۔"
       row_errors:
         blank_row: "یہ قطار خالی ہے۔"
         missing_value: "یہ ضروری فیلڈ موجود نہیں ہے۔"

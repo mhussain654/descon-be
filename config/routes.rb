@@ -51,10 +51,12 @@ Rails.application.routes.draw do
         resources :crafts, only: %i[index create update], param: :code do
           post :retirement, on: :member
         end
-        resources :candidate_imports, only: :create do
+        resources :candidate_imports, only: %i[index show create] do
           get :template, on: :collection, controller: :candidate_import_templates, action: :show
           post :preflight, on: :collection
           post :commit, on: :collection
+          get :error_export, on: :member
+          resource :retry, only: :create, controller: :candidate_import_retries
         end
         resources :document_submissions, only: %i[index show]
         resources :candidates, only: [] do

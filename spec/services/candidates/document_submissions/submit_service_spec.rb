@@ -6,6 +6,10 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
   self.use_transactional_tests = false
 
   around do |example|
+    ensure_canonical_workflow_stages!
+    AuthenticationEvent.delete_all
+    RefreshToken.delete_all
+    Session.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -16,6 +20,9 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     User.delete_all
     example.run
   ensure
+    AuthenticationEvent.delete_all
+    RefreshToken.delete_all
+    Session.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all

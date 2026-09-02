@@ -43,6 +43,21 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
     CandidateDocument::PCC_REQUIREMENT_CODE
   end
 
+  def resolved_required_requirements(candidate:, assignment:)
+    Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
+  end
+
+  def create_required_documents(candidate:, assignment:, default_status: 'uploaded')
+    resolved_required_requirements(candidate:, assignment:).each do |requirement|
+      create(
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type: requirement.document_type,
+        status_code: default_status
+      )
+    end
+  end
+
   describe 'GET /api/v1/candidate/application_progress' do
     it 'returns no_assignment progress for a candidate without a current assignment' do
       candidate = create(:candidate)
@@ -64,9 +79,9 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       assignment = create(:candidate_assignment, candidate:)
       other_candidate = create(:candidate)
       other_assignment = create(:candidate_assignment, candidate: other_candidate)
-      passport = create_requirement(assignment:, code: 'passport')
+      create_requirement(assignment:, code: 'passport')
       create_requirement(assignment: other_assignment, code: 'cv')
-      create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'uploaded')
+      create_required_documents(candidate:, assignment:)
 
       get '/api/v1/candidate/application_progress',
           params: { candidate_id: other_candidate.public_id },
