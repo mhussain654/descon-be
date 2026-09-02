@@ -12,5 +12,14 @@ module Admin
 
     alias preflight? create?
     alias commit? create?
+    alias error_export? show?
+
+    class Scope < Scope
+      def resolve
+        return scope.none unless permission_granted?('manage_candidates')
+
+        scope.where(actor: user)
+      end
+    end
   end
 end

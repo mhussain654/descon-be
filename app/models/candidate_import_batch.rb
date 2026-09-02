@@ -4,7 +4,7 @@ class CandidateImportBatch < ApplicationRecord
   STATUSES = %w[queued processing completed partial failed invalidated].freeze
 
   belongs_to :actor, class_name: 'User'
-  has_many :row_results, class_name: 'CandidateImportRowResult', dependent: :destroy
+  has_many :row_results, class_name: 'CandidateImportRowResult', dependent: :restrict_with_exception
 
   encrypts :preflight_payload
 
@@ -18,12 +18,15 @@ class CandidateImportBatch < ApplicationRecord
   def expired? = expires_at <= Time.current
   def preflighted? = queued?
   def queued? = status == 'queued'
+  def processing? = status == 'processing'
+  def failed? = status == 'failed'
+  def invalidated? = status == 'invalidated'
   def committed? = completed? || partial?
   def completed? = status == 'completed'
   def partial? = status == 'partial'
 
   def rows
-    JSON.parse(preflight_payload).fetch('rows')
+    JSON.parse(preflight_payload.to_s).fetch('rows')
   end
 
   private

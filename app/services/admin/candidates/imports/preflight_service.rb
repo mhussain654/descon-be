@@ -19,7 +19,8 @@ module Admin
           validate_template_version!(rows)
           result = Result.new(total_rows: rows.size)
           token = SecureRandom.urlsafe_base64(32)
-          batch = persist_batch!(token:, rows: plan_rows(rows:, result:), result:)
+          planned_rows = plan_rows(rows:, result:)
+          batch = persist_batch!(token:, rows: planned_rows, result:)
           create_audit_event!(batch:)
           response(result:, batch:, token:)
         end
@@ -27,7 +28,11 @@ module Admin
         private
 
         def persist_batch!(token:, rows:, result:)
-          CandidateImportBatch.create!(batch_attributes(token:, rows:, result:))
+          CandidateImportBatch.transaction do
+            batch = CandidateImportBatch.create!(batch_attributes(token:, rows:, result:))
+            persist_row_results!(batch:, rows:, result:)
+            batch
+          end
         end
 
         def batch_attributes(token:, rows:, result:)
@@ -62,6 +67,19 @@ module Admin
 
           result.schedule(plan)
           attributes.merge('template_version' => Template::VERSION, 'row_number' => row_number)
+        end
+
+        def persist_row_results!(batch:, rows:, result:)
+          accepted_rows = rows.map do |row|
+            { candidate_import_batch_id: batch.id, row_number: row.fetch('row_number'), status: 'accepted',
+              created_at: Time.current, updated_at: Time.current }
+          end
+          rejected_rows = result.to_h.fetch(:errors).map do |error|
+            { candidate_import_batch_id: batch.id, row_number: error.fetch(:row), status: 'rejected',
+              error_field: error.fetch(:field), error_code: error.fetch(:code), created_at: Time.current,
+              updated_at: Time.current }
+          end
+          CandidateImportRowResult.insert_all!(accepted_rows + rejected_rows) if accepted_rows.any? || rejected_rows.any?
         end
 
         def row_error(plan:, tracker:)
