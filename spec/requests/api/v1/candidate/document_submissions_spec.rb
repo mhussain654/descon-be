@@ -39,19 +39,37 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
     CandidateDocument::PCC_REQUIREMENT_CODE
   end
 
+  def resolved_required_requirements(candidate:, assignment:)
+    Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
+  end
+
+  def create_required_documents(candidate:, assignment:, default_status: 'uploaded', overrides: {})
+    resolved_required_requirements(candidate:, assignment:).each do |requirement|
+      attributes = overrides.fetch(requirement.document_type.code, {})
+      create(
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type: requirement.document_type,
+        status_code: attributes.fetch(:status_code, default_status),
+        **attributes.except(:status_code)
+      )
+    end
+  end
+
   describe 'POST /api/v1/candidate/document_submissions' do
     it 'submits the authenticated candidate documents and replays the same key safely' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      passport = create_requirement(assignment:, code: 'passport')
-      create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'uploaded')
+      create_requirement(assignment:, code: 'passport')
+      required_total = resolved_required_requirements(candidate:, assignment:).count
+      create_required_documents(candidate:, assignment:)
       headers = candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-submission-1')
 
       post '/api/v1/candidate/document_submissions', headers: headers
 
       expect(response).to have_http_status(:created)
       first_submission_id = response.parsed_body.dig('data', 'submission_id')
-      expect(response.parsed_body.dig('data', 'documents', 'pending_review')).to eq(1)
+      expect(response.parsed_body.dig('data', 'documents', 'pending_review')).to eq(required_total)
       expect(response.parsed_body.dig('data', 'message')).to eq(I18n.t('api.candidate_document_submissions.submitted'))
 
       expect do
@@ -66,8 +84,8 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
     it 'replays the same result after a renewed access token for the same candidate' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      passport = create_requirement(assignment:, code: 'passport')
-      create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'uploaded')
+      create_requirement(assignment:, code: 'passport')
+      create_required_documents(candidate:, assignment:)
       headers = { 'Idempotency-Key' => 'candidate-submission-renewed-token' }
 
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate, headers)
@@ -85,20 +103,10 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
       first_assignment = create(:candidate_assignment, candidate: first_candidate)
       second_candidate = create(:candidate)
       second_assignment = create(:candidate_assignment, candidate: second_candidate)
-      passport = create_requirement(assignment: first_assignment, code: 'passport')
+      create_requirement(assignment: first_assignment, code: 'passport')
       create_requirement(assignment: second_assignment, code: 'passport')
-      create(
-        :candidate_document,
-        candidate_assignment: first_assignment,
-        document_type: passport,
-        status_code: 'uploaded'
-      )
-      create(
-        :candidate_document,
-        candidate_assignment: second_assignment,
-        document_type: passport,
-        status_code: 'uploaded'
-      )
+      create_required_documents(candidate: first_candidate, assignment: first_assignment)
+      create_required_documents(candidate: second_candidate, assignment: second_assignment)
 
       post '/api/v1/candidate/document_submissions',
            headers: candidate_auth_headers(first_candidate, 'Idempotency-Key' => 'shared-submission-key')
@@ -112,7 +120,7 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
     it 'returns blocking details for incomplete and rejected submissions' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      passport = create_requirement(assignment:, code: 'passport')
+      create_requirement(assignment:, code: 'passport')
 
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate, 'X-Locale' => 'ur')
 
@@ -121,14 +129,11 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements', 0, 'reason')).to eq('missing')
       expect(response.headers['Content-Language']).to eq('ur')
 
-      create(
-        :candidate_document,
-        candidate_assignment: assignment,
-        document_type: passport,
-        status_code: 'rejected',
-        verified_by: create(:user),
-        verified_at: Time.current,
-        rejection_reason: 'blurred'
+      create_required_documents(
+        candidate:,
+        assignment:,
+        overrides: { 'passport' => { status_code: 'rejected', verified_by: create(:user), verified_at: Time.current,
+                                     rejection_reason: 'blurred' } }
       )
 
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate)
@@ -142,22 +147,22 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
         candidate = create(:candidate)
         assignment = create(:candidate_assignment, candidate:)
         pcc = create_requirement(assignment:, code: pcc_code)
-        create(
-          :candidate_document,
-          candidate_assignment: assignment,
-          document_type: pcc,
-          status_code: 'uploaded',
-          issued_on: Date.new(2026, 1, 1)
+        create_required_documents(
+          candidate:,
+          assignment:,
+          overrides: {
+            pcc.code => { issued_on: Date.new(2026, 1, 1) }
+          }
         )
 
         post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate, 'X-Locale' => 'ur')
 
         expect(response).to have_http_status(:unprocessable_content)
         expect(response.parsed_body.dig('errors', 0, 'code')).to eq('documents_incomplete')
-        expect(
-          response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements', 0, 'requirement_code')
-        ).to eq(pcc_code)
-        expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements', 0, 'reason')).to eq('expired')
+        blocking_requirement = response.parsed_body.dig('errors', 0, 'details', 'blocking_requirements').find do |item|
+          item['requirement_code'] == pcc_code
+        end
+        expect(blocking_requirement).to include('reason' => 'expired')
         expect(response.headers['Content-Language']).to eq('ur')
       end
     end
@@ -170,6 +175,7 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
 
       candidate_with_assignment = create(:candidate)
       create(:candidate_assignment, candidate: candidate_with_assignment)
+      DocumentRequirement.where(active: true).find_each { |requirement| requirement.update!(active: false) }
       post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate_with_assignment)
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('no_document_requirements')
