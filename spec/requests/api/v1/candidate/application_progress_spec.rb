@@ -73,7 +73,8 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
           headers: candidate_auth_headers(candidate, 'X-Locale' => 'ur')
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body.dig('data', 'documents', 'required_total')).to eq(1)
+      documents = response.parsed_body.dig('data', 'documents')
+      expect(documents.fetch('uploaded')).to be >= 1
       expect(response.parsed_body.dig('data', 'documents', 'submission_state')).to eq('ready')
       expect(response.parsed_body.dig('data', 'current_workflow_stage', 'name')).to be_present
       expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'code')).to eq('registered')

@@ -28,7 +28,8 @@ module Admin
           next_of_kin_mobile_number
           next_of_kin_cnic
         ].freeze
-        SUPPORTED_HEADERS = (REQUIRED_HEADERS + OPTIONAL_HEADERS).freeze
+        VERSION_HEADER = 'template_version'
+        SUPPORTED_HEADERS = (REQUIRED_HEADERS + OPTIONAL_HEADERS + [VERSION_HEADER]).freeze
         ALLOWED_CONTENT_TYPES = %w[
           text/csv
           application/csv
@@ -65,16 +66,28 @@ module Admin
         end
 
         def parse_rows
-          csv = CSV.parse(@file.read.to_s, headers: true, header_converters: [method(:normalize_header).to_proc])
-          headers = csv.headers.compact
-          missing_headers = REQUIRED_HEADERS - headers
-
-          raise_missing_headers_error!(missing_headers) if missing_headers.any?
+          csv = parse_csv!
+          validate_headers!(csv.headers.compact)
           csv
-        rescue CSV::MalformedCSVError
+        rescue CSV::MalformedCSVError, Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
           raise_error!('invalid_csv')
         ensure
           @file.rewind if @file.respond_to?(:rewind)
+        end
+
+        def parse_csv!
+          content = @file.read.to_s
+          raise_error!('invalid_encoding') unless content.force_encoding(Encoding::UTF_8).valid_encoding?
+
+          CSV.parse(content, headers: true, header_converters: [method(:normalize_header).to_proc])
+        end
+
+        def validate_headers!(headers)
+          missing_headers = REQUIRED_HEADERS - headers
+          raise_missing_headers_error!(missing_headers) if missing_headers.any?
+
+          unsupported_headers = headers - SUPPORTED_HEADERS
+          raise_unsupported_headers_error!(unsupported_headers) if unsupported_headers.any?
         end
 
         def normalize_header(header)
@@ -88,6 +101,13 @@ module Admin
               'api.candidate_imports.errors.missing_headers',
               headers: missing_headers.join(', ')
             )
+          )
+        end
+
+        def raise_unsupported_headers_error!(headers)
+          raise ValidationError.new(
+            field: 'candidate_import.file',
+            message: I18n.t('api.candidate_imports.errors.unsupported_headers', headers: headers.join(', '))
           )
         end
 

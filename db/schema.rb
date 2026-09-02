@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -226,6 +226,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.check_constraint "mobilized_on IS NULL AND mobilized_stage_history_id IS NULL AND mobilized_recorded_by_id IS NULL OR mobilized_on IS NOT NULL AND mobilized_stage_history_id IS NOT NULL AND mobilized_recorded_by_id IS NOT NULL", name: "candidate_flight_details_mobilization_fields_consistent"
     t.check_constraint "mobilized_on IS NULL OR mobilized_on >= flight_departure_at::date", name: "candidate_flight_details_mobilized_on_sequence"
     t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "candidate_flight_details_public_id_format"
+  end
+
+  create_table "candidate_import_batches", force: :cascade do |t|
+    t.integer "accepted_rows", default: 0, null: false
+    t.bigint "actor_id", null: false
+    t.datetime "committed_at"
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "file_fingerprint", null: false
+    t.integer "imported_rows", default: 0, null: false
+    t.datetime "invalidated_at"
+    t.text "preflight_payload", null: false
+    t.string "public_id", null: false
+    t.integer "rejected_rows", default: 0, null: false
+    t.string "request_id"
+    t.string "source_filename", null: false
+    t.string "status", default: "preflighted", null: false
+    t.string "template_version", null: false
+    t.string "token_digest", null: false
+    t.integer "total_rows", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "warning_count", default: 0, null: false
+    t.index ["actor_id"], name: "index_candidate_import_batches_on_actor_id"
+    t.index ["expires_at"], name: "index_candidate_import_batches_on_expires_at"
+    t.index ["public_id"], name: "index_candidate_import_batches_on_public_id", unique: true
+    t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
+    t.check_constraint "status::text = ANY (ARRAY['preflighted'::character varying, 'committed'::character varying, 'invalidated'::character varying]::text[])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_otp_challenges", force: :cascade do |t|
@@ -736,6 +763,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
   add_foreign_key "candidate_flight_details", "candidate_stage_histories", column: "mobilized_stage_history_id"
   add_foreign_key "candidate_flight_details", "users", column: "mobilized_recorded_by_id"
   add_foreign_key "candidate_flight_details", "users", column: "recorded_by_id"
+  add_foreign_key "candidate_import_batches", "users", column: "actor_id"
   add_foreign_key "candidate_otp_challenges", "candidates"
   add_foreign_key "candidate_protection_records", "candidate_assignments"
   add_foreign_key "candidate_protection_records", "users", column: "appeared_recorded_by_id"

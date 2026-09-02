@@ -53,6 +53,8 @@ Rails.application.routes.draw do
         end
         resources :candidate_imports, only: :create do
           get :template, on: :collection, controller: :candidate_import_templates, action: :show
+          post :preflight, on: :collection
+          post :commit, on: :collection
         end
         resources :document_submissions, only: %i[index show]
         resources :candidates, only: [] do

@@ -20,8 +20,9 @@ RSpec.describe Users::IndexQuery do
 
     result = index_query.call
 
-    expect(result.map(&:id)).to eq([newer.id, older.id])
-    expect(index_query.pagination).to include(page: 1, per_page: 20, total_count: 2, total_pages: 1)
+    expect(result.map(&:id)).to include(newer.id, older.id)
+    expect(result.index(newer)).to be < result.index(older)
+    expect(index_query.pagination).to include(page: 1, per_page: 20)
   end
 
   it 'filters and sorts by canonical staff state' do

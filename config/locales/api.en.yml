@@ -137,6 +137,11 @@ en:
         missing_headers: "The CSV file is missing required headers: %{headers}."
         no_rows: "The CSV file does not contain any candidate rows."
         too_many_rows: "The CSV file exceeds the maximum allowed row count."
+        invalid_encoding: "The CSV file must use UTF-8 encoding."
+        unsupported_headers: "The CSV file contains unsupported headers: %{headers}."
+        unsupported_template_version: "Use the current candidate import template version."
+        invalid_preflight_token: "The import preflight token is invalid."
+        expired_preflight_token: "The import preflight token has expired."
       row_errors:
         blank_row: "This row is blank."
         missing_value: "This required field is missing."
@@ -150,11 +155,16 @@ en:
         unknown_project_code: "Select a valid project."
         unknown_craft_code: "Select a valid craft."
         duplicate_cnic_in_file: "This CNIC is duplicated in the uploaded CSV."
+        duplicate_passport_in_file: "This passport number is duplicated in the uploaded CSV."
+        duplicate_mobile_number_in_file: "This mobile number is duplicated in the uploaded CSV."
         duplicate_reference_number_in_file: "This reference number is duplicated in the uploaded CSV."
         duplicate_candidate: "A candidate with this CNIC already exists."
+        duplicate_passport: "A candidate with this passport number already exists."
+        duplicate_mobile_number: "A candidate with this mobile number already exists."
         duplicate_reference_number: "A candidate assignment with this reference number already exists."
         duplicate_row: "This row duplicates an existing candidate import record."
         validation_failed: "This row could not be imported."
+        incomplete_next_of_kin: "Provide all next-of-kin fields or leave all of them blank."
     candidate_document_submissions:
       submitted: "Documents submitted for review."
     candidate_bank_details:
