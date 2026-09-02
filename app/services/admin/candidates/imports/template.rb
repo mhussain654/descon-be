@@ -26,7 +26,7 @@ module Admin
           [
             'Example Candidate', '42101-1234567-1', '+923001234567', 'DES-EXAMPLE-001', 'en', 'registered',
             'registered', 'qatar', 'qatar_infrastructure', 'electrician', 'true', 'AB123456', 'مثالی سرپرست',
-            'sibling', '+923001234568', '42101-1234567-2'
+            'sibling', '+923001234568', '42101-1234567-2', VERSION
           ]
         end
       end

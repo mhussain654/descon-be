@@ -136,6 +136,11 @@ ur:
         missing_headers: "CSV فائل میں یہ ضروری ہیڈرز موجود نہیں ہیں: %{headers}۔"
         no_rows: "CSV فائل میں کوئی امیدوار ریکارڈ موجود نہیں ہے۔"
         too_many_rows: "CSV فائل مقررہ زیادہ سے زیادہ قطاروں سے زیادہ ہے۔"
+        invalid_encoding: "CSV فائل UTF-8 انکوڈنگ میں ہونی چاہیے۔"
+        unsupported_headers: "CSV فائل میں غیر معاون ہیڈرز موجود ہیں: %{headers}۔"
+        unsupported_template_version: "امیدوار امپورٹ ٹیمپلیٹ کا موجودہ ورژن استعمال کریں۔"
+        invalid_preflight_token: "امپورٹ پری فلائٹ ٹوکن درست نہیں ہے۔"
+        expired_preflight_token: "امپورٹ پری فلائٹ ٹوکن کی مدت ختم ہو چکی ہے۔"
       row_errors:
         blank_row: "یہ قطار خالی ہے۔"
         missing_value: "یہ ضروری فیلڈ موجود نہیں ہے۔"
@@ -149,11 +154,16 @@ ur:
         unknown_project_code: "درست پروجیکٹ منتخب کریں۔"
         unknown_craft_code: "درست کرافٹ منتخب کریں۔"
         duplicate_cnic_in_file: "یہ شناختی کارڈ نمبر اپ لوڈ کی گئی CSV میں دہرایا گیا ہے۔"
+        duplicate_passport_in_file: "یہ پاسپورٹ نمبر اپ لوڈ کی گئی CSV میں دہرایا گیا ہے۔"
+        duplicate_mobile_number_in_file: "یہ موبائل نمبر اپ لوڈ کی گئی CSV میں دہرایا گیا ہے۔"
         duplicate_reference_number_in_file: "یہ ریفرنس نمبر اپ لوڈ کی گئی CSV میں دہرایا گیا ہے۔"
         duplicate_candidate: "اس شناختی کارڈ نمبر کے ساتھ امیدوار پہلے سے موجود ہے۔"
+        duplicate_passport: "اس پاسپورٹ نمبر کے ساتھ امیدوار پہلے سے موجود ہے۔"
+        duplicate_mobile_number: "اس موبائل نمبر کے ساتھ امیدوار پہلے سے موجود ہے۔"
         duplicate_reference_number: "اس ریفرنس نمبر کے ساتھ امیدوار اسائنمنٹ پہلے سے موجود ہے۔"
         duplicate_row: "یہ قطار پہلے سے موجود امپورٹ ریکارڈ کی نقل ہے۔"
         validation_failed: "یہ قطار امپورٹ نہیں ہو سکی۔"
+        incomplete_next_of_kin: "تمام قریبی رشتہ دار فیلڈز مہیا کریں یا سب کو خالی چھوڑیں۔"
     candidate_document_submissions:
       submitted: "دستاویزات جانچ کے لیے جمع کرا دی گئی ہیں۔"
     candidate_bank_details:

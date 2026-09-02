@@ -14,6 +14,8 @@ module Admin
           def blank? = blank
           def invalid? = errors.any?
           def cnic = candidate_attributes.fetch(:cnic)
+          def passport_number = candidate_attributes.fetch(:passport_number)
+          def mobile_number = candidate_attributes.fetch(:mobile_number)
           def reference_number = assignment_attributes.fetch(:reference_number)
         end
 

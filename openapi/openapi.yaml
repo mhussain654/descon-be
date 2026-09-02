@@ -1937,6 +1937,33 @@ components:
           items:
             $ref: '#/components/schemas/CandidateImportRowError'
       required: [successful_rows, failed_rows, skipped_rows, total_rows, errors]
+    CandidateImportPreflightCommitRequest:
+      type: object
+      properties:
+        candidate_import:
+          type: object
+          required: [preflight_token]
+          properties:
+            preflight_token:
+              type: string
+              minLength: 32
+      required: [candidate_import]
+    CandidateImportPreflightResult:
+      type: object
+      properties:
+        import_id: { type: string, format: uuid }
+        preflight_token:
+          type: string
+          description: Opaque, short-lived token; commit submits it unchanged.
+        expires_at: { type: string, format: date-time }
+        accepted_rows: { type: integer }
+        rejected_rows: { type: integer }
+        warning_count: { type: integer }
+        total_rows: { type: integer }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/CandidateImportRowError' }
+      required: [import_id, preflight_token, expires_at, accepted_rows, rejected_rows, warning_count, total_rows, errors]
     HostedCheckoutNotificationRequest:
       type: object
       properties:
@@ -3834,6 +3861,36 @@ paths:
             does not cover invalid row content (bad CNIC format, unknown reference codes,
             duplicate rows, etc.) — those are row-level outcomes returned inside a `200`/`201`
             response's `data.errors` array, not this status.
+  /api/v1/admin/candidate_imports/preflight:
+    post:
+      summary: Validate a versioned candidate import CSV without creating candidates
+      description: Persists an encrypted, expiring server-side snapshot. Commit accepts only its opaque token.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/CandidateImportRequest' }
+      responses:
+        '201': { description: Preflight completed with accepted and rejected row results. }
+        '403': { description: Missing candidate-management permission }
+        '422': { description: Invalid file, template version, or CSV structure }
+  /api/v1/admin/candidate_imports/commit:
+    post:
+      summary: Commit accepted rows from a candidate import preflight
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CandidateImportPreflightCommitRequest' }
+      responses:
+        '200': { description: Commit completed with row-level results. }
+        '403': { description: Missing candidate-management permission }
+        '409': { description: Idempotency conflict or concurrent request }
+        '422': { description: Invalid or expired preflight token }
   /api/v1/admin/candidate_imports/template:
     get:
       summary: Download the versioned candidate import CSV template

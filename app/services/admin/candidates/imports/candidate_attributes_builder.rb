@@ -20,7 +20,9 @@ module Admin
         end
 
         def call(attributes:, row_errors:)
-          required_attributes(attributes, row_errors:).merge(optional_attributes(attributes))
+          required_attributes(attributes, row_errors:).merge(optional_attributes(attributes)).tap do |candidate_attributes|
+            validate_next_of_kin(candidate_attributes, row_errors:)
+          end
         end
 
         private
@@ -46,6 +48,16 @@ module Admin
 
         def optional_value(attributes, field_name)
           attributes[field_name].to_s.strip.presence
+        end
+
+        def validate_next_of_kin(candidate_attributes, row_errors:)
+          fields = %i[next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic]
+          return if fields.all? { |field| candidate_attributes[field].blank? }
+          return if fields.all? { |field| candidate_attributes[field].present? }
+
+          fields.each do |field|
+            row_errors << { field: field.to_s, code: 'incomplete_next_of_kin' } if candidate_attributes[field].blank?
+          end
         end
 
         def required_value(attributes, field_name, row_errors:)

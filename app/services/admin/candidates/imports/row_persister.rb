@@ -22,11 +22,15 @@ module Admin
 
         def duplicate_row?(row_plan)
           ::Candidate.exists?(cnic: row_plan.cnic) ||
+            (row_plan.passport_number.present? && ::Candidate.exists?(passport_number: row_plan.passport_number)) ||
+            ::Candidate.exists?(mobile_number: row_plan.mobile_number) ||
             ::CandidateAssignment.exists?(reference_number: row_plan.reference_number)
         end
 
         def handle_duplicate(row_plan:, result:)
           return record_duplicate_candidate(row_plan:, result:) if ::Candidate.exists?(cnic: row_plan.cnic)
+          return result.record_skipped(row_number: row_plan.row_number, field: 'passport_number', code: 'duplicate_passport') if row_plan.passport_number.present? && ::Candidate.exists?(passport_number: row_plan.passport_number)
+          return result.record_skipped(row_number: row_plan.row_number, field: 'mobile_number', code: 'duplicate_mobile_number') if ::Candidate.exists?(mobile_number: row_plan.mobile_number)
 
           record_duplicate_reference_number(row_plan:, result:)
         end

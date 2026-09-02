@@ -9,5 +9,8 @@ module Admin
     def create?
       permission_granted?('manage_candidates')
     end
+
+    alias preflight? create?
+    alias commit? create?
   end
 end
