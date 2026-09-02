@@ -43,7 +43,7 @@ RSpec.describe Role, type: :model do
   end
 
   it 'prevents destroying system-defined roles' do
-    system_role = system_role_for('mps')
+    system_role = create(:role, code: 'system_test_role', system_defined: true)
 
     expect(system_role.destroy).to be(false)
   end
