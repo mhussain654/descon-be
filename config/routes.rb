@@ -56,6 +56,7 @@ Rails.application.routes.draw do
           post :preflight, on: :collection
           post :commit, on: :collection
           get :error_export, on: :member
+          resource :retry, only: :create, controller: :candidate_import_retries
         end
         resources :document_submissions, only: %i[index show]
         resources :candidates, only: [] do

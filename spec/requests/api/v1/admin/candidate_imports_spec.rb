@@ -200,8 +200,8 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
 
       post '/api/v1/admin/candidate_imports/commit',
            params: { candidate_import: { preflight_token: token } }, headers: headers
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body.dig('data', 'imported_rows')).to eq(1)
+      expect(response).to have_http_status(:accepted)
+      expect(response.parsed_body.dig('data', 'status')).to eq('queued')
     end
 
     it 'forbids preflight and commit for staff without candidate-management permission' do

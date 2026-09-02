@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_090100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_090300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -234,13 +234,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_090100) do
     t.datetime "committed_at"
     t.integer "committed_rows", default: 0, null: false
     t.datetime "created_at", null: false
+    t.datetime "enqueued_at"
     t.string "error_code"
     t.datetime "expires_at", null: false
     t.datetime "failed_at"
     t.string "file_fingerprint", null: false
     t.integer "imported_rows", default: 0, null: false
     t.datetime "invalidated_at"
-    t.text "preflight_payload", null: false
+    t.text "preflight_payload"
     t.datetime "processed_at"
     t.string "public_id", null: false
     t.integer "rejected_rows", default: 0, null: false
@@ -253,10 +254,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_090100) do
     t.integer "total_rows", default: 0, null: false
     t.datetime "updated_at", null: false
     t.integer "warning_count", default: 0, null: false
+    t.index ["actor_id", "created_at"], name: "index_candidate_import_batches_on_actor_id_and_created_at"
     t.index ["actor_id"], name: "index_candidate_import_batches_on_actor_id"
     t.index ["expires_at"], name: "index_candidate_import_batches_on_expires_at"
     t.index ["public_id"], name: "index_candidate_import_batches_on_public_id", unique: true
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
+    t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
     t.check_constraint "status::text = ANY (ARRAY['queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
   end

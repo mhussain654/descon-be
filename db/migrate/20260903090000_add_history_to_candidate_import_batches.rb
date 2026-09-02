@@ -17,9 +17,7 @@ class AddHistoryToCandidateImportBatches < ActiveRecord::Migration[8.1]
     remove_index :candidate_import_batches, %i[status created_at]
     remove_columns :candidate_import_batches, :processed_at, :failed_at, :error_code, :skipped_rows, :committed_rows
     remove_check_constraint :candidate_import_batches, name: 'candidate_import_batches_status'
-    execute "UPDATE candidate_import_batches SET status = 'preflighted' WHERE status = 'queued'"
-    execute "UPDATE candidate_import_batches SET status = 'committed' WHERE status = 'completed'"
-    execute "UPDATE candidate_import_batches SET status = 'invalidated' WHERE status IN ('processing', 'partial', 'failed')"
+    restore_legacy_statuses
     change_column_default :candidate_import_batches, :status, from: 'queued', to: 'preflighted'
     add_check_constraint :candidate_import_batches,
                          "status IN ('preflighted', 'committed', 'invalidated')",
@@ -27,6 +25,14 @@ class AddHistoryToCandidateImportBatches < ActiveRecord::Migration[8.1]
   end
 
   private
+
+  def restore_legacy_statuses
+    execute "UPDATE candidate_import_batches SET status = 'preflighted' WHERE status = 'queued'"
+    execute "UPDATE candidate_import_batches SET status = 'committed' WHERE status = 'completed'"
+    execute <<~SQL.squish
+      UPDATE candidate_import_batches SET status = 'invalidated' WHERE status IN ('processing', 'partial', 'failed')
+    SQL
+  end
 
   def add_history_columns
     change_table :candidate_import_batches, bulk: true do |table|

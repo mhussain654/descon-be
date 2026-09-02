@@ -1964,6 +1964,38 @@ components:
           type: array
           items: { $ref: '#/components/schemas/CandidateImportRowError' }
       required: [import_id, preflight_token, expires_at, accepted_rows, rejected_rows, warning_count, total_rows, errors]
+    CandidateImportRowResult:
+      type: object
+      properties:
+        row_number: { type: integer, minimum: 2 }
+        status: { type: string, enum: [accepted, rejected, skipped, committed] }
+        error_field: { type: string, nullable: true }
+        error_code: { type: string, nullable: true }
+        message: { type: string, nullable: true }
+      required: [row_number, status]
+    CandidateImportHistoryBatch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, processing, completed, partial, failed, invalidated] }
+        source_filename: { type: string }
+        template_version: { type: string, example: v1 }
+        total_rows: { type: integer }
+        accepted_rows: { type: integer }
+        rejected_rows: { type: integer }
+        skipped_rows: { type: integer }
+        committed_rows: { type: integer }
+        imported_rows: { type: integer }
+        error_code: { type: string, nullable: true }
+        enqueued_at: { type: string, format: date-time, nullable: true }
+        processed_at: { type: string, format: date-time, nullable: true }
+        failed_at: { type: string, format: date-time, nullable: true }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        row_results:
+          type: array
+          items: { $ref: '#/components/schemas/CandidateImportRowResult' }
+      required: [id, status, source_filename, template_version, total_rows, accepted_rows, rejected_rows, skipped_rows, committed_rows, imported_rows, expires_at, created_at]
     HostedCheckoutNotificationRequest:
       type: object
       properties:
@@ -3767,6 +3799,39 @@ paths:
                     request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
                     timestamp: '2026-08-26T12:00:00Z'
   /api/v1/admin/candidate_imports:
+    get:
+      summary: List the authenticated staff actor's candidate import history
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: filter[status]
+          in: query
+          schema: { type: string, enum: [queued, processing, completed, partial, failed, invalidated] }
+        - name: filter[actor_id]
+          in: query
+          schema: { type: string, format: uuid }
+        - name: filter[created_from]
+          in: query
+          schema: { type: string, format: date }
+        - name: filter[created_to]
+          in: query
+          schema: { type: string, format: date }
+        - name: filter[template_version]
+          in: query
+          schema: { type: string, example: v1 }
+        - name: page[number]
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page[size]
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Paginated safe import history. Scope is limited to batches owned by the authenticated actor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+        '403': { description: Missing candidate-management permission }
+        '422': { description: Invalid filter or pagination parameter }
     post:
       summary: Import candidates from CSV
       security:
@@ -3887,10 +3952,61 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/CandidateImportPreflightCommitRequest' }
       responses:
-        '200': { description: Commit completed with row-level results. }
+        '202':
+          description: Accepted for asynchronous processing. The history detail endpoint is authoritative for final row results.
         '403': { description: Missing candidate-management permission }
         '409': { description: Idempotency conflict or concurrent request }
         '422': { description: Invalid or expired preflight token }
+  /api/v1/admin/candidate_imports/{id}:
+    get:
+      summary: Show a candidate import batch and safe row results
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Import batch detail. Encrypted payloads, raw CSV content, tokens, and internal exceptions are never returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+        '404': { description: Batch is not visible to the authenticated actor }
+  /api/v1/admin/candidate_imports/{id}/error_export:
+    get:
+      summary: Download rejected and skipped import row errors as UTF-8 CSV
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XLocaleHeader'
+      responses:
+        '200':
+          description: Safe error report containing row number, status, field, code, and localized message only.
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        '404': { description: Batch is not visible to the authenticated actor }
+  /api/v1/admin/candidate_imports/{candidate_import_id}/retry:
+    post:
+      summary: Retry an unexpired failed import batch
+      description: >-
+        Requeues only failed batches. Concurrent retries are serialized; the successful request enqueues one job,
+        while idempotent replays return the original accepted result. A prior enqueued timestamp never prevents a failed batch retry.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: candidate_import_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      responses:
+        '202': { description: Failed batch requeued for asynchronous execution. }
+        '409': { description: Idempotency conflict or request already in progress. }
+        '422': { description: Batch is not failed, is expired, or cannot be retried. }
   /api/v1/admin/candidate_imports/template:
     get:
       summary: Download the versioned candidate import CSV template

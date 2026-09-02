@@ -9,21 +9,38 @@ module Admin
       end
 
       def as_json(*)
-        attributes = {
+        return attributes unless @include_rows
+
+        attributes.merge(row_results: serialized_rows)
+      end
+
+      private
+
+      def attributes
+        counts.merge(timestamps)
+      end
+
+      def counts
+        {
           id: @batch.public_id, status: @batch.status, source_filename: @batch.source_filename,
           template_version: @batch.template_version, total_rows: @batch.total_rows,
           accepted_rows: @batch.accepted_rows, rejected_rows: @batch.rejected_rows,
           skipped_rows: @batch.skipped_rows, committed_rows: @batch.committed_rows,
-          imported_rows: @batch.imported_rows, error_code: @batch.error_code,
-          expires_at: @batch.expires_at&.utc&.iso8601, processed_at: @batch.processed_at&.utc&.iso8601,
-          failed_at: @batch.failed_at&.utc&.iso8601, created_at: @batch.created_at.utc.iso8601
+          imported_rows: @batch.imported_rows, error_code: @batch.error_code
         }
-        return attributes unless @include_rows
-
-        attributes.merge(row_results: @batch.row_results.sort_by(&:row_number).map { |row| serialize_row(row) })
       end
 
-      private
+      def timestamps
+        {
+          expires_at: timestamp(@batch.expires_at), processed_at: timestamp(@batch.processed_at),
+          failed_at: timestamp(@batch.failed_at), enqueued_at: timestamp(@batch.enqueued_at),
+          created_at: timestamp(@batch.created_at)
+        }
+      end
+
+      def serialized_rows = @batch.row_results.sort_by(&:row_number).map { |row| serialize_row(row) }
+
+      def timestamp(value) = value&.utc&.iso8601
 
       def serialize_row(row)
         {

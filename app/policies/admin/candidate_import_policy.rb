@@ -2,6 +2,10 @@
 
 module Admin
   class CandidateImportPolicy < ApplicationPolicy
+    def index?
+      permission_granted?('manage_candidates')
+    end
+
     def show?
       permission_granted?('manage_candidates')
     end
@@ -13,6 +17,7 @@ module Admin
     alias preflight? create?
     alias commit? create?
     alias error_export? show?
+    alias retry? show?
 
     class Scope < Scope
       def resolve

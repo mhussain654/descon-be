@@ -30,7 +30,7 @@ module Admin
         def persist_batch!(token:, rows:, result:)
           CandidateImportBatch.transaction do
             batch = CandidateImportBatch.create!(batch_attributes(token:, rows:, result:))
-            persist_row_results!(batch:, rows:, result:)
+            PreflightRowResultCreator.call(batch:, rows:, errors: result.to_h.fetch(:errors))
             batch
           end
         end
@@ -63,23 +63,13 @@ module Admin
           attributes = CsvFileParser::SUPPORTED_HEADERS.index_with { |header| row[header].to_s.strip }
           plan = builder.call(row:, row_number:)
           error = row_error(plan:, tracker:)
-          return result.record_failed(row_number:, errors: [error]) if error
+          if error
+            result.record_failed(row_number:, errors: [error])
+            return
+          end
 
           result.schedule(plan)
           attributes.merge('template_version' => Template::VERSION, 'row_number' => row_number)
-        end
-
-        def persist_row_results!(batch:, rows:, result:)
-          accepted_rows = rows.map do |row|
-            { candidate_import_batch_id: batch.id, row_number: row.fetch('row_number'), status: 'accepted',
-              created_at: Time.current, updated_at: Time.current }
-          end
-          rejected_rows = result.to_h.fetch(:errors).map do |error|
-            { candidate_import_batch_id: batch.id, row_number: error.fetch(:row), status: 'rejected',
-              error_field: error.fetch(:field), error_code: error.fetch(:code), created_at: Time.current,
-              updated_at: Time.current }
-          end
-          CandidateImportRowResult.insert_all!(accepted_rows + rejected_rows) if accepted_rows.any? || rejected_rows.any?
         end
 
         def row_error(plan:, tracker:)

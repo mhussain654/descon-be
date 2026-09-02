@@ -142,6 +142,7 @@ en:
         unsupported_template_version: "Use the current candidate import template version."
         invalid_preflight_token: "The import preflight token is invalid."
         expired_preflight_token: "The import preflight token has expired."
+        retry_not_allowed: "Only an unexpired failed import can be retried."
       row_errors:
         blank_row: "This row is blank."
         missing_value: "This required field is missing."

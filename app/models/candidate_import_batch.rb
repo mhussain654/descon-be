@@ -24,6 +24,7 @@ class CandidateImportBatch < ApplicationRecord
   def committed? = completed? || partial?
   def completed? = status == 'completed'
   def partial? = status == 'partial'
+  def finalized? = committed? || invalidated?
 
   def rows
     JSON.parse(preflight_payload.to_s).fetch('rows')

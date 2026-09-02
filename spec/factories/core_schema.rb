@@ -95,6 +95,24 @@ FactoryBot.define do
     association :created_by, factory: :user
   end
 
+  factory :candidate_import_batch do
+    association :actor, factory: :user
+    public_id { SecureRandom.uuid }
+    token_digest { SecureRandom.hex(32) }
+    status { 'queued' }
+    source_filename { 'candidate-import-template-v1.csv' }
+    file_fingerprint { SecureRandom.hex(32) }
+    template_version { 'v1' }
+    preflight_payload { { rows: [] }.to_json }
+    expires_at { 30.minutes.from_now }
+  end
+
+  factory :candidate_import_row_result do
+    candidate_import_batch
+    sequence(:row_number) { |number| number + 1 }
+    status { 'accepted' }
+  end
+
   factory :candidate_session do
     candidate
     public_id { SecureRandom.uuid }
