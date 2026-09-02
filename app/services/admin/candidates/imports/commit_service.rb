@@ -20,14 +20,22 @@ module Admin
             validate_batch!(batch)
             return committed_payload(batch) if batch.committed?
 
-            result = Result.new(total_rows: batch.total_rows)
-            batch.rows.each { |row| persist_row(row:, result:) }
-            finalize!(batch:, result:)
-            committed_payload(batch, result:)
+            commit_batch(batch)
           end
         end
 
+        def self.call_batch(batch:, request_id:)
+          new(actor: batch.actor, token: '', request_id:).send(:commit_batch, batch)
+        end
+
         private
+
+        def commit_batch(batch)
+          result = Result.new(total_rows: batch.total_rows)
+          batch.rows.each { |row| persist_row(row:, result:) }
+          finalize!(batch:, result:)
+          committed_payload(batch, result:)
+        end
 
         def validate_batch!(batch)
           if batch.blank? || batch.actor_id != @actor.id
@@ -59,11 +67,25 @@ module Admin
 
         def commit_attributes(batch:, result:)
           summary = result.summary
+          counts = final_counts(batch:, summary:)
           {
-            status: 'committed', committed_at: Time.current,
-            imported_rows: summary.fetch(:successful_rows),
-            rejected_rows: batch.rejected_rows + summary.fetch(:failed_rows) + summary.fetch(:skipped_rows)
+            status: completed_status(**counts),
+            committed_at: Time.current, processed_at: Time.current,
+            imported_rows: counts.fetch(:imported_rows), committed_rows: counts.fetch(:imported_rows),
+            rejected_rows: counts.fetch(:rejected_rows), skipped_rows: counts.fetch(:skipped_rows)
           }
+        end
+
+        def final_counts(batch:, summary:)
+          {
+            imported_rows: summary.fetch(:successful_rows),
+            rejected_rows: batch.rejected_rows + summary.fetch(:failed_rows),
+            skipped_rows: summary.fetch(:skipped_rows)
+          }
+        end
+
+        def completed_status(rejected_rows:, skipped_rows:, **)
+          rejected_rows.zero? && skipped_rows.zero? ? 'completed' : 'partial'
         end
 
         def create_commit_audit!(batch:)

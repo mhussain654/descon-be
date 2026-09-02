@@ -40,7 +40,7 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
       actor:, token: preflight.fetch(:preflight_token), request_id: 'commit-1'
     )
 
-    expect(result).to include(status: 'committed', imported_rows: 1)
+    expect(result).to include(status: 'completed', imported_rows: 1)
     candidate = Candidate.find_by!(cnic: '42101-1234567-1')
     expect(candidate.candidate_assignments.find_by!(reference_number: 'DES-001001')).to be_present
   end
@@ -63,7 +63,7 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
     second = Admin::Candidates::Imports::CommitService.call(actor:, token: preflight.fetch(:preflight_token),
                                                             request_id: 'commit-replay')
 
-    expect(second).to include(status: 'committed', imported_rows: first.fetch(:imported_rows))
+    expect(second).to include(status: 'completed', imported_rows: first.fetch(:imported_rows))
     expect(Candidate.where(cnic: '42101-1234567-1').count).to eq(1)
   end
 end

@@ -34,6 +34,7 @@ module Admin
           summary = result.summary
           { actor: @actor, token_digest: digest(token), source_filename: File.basename(@file.original_filename.to_s),
             file_fingerprint: file_fingerprint, template_version: Template::VERSION, request_id: @request_id,
+            status: 'queued',
             preflight_payload: { rows: }.to_json, total_rows: summary.fetch(:total_rows),
             accepted_rows: result.persistable_rows.size,
             rejected_rows: summary.fetch(:failed_rows) + summary.fetch(:skipped_rows),
