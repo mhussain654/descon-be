@@ -2,7 +2,7 @@
 
 require 'rails_helper'
 
-RSpec.describe 'candidate import preflight and commit' do
+RSpec.describe Admin::Candidates::Imports::PreflightService do
   before { ensure_candidate_import_reference_data! }
 
   let(:actor) { create(:user, role: 'hr') }
@@ -31,8 +31,8 @@ RSpec.describe 'candidate import preflight and commit' do
   end
 
   it 'commits only the persisted accepted snapshot' do
-    preflight = Admin::Candidates::Imports::PreflightService.call(actor:, file: upload([valid_row]),
-                                                                  request_id: 'preflight-1')
+    preflight = described_class.call(actor:, file: upload([valid_row]),
+                                     request_id: 'preflight-1')
 
     expect(preflight).to include(accepted_rows: 1, rejected_rows: 0)
 
@@ -41,11 +41,12 @@ RSpec.describe 'candidate import preflight and commit' do
     )
 
     expect(result).to include(status: 'committed', imported_rows: 1)
-    expect(Candidate.find_by!(cnic: '42101-1234567-1').candidate_assignments.find_by!(reference_number: 'DES-001001')).to be_present
+    candidate = Candidate.find_by!(cnic: '42101-1234567-1')
+    expect(candidate.candidate_assignments.find_by!(reference_number: 'DES-001001')).to be_present
   end
 
   it 'returns field-addressable errors for partial next-of-kin data without scheduling the row' do
-    result = Admin::Candidates::Imports::PreflightService.call(
+    result = described_class.call(
       actor:, file: upload([valid_row('next_of_kin_name' => 'Relative')]), request_id: 'preflight-kin'
     )
 
@@ -55,8 +56,8 @@ RSpec.describe 'candidate import preflight and commit' do
   end
 
   it 'returns the completed result for an identical commit replay without duplicating candidates' do
-    preflight = Admin::Candidates::Imports::PreflightService.call(actor:, file: upload([valid_row]),
-                                                                  request_id: 'preflight-replay')
+    preflight = described_class.call(actor:, file: upload([valid_row]),
+                                     request_id: 'preflight-replay')
     first = Admin::Candidates::Imports::CommitService.call(actor:, token: preflight.fetch(:preflight_token),
                                                            request_id: 'commit-replay')
     second = Admin::Candidates::Imports::CommitService.call(actor:, token: preflight.fetch(:preflight_token),

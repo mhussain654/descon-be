@@ -7,12 +7,14 @@ RSpec.describe Authentication::RefreshService do
 
   around do |example|
     AuthenticationEvent.delete_all
+    AuditEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
     User.delete_all
     example.run
   ensure
     AuthenticationEvent.delete_all
+    AuditEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
     User.delete_all

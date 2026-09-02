@@ -172,4 +172,47 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       expect(response.parsed_body.dig('data', 'candidate', 'id')).to eq(Candidate.find_by!(cnic: '42101-1234567-1').public_id)
     end
   end
+
+  describe 'MPS-307 preflight and commit' do
+    def versioned_csv
+      headers = Admin::Candidates::Imports::CsvFileParser::SUPPORTED_HEADERS
+      values = {
+        'full_name' => 'Preflight Candidate', 'cnic' => '42101-1234567-1', 'mobile_number' => '+923001234567',
+        'reference_number' => 'DES-001001', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
+        'workflow_stage_code' => 'registered', 'country_code' => 'qatar', 'project_code' => 'qatar_infrastructure',
+        'craft_code' => 'electrician', 'active' => 'true', 'passport_number' => '', 'next_of_kin_name' => '',
+        'next_of_kin_relationship' => '', 'next_of_kin_mobile_number' => '', 'next_of_kin_cnic' => '',
+        'template_version' => 'v1'
+      }
+      CSV.generate do |csv|
+        csv << headers
+        csv << headers.map { |header| values.fetch(header) }
+      end
+    end
+
+    it 'preflights and commits the server-side snapshot' do
+      actor = create(:user, role: 'hr', password: 'Password123!')
+      headers = { 'Authorization' => "Bearer #{login_as(actor)}", 'Idempotency-Key' => 'mps-307-commit' }
+      post '/api/v1/admin/candidate_imports/preflight',
+           params: { candidate_import: { file: uploaded_csv(versioned_csv) } }, headers: headers
+      expect(response).to have_http_status(:created)
+      token = response.parsed_body.dig('data', 'preflight_token')
+
+      post '/api/v1/admin/candidate_imports/commit',
+           params: { candidate_import: { preflight_token: token } }, headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'imported_rows')).to eq(1)
+    end
+
+    it 'forbids preflight and commit for staff without candidate-management permission' do
+      actor = create(:user, role: 'mps', password: 'Password123!')
+      headers = { 'Authorization' => "Bearer #{login_as(actor)}" }
+      post '/api/v1/admin/candidate_imports/preflight',
+           params: { candidate_import: { file: uploaded_csv(versioned_csv) } }, headers: headers
+      expect(response).to have_http_status(:forbidden)
+      post '/api/v1/admin/candidate_imports/commit',
+           params: { candidate_import: { preflight_token: 'invalid-token' } }, headers: headers
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
 end

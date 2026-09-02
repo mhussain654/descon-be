@@ -52,27 +52,52 @@ module Admin
 
         def finalize!(batch:, result:)
           batch.transaction do
-            batch.update!(status: 'committed', committed_at: Time.current, imported_rows: result.summary.fetch(:successful_rows),
-                          rejected_rows: batch.rejected_rows + result.summary.fetch(:failed_rows) + result.summary.fetch(:skipped_rows))
-            AuditEvent.create!(actor: @actor, entity_type: 'CandidateImportBatch', entity_id: batch.id,
-                               action_code: 'candidate_import_committed', request_id: @request_id, occurred_at: Time.current,
-                               metadata: { import_public_id: batch.public_id, template_version: batch.template_version,
-                                           file_fingerprint: batch.file_fingerprint, total_rows: batch.total_rows,
-                                           accepted_rows: batch.accepted_rows, rejected_rows: batch.rejected_rows,
-                                           imported_rows: batch.imported_rows, idempotency_key_present: @idempotency_key.present? })
+            batch.update!(commit_attributes(batch:, result:))
+            create_commit_audit!(batch:)
           end
+        end
+
+        def commit_attributes(batch:, result:)
+          summary = result.summary
+          {
+            status: 'committed', committed_at: Time.current,
+            imported_rows: summary.fetch(:successful_rows),
+            rejected_rows: batch.rejected_rows + summary.fetch(:failed_rows) + summary.fetch(:skipped_rows)
+          }
+        end
+
+        def create_commit_audit!(batch:)
+          AuditEvent.create!(
+            actor: @actor, entity_type: 'CandidateImportBatch', entity_id: batch.id,
+            action_code: 'candidate_import_committed', request_id: @request_id,
+            occurred_at: Time.current, metadata: commit_audit_metadata(batch:)
+          )
+        end
+
+        def commit_audit_metadata(batch:)
+          {
+            import_public_id: batch.public_id, template_version: batch.template_version,
+            file_fingerprint: batch.file_fingerprint, total_rows: batch.total_rows,
+            accepted_rows: batch.accepted_rows, rejected_rows: batch.rejected_rows,
+            imported_rows: batch.imported_rows, idempotency_key_present: @idempotency_key.present?
+          }
         end
 
         def committed_payload(batch, result: nil)
           summary = if result
                       result.to_h
                     else
-                      { successful_rows: batch.imported_rows,
-                        failed_rows: batch.rejected_rows - batch.total_rows + batch.accepted_rows, skipped_rows: 0, errors: [] }
+                      replay_summary(batch)
                     end
           summary.merge(import_id: batch.public_id, status: batch.status, total_rows: batch.total_rows,
                         imported_rows: batch.imported_rows, rejected_rows: batch.rejected_rows,
                         warning_count: batch.warning_count)
+        end
+
+        def replay_summary(batch)
+          { successful_rows: batch.imported_rows,
+            failed_rows: batch.rejected_rows - batch.total_rows + batch.accepted_rows,
+            skipped_rows: 0, errors: [] }
         end
       end
     end

@@ -66,20 +66,28 @@ module Admin
         end
 
         def parse_rows
-          content = @file.read.to_s
-          raise_error!('invalid_encoding') unless content.force_encoding(Encoding::UTF_8).valid_encoding?
-
-          csv = CSV.parse(content, headers: true, header_converters: [method(:normalize_header).to_proc])
-          headers = csv.headers.compact
-          missing_headers = REQUIRED_HEADERS - headers
-
-          raise_missing_headers_error!(missing_headers) if missing_headers.any?
-          raise_unsupported_headers_error!(headers - SUPPORTED_HEADERS) if (headers - SUPPORTED_HEADERS).any?
+          csv = parse_csv!
+          validate_headers!(csv.headers.compact)
           csv
         rescue CSV::MalformedCSVError, Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
           raise_error!('invalid_csv')
         ensure
           @file.rewind if @file.respond_to?(:rewind)
+        end
+
+        def parse_csv!
+          content = @file.read.to_s
+          raise_error!('invalid_encoding') unless content.force_encoding(Encoding::UTF_8).valid_encoding?
+
+          CSV.parse(content, headers: true, header_converters: [method(:normalize_header).to_proc])
+        end
+
+        def validate_headers!(headers)
+          missing_headers = REQUIRED_HEADERS - headers
+          raise_missing_headers_error!(missing_headers) if missing_headers.any?
+
+          unsupported_headers = headers - SUPPORTED_HEADERS
+          raise_unsupported_headers_error!(unsupported_headers) if unsupported_headers.any?
         end
 
         def normalize_header(header)
