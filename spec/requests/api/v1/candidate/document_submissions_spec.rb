@@ -56,6 +56,14 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
     end
   end
 
+  def without_active_document_requirements
+    active_requirements = DocumentRequirement.where(active: true).to_a
+    active_requirements.each { |requirement| requirement.update!(active: false) }
+    yield
+  ensure
+    active_requirements&.each { |requirement| requirement.update!(active: true) }
+  end
+
   describe 'POST /api/v1/candidate/document_submissions' do
     it 'submits the authenticated candidate documents and replays the same key safely' do
       candidate = create(:candidate)
@@ -175,10 +183,11 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
 
       candidate_with_assignment = create(:candidate)
       create(:candidate_assignment, candidate: candidate_with_assignment)
-      DocumentRequirement.where(active: true).find_each { |requirement| requirement.update!(active: false) }
-      post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate_with_assignment)
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('no_document_requirements')
+      without_active_document_requirements do
+        post '/api/v1/candidate/document_submissions', headers: candidate_auth_headers(candidate_with_assignment)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body.dig('errors', 0, 'code')).to eq('no_document_requirements')
+      end
 
       inactive_candidate = create(:candidate, active: false)
       post '/api/v1/candidate/document_submissions',
