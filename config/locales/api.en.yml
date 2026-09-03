@@ -112,6 +112,10 @@ en:
       stale_candidate: "This candidate changed before this update could be applied. Refresh and try again."
       stale_reference_data: "This reference value changed before this update could be applied. Refresh and try again."
       reference_data_code_taken: "This reference code is already in use."
+      payment_not_found: "Payment not found."
+      stale_payment: "This payment changed before this correction could be applied. Refresh and try again."
+      payment_correction_not_allowed: "This correction is not allowed for this payment."
+      payment_correction_reason_required: "Enter a reason for this correction."
       candidate_assignment_field_locked: "This field can only be changed while the candidate is still at the registered stage."
     authentication:
       login_succeeded: "Login succeeded."

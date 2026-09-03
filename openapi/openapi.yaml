@@ -849,6 +849,157 @@ components:
         payment:
           $ref: '#/components/schemas/CandidatePaymentRecord'
       required: [eligibility, payment]
+    AdminPaymentCandidateRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        masked_cnic:
+          type: string
+          example: 42101-*******-1
+        reference_number:
+          type: string
+      required: [id, full_name, masked_cnic, reference_number]
+    AdminPaymentSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        candidate:
+          $ref: '#/components/schemas/AdminPaymentCandidateRef'
+        payment_type_code:
+          type: string
+        status:
+          type: string
+          enum: [checkout_pending, paid, failed, cancelled]
+        amount:
+          type: string
+          example: '1500.00'
+        currency_code:
+          type: string
+          example: PKR
+        provider:
+          type: string
+        external_reference:
+          type: string
+          nullable: true
+        reconciliation_state:
+          type: string
+          enum: [clean, open, resolved]
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, candidate, payment_type_code, status, amount, currency_code, provider, reconciliation_state, created_at,
+                 updated_at]
+    AdminPaymentEventActorRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+      required: [id, role]
+    AdminPaymentEvent:
+      type: object
+      description: >-
+        A safe, staff-facing view of one payment event. Never includes the raw provider
+        callback/return payload, provider secrets, signatures, or internal correlation
+        identifiers -- only what a staff member needs to understand what happened and when.
+      properties:
+        id:
+          type: string
+        event_type:
+          type: string
+        event_source:
+          type: string
+        provider_status_code:
+          type: string
+          nullable: true
+        occurred_at:
+          type: string
+          format: date-time
+        actor:
+          allOf: [{ $ref: '#/components/schemas/AdminPaymentEventActorRef' }]
+          nullable: true
+      required: [id, event_type, event_source, occurred_at]
+    AdminPaymentReconciliationFinding:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        finding_code:
+          type: string
+          enum: [paid_at_missing, external_reference_missing, duplicate_external_reference, workflow_payment_mismatch,
+                 terminal_event_conflict]
+        state:
+          type: string
+          enum: [open, resolved]
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        resolved_by:
+          allOf: [{ $ref: '#/components/schemas/AdminPaymentEventActorRef' }]
+          nullable: true
+        resolution_note:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required: [id, finding_code, state, created_at]
+    AdminPaymentDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminPaymentSummary'
+        - type: object
+          properties:
+            payment_events:
+              type: array
+              items: { $ref: '#/components/schemas/AdminPaymentEvent' }
+            reconciliation_findings:
+              type: array
+              items: { $ref: '#/components/schemas/AdminPaymentReconciliationFinding' }
+          required: [payment_events, reconciliation_findings]
+    AdminPaymentCorrectionRequest:
+      type: object
+      description: >-
+        Applies a narrow, backend-validated correction to one payment. `field` is one of
+        `external_reference`, `paid_at`, `status_code`, or omitted entirely for a "note-only"
+        finding resolution. `status_code` may only move to `paid` when `finding_id` references
+        an open `terminal_event_conflict` finding on this same payment (the backend
+        additionally confirms a real `payment_succeeded` event already exists before allowing
+        it) -- a correction can never stand in for real provider confirmation. `expected_updated_at`
+        must match the payment's current `updated_at` (from the last detail fetch) or the
+        request is rejected as stale (409).
+      properties:
+        reason:
+          type: string
+          minLength: 1
+        expected_updated_at:
+          type: string
+          format: date-time
+        finding_id:
+          type: string
+          format: uuid
+        field:
+          type: string
+          enum: [external_reference, paid_at, status_code]
+        value:
+          type: string
+      required: [reason, expected_updated_at]
     CandidateApplicationProgressDocuments:
       type: object
       properties:
@@ -6207,6 +6358,278 @@ paths:
                         message: Document submission not found.
                     request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
                     timestamp: '2026-08-27T10:00:02Z'
+  /api/v1/admin/payments:
+    get:
+      summary: List payment transactions (finance workspace)
+      description: >-
+        Paginated, searchable, filterable list of payment transactions. Requires the active
+        `view_payments` or `manage_payments` permission. `reconciliation_state` reflects this
+        payment's own reconciliation findings (see Payments::ReconciliationService): `clean`
+        (never flagged), `open` (at least one unresolved finding), or `resolved` (every
+        finding on this payment has been resolved).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+        - name: search
+          in: query
+          description: Matches candidate full name, assignment reference number, or external_reference.
+          schema: { type: string }
+        - name: filter[status]
+          in: query
+          schema: { type: string, enum: [checkout_pending, paid, failed, cancelled] }
+        - name: filter[provider_code]
+          in: query
+          schema: { type: string, example: kuickpay }
+        - name: filter[payment_type_code]
+          in: query
+          schema: { type: string, example: onboarding_fee }
+        - name: filter[currency_code]
+          in: query
+          schema: { type: string, example: PKR }
+        - name: filter[created_from]
+          in: query
+          schema: { type: string, format: date }
+        - name: filter[created_to]
+          in: query
+          schema: { type: string, format: date }
+        - name: filter[reconciliation_state]
+          in: query
+          schema: { type: string, enum: [open, resolved, clean] }
+        - name: sort
+          in: query
+          description: 'Prefix with `-` for descending. Defaults to `-created_at`.'
+          schema: { type: string, enum: [created_at, -created_at, paid_at, -paid_at, amount, -amount, status_code, -status_code] }
+      responses:
+        '200':
+          description: Paginated payment transaction list
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                transactions:
+                  value:
+                    data:
+                      - id: 2b2f5c9b-7f9a-4e2f-9c9e-8e6c2b6a1a11
+                        candidate:
+                          id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                          full_name: Ahmed Ali
+                          masked_cnic: 42101-*******-1
+                          reference_number: DES-001001
+                        payment_type_code: onboarding_fee
+                        status: paid
+                        amount: '1500.00'
+                        currency_code: PKR
+                        provider: kuickpay
+                        external_reference: KP-77889900
+                        reconciliation_state: clean
+                        paid_at: '2026-09-01T10:05:00Z'
+                        created_at: '2026-09-01T10:00:00Z'
+                        updated_at: '2026-09-01T10:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-03T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                      applied_filters:
+                        status: paid
+                    errors: []
+        '400':
+          description: Unsupported filter or sort parameter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_payments/manage_payments, or is inactive
+        '422':
+          description: Invalid filter value or pagination parameter
+  /api/v1/admin/payments/{id}:
+    get:
+      summary: Fetch one payment's full detail (finance workspace)
+      description: >-
+        The sole source of truth for a payment's current state -- includes its safe
+        payment-event history and its own reconciliation findings. Never includes raw
+        provider callbacks, signatures, or full CNIC/mobile values.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Payment detail
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                detail:
+                  value:
+                    data:
+                      id: 2b2f5c9b-7f9a-4e2f-9c9e-8e6c2b6a1a11
+                      candidate:
+                        id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                        full_name: Ahmed Ali
+                        masked_cnic: 42101-*******-1
+                        reference_number: DES-001001
+                      payment_type_code: onboarding_fee
+                      status: paid
+                      amount: '1500.00'
+                      currency_code: PKR
+                      provider: kuickpay
+                      external_reference: KP-77889900
+                      reconciliation_state: open
+                      paid_at: '2026-09-01T10:05:00Z'
+                      created_at: '2026-09-01T10:00:00Z'
+                      updated_at: '2026-09-01T10:05:00Z'
+                      payment_events:
+                        - id: kp-evt-88001
+                          event_type: payment_succeeded
+                          event_source: callback
+                          provider_status_code: SUCCESS
+                          occurred_at: '2026-09-01T10:05:00Z'
+                          actor: null
+                      reconciliation_findings:
+                        - id: 6c9a5b2e-3b34-4a3a-9f8e-1a2b3c4d5e6f
+                          finding_code: external_reference_missing
+                          state: open
+                          resolved_at: null
+                          resolved_by: null
+                          resolution_note: null
+                          created_at: '2026-09-02T03:00:00Z'
+                    meta:
+                      request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
+                      timestamp: '2026-09-03T10:00:02Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_payments/manage_payments, or is inactive
+        '404':
+          description: Payment public ID not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              examples:
+                notFound:
+                  value:
+                    errors:
+                      - code: payment_not_found
+                        message: Payment not found.
+                    request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
+                    timestamp: '2026-09-03T10:00:02Z'
+  /api/v1/admin/payments/{payment_id}/corrections:
+    post:
+      summary: Apply a correction to one payment (finance workspace)
+      description: >-
+        Requires the active `manage_payments` permission. See
+        `AdminPaymentCorrectionRequest` for exactly what corrections are allowed and why --
+        this endpoint never lets staff invent a provider outcome; `status_code` may only
+        move to `paid` when backed by a real, already-recorded provider-success event.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+        - in: path
+          name: payment_id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                correction:
+                  $ref: '#/components/schemas/AdminPaymentCorrectionRequest'
+              required: [correction]
+      responses:
+        '201':
+          description: Correction applied; returns the updated payment detail
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_payments, or is inactive
+        '404':
+          description: Payment public ID not found
+        '409':
+          description: >-
+            Either the payment changed since `expected_updated_at` (`stale_payment`), or an
+            identical idempotent request is already processing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              examples:
+                stale:
+                  value:
+                    errors:
+                      - code: stale_payment
+                        message: This payment changed before this correction could be applied. Refresh and try again.
+                    request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
+                    timestamp: '2026-09-03T10:00:03Z'
+        '422':
+          description: >-
+            Validation failure (blank reason, malformed value) or a disallowed correction
+            (`payment_correction_not_allowed`) -- an unsupported field, an unsupported
+            status transition, or a `status_code` correction to `paid` without a matching
+            open `terminal_event_conflict` finding and real provider evidence.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              examples:
+                notAllowed:
+                  value:
+                    errors:
+                      - code: payment_correction_not_allowed
+                        field: correction.value
+                        message: This correction is not allowed for this payment.
+                    request_id: e6ab6bbd-0ba0-492a-923b-e2af86f7079f
+                    timestamp: '2026-09-03T10:00:03Z'
   /api/v1/admin/candidates/{candidate_id}/bank_details:
     get:
       summary: Retrieve the current bank details for one candidate

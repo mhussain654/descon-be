@@ -59,6 +59,9 @@ Rails.application.routes.draw do
           resource :retry, only: :create, controller: :candidate_import_retries
         end
         resources :document_submissions, only: %i[index show]
+        resources :payments, only: %i[index show] do
+          resources :corrections, only: :create, controller: 'payments/corrections'
+        end
         resources :candidates, only: [] do
           resource :workflow_state, only: :show, controller: :candidate_workflow_states
           resource :workflow_history, only: :show, controller: :candidate_workflow_histories

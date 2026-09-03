@@ -34,8 +34,13 @@ module Payments
       end
     end
 
+    # Re-running reconciliation for a `run_date` that already has resolved
+    # findings must not resurrect them as `open` -- only `open` findings are
+    # cleared and recomputed here; a finding a staff member has already
+    # investigated and resolved (Admin::Payments::CorrectionService) survives
+    # across same-day re-runs.
     def reconcile!(run)
-      run.payment_reconciliation_findings.delete_all
+      run.payment_reconciliation_findings.open_state.delete_all
       Payment.find_each { |payment| record_findings(run, payment) }
       run.update!(status_code: 'completed', completed_at: Time.current, summary: summary_for(run))
     end
@@ -53,7 +58,7 @@ module Payments
 
     def duplicate_external_reference?(payment)
       payment.external_reference.present? && Payment.where(external_reference: payment.external_reference)
-                                                  .where.not(id: payment.id).exists?
+                                                    .where.not(id: payment.id).exists?
     end
 
     def workflow_mismatch?(payment)
@@ -65,6 +70,8 @@ module Payments
     end
 
     def create_finding!(run, payment, code)
+      return if run.payment_reconciliation_findings.exists?(payment:, finding_code: code)
+
       run.payment_reconciliation_findings.create!(
         payment:,
         finding_code: code,

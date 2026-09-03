@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_090300) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -610,11 +610,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_090300) do
     t.string "finding_code", null: false
     t.bigint "payment_id"
     t.bigint "payment_reconciliation_run_id", null: false
+    t.string "public_id", null: false
+    t.text "resolution_note"
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_id"
     t.string "state_code", default: "open", null: false
     t.datetime "updated_at", null: false
     t.index ["payment_id"], name: "index_payment_reconciliation_findings_on_payment_id"
     t.index ["payment_reconciliation_run_id", "payment_id", "finding_code"], name: "idx_payment_reconciliation_findings_unique", unique: true
     t.index ["payment_reconciliation_run_id"], name: "idx_on_payment_reconciliation_run_id_d758d737f2"
+    t.index ["public_id"], name: "index_payment_reconciliation_findings_on_public_id", unique: true
     t.index ["state_code", "created_at"], name: "idx_on_state_code_created_at_6b34810888"
   end
 
@@ -846,6 +851,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_090300) do
   add_foreign_key "payment_events", "users", column: "actor_id"
   add_foreign_key "payment_reconciliation_findings", "payment_reconciliation_runs"
   add_foreign_key "payment_reconciliation_findings", "payments"
+  add_foreign_key "payment_reconciliation_findings", "users", column: "resolved_by_id"
   add_foreign_key "payment_reconciliation_runs", "users", column: "initiated_by_id"
   add_foreign_key "payments", "candidate_assignments"
   add_foreign_key "payments", "users", column: "recorded_by_id"
