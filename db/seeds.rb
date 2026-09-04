@@ -136,8 +136,13 @@ end
 # duplicate of `police_character` (missing `requires_expiry`) already linked
 # to real candidate_documents rows -- reconciling that duplicate is a
 # separate, consequential data-migration decision, not part of this seed.
+# `bank_details`/`cheque_image` are also excluded from the active set below:
+# candidates now submit bank information through the dedicated, structured
+# CandidateBankDetail resource instead of a generic document upload (see
+# db/migrate/20260904090000_retire_generic_bank_document_requirements.rb) --
+# seeded here as `active: false` so a fresh database matches that migration.
 %w[
-  cnic_back next_of_kin_cnic bank_details cheque_image cv
+  cnic_back next_of_kin_cnic cv
   experience_letter certificates polio_certificate
 ].each do |code|
   document_type = DocumentType.find_by!(code: code)
@@ -145,6 +150,15 @@ end
     document_type: document_type, country: nil, project: nil, craft: nil
   )
   requirement.assign_attributes(required: true, active: true)
+  requirement.save!
+end
+
+%w[bank_details cheque_image].each do |code|
+  document_type = DocumentType.find_by!(code: code)
+  requirement = DocumentRequirement.find_or_initialize_by(
+    document_type: document_type, country: nil, project: nil, craft: nil
+  )
+  requirement.assign_attributes(required: true, active: false)
   requirement.save!
 end
 
