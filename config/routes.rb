@@ -79,6 +79,7 @@ Rails.application.routes.draw do
           resources :rejections, only: :create, controller: :document_rejections
           resources :verifications, only: :create, controller: :document_verifications
         end
+        resources :audit_events, only: :index
       end
 
       resources :users, only: %i[index create update]

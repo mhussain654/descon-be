@@ -6777,6 +6777,113 @@ paths:
           description: Candidate bank details not found for the candidate's current assignment
         '422':
           description: Proof attachment is unavailable
+  /api/v1/admin/audit_events:
+    get:
+      summary: Browse the immutable audit trail (audit explorer)
+      description: >-
+        Read-only, paginated, filterable view over every AuditEvent this platform records
+        (status changes, document verification, payments, imports, admin actions). Requires
+        the active `view_audit_events` permission. `metadata` contains only public ids, codes
+        and non-sensitive field names -- no raw CNIC, passport, bank, or payment identifier is
+        ever written into it. There is no show, create, update, or destroy route: audit
+        records can never be edited or deleted through the API.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+        - name: filter[actor]
+          in: query
+          description: Staff user's public id.
+          schema: { type: string, format: uuid }
+        - name: filter[action]
+          in: query
+          description: Comma-separated list of action codes.
+          schema: { type: string, example: candidate_document_verified,payment_corrected }
+        - name: filter[entity_type]
+          in: query
+          description: Comma-separated list of entity type names.
+          schema: { type: string, example: CandidateDocument,Payment }
+        - name: filter[candidate]
+          in: query
+          description: Candidate's public id.
+          schema: { type: string, format: uuid }
+        - name: filter[occurred_from]
+          in: query
+          schema: { type: string, format: date }
+        - name: filter[occurred_to]
+          in: query
+          schema: { type: string, format: date }
+        - name: sort
+          in: query
+          description: 'Prefix with `-` for descending. Defaults to `-occurred_at`.'
+          schema: { type: string, enum: [occurred_at, -occurred_at] }
+      responses:
+        '200':
+          description: Paginated audit event collection
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                events:
+                  value:
+                    data:
+                      - id: 4821
+                        actor:
+                          id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                          role: admin
+                        action_code: candidate_document_verified
+                        entity_type: CandidateDocument
+                        entity_id: 991
+                        candidate_id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                        reason_code: null
+                        note: null
+                        request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                        occurred_at: '2026-09-01T10:05:00Z'
+                        metadata:
+                          candidate_public_id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                          submission_public_id: 2b2f5c9b-7f9a-4e2f-9c9e-8e6c2b6a1a11
+                          document_public_id: a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                          requirement_code: passport
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                      applied_filters:
+                        entity_type: CandidateDocument
+                    errors: []
+        '400':
+          description: Unsupported or malformed filter, sorting, or pagination parameter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              examples:
+                invalidFilter:
+                  value:
+                    errors:
+                      - code: unsupported_filter
+                        field: filter.bogus
+                        message: One or more filters are not supported.
+                    request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                    timestamp: '2026-09-04T10:00:01Z'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_audit_events, or is inactive
   /api/v1/admin/candidate_documents/{candidate_document_id}/access:
     post:
       summary: Generate a short-lived private access path for a submitted document
