@@ -18,6 +18,7 @@ class Payment < ApplicationRecord
   belongs_to :candidate_assignment
   belongs_to :recorded_by, class_name: 'User', optional: true
   has_many :payment_events, dependent: :restrict_with_exception
+  has_many :payment_reconciliation_findings, dependent: :restrict_with_exception
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_codes

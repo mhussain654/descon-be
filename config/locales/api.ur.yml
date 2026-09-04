@@ -112,6 +112,10 @@ ur:
       stale_reference_data: "یہ ریفرنس ویلیو تبدیل ہو چکی ہے۔ تازہ کریں اور دوبارہ کوشش کریں۔"
       reference_data_code_taken: "یہ ریفرنس کوڈ پہلے سے استعمال میں ہے۔"
       candidate_assignment_field_locked: "یہ فیلڈ صرف اس وقت تبدیل کی جا سکتی ہے جب امیدوار ابھی تک رجسٹرڈ مرحلے میں ہو۔"
+      payment_not_found: "ادائیگی نہیں ملی۔"
+      stale_payment: "یہ تصحیح لاگو ہونے سے پہلے ادائیگی تبدیل ہو گئی۔ تازہ کریں اور دوبارہ کوشش کریں۔"
+      payment_correction_not_allowed: "اس ادائیگی کے لیے یہ تصحیح کی اجازت نہیں ہے۔"
+      payment_correction_reason_required: "اس تصحیح کے لیے وجہ درج کریں۔"
     authentication:
       login_succeeded: "لاگ اِن کامیاب رہا۔"
       refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"
