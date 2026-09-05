@@ -30,6 +30,8 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_candidate_documents
     manage_workflow
     manage_communications
+    view_mps_dashboard
+    view_reports
   ],
   'finance' => %w[
     view_candidates
@@ -46,6 +48,8 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     view_payments
     view_communications
     view_audit_events
+    view_management_dashboard
+    view_reports
   ]
 }.each do |role_code, permission_codes|
   permission_codes.each do |permission_code|
