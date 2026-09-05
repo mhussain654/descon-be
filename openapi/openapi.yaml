@@ -6884,6 +6884,353 @@ paths:
           description: Missing, invalid, expired, or revoked staff access token
         '403':
           description: Authenticated staff user lacks view_audit_events, or is inactive
+  /api/v1/admin/dashboard:
+    get:
+      summary: Admin dashboard summary (MPS-801)
+      description: >-
+        Candidate workload, document-review queue depth, workflow-stage queues and payment
+        visibility. Requires the active `view_admin_dashboard` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Admin dashboard summary
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                summary:
+                  value:
+                    data:
+                      candidate_workload:
+                        total_active_candidates: 128
+                      workflow_stage_queue:
+                        - code: registered
+                          position: 1
+                          count: 12
+                        - code: verified
+                          position: 5
+                          count: 40
+                      document_review_queue:
+                        pending_review: 6
+                        verified: 90
+                        rejected: 3
+                        expired_pcc: 1
+                        near_expiry_pcc: 2
+                      payment_summary:
+                        - code: checkout_pending
+                          count: 2
+                        - code: paid
+                          count: 88
+                        - code: failed
+                          count: 1
+                        - code: cancelled
+                          count: 0
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_admin_dashboard, or is inactive
+  /api/v1/admin/mps_dashboard:
+    get:
+      summary: MPS dashboard summary (MPS-802)
+      description: >-
+        Pipeline/status queues, delayed and critical case counts, craft-wise and
+        country/project-wise mobilization summaries, and the mobilization trend. Requires the
+        active `view_mps_dashboard` permission. "Delayed" (>= 7 days in the current stage) and
+        "critical" (>= 14 days) are documented implementation defaults, not a stakeholder-set
+        threshold; `critical` cases are also included in `delayed`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: granularity
+          in: query
+          description: Bucketing for `mobilization_trend`. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: MPS dashboard summary
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                summary:
+                  value:
+                    data:
+                      workflow_stage_queue:
+                        - code: registered
+                          position: 1
+                          count: 12
+                      delayed_cases:
+                        delayed: 9
+                        critical: 2
+                      craft_summary:
+                        - code: electrician
+                          name: Electrician
+                          total: 40
+                          mobilized: 15
+                      mobilization:
+                        by_country:
+                          - code: qa
+                            name: Qatar
+                            count: 15
+                        by_project:
+                          - code: proj-1
+                            name: Project One
+                            count: 15
+                      mobilization_trend:
+                        - period: '2026-06-01'
+                          count: 15
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '400':
+          description: Unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_mps_dashboard, or is inactive
+  /api/v1/admin/management_dashboard:
+    get:
+      summary: Management dashboard summary (MPS-803)
+      description: >-
+        Docs -> Verified -> Mobilized conversion/bottleneck KPIs, negative-outcome tracking, and
+        country/project-wise mobilization insights over time. Requires the active
+        `view_management_dashboard` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: granularity
+          in: query
+          description: Bucketing for `mobilization_trend`. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: Management dashboard summary
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                summary:
+                  value:
+                    data:
+                      conversion_funnel:
+                        - code: documents_uploaded
+                          count: 100
+                          percentage: 90.0
+                        - code: verified
+                          count: 80
+                          percentage: 72.0
+                        - code: mobilized
+                          count: 15
+                          percentage: 13.5
+                      outcome_tracking:
+                        rejected_documents: 6
+                        qvc_re_medical: 2
+                        qvc_rejected: 1
+                        qvc_no_show: 3
+                        visa_rejected: 1
+                      mobilization:
+                        by_country:
+                          - code: qa
+                            name: Qatar
+                            count: 15
+                        by_project:
+                          - code: proj-1
+                            name: Project One
+                            count: 15
+                      mobilization_trend:
+                        - period: '2026-06-01'
+                          count: 15
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '400':
+          description: Unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_management_dashboard, or is inactive
+  /api/v1/admin/reports:
+    get:
+      summary: List available MIS report types (MPS-804/MPS-806)
+      description: >-
+        Report type keys available to fetch via `GET /admin/reports/{report_type}` or export
+        via `GET /admin/reports/{report_type}/export`. Requires the active `view_reports`
+        permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Available report types
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                reportTypes:
+                  value:
+                    data:
+                      - status_summary
+                      - mobilization
+                      - craft_summary
+                      - outcome_tracking
+                      - conversion
+                      - trend
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_reports, or is inactive
+  /api/v1/admin/reports/{report_type}:
+    get:
+      summary: Fetch one MIS report's data (MPS-804/MPS-806)
+      description: >-
+        Returns the same aggregated data shown on the MPS/Management dashboards, addressable and
+        cacheable per report type. Requires the active `view_reports` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: report_type
+          required: true
+          schema:
+            type: string
+            enum: [status_summary, mobilization, craft_summary, outcome_tracking, conversion, trend]
+        - name: granularity
+          in: query
+          description: Bucketing for the `trend` report only. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: Report data
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                statusSummary:
+                  value:
+                    data:
+                      - code: registered
+                        position: 1
+                        count: 12
+                      - code: verified
+                        position: 5
+                        count: 40
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '400':
+          description: Unknown report_type, or an unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_reports, or is inactive
+  /api/v1/admin/reports/{report_type}/export:
+    get:
+      summary: Export one MIS report as a file (MPS-805)
+      description: >-
+        Streams the same data as `GET /admin/reports/{report_type}` as a CSV, XLSX, or PDF file
+        download. Requires the active `view_reports` permission. Responses are never cached.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: report_type
+          required: true
+          schema:
+            type: string
+            enum: [status_summary, mobilization, craft_summary, outcome_tracking, conversion, trend]
+        - name: format
+          in: query
+          required: true
+          schema: { type: string, enum: [csv, xlsx, pdf] }
+        - name: granularity
+          in: query
+          description: Bucketing for the `trend` report only. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: Report file download
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the exported file.
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+        '400':
+          description: Unknown report_type, unsupported format, or an unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_reports, or is inactive
   /api/v1/admin/candidate_documents/{candidate_document_id}/access:
     post:
       summary: Generate a short-lived private access path for a submitted document

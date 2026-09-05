@@ -80,6 +80,12 @@ Rails.application.routes.draw do
           resources :verifications, only: :create, controller: :document_verifications
         end
         resources :audit_events, only: :index
+        resource :dashboard, only: :show, controller: :dashboards
+        resource :mps_dashboard, only: :show, controller: :mps_dashboards
+        resource :management_dashboard, only: :show, controller: :management_dashboards
+        resources :reports, only: %i[index show], param: :report_type do
+          get :export, on: :member
+        end
       end
 
       resources :users, only: %i[index create update]
