@@ -300,6 +300,35 @@ FactoryBot.define do
     end
   end
 
+  factory :document_extraction do
+    candidate_document
+    provider { 'aws_textract' }
+    status { 'pending' }
+    extracted_issued_on { nil }
+    extracted_expires_on { nil }
+    confidence_issued_on { nil }
+    confidence_expires_on { nil }
+    raw_response { {} }
+    error_message { nil }
+    extracted_at { nil }
+
+    trait :succeeded do
+      status { 'succeeded' }
+      extracted_issued_on { 1.year.ago.to_date }
+      extracted_expires_on { 5.years.from_now.to_date }
+      confidence_issued_on { 96.4 }
+      confidence_expires_on { 95.1 }
+      raw_response { { 'DATE_OF_ISSUE' => { 'value' => '01 JAN 2020', 'confidence' => 96.4 } } }
+      extracted_at { Time.current }
+    end
+
+    trait :failed do
+      status { 'failed' }
+      error_message { 'Textract detected no identity document in the uploaded image' }
+      extracted_at { Time.current }
+    end
+  end
+
   factory :candidate_bank_detail do
     candidate_assignment
     reviewed_by { nil }

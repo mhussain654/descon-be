@@ -31,6 +31,7 @@ module Admin
         uploaded_at: document.uploaded_at.utc.iso8601,
         status: document.api_status
       }.merge(pcc_metadata)
+        .merge(ocr_date_metadata)
     end
 
     def review_metadata
@@ -59,6 +60,16 @@ module Admin
         expires_on: document.expires_on.iso8601,
         compliance_status: document.compliance_status
       }
+    end
+
+    # HR-confirmed dates for an OCR-supported document type (MPS-404).
+    # Unlike PCC these are optional (only present once HR has verified with
+    # a confirmed date) and carry no compliance_status -- passport/CNIC
+    # expiry compliance isn't a tracked concept the way PCC's is.
+    def ocr_date_metadata
+      return {} unless document.document_type.supports_ocr_extraction?
+
+      { issued_on: document.issued_on&.iso8601, expires_on: document.expires_on&.iso8601 }.compact
     end
   end
 end

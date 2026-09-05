@@ -36,8 +36,18 @@ module Api
           ::Admin::DocumentReviews::DecisionFingerprint.call(
             action: 'verified',
             document: candidate_document,
-            request:
+            request:,
+            issued_on: verification_params[:issued_on],
+            expires_on: verification_params[:expires_on]
           )
+        end
+
+        # Optional -- only meaningful for an OCR-supported document type
+        # (passport/CNIC front/back/next-of-kin-CNIC); harmless to accept
+        # generically since CandidateDocument already has these columns for
+        # other purposes (e.g. police_character).
+        def verification_params
+          params.permit(:issued_on, :expires_on)
         end
 
         def serialized_result
@@ -45,7 +55,9 @@ module Api
             actor: current_user,
             decision: 'verified',
             document: candidate_document,
-            request_id: request.request_id
+            request_id: request.request_id,
+            issued_on: verification_params[:issued_on],
+            expires_on: verification_params[:expires_on]
           )
 
           ::Admin::DocumentReviewDecisionSerializer.new(result).as_json

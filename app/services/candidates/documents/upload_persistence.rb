@@ -16,11 +16,22 @@ module Candidates
         uploaded_document = nil
 
         CandidateDocument.transaction { uploaded_document = persist_document }
+        enqueue_extraction(uploaded_document)
 
         uploaded_document
       end
 
       private
+
+      # Enqueued after the transaction commits (MPS-404), never inside it --
+      # a job dequeued before commit would find no row. Only passport/CNIC
+      # front/back/next-of-kin-CNIC (DocumentType#supports_ocr_extraction?)
+      # ever get OCR; every other document type is unaffected.
+      def enqueue_extraction(document)
+        return unless document.document_type.supports_ocr_extraction?
+
+        Candidates::Documents::ExtractDatesJob.perform_later(document.id)
+      end
 
       def persist_document
         current_assignment.with_lock do

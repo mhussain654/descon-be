@@ -7315,6 +7315,11 @@ paths:
   /api/v1/admin/candidate_documents/{candidate_document_id}/verifications:
     post:
       summary: Verify one current pending-review candidate document
+      description: >-
+        For an OCR-supported document type (passport, cnic_front, cnic_back, next_of_kin_cnic --
+        MPS-404), `issued_on`/`expires_on` may be supplied to confirm or correct the extracted
+        dates; they are ignored for every other document type. Extraction never applies these
+        automatically -- HR always confirms them through this action.
       security:
         - bearerAuth: []
       parameters:
@@ -7327,6 +7332,20 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                issued_on: { type: string, format: date }
+                expires_on: { type: string, format: date }
+            examples:
+              ocrConfirmedDates:
+                value:
+                  issued_on: '2020-01-01'
+                  expires_on: '2030-01-01'
       responses:
         '201':
           description: Document verified or idempotent verification replayed
@@ -7416,6 +7435,67 @@ paths:
                         message: This document has already been reviewed.
                     request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
                     timestamp: '2026-08-27T10:06:00Z'
+  /api/v1/admin/candidate_documents/{candidate_document_id}/extraction:
+    get:
+      summary: Latest OCR extraction attempt for a candidate document (MPS-404)
+      description: >-
+        Read-only. Feeds the document-review UI's pre-filled issue/expiry inputs for an
+        OCR-supported document type (passport, cnic_front, cnic_back, next_of_kin_cnic).
+        `status: not_started` when no extraction has run yet. Extracted values are never
+        applied automatically -- HR always confirms or corrects them via the verify action.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: candidate_document_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Latest extraction attempt
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                succeeded:
+                  value:
+                    data:
+                      status: succeeded
+                      issued_on: '2020-01-01'
+                      expires_on: '2030-01-01'
+                      confidence_issued_on: 96.4
+                      confidence_expires_on: 95.1
+                      extracted_at: '2026-08-27T10:00:00Z'
+                    meta:
+                      request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                      timestamp: '2026-08-27T10:00:01Z'
+                    errors: []
+                notStarted:
+                  value:
+                    data:
+                      status: not_started
+                    meta:
+                      request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                      timestamp: '2026-08-27T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_candidate_documents, or is inactive
+        '404':
+          description: Document public ID not found
   /api/v1/admin/candidate_documents/{candidate_document_id}/rejections:
     post:
       summary: Reject one current pending-review candidate document
