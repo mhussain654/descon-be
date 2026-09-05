@@ -92,6 +92,39 @@ RSpec.describe Candidates::Documents::UploadService do
       expect(assignment.candidate_stage_histories.where(reason_code: 'auto_documents_uploaded').count).to eq(2)
     end
 
+    it 'enqueues OCR extraction for an OCR-supported document type (passport)' do
+      create_required_documents(overrides: { 'passport' => { skip_create: true } })
+
+      expect do
+        described_class.call(
+          candidate:,
+          uploaded_file: fixture_upload('test.pdf', 'application/pdf'),
+          requirement_code: 'passport',
+          request_id: 'req-doc-upload-ocr-1'
+        )
+      end.to have_enqueued_job(Candidates::Documents::ExtractDatesJob)
+    end
+
+    it 'does not enqueue OCR extraction for a document type that does not support it (e.g. CV)' do
+      cv_type = existing_or_create_document_type('cv', name_en: 'CV / Resume', name_ur: 'سی وی')
+      create(
+        :document_requirement,
+        document_type: cv_type,
+        country: assignment.country,
+        project: assignment.project,
+        craft: assignment.craft
+      )
+
+      expect do
+        described_class.call(
+          candidate:,
+          uploaded_file: fixture_upload('test.pdf', 'application/pdf'),
+          requirement_code: 'cv',
+          request_id: 'req-doc-upload-ocr-2'
+        )
+      end.not_to have_enqueued_job(Candidates::Documents::ExtractDatesJob)
+    end
+
     it 'captures issue date and calculates PCC expiry exactly six calendar months later' do
       create(
         :document_requirement,

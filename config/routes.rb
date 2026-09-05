@@ -78,6 +78,7 @@ Rails.application.routes.draw do
           resource :access, only: :create, controller: :document_accesses
           resources :rejections, only: :create, controller: :document_rejections
           resources :verifications, only: :create, controller: :document_verifications
+          resource :extraction, only: :show, controller: :candidate_document_extractions
         end
         resources :audit_events, only: :index
         resource :dashboard, only: :show, controller: :dashboards

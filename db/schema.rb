@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -524,6 +524,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_090000) do
     t.check_constraint "code::text ~ '^[a-z0-9_]+$'::text", name: "crafts_code_format"
   end
 
+  create_table "document_extractions", force: :cascade do |t|
+    t.bigint "candidate_document_id", null: false
+    t.decimal "confidence_expires_on", precision: 5, scale: 2
+    t.decimal "confidence_issued_on", precision: 5, scale: 2
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.datetime "extracted_at"
+    t.date "extracted_expires_on"
+    t.date "extracted_issued_on"
+    t.string "provider", null: false
+    t.jsonb "raw_response", default: {}, null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["candidate_document_id"], name: "index_document_extractions_on_active_attempt", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'succeeded'::character varying])::text[]))"
+    t.index ["candidate_document_id"], name: "index_document_extractions_on_candidate_document_id"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])", name: "document_extractions_status"
+  end
+
   create_table "document_requirements", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "country_id"
@@ -842,6 +860,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_090000) do
   add_foreign_key "candidates", "users", column: "created_by_id"
   add_foreign_key "communications", "candidate_assignments"
   add_foreign_key "communications", "users", column: "initiated_by_id"
+  add_foreign_key "document_extractions", "candidate_documents"
   add_foreign_key "document_requirements", "countries"
   add_foreign_key "document_requirements", "crafts"
   add_foreign_key "document_requirements", "document_types"

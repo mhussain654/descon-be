@@ -2,6 +2,7 @@
 
 source 'https://rubygems.org'
 
+gem 'aws-sdk-textract'
 gem 'bcrypt'
 gem 'caxlsx'
 gem 'csv'

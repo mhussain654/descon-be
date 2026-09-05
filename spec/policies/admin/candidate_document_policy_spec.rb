@@ -7,7 +7,7 @@ RSpec.describe Admin::CandidateDocumentPolicy do
     ensure_staff_authorization_reference_data!
   end
 
-  it 'allows access, verify, and reject only for roles with active manage_candidate_documents permission' do
+  it 'allows access, verify, reject, and extraction only for roles with active manage_candidate_documents permission' do
     document = create(:candidate_document)
 
     %w[admin hr mps].each do |role|
@@ -15,6 +15,7 @@ RSpec.describe Admin::CandidateDocumentPolicy do
       expect(policy.access?).to be(true)
       expect(policy.verify?).to be(true)
       expect(policy.reject?).to be(true)
+      expect(policy.extraction?).to be(true)
     end
 
     %w[finance management].each do |role|
@@ -22,6 +23,7 @@ RSpec.describe Admin::CandidateDocumentPolicy do
       expect(policy.access?).to be(false)
       expect(policy.verify?).to be(false)
       expect(policy.reject?).to be(false)
+      expect(policy.extraction?).to be(false)
     end
   end
 

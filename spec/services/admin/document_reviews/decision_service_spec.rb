@@ -104,6 +104,42 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     expect(document.candidate_assignment.candidate.reload.status_code).to eq('verified')
   end
 
+  it 'applies HR-confirmed issued_on/expires_on when verifying' do
+    actor = create(:user, role: 'admin')
+    document = reviewable_document
+
+    result = described_class.call(
+      actor:, decision: 'verified', document:, request_id: 'review-verify-ocr-1',
+      issued_on: '2020-01-01', expires_on: '2030-01-01'
+    )
+
+    expect(result.document.reload.issued_on).to eq(Date.new(2020, 1, 1))
+    expect(result.document.expires_on).to eq(Date.new(2030, 1, 1))
+  end
+
+  it 'never applies issued_on/expires_on when rejecting' do
+    actor = create(:user, role: 'admin')
+    document = reviewable_document
+
+    described_class.call(
+      actor:, decision: 'rejected', document:, rejection_reason: 'Document is unreadable.',
+      request_id: 'review-reject-ocr-1', issued_on: '2020-01-01', expires_on: '2030-01-01'
+    )
+
+    expect(document.reload.issued_on).to be_nil
+    expect(document.expires_on).to be_nil
+  end
+
+  it 'leaves issued_on/expires_on untouched when not supplied' do
+    actor = create(:user, role: 'admin')
+    document = reviewable_document
+
+    described_class.call(actor:, decision: 'verified', document:, request_id: 'review-verify-ocr-2')
+
+    expect(document.reload.issued_on).to be_nil
+    expect(document.reload.expires_on).to be_nil
+  end
+
   it 'rejects with a normalized reason and blocks missing or invalid reasons' do
     actor = create(:user, role: 'admin')
     document = reviewable_document
