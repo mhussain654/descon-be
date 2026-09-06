@@ -415,9 +415,20 @@ components:
           required: [code, name]
         payment:
           $ref: '#/components/schemas/CandidatePaymentEligibility'
+        consent:
+          $ref: '#/components/schemas/CandidateConsentState'
         active:
           type: boolean
-      required: [id, full_name, masked_cnic, reference_number, preferred_locale, candidate_status, payment, active]
+      required:
+        - id
+        - full_name
+        - masked_cnic
+        - reference_number
+        - preferred_locale
+        - candidate_status
+        - payment
+        - consent
+        - active
     CandidateBankProofMetadata:
       type: object
       properties:
@@ -432,6 +443,21 @@ components:
           type: string
           format: date-time
       required: [file_name, content_type, file_size, uploaded_at]
+    CandidateConsentState:
+      type: object
+      properties:
+        current_policy_version:
+          type: string
+        accepted:
+          type: boolean
+        accepted_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        message:
+          type: string
+      required: [current_policy_version, accepted, accepted_at]
     CandidateBankDetailRecord:
       type: object
       properties:
@@ -3085,6 +3111,101 @@ paths:
                         message: Hosted checkout is not available right now.
                     request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
                     timestamp: '2026-08-31T09:00:00Z'
+  /api/v1/candidate/consent:
+    get:
+      summary: Fetch the authenticated candidate's consent status
+      description: >-
+        Returns whether the authenticated candidate has accepted the currently-required
+        policy version. Reachable even when the candidate has not yet accepted -- this
+        endpoint is exempt from the consent gate enforced on every other candidate endpoint.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate consent status retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                pending:
+                  value:
+                    data:
+                      current_policy_version: '2026-09-06'
+                      accepted: false
+                      accepted_at: null
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-09-06T12:00:00Z'
+                    errors: []
+                accepted:
+                  value:
+                    data:
+                      current_policy_version: '2026-09-06'
+                      accepted: true
+                      accepted_at: '2026-09-06T12:00:00Z'
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-09-06T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+    post:
+      summary: Accept the current policy version on behalf of the authenticated candidate
+      description: >-
+        Records the candidate's acceptance of the currently-required policy version, with
+        the acceptance timestamp and originating IP address as evidence. Idempotent -- calling
+        this again after already accepting the current version simply returns the existing
+        (immutable) acceptance rather than erroring. Reachable even when the candidate has not
+        yet accepted -- this endpoint is exempt from the consent gate enforced on every other
+        candidate endpoint.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '201':
+          description: Consent recorded (or idempotently already present) for the current policy version
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                acceptedEn:
+                  value:
+                    data:
+                      current_policy_version: '2026-09-06'
+                      accepted: true
+                      accepted_at: '2026-09-06T12:00:00Z'
+                      message: Consent recorded successfully.
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-09-06T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
   /api/v1/candidate/bank_details:
     get:
       summary: Fetch the authenticated candidate bank-detail submission state

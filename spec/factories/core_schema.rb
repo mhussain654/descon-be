@@ -93,6 +93,31 @@ FactoryBot.define do
     active { true }
     source_code { 'admin_ui' }
     association :created_by, factory: :user
+
+    transient do
+      # Candidates accept the current consent policy version by default (mirroring the
+      # production backfill for pre-existing candidates) so every other factory/request spec
+      # that immediately hits a protected candidate endpoint isn't blocked by the consent gate.
+      # Specs that exercise the gate itself use :without_consent. Consent records are
+      # immutable (can't be destroyed after the fact), so this has to be skipped up front
+      # rather than created-then-removed.
+      skip_consent { false }
+    end
+
+    after(:create) do |candidate, evaluator|
+      create(:candidate_consent, candidate:) unless evaluator.skip_consent
+    end
+
+    trait :without_consent do
+      skip_consent { true }
+    end
+  end
+
+  factory :candidate_consent do
+    association :candidate, factory: %i[candidate without_consent]
+    policy_version { CandidateConsent::CURRENT_POLICY_VERSION }
+    accepted_at { Time.current }
+    ip_address { '127.0.0.1' }
   end
 
   factory :candidate_import_batch do

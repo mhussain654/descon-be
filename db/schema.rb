@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_060100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -139,6 +139,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
     t.index ["reviewed_by_id"], name: "index_candidate_bank_details_on_reviewed_by_id"
     t.check_constraint "proof_byte_size > 0", name: "candidate_bank_details_proof_byte_size_positive"
     t.check_constraint "status_code::text = 'submitted'::text", name: "candidate_bank_details_status_code"
+  end
+
+  create_table "candidate_consents", force: :cascade do |t|
+    t.datetime "accepted_at", null: false
+    t.bigint "candidate_id", null: false
+    t.datetime "created_at", null: false
+    t.string "ip_address"
+    t.string "policy_version", null: false
+    t.string "public_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["candidate_id", "policy_version"], name: "index_candidate_consents_on_candidate_id_and_policy_version", unique: true
+    t.index ["candidate_id"], name: "index_candidate_consents_on_candidate_id"
+    t.index ["public_id"], name: "index_candidate_consents_on_public_id", unique: true
+    t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "candidate_consents_public_id_format"
   end
 
   create_table "candidate_document_submission_items", force: :cascade do |t|
@@ -822,6 +836,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
   add_foreign_key "candidate_assignments", "workflow_stages", column: "current_workflow_stage_id"
   add_foreign_key "candidate_bank_details", "candidate_assignments"
   add_foreign_key "candidate_bank_details", "users", column: "reviewed_by_id"
+  add_foreign_key "candidate_consents", "candidates"
   add_foreign_key "candidate_document_submission_items", "candidate_document_submissions"
   add_foreign_key "candidate_document_submission_items", "candidate_documents"
   add_foreign_key "candidate_document_submissions", "candidate_assignments"

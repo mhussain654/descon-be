@@ -26,6 +26,7 @@ Rails.application.routes.draw do
           end
         end
 
+        resource :consent, only: %i[show create], controller: :consents
         resource :bank_detail, path: 'bank_details', only: %i[show update], controller: :bank_details
         resources :documents, only: %i[index create]
         resources :document_submissions, only: :create
