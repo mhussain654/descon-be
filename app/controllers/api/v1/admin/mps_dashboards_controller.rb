@@ -5,6 +5,7 @@ module Api
     module Admin
       # MPS dashboard summary (MPS-802).
       class MpsDashboardsController < ProtectedStaffController
+        # Returns the MPS summary dashboard data, trended at the requested granularity.
         def show
           authorize :mps_dashboard, policy_class: ::Admin::MpsDashboardPolicy
 
@@ -13,6 +14,7 @@ module Api
 
         private
 
+        # Reads the requested trend granularity from params, defaulting to monthly.
         def requested_granularity
           params[:granularity].presence || 'monthly'
         end

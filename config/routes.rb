@@ -5,6 +5,11 @@ Rails.application.routes.draw do
   get 'api-docs', to: redirect('/api-docs/index.html')
   get 'openapi/openapi.yaml', to: 'openapi#show'
 
+  # Stand-in for the mock payment provider's own hosted page (see
+  # Payments::Providers::MockHostedCheckoutAdapter) -- not an application
+  # API, so deliberately outside /api/v1.
+  get 'mock_checkout', to: 'mock_checkouts#show'
+
   namespace :api do
     namespace :v1 do
       namespace :auth do

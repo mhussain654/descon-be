@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Defines which document types are required (or optional) for a candidate, optionally scoped
+# to a specific country, project, and/or craft combination.
 class DocumentRequirement < ApplicationRecord
   belongs_to :document_type
   belongs_to :country, optional: true

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# An immutable event emitted for a candidate's workflow activity, linked back to the specific
+# assignment and stage-history transition it occurred within.
 class CandidateWorkflowEvent < ApplicationRecord
   include ImmutableRecord
 
@@ -18,12 +20,14 @@ class CandidateWorkflowEvent < ApplicationRecord
 
   private
 
+  # Ensures the linked assignment actually belongs to the linked candidate.
   def assignment_belongs_to_candidate
     return if candidate_assignment&.candidate_id == candidate_id
 
     errors.add(:candidate_assignment, :invalid)
   end
 
+  # Ensures the linked stage history actually belongs to the linked assignment.
   def history_belongs_to_assignment
     return if candidate_stage_history&.candidate_assignment_id == candidate_assignment_id
 

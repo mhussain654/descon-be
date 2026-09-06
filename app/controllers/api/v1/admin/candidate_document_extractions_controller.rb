@@ -8,6 +8,8 @@ module Api
       # issue/expiry inputs. Same submitted-document scoping as
       # DocumentVerificationsController/DocumentRejectionsController.
       class CandidateDocumentExtractionsController < ProtectedStaffController
+        # Returns the most recent OCR extraction result for a submitted
+        # document, used to pre-fill the review UI's issue/expiry inputs.
         def show
           authorize candidate_document, :extraction?, policy_class: ::Admin::CandidateDocumentPolicy
 
@@ -16,6 +18,8 @@ module Api
 
         private
 
+        # Loads the current version of the submitted document named in the
+        # route, raising if no matching document exists.
         def candidate_document
           @candidate_document ||= begin
             document = CandidateDocument.current_version.joins(:submission_item).find_by(
@@ -27,6 +31,7 @@ module Api
           end
         end
 
+        # Fetches the most recent OCR extraction attempt for the document.
         def latest_extraction
           candidate_document.document_extractions.latest_first.first
         end

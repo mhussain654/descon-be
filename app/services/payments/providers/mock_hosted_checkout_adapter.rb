@@ -5,6 +5,12 @@ module Payments
     class MockHostedCheckoutAdapter
       include Payments::Providers::SignedNotificationSupport
 
+      SIMULATED_OUTCOME_CODES = {
+        'success' => %w[SUCCESS 00],
+        'failed' => %w[FAILED 05],
+        'cancelled' => %w[CANCELLED 17]
+      }.freeze
+
       def initialize(configuration:)
         @configuration = configuration
       end
@@ -33,7 +39,31 @@ module Payments
 
       def provider_code = 'mock_hosted_checkout'
 
+      # Builds a correctly signed return payload for MockCheckoutsController
+      # to link to, simulating what a real provider would send back after
+      # the candidate finishes on its hosted page. Routed through the same
+      # canonical_payload/sign_notification a real inbound notification
+      # would use, so it can never drift from what #parse_notification!
+      # actually accepts.
+      def simulated_return_params(payment:, outcome:)
+        raw = simulated_raw_params(payment:, outcome:)
+        payload = canonical_payload(raw)
+        payload.merge('signature' => sign_notification(payload))
+      end
+
       private
+
+      def simulated_raw_params(payment:, outcome:)
+        status, responsecode = SIMULATED_OUTCOME_CODES.fetch(outcome)
+        {
+          'orderid' => payment.provider_order_id,
+          'transactionid' => "MOCK-#{SecureRandom.hex(6)}",
+          'amount' => format('%.2f', payment.amount),
+          'currency' => payment.currency_code,
+          'status' => status,
+          'responsecode' => responsecode
+        }
+      end
 
       def canonical_payload(params)
         {
