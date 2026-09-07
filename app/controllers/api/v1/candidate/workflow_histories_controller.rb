@@ -3,7 +3,9 @@
 module Api
   module V1
     module Candidate
+      # Lets the logged-in candidate view their own recruitment workflow history.
       class WorkflowHistoriesController < ProtectedController
+        # Returns the candidate's stage-by-stage workflow history as a state snapshot.
         def show
           authorize current_candidate, :history?, policy_class: ::Candidates::WorkflowPolicy
 

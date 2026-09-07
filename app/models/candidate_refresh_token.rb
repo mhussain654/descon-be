@@ -17,18 +17,22 @@ class CandidateRefreshToken < ApplicationRecord
   validates :token_digest, presence: true, uniqueness: true
   validates :expires_at, presence: true
 
+  # Whether this token can still be used to obtain a new access token.
   def active?
     !revoked? && !rotated? && !expired?
   end
 
+  # Whether the token was explicitly revoked (e.g. on logout or reuse detection).
   def revoked?
     revoked_at.present?
   end
 
+  # Whether the token has already been exchanged for a replacement token.
   def rotated?
     rotated_at.present?
   end
 
+  # Whether the token's expiry window has passed.
   def expired?
     expires_at.past?
   end

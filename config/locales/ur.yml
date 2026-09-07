@@ -22,6 +22,7 @@ ur:
       view_payments: "ادائیگیاں دیکھیں"
       view_communications: "مواصلات دیکھیں"
       view_audit_events: "آڈٹ ایونٹس دیکھیں"
+      manage_backups: "بیک اپ کا انتظام"
     workflow_stages:
       registered: "رجسٹرڈ"
       documents_pending: "دستاویزات زیر التوا"

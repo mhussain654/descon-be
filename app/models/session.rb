@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# A single login session for a user, identified by a public id and a JWT id (jti), owning the
+# refresh tokens issued under it. Can be revoked to log the user out everywhere for that session.
 class Session < ApplicationRecord
   belongs_to :user
   has_many :refresh_tokens, dependent: :destroy
@@ -11,6 +13,7 @@ class Session < ApplicationRecord
   validates :public_id, presence: true, uniqueness: true
   validates :jti, presence: true, uniqueness: true
 
+  # Ends this session: marks it revoked and revokes all of its still-active refresh tokens.
   def revoke!
     transaction do
       return self if revoked?
@@ -23,10 +26,13 @@ class Session < ApplicationRecord
     end
   end
 
+  # True if the session has been revoked (logged out).
   def revoked?
     revoked_at.present?
   end
 
+  # Updates the last-seen timestamp, but only if more than 5 minutes have passed since the last
+  # update, to avoid writing to the database on every single request.
   def touch_last_seen!
     return if last_seen_at&.after?(5.minutes.ago)
 
@@ -38,6 +44,7 @@ class Session < ApplicationRecord
 
   private
 
+  # Callback: assigns a public-facing UUID and a JWT id (jti) when the session is first created.
   def assign_identifiers
     self.public_id ||= SecureRandom.uuid
     self.jti ||= SecureRandom.uuid

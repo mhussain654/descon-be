@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Reference data: a destination country candidates can be deployed to, used to scope
+# candidate assignments and document requirements.
 class Country < ApplicationRecord
   include HasLocalizedName
 

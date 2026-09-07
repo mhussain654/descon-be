@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# A single granular access right (e.g. manage_candidates, view_payments) that can be granted
+# to staff roles. System-defined permissions are seeded and protected from being renamed or deleted.
 class Permission < ApplicationRecord
   include HasLocalizedName
 
@@ -18,7 +20,12 @@ class Permission < ApplicationRecord
     { code: 'view_workflow' },
     { code: 'view_payments' },
     { code: 'view_communications' },
-    { code: 'view_audit_events' }
+    { code: 'view_audit_events' },
+    { code: 'view_admin_dashboard' },
+    { code: 'view_mps_dashboard' },
+    { code: 'view_management_dashboard' },
+    { code: 'view_reports' },
+    { code: 'manage_backups' }
   ].freeze
 
   has_many :role_permissions, dependent: :destroy
@@ -30,12 +37,14 @@ class Permission < ApplicationRecord
 
   before_destroy :prevent_system_destroy
 
+  # The I18n key prefix under which this model's translated names are looked up.
   def self.i18n_name_scope
     'reference_data.permissions'
   end
 
   private
 
+  # Callback: blocks deletion of any permission that is marked as system-defined in the database.
   def prevent_system_destroy
     return unless system_defined_in_database
 
@@ -43,6 +52,7 @@ class Permission < ApplicationRecord
     throw :abort
   end
 
+  # Blocks changes to the code or system_defined flag on a permission that is system-defined.
   def protect_system_definition_changes
     return unless system_defined_in_database
 
