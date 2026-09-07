@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_060100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -477,9 +477,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_060100) do
     t.index ["mobile_number"], name: "index_candidates_on_mobile_number"
     t.index ["passport_number"], name: "index_candidates_on_passport_number", unique: true, where: "(passport_number IS NOT NULL)"
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
-    t.check_constraint "cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_cnic_format"
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
-    t.check_constraint "next_of_kin_cnic IS NULL OR next_of_kin_cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_next_of_kin_cnic_format"
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidates_preferred_locale"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying, 'csv_import'::character varying]::text[])", name: "candidates_source_code"
@@ -775,6 +773,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_060100) do
     t.index ["public_id"], name: "index_sessions_on_public_id", unique: true
     t.index ["user_id", "revoked_at"], name: "index_sessions_on_user_id_and_revoked_at"
     t.index ["user_id"], name: "index_sessions_on_user_id"
+  end
+
+  create_table "system_database_backups", force: :cascade do |t|
+    t.bigint "byte_size"
+    t.string "checksum_sha256"
+    t.datetime "created_at", null: false
+    t.integer "duration_seconds"
+    t.text "error_message"
+    t.string "public_id", null: false
+    t.string "status_code", null: false
+    t.datetime "taken_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["public_id"], name: "index_system_database_backups_on_public_id", unique: true
+    t.index ["taken_at"], name: "index_system_database_backups_on_taken_at"
+    t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "system_database_backups_public_id_format"
+    t.check_constraint "status_code::text = ANY (ARRAY['in_progress'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])", name: "system_database_backups_status_code_allowed"
   end
 
   create_table "users", force: :cascade do |t|

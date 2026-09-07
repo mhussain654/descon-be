@@ -463,4 +463,22 @@ FactoryBot.define do
     metadata { {} }
     occurred_at { Time.current }
   end
+
+  factory :system_database_backup do
+    status_code { 'succeeded' }
+    taken_at { Time.current }
+    byte_size { 1024 }
+    checksum_sha256 { SecureRandom.hex(32) }
+    duration_seconds { 5 }
+
+    trait :with_archive do
+      after(:create) do |backup|
+        backup.archive.attach(
+          io: StringIO.new('fake gzip content'),
+          filename: 'database_backup_test.sql.gz',
+          content_type: 'application/gzip'
+        )
+      end
+    end
+  end
 end

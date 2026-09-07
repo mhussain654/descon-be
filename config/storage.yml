@@ -6,13 +6,24 @@ local:
   service: Disk
   root: <%= Rails.root.join("storage") %>
 
-# Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
-# amazon:
-#   service: S3
-#   access_key_id: <%= Rails.application.credentials.dig(:aws, :access_key_id) %>
-#   secret_access_key: <%= Rails.application.credentials.dig(:aws, :secret_access_key) %>
-#   region: us-east-1
-#   bucket: your_own_bucket-<%= Rails.env %>
+# Backing store for every private ActiveStorage attachment in this app
+# (candidate documents, bank proofs, flight tickets, and -- MPS-903 -- the
+# daily database backup archive). Credentials read from plain ENV vars
+# (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION), matching every other
+# AWS integration in this codebase (see DocumentOcr::TextractAdapter, which
+# relies on the same AWS SDK default credential chain) -- not Rails
+# encrypted credentials. A blank access_key_id/secret_access_key falls back
+# to the SDK's own default credential chain (instance role, etc.) in
+# environments where static keys aren't used.
+amazon:
+  service: S3
+  access_key_id: <%= ENV.fetch('AWS_ACCESS_KEY_ID', nil) %>
+  secret_access_key: <%= ENV.fetch('AWS_SECRET_ACCESS_KEY', nil) %>
+  region: <%= ENV.fetch('AWS_REGION', 'us-east-1') %>
+  bucket: <%= ENV.fetch('AWS_S3_BUCKET', "descon-manpower-#{Rails.env}") %>
+  # Encrypts every object at rest (MPS-903/MPS-901's "backups are
+  # encrypted" criterion) independent of any column-level encryption.
+  server_side_encryption: <%= ENV.fetch('AWS_S3_SERVER_SIDE_ENCRYPTION', 'aws:kms') %>
 
 # Remember not to checkin your GCS keyfile to a repository
 # google:

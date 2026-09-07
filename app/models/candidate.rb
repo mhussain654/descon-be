@@ -10,6 +10,15 @@ class Candidate < ApplicationRecord
   MOBILE_NUMBER_FORMAT = /\A\+?\d{10,15}\z/
   PASSPORT_NUMBER_FORMAT = /\A[A-Z0-9-]+\z/
 
+  # Deterministic (not randomized) so the existing uniqueness validation and the OTP-login
+  # lookup-by-CNIC (Candidate.active.find_by(cnic:)) keep working as equality queries (MPS-901).
+  # Raw SQL string comparisons against these columns (as opposed to ActiveRecord's own
+  # hash-condition `where`) would compare plaintext against ciphertext and silently match
+  # nothing -- see Admin::Candidates::IndexQuery's search, rewritten for this reason.
+  encrypts :cnic, deterministic: true
+  encrypts :next_of_kin_cnic, deterministic: true
+  encrypts :passport_number, deterministic: true
+
   belongs_to :created_by, class_name: 'User'
 
   has_many :candidate_assignments, dependent: :restrict_with_exception

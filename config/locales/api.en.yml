@@ -118,6 +118,7 @@ en:
       payment_correction_reason_required: "Enter a reason for this correction."
       candidate_assignment_field_locked: "This field can only be changed while the candidate is still at the registered stage."
       consent_required: "Accept the current policy version to continue."
+      backup_archive_not_found: "This backup's archive is not available."
     authentication:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."

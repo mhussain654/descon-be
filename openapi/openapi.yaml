@@ -7005,6 +7005,122 @@ paths:
           description: Missing, invalid, expired, or revoked staff access token
         '403':
           description: Authenticated staff user lacks view_audit_events, or is inactive
+  /api/v1/admin/system_database_backups:
+    get:
+      summary: Browse the daily database backup history (MPS-903)
+      description: >-
+        Read-only, paginated, most-recent-first list of database backup attempts, produced by
+        the daily Backups::CreateDatabaseBackupJob. Requires the active `manage_backups`
+        permission -- backups are infra-sensitive, so unlike most admin resources this is
+        admin-only (not even mps/management). There is no show, create, update, or destroy
+        route: a backup's outcome is written only by the owning job, never through the API.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated backup collection
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                backups:
+                  value:
+                    data:
+                      - id: 2099d502-a67a-4d4b-a15a-58df5324b2d1
+                        status: succeeded
+                        taken_at: '2026-09-06T00:00:00Z'
+                        byte_size: 10485760
+                        checksum_sha256: b3abbcd58b14094ba6c0fea222f44367d07df2bab6c2ecd15a5b1645f93d556c
+                        duration_seconds: 42
+                        error_message: null
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-06T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_backups, or is inactive
+  /api/v1/admin/system_database_backups/{system_database_backup_id}/access:
+    post:
+      summary: Issue a short-lived signed download URL for a database backup (MPS-903)
+      description: >-
+        Records that the current staff member accessed this backup archive and returns a
+        time-limited download URL, audited exactly like any other sensitive-file access in
+        this app. Requires the active `manage_backups` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: system_database_backup_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Signed download URL issued
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      backup_id: 2099d502-a67a-4d4b-a15a-58df5324b2d1
+                      url: /rails/active_storage/disk/eyJfcmFpbHMiOnsi.../database_backup_20260906_000000.sql.gz
+                      expires_at: '2026-09-06T10:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-06T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_backups, or is inactive
+        '404':
+          description: No backup exists with this id
+        '422':
+          description: The backup has no attached archive (e.g. a failed attempt)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              examples:
+                noArchive:
+                  value:
+                    errors:
+                      - code: backup_archive_not_found
+                        message: This backup's archive is not available.
+                    request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                    timestamp: '2026-09-06T10:00:01Z'
   /api/v1/admin/dashboard:
     get:
       summary: Admin dashboard summary (MPS-801)
