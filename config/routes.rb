@@ -26,6 +26,7 @@ Rails.application.routes.draw do
           end
         end
 
+        resource :consent, only: %i[show create], controller: :consents
         resource :bank_detail, path: 'bank_details', only: %i[show update], controller: :bank_details
         resources :documents, only: %i[index create]
         resources :document_submissions, only: :create
@@ -86,6 +87,9 @@ Rails.application.routes.draw do
           resource :extraction, only: :show, controller: :candidate_document_extractions
         end
         resources :audit_events, only: :index
+        resources :system_database_backups, only: :index do
+          resource :access, only: :create, controller: :system_database_backup_accesses
+        end
         resource :dashboard, only: :show, controller: :dashboards
         resource :mps_dashboard, only: :show, controller: :mps_dashboards
         resource :management_dashboard, only: :show, controller: :management_dashboards
