@@ -29,8 +29,20 @@ RSpec.describe 'API V1 Candidate Profile', type: :request do
       expect(response.parsed_body.dig('data', 'current_workflow_stage', 'code')).to eq('registered')
       expect(response.parsed_body.dig('data', 'payment', 'required_stage_code')).to eq('fee_pending')
       expect(response.parsed_body.dig('data', 'payment', 'blocking_reasons')).to eq(['payment_stage_not_reached'])
+      expect(response.parsed_body.dig('data', 'consent', 'accepted')).to be(true)
+      expect(response.parsed_body.dig('data', 'consent', 'current_policy_version'))
+        .to eq(CandidateConsent::CURRENT_POLICY_VERSION)
       expect(response.body).not_to include(candidate.cnic)
       expect(response.body).not_to include(candidate.mobile_number)
+    end
+
+    it 'blocks a candidate who has not accepted the current policy version' do
+      candidate = create(:candidate, :without_consent)
+
+      get '/api/v1/candidate/profile', headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('consent_required')
     end
 
     it 'rejects missing, invalid, revoked, or expired candidate sessions' do

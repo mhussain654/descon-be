@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -139,6 +139,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
     t.index ["reviewed_by_id"], name: "index_candidate_bank_details_on_reviewed_by_id"
     t.check_constraint "proof_byte_size > 0", name: "candidate_bank_details_proof_byte_size_positive"
     t.check_constraint "status_code::text = 'submitted'::text", name: "candidate_bank_details_status_code"
+  end
+
+  create_table "candidate_consents", force: :cascade do |t|
+    t.datetime "accepted_at", null: false
+    t.bigint "candidate_id", null: false
+    t.datetime "created_at", null: false
+    t.string "ip_address"
+    t.string "policy_version", null: false
+    t.string "public_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["candidate_id", "policy_version"], name: "index_candidate_consents_on_candidate_id_and_policy_version", unique: true
+    t.index ["candidate_id"], name: "index_candidate_consents_on_candidate_id"
+    t.index ["public_id"], name: "index_candidate_consents_on_public_id", unique: true
+    t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "candidate_consents_public_id_format"
   end
 
   create_table "candidate_document_submission_items", force: :cascade do |t|
@@ -463,9 +477,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
     t.index ["mobile_number"], name: "index_candidates_on_mobile_number"
     t.index ["passport_number"], name: "index_candidates_on_passport_number", unique: true, where: "(passport_number IS NOT NULL)"
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
-    t.check_constraint "cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_cnic_format"
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
-    t.check_constraint "next_of_kin_cnic IS NULL OR next_of_kin_cnic::text ~ '^\\d{5}-\\d{7}-\\d$'::text", name: "candidates_next_of_kin_cnic_format"
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidates_preferred_locale"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying, 'csv_import'::character varying]::text[])", name: "candidates_source_code"
@@ -763,6 +775,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "system_database_backups", force: :cascade do |t|
+    t.bigint "byte_size"
+    t.string "checksum_sha256"
+    t.datetime "created_at", null: false
+    t.integer "duration_seconds"
+    t.text "error_message"
+    t.string "public_id", null: false
+    t.string "status_code", null: false
+    t.datetime "taken_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["public_id"], name: "index_system_database_backups_on_public_id", unique: true
+    t.index ["taken_at"], name: "index_system_database_backups_on_taken_at"
+    t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "system_database_backups_public_id_format"
+    t.check_constraint "status_code::text = ANY (ARRAY['in_progress'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])", name: "system_database_backups_status_code_allowed"
+  end
+
   create_table "users", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
@@ -822,6 +850,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
   add_foreign_key "candidate_assignments", "workflow_stages", column: "current_workflow_stage_id"
   add_foreign_key "candidate_bank_details", "candidate_assignments"
   add_foreign_key "candidate_bank_details", "users", column: "reviewed_by_id"
+  add_foreign_key "candidate_consents", "candidates"
   add_foreign_key "candidate_document_submission_items", "candidate_document_submissions"
   add_foreign_key "candidate_document_submission_items", "candidate_documents"
   add_foreign_key "candidate_document_submissions", "candidate_assignments"

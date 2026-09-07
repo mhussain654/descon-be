@@ -8,6 +8,7 @@ module Api
       # exposes the current candidate as the Pundit user.
       class ProtectedController < BaseController
         before_action :authenticate_current_candidate!
+        before_action :ensure_consent_given!
         after_action :verify_authorized
 
         private
@@ -39,6 +40,15 @@ module Api
         # Tells Pundit to authorize against the current candidate rather than a staff user.
         def pundit_user
           current_candidate
+        end
+
+        # before_action hook that blocks every candidate endpoint until the current policy
+        # version has been accepted -- except the consents endpoint itself, which must stay
+        # reachable so the candidate can actually submit that acceptance while gated.
+        # Subclasses that legitimately need to run before consent is given (only the consents
+        # controller) skip this via `skip_before_action :ensure_consent_given!`.
+        def ensure_consent_given!
+          raise ConsentRequiredError unless CandidateConsent.current_policy_accepted?(current_candidate)
         end
 
         # Extracts the raw JWT from the Authorization header, raising UnauthorizedError if the
