@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# A single payment attempt (e.g. the KuickPay onboarding fee) tied to a candidate's assignment,
+# tracking its provider, amount, currency, and lifecycle status through checkout/paid/failed/cancelled.
 class Payment < ApplicationRecord
   CODE_FORMAT = /\A[a-z0-9_]+\z/
   CURRENCY_FORMAT = /\A[A-Z]{3}\z/
@@ -34,28 +36,34 @@ class Payment < ApplicationRecord
 
   scope :latest_first, -> { order(created_at: :desc, id: :desc) }
 
+  # True if the payment has been completed successfully.
   def paid? = status_code == 'paid'
 
+  # True if the payment is still awaiting the candidate completing checkout with the provider.
   def checkout_pending? = status_code == 'checkout_pending'
 
   private
 
+  # Callback: assigns a public-facing UUID identifier when the payment is first created.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
   end
 
+  # Callback: normalizes code-like and provider string attributes before validation.
   def normalize_codes
     normalize_code_attributes
     self.currency_code = currency_code.to_s.strip.upcase
     normalize_string_attributes
   end
 
+  # Strips and downcases the payment type/status/provider code attributes.
   def normalize_code_attributes
     NORMALIZED_CODE_ATTRIBUTES.each do |attribute|
       self[attribute] = self[attribute].to_s.strip.downcase
     end
   end
 
+  # Strips the provider reference/session/transaction string attributes, blanking empty ones.
   def normalize_string_attributes
     STRIPPED_STRING_ATTRIBUTES.each do |attribute|
       self[attribute] = self[attribute].to_s.strip.presence

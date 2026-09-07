@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# A candidate's placement against a specific country/project/craft, tracking its progress
+# through the workflow stages, related documents, payments and communications.
 class CandidateAssignment < ApplicationRecord
   CODE_FORMAT = /\A[a-z0-9_]+\z/
 
@@ -35,20 +37,25 @@ class CandidateAssignment < ApplicationRecord
 
   private
 
+  # Assigns a public-facing UUID identifier on creation, if one isn't already set.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
   end
 
+  # Trims and uppercases the assignment's reference number.
   def normalize_reference_number
     self.reference_number = reference_number.to_s.strip.upcase
   end
 
+  # Trims and lowercases the QVC outcome code, mapping the legacy 're_medical_required' value
+  # to the current 're_medical' code.
   def normalize_qvc_outcome_code
     normalized = qvc_outcome_code.to_s.strip.downcase.presence
     self.qvc_outcome_code = 're_medical' if normalized == 're_medical_required'
     self.qvc_outcome_code ||= normalized
   end
 
+  # The QVC outcome code and outcome date must be set together or not at all.
   def qvc_outcome_fields_are_paired
     return if qvc_outcome_code.blank? && qvc_outcome_date.blank?
     return if qvc_outcome_fields_paired?
@@ -57,6 +64,7 @@ class CandidateAssignment < ApplicationRecord
     errors.add(:qvc_outcome_date, :blank) if qvc_outcome_date.blank?
   end
 
+  # Whether the QVC outcome code and outcome date are either both present or both blank.
   def qvc_outcome_fields_paired?
     qvc_outcome_code.present? == qvc_outcome_date.present?
   end

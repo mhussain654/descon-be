@@ -3,9 +3,14 @@
 module Api
   module V1
     module Admin
+      # Exposes the document-review queue: candidate document submissions
+      # waiting on (or already given) a staff verification/rejection
+      # decision.
       class DocumentSubmissionsController < ProtectedStaffController
         rescue_from Pundit::NotAuthorizedError, with: :render_review_not_allowed
 
+        # Returns a paginated, filtered document-review queue with a
+        # summary of counts by status.
         def index
           authorize CandidateDocumentSubmission, policy_class: ::Admin::DocumentSubmissionPolicy
 
@@ -19,6 +24,9 @@ module Api
           )
         end
 
+        # Returns full detail for a single document submission, including
+        # the candidate, assignment context and each document's review
+        # state.
         def show
           authorize document_submission, policy_class: ::Admin::DocumentSubmissionPolicy
 
@@ -27,10 +35,15 @@ module Api
 
         private
 
+        # Scopes the document-submission table to what the current staff
+        # member is authorized to view.
         def document_submission_scope
           policy_scope(CandidateDocumentSubmission, policy_scope_class: ::Admin::DocumentSubmissionPolicy::Scope)
         end
 
+        # Loads the requested document submission with its assignment and
+        # per-document review associations preloaded, raising if none
+        # matches the given public id.
         def document_submission
           @document_submission ||= begin
             submission = CandidateDocumentSubmission
@@ -45,6 +58,7 @@ module Api
           end
         end
 
+        # Renders a not-allowed error when Pundit denies this review action.
         def render_review_not_allowed
           render_api_error(ReviewNotAllowedError.new)
         end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Reference data: an overseas employer/project a candidate can be deployed to, used to scope
+# candidate assignments and document requirements.
 class Project < ApplicationRecord
   include HasLocalizedName
 

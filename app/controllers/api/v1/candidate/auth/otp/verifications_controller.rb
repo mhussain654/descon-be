@@ -5,7 +5,9 @@ module Api
     module Candidate
       module Auth
         module Otp
+          # Lets an unauthenticated candidate exchange a CNIC and one-time code for a login session.
           class VerificationsController < Candidate::BaseController
+            # Verifies the submitted CNIC/OTP pair and, on success, issues a new candidate session.
             def create
               result = CandidateAuthentication::Otp::VerifyService.call(
                 cnic: otp_verify_params.fetch(:cnic),
@@ -19,6 +21,7 @@ module Api
 
             private
 
+            # Allowlists the CNIC and OTP code fields from the request body.
             def otp_verify_params
               params.expect(candidate: %i[cnic otp])
             end

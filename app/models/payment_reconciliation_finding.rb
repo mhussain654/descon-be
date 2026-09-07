@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# A single discrepancy discovered during a payment reconciliation run (e.g. a mismatch between
+# our records and the provider's), which can be tracked as open until a staff user resolves it.
 class PaymentReconciliationFinding < ApplicationRecord
   STATES = %w[open resolved].freeze
 
@@ -17,15 +19,19 @@ class PaymentReconciliationFinding < ApplicationRecord
 
   scope :open_state, -> { where(state_code: 'open') }
 
+  # True if this finding still needs investigation/resolution.
   def open? = state_code == 'open'
+  # True if this finding has already been resolved.
   def resolved? = state_code == 'resolved'
 
+  # Marks the finding resolved, recording who resolved it, when, and their explanation.
   def resolve!(by:, note:)
     update!(state_code: 'resolved', resolved_at: Time.current, resolved_by: by, resolution_note: note)
   end
 
   private
 
+  # Callback: assigns a public-facing UUID identifier when the finding is first created.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
   end

@@ -5,6 +5,8 @@ module Api
     module Admin
       # Management dashboard summary (MPS-803).
       class ManagementDashboardsController < ProtectedStaffController
+        # Returns the management summary (KPIs, trends) for the requested
+        # granularity.
         def show
           authorize :management_dashboard, policy_class: ::Admin::ManagementDashboardPolicy
 
@@ -14,6 +16,8 @@ module Api
 
         private
 
+        # Reads the requested trend granularity from the query string,
+        # defaulting to monthly when not supplied.
         def requested_granularity
           params[:granularity].presence || 'monthly'
         end

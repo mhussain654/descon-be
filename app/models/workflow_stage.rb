@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# One of the 15 canonical, ordered stages a candidate assignment moves through from
+# registration to mobilization abroad. System-defined stages are seeded and protected from
+# being renamed, reordered, or deleted.
 class WorkflowStage < ApplicationRecord
   include HasLocalizedName
 
@@ -35,16 +38,19 @@ class WorkflowStage < ApplicationRecord
 
   before_destroy :prevent_system_destroy
 
+  # The initial workflow stage every new candidate assignment starts in.
   def self.registered
     find_by!(code: 'registered')
   end
 
+  # The I18n key prefix under which this model's translated names are looked up.
   def self.i18n_name_scope
     'reference_data.workflow_stages'
   end
 
   private
 
+  # Callback: blocks deletion of any stage that is marked as system-defined in the database.
   def prevent_system_destroy
     return unless system_defined_in_database
 
@@ -52,6 +58,7 @@ class WorkflowStage < ApplicationRecord
     throw :abort
   end
 
+  # Blocks changes to the code, position, or system_defined flag on a system-defined stage.
   def protect_system_definition_changes
     return unless system_defined_in_database
 

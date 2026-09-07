@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Reference data: a kind of document a candidate can upload (e.g. passport, CNIC front/back),
+# describing whether it requires a document number/expiry date and whether it supports OCR.
 class DocumentType < ApplicationRecord
   include HasLocalizedName
 
@@ -19,6 +21,7 @@ class DocumentType < ApplicationRecord
   validates :name_en, :name_ur, presence: true
   validates :active, :requires_number, :requires_expiry, inclusion: { in: [true, false] }
 
+  # True if this document type is one of the fixed set that OCR extraction runs against.
   def supports_ocr_extraction?
     OCR_EXTRACTION_DOCUMENT_TYPE_CODES.include?(code)
   end
