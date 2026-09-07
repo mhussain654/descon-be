@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Links one uploaded document to a submission batch, recording which document requirement
+# it was meant to satisfy and whether that requirement is mandatory.
 class CandidateDocumentSubmissionItem < ApplicationRecord
   include ImmutableRecord
 
@@ -13,6 +15,7 @@ class CandidateDocumentSubmissionItem < ApplicationRecord
 
   private
 
+  # Trims and lowercases the requirement code.
   def normalize_requirement_code
     self.requirement_code = requirement_code.to_s.strip.downcase
   end

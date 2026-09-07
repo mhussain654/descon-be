@@ -43,20 +43,22 @@ module Admin
         matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
       end
 
+      # cnic/passport_number are deterministically encrypted (MPS-901), so they can only be
+      # matched via ActiveRecord's own hash-condition `where` (which transparently encrypts the
+      # query value) -- never as a raw SQL string comparison, which would compare plaintext
+      # against ciphertext and silently match nothing. full_name/reference_number aren't
+      # encrypted, so they stay a single raw ILIKE/`=` clause combined with `.or`.
       def matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
-        values = search_values(name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
-        scope.where(search_clause, values)
+        scope
+          .where(name_or_reference_clause, name: name_match, reference: normalized_reference)
+          .or(scope.where(cnic: normalized_cnic))
+          .or(scope.where(passport_number: normalized_passport))
       end
 
-      def search_clause
+      def name_or_reference_clause
         <<~SQL.squish
-          candidates.full_name ILIKE :name OR candidates.cnic = :cnic OR
-          candidates.passport_number = :passport OR current_assignments.reference_number = :reference
+          candidates.full_name ILIKE :name OR current_assignments.reference_number = :reference
         SQL
-      end
-
-      def search_values(name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
-        { name: name_match, cnic: normalized_cnic, passport: normalized_passport, reference: normalized_reference }
       end
 
       def apply_filters(scope)

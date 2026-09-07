@@ -52,6 +52,7 @@ en:
       view_payments: "View payments"
       view_communications: "View communications"
       view_audit_events: "View audit events"
+      manage_backups: "Manage backups"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"

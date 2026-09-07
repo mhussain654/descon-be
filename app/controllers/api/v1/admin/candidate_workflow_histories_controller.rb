@@ -3,7 +3,11 @@
 module Api
   module V1
     module Admin
+      # Lets staff view a candidate's workflow history, including which staff member acted on
+      # each transition.
       class CandidateWorkflowHistoriesController < ProtectedStaffController
+        # Returns the candidate's stage-by-stage workflow history as a state snapshot, with actor
+        # attribution on each history entry.
         def show
           authorize candidate, :history?, policy_class: ::Admin::CandidateWorkflowPolicy
 
@@ -18,6 +22,8 @@ module Api
 
         private
 
+        # Loads the candidate for this action within the staff member's authorized scope,
+        # raising if not found.
         def candidate
           @candidate ||= policy_scope(::Candidate, policy_scope_class: ::Admin::CandidateWorkflowPolicy::Scope)
                          .find_by!(public_id: params.expect(:candidate_id))

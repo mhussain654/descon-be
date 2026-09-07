@@ -7,6 +7,7 @@ module Api
       # authorized against the `:admin_dashboard` symbol, same shape as the
       # MPS/Management dashboard controllers below.
       class DashboardsController < ProtectedStaffController
+        # Returns the overall admin summary dashboard data.
         def show
           authorize :admin_dashboard, policy_class: ::Admin::AdminDashboardPolicy
 

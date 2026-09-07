@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# Log entry for a staff-user authentication occurrence (e.g. login, logout, token refresh).
 class AuthenticationEvent < ApplicationRecord
   CODE_FORMAT = /\A[a-z0-9_]+\z/
 

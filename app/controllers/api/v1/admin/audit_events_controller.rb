@@ -8,6 +8,8 @@ module Api
       # application APIs, and there is no separate detail fetch to guard
       # against an insecure direct object reference on `id`.
       class AuditEventsController < ProtectedStaffController
+        # Returns a paginated, filtered list of audit events visible to the
+        # current staff member, built by Admin::AuditEvents::IndexQuery.
         def index
           authorize ::AuditEvent
 
@@ -23,6 +25,8 @@ module Api
 
         private
 
+        # Scopes the audit event table to what the current user is
+        # permitted to see, via the Pundit policy scope.
         def audit_event_scope
           policy_scope(::AuditEvent)
         end

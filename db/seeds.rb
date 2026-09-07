@@ -109,9 +109,10 @@ end
 # keeping the two sides of this contract-first build aligned.
 [
   { code: 'passport', name_en: 'Passport', name_ur: 'پاسپورٹ', requires_number: true, requires_expiry: true },
-  { code: 'cnic_front', name_en: 'CNIC (Front)', name_ur: 'شناختی کارڈ (اگلا رخ)' },
-  { code: 'cnic_back', name_en: 'CNIC (Back)', name_ur: 'شناختی کارڈ (پچھلا رخ)' },
-  { code: 'next_of_kin_cnic', name_en: 'Next of Kin CNIC', name_ur: 'قریبی رشتہ دار کا شناختی کارڈ' },
+  { code: 'cnic_front', name_en: 'CNIC (Front)', name_ur: 'شناختی کارڈ (اگلا رخ)', requires_expiry: true },
+  { code: 'cnic_back', name_en: 'CNIC (Back)', name_ur: 'شناختی کارڈ (پچھلا رخ)', requires_expiry: true },
+  { code: 'next_of_kin_cnic', name_en: 'Next of Kin CNIC', name_ur: 'قریبی رشتہ دار کا شناختی کارڈ',
+    requires_expiry: true },
   { code: 'police_character', name_en: 'Police Character Certificate', name_ur: 'پولیس کریکٹر سرٹیفکیٹ',
     requires_expiry: true },
   { code: 'bank_details', name_en: 'Bank Account Details', name_ur: 'بینک اکاؤنٹ کی تفصیلات' },

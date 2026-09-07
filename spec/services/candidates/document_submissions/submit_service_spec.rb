@@ -16,6 +16,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     AuditEvent.delete_all
     CandidateDocument.delete_all
     CandidateAssignment.delete_all
+    CandidateConsent.delete_all
     Candidate.delete_all
     User.delete_all
     example.run
@@ -29,6 +30,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     AuditEvent.delete_all
     CandidateDocument.delete_all
     CandidateAssignment.delete_all
+    CandidateConsent.delete_all
     Candidate.delete_all
     User.delete_all
   end

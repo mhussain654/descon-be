@@ -2,6 +2,7 @@
 
 module Api
   module V1
+    # Exposes unauthenticated liveness/readiness endpoints for load balancers and orchestrators.
     class HealthController < BaseController
       READINESS_DEPENDENCIES = {
         primary_database: ActiveRecord::Base,
@@ -10,10 +11,13 @@ module Api
         cable_database: SolidCable::Record
       }.freeze
 
+      # Returns a simple "ok" status confirming the process is up, without checking dependencies.
       def live
         render_success(data: { status: 'ok', message: t('api.messages.health.ok') })
       end
 
+      # Returns "ready" only if every distinct configured database connection responds to a
+      # trivial query; otherwise renders a 503 service-unavailable error.
       def ready
         check_readiness_dependencies!
         render_success(data: { status: 'ready', message: t('api.messages.health.ready') })
@@ -23,6 +27,8 @@ module Api
 
       private
 
+      # Runs a trivial query against each readiness dependency's connection, logging and
+      # re-raising the first failure encountered.
       def check_readiness_dependencies!
         loaded_readiness_dependencies.each do |dependency_name, record_class|
           record_class.connection.execute('SELECT 1')
@@ -32,6 +38,8 @@ module Api
         end
       end
 
+      # Filters READINESS_DEPENDENCIES down to one record class per distinct underlying
+      # database connection, so a shared connection isn't checked more than once.
       def loaded_readiness_dependencies
         seen_connection_names = Set.new
 
@@ -45,6 +53,7 @@ module Api
         end
       end
 
+      # Logs a structured error event when a readiness dependency check fails.
       def log_readiness_failure(dependency_name, error)
         Rails.logger.error(
           event: 'readiness_check_failed',
@@ -54,6 +63,7 @@ module Api
         )
       end
 
+      # Builds the 503 error rendered when a readiness dependency is unavailable.
       def service_unavailable_error
         BaseError.new(
           code: 'service_unavailable',

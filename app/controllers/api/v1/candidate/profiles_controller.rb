@@ -3,7 +3,10 @@
 module Api
   module V1
     module Candidate
+      # Lets a candidate view their own registration/personal profile details.
       class ProfilesController < ProtectedController
+        # Returns the current candidate's profile, with cache/ETag headers reflecting the
+        # assignment's last update time.
         def show
           profile = ::Candidates::ProfileService.call(candidate: current_candidate)
 

@@ -2,17 +2,24 @@
 
 module Admin
   module DocumentReviews
+    # rubocop:disable Metrics/ClassLength
     class DecisionService < ApplicationService
       DECISIONS = %w[verified rejected].freeze
       REJECTION_REASON_MAX_LENGTH = 500
       REJECTION_REASON_MIN_LENGTH = 10
 
-      def initialize(actor:, decision:, document:, request_id:, rejection_reason: nil)
+      # 3 unrelated optional overrides (reason; 2 HR-confirmed OCR dates) --
+      # no shared concept to name as a value object.
+      # rubocop:disable Metrics/ParameterLists
+      def initialize(actor:, decision:, document:, request_id:, rejection_reason: nil, issued_on: nil, expires_on: nil)
+        # rubocop:enable Metrics/ParameterLists
         @actor = actor
         @decision = decision.to_s
         @document = document
         @request_id = request_id
         @rejection_reason = rejection_reason.to_s.strip
+        @issued_on = issued_on.presence
+        @expires_on = expires_on.presence
       end
 
       # rubocop:disable Metrics/MethodLength
@@ -88,7 +95,15 @@ module Admin
           status_code: @decision,
           verified_at: Time.current,
           verified_by: @actor
-        }
+        }.merge(date_override_attributes)
+      end
+
+      # HR-confirmed dates (MPS-404), never auto-applied by the extraction
+      # job itself -- only ever set on a verify decision.
+      def date_override_attributes
+        return {} unless @decision == 'verified'
+
+        { issued_on: @issued_on, expires_on: @expires_on }.compact
       end
 
       def lock_reviewable_document!
@@ -124,5 +139,6 @@ module Admin
         ActionController::Base.helpers.strip_tags(@rejection_reason)
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

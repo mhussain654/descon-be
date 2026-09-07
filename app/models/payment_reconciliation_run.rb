@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# A single execution of the payment reconciliation process for a given date, tracking its
+# status and owning the individual discrepancy findings it produces.
 class PaymentReconciliationRun < ApplicationRecord
   STATES = %w[processing completed failed].freeze
 
