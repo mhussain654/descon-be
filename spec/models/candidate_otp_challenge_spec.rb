@@ -43,6 +43,12 @@ RSpec.describe CandidateOtpChallenge, type: :model do
         expect(result.fetch(:challenge).expires_at).to eq(described_class::EXPIRY_WINDOW.from_now)
       end
     end
+
+    it 'never writes the raw code to stdout or the Rails logger' do
+      result = nil
+      expect { result = described_class.generate_for(candidate: create(:candidate)) }.not_to output.to_stdout
+      expect(result.fetch(:code)).to match(/\A\d{6}\z/)
+    end
   end
 
   describe '#match?' do

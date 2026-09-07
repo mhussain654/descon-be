@@ -2,11 +2,14 @@
 
 module Admin
   # Read-only view of an AuditEvent for the staff audit explorer (MPS-807).
-  # `metadata` is passed through as-is -- every existing *AuditRecorder
-  # service already writes only public ids, codes and non-sensitive field
-  # names into it (confirmed across every AuditEvent.create! call site: no
-  # raw CNIC, passport, bank or payment identifier is ever stored there),
-  # so this serializer has nothing further to mask.
+  # `metadata` is filtered through AuditEventMetadataSanitizer's allowlist --
+  # trusting every existing/future *AuditRecorder to only ever write safe
+  # field names is not a durable security boundary on its own, so this is
+  # the enforcement point, not just the frontend's own defense-in-depth
+  # masking. `note` (free-form staff-entered text) is deliberately not
+  # returned here at all: nothing in the audit explorer's list view
+  # currently displays it, and it carries the same "arbitrary free text"
+  # risk as the blocked metadata keys above.
   class AuditEventSerializer
     def initialize(event)
       @event = event
@@ -32,10 +35,9 @@ module Admin
       {
         candidate_id: @event.candidate&.public_id,
         reason_code: @event.reason_code,
-        note: @event.note,
         request_id: @event.request_id,
         occurred_at: @event.occurred_at.utc.iso8601,
-        metadata: @event.metadata
+        metadata: AuditEventMetadataSanitizer.sanitize(@event.metadata)
       }
     end
 

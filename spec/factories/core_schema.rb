@@ -95,12 +95,15 @@ FactoryBot.define do
     association :created_by, factory: :user
 
     transient do
-      # Candidates accept the current consent policy version by default (mirroring the
-      # production backfill for pre-existing candidates) so every other factory/request spec
-      # that immediately hits a protected candidate endpoint isn't blocked by the consent gate.
-      # Specs that exercise the gate itself use :without_consent. Consent records are
-      # immutable (can't be destroyed after the fact), so this has to be skipped up front
-      # rather than created-then-removed.
+      # Candidates accept the current consent policy version by default (a
+      # test-only convenience -- there is no equivalent production
+      # backfill: a security review found the earlier one fabricated
+      # acceptance for candidates who never actually consented, and it was
+      # removed) so every other factory/request spec that immediately hits
+      # a protected candidate endpoint isn't blocked by the consent gate.
+      # Specs that exercise the gate itself use :without_consent. Consent
+      # records are immutable (can't be destroyed after the fact), so this
+      # has to be skipped up front rather than created-then-removed.
       skip_consent { false }
     end
 

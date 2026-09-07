@@ -8,7 +8,7 @@ module Admin
       def self.call(headers:, rows:)
         CSV.generate(encoding: Encoding::UTF_8, row_sep: "\r\n") do |csv|
           csv << headers
-          rows.each { |row| csv << row }
+          rows.each { |row| csv << FormulaInjectionGuard.sanitize_row(row) }
         end
       end
     end

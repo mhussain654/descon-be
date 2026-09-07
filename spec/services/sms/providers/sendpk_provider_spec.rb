@@ -108,4 +108,68 @@ RSpec.describe Sms::Providers::SendpkProvider do
     expect(result).not_to be_success
     expect(result.error_code).to eq('network_error')
   end
+
+  describe 'HTTPS enforcement' do
+    it 'rejects an HTTP base URL outside test, without ever calling the network' do
+      allow(Rails.env).to receive(:test?).and_return(false)
+      insecure_configuration = instance_double(
+        Sms::Configuration,
+        sendpk_api_key: 'api-key-1', sendpk_sender_id: 'DESCON', sendpk_base_url: 'http://sendpk.com',
+        sendpk_open_timeout: 5, sendpk_read_timeout: 10
+      )
+      allow(Net::HTTP).to receive(:start)
+
+      result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567', body: 'code')
+
+      expect(result).not_to be_success
+      expect(result.error_code).to eq('insecure_endpoint_rejected')
+      expect(Net::HTTP).not_to have_received(:start)
+    end
+
+    it 'allows an HTTP base URL in test (a local stub has no real certificate to present)' do
+      insecure_configuration = instance_double(
+        Sms::Configuration,
+        sendpk_api_key: 'api-key-1', sendpk_sender_id: 'DESCON', sendpk_base_url: 'http://sendpk.com',
+        sendpk_open_timeout: 5, sendpk_read_timeout: 10
+      )
+      stub_response('OK ID:1')
+
+      result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567', body: 'code')
+
+      expect(result).to be_success
+    end
+  end
+
+  describe 'HTTP status handling' do
+    it 'never treats a non-2xx response as delivered, even if its body matches the success pattern' do
+      response = Net::HTTPInternalServerError.new('1.1', '500', 'Internal Server Error')
+      allow(response).to receive(:body).and_return('OK ID:1')
+      allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
+
+      result = provider.deliver(to: '+923001234567', body: 'code')
+
+      expect(result).not_to be_success
+      expect(result.error_code).to eq('http_error')
+    end
+
+    it 'maps a 3xx redirect to its own error code rather than silently following or misparsing it' do
+      response = Net::HTTPFound.new('1.1', '302', 'Found')
+      allow(response).to receive(:body).and_return('')
+      allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
+
+      result = provider.deliver(to: '+923001234567', body: 'code')
+
+      expect(result).not_to be_success
+      expect(result.error_code).to eq('unexpected_redirect')
+    end
+
+    it 'still parses a documented failure code normally on a 200 response' do
+      stub_response('4')
+
+      result = provider.deliver(to: '+923001234567', body: 'code')
+
+      expect(result).not_to be_success
+      expect(result.error_code).to eq('missing_sender_id')
+    end
+  end
 end

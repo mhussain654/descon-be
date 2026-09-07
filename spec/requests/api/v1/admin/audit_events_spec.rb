@@ -52,11 +52,24 @@ RSpec.describe 'API V1 Admin Audit Events', type: :request do
         'entity_id' => event.entity_id,
         'candidate_id' => event.candidate.public_id,
         'reason_code' => nil,
-        'note' => nil,
         'request_id' => event.request_id,
         'occurred_at' => event.occurred_at.utc.iso8601,
         'metadata' => { 'candidate_public_id' => event.candidate.public_id }
       )
+    end
+
+    it 'never returns note or a blocked/unapproved metadata key, even if a recorder wrote one' do
+      actor = create(:user, role: 'admin')
+      event = audit_event_for(actor:)
+      event.update_column(:note, 'Investigated per candidate complaint -- spoke to Ahmed Khan directly') # rubocop:disable Rails/SkipsModelValidations -- test-only bypass of AuditEvent's own immutability, to simulate a future writer that populated `note`
+      event.update_column(:metadata, { 'candidate_public_id' => event.candidate.public_id, 'reason' => 'refunded per phone call with Ahmed Khan', 'nested' => { 'a' => 1 } }) # rubocop:disable Rails/SkipsModelValidations, Layout/LineLength
+
+      get '/api/v1/admin/audit_events', headers: auth_headers(actor)
+
+      row = response.parsed_body.dig('data', 0)
+      expect(row).not_to have_key('note')
+      expect(row['metadata']).to eq('candidate_public_id' => event.candidate.public_id)
+      expect(response.body).not_to include('Ahmed Khan')
     end
 
     it 'allows a management staff member (view_audit_events) to list too' do

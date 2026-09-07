@@ -43,6 +43,12 @@ module Candidates
         extraction.update!(failure_attributes(e))
       end
 
+      # Only the approved issue/expiry dates and their confidence scores --
+      # never the full set of Textract identity-document fields (name,
+      # document number, address, date of birth, etc.), which
+      # DocumentOcr::TextractAdapter no longer even returns. `raw_response`
+      # is deliberately left at its `{}` default here (MPS-404 finding: "Do
+      # not store full Textract fields or raw OCR responses").
       def success_attributes(result)
         {
           status: 'succeeded',
@@ -50,7 +56,6 @@ module Candidates
           extracted_expires_on: result[:expires_on],
           confidence_issued_on: result[:confidence_issued_on],
           confidence_expires_on: result[:confidence_expires_on],
-          raw_response: { 'fields' => result[:raw_fields] },
           extracted_at: Time.current
         }
       end

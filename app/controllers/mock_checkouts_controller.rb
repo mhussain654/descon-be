@@ -4,11 +4,19 @@
 # Payments::Providers::MockHostedCheckoutAdapter#create_checkout_session,
 # which points candidates at this controller instead of a real external
 # domain) -- so PAYMENT_PROVIDER=mock_hosted_checkout can be exercised
-# end-to-end from a real browser/WebView, not only from RSpec. Never
-# available in production, the one environment where a real provider is
-# always required.
+# end-to-end from a real browser/WebView, not only from RSpec.
+#
+# Restricted to development/test only (Rails.env.local?), not merely
+# "not production": this action requires no authentication at all, and given
+# any provider_order_id it hands back a *validly signed* link that marks
+# that payment successful/failed/cancelled (return_url_for signs the same
+# way MockHostedCheckoutAdapter#parse_notification! verifies) -- effectively
+# an unauthenticated payment-state oracle for anyone who knows or guesses an
+# order id. A shared staging environment is not production but is still a
+# real, network-reachable deployment; excluding only production would leave
+# staging exposed to exactly that.
 class MockCheckoutsController < ApplicationController
-  before_action :ensure_not_production!
+  before_action :ensure_local_environment!
 
   def show
     @payment = Payment.find_by!(provider_order_id: params.require(:orderid), provider_code: 'mock_hosted_checkout')
@@ -20,8 +28,8 @@ class MockCheckoutsController < ApplicationController
 
   private
 
-  def ensure_not_production!
-    head :not_found if Rails.env.production?
+  def ensure_local_environment!
+    head :not_found unless Rails.env.local?
   end
 
   def adapter

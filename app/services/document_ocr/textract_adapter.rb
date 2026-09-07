@@ -50,12 +50,24 @@ module DocumentOcr
       Aws::Textract::Client.new(http_open_timeout: timeout, http_read_timeout: timeout)
     end
 
+    # Never persists the raw AWS SDK exception message (potentially carrying
+    # request internals) into DocumentExtraction#error_message, which the
+    # HR review UI displays as-is (Admin::DocumentExtractionSerializer) --
+    # only a fixed, provider-agnostic message plus the exception's class
+    # name (a stable, non-sensitive identifier). The real message is still
+    # logged server-side for support/debugging, never persisted or exposed.
     def call_textract(bytes)
       @client.analyze_id(document_pages: [{ bytes: }])
     rescue *RETRYABLE_ERRORS => e
-      raise TransientError, e.message
+      raise TransientError, sanitized_provider_error('transient', e)
     rescue Aws::Textract::Errors::ServiceError => e
-      raise PermanentError, e.message
+      raise PermanentError, sanitized_provider_error('permanent', e)
+    end
+
+    def sanitized_provider_error(kind, error)
+      Rails.logger.warn("[DocumentOcr::TextractAdapter] #{kind} failure (#{error.class}): #{error.message}")
+      action = kind == 'transient' ? 'failed transiently' : 'rejected the request'
+      "AWS Textract #{action} (#{error.class.name.demodulize})"
     end
 
     def build_result(response)
@@ -67,8 +79,7 @@ module DocumentOcr
         issued_on: field_date(fields, ISSUE_DATE_FIELD_TYPE),
         expires_on: field_date(fields, EXPIRY_DATE_FIELD_TYPE),
         confidence_issued_on: field_confidence(fields, ISSUE_DATE_FIELD_TYPE),
-        confidence_expires_on: field_confidence(fields, EXPIRY_DATE_FIELD_TYPE),
-        raw_fields: normalized_fields(fields)
+        confidence_expires_on: field_confidence(fields, EXPIRY_DATE_FIELD_TYPE)
       }
     end
 
@@ -88,17 +99,6 @@ module DocumentOcr
 
     def field_confidence(fields, type)
       field_for(fields, type)&.value_detection&.confidence
-    end
-
-    # Field type/value text only -- never the document's raw block/geometry
-    # data, and never a full-document text dump (AGENTS.md: never log or
-    # store more sensitive-document content than HR review actually needs).
-    def normalized_fields(fields)
-      fields.filter_map do |field|
-        next if field.type&.text.blank?
-
-        { type: field.type.text, value: field.value_detection&.text, confidence: field.value_detection&.confidence }
-      end
     end
   end
 end

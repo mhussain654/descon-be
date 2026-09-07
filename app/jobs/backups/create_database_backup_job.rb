@@ -74,9 +74,15 @@ module Backups
       raise Backups::PermanentBackupError, 'pg_dump exited with a non-zero status' unless status.success?
     end
 
+    # --clean --if-exists: the dump itself carries DROP ... IF EXISTS
+    # statements ahead of each CREATE, so restoring via plain `psql`
+    # (Backups::RestoreDatabaseBackupService -- there is no `pg_restore
+    # --clean` step, since a plain-format dump has no such restore-time
+    # flag) cleanly replaces existing objects instead of failing with
+    # "already exists" the moment the target database isn't empty.
     def pg_dump_argv(config, dump_path)
       [
-        'pg_dump', '--no-owner', '--no-privileges', '--format=plain',
+        'pg_dump', '--no-owner', '--no-privileges', '--format=plain', '--clean', '--if-exists',
         '--host', config.fetch(:host, 'localhost').to_s,
         '--port', config.fetch(:port, 5432).to_s,
         '--username', config.fetch(:username).to_s,

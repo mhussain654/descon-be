@@ -23,15 +23,24 @@ if ENV['SENTRY_DSN'].present?
     # separate allow/deny list to maintain here.
     config.traces_sample_rate = ENV.fetch('SENTRY_TRACES_SAMPLE_RATE', '0.1').to_f
 
-    # Second line of defense beyond send_default_pii/filter_parameters: never forward the raw
-    # exception message verbatim if it happens to have interpolated a sensitive value directly
-    # (e.g. a malformed-input error echoing back what was submitted) -- match this app's own
-    # known sensitive-field names one more time, at the point closest to actually leaving the
-    # process.
-    sensitive_pattern = /cnic|passport|otp|password|token|account_number|iban/i
+    # Second line of defense beyond send_default_pii/filter_parameters: never forward a
+    # sensitive value if it happens to have been interpolated directly into an exception
+    # message, a breadcrumb (including SQL query breadcrumbs, whose bound values can carry
+    # one) or custom context/extra data, at the point closest to actually leaving the process.
+    #
+    # Filtering only `event.message` (the previous implementation) missed the far more common
+    # capture path -- an unhandled exception's text lives in `event.exception.values[].value`,
+    # not `event.message` (which is only ever populated by an explicit
+    # `Sentry.capture_message` call) -- so this now covers exception values, breadcrumbs and
+    # contexts/extra recursively. See Observability::SentryRedaction for the actual patterns.
     config.before_send = lambda do |event, _hint|
-      event.message = '[FILTERED]' if event.message && sensitive_pattern.match?(event.message)
-      event
+      Observability::SentryRedaction.redact_event(event)
+    end
+    config.before_send_transaction = lambda do |event, _hint|
+      Observability::SentryRedaction.redact_event(event)
+    end
+    config.before_breadcrumb = lambda do |breadcrumb, _hint|
+      Observability::SentryRedaction.redact_breadcrumb(breadcrumb)
     end
   end
 end

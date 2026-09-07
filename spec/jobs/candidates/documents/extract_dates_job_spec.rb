@@ -19,8 +19,7 @@ RSpec.describe Candidates::Documents::ExtractDatesJob, type: :job do
     document = passport_document
     result = {
       issued_on: Date.new(2020, 1, 1), expires_on: Date.new(2030, 1, 1),
-      confidence_issued_on: 96.4, confidence_expires_on: 95.1,
-      raw_fields: [{ type: 'DATE_OF_ISSUE', value: '01 JAN 2020', confidence: 96.4 }]
+      confidence_issued_on: 96.4, confidence_expires_on: 95.1
     }
     adapter = instance_double(DocumentOcr::TextractAdapter, extract: result)
     allow(DocumentOcr::TextractAdapter).to receive(:new).and_return(adapter)
@@ -33,8 +32,7 @@ RSpec.describe Candidates::Documents::ExtractDatesJob, type: :job do
     expect(extraction.extracted_expires_on).to eq(Date.new(2030, 1, 1))
     expect(extraction.confidence_issued_on).to eq(96.4)
     expect(extraction.confidence_expires_on).to eq(95.1)
-    expect(extraction.raw_response).to eq('fields' => [{ 'type' => 'DATE_OF_ISSUE', 'value' => '01 JAN 2020',
-                                                         'confidence' => 96.4 }])
+    expect(extraction.raw_response).to eq({})
     expect(extraction.extracted_at).to be_present
   end
 
@@ -54,7 +52,7 @@ RSpec.describe Candidates::Documents::ExtractDatesJob, type: :job do
   it 'allows a fresh attempt after a prior extraction failed' do
     document = passport_document
     create(:document_extraction, :failed, candidate_document: document)
-    result = { issued_on: nil, expires_on: nil, confidence_issued_on: nil, confidence_expires_on: nil, raw_fields: [] }
+    result = { issued_on: nil, expires_on: nil, confidence_issued_on: nil, confidence_expires_on: nil }
     adapter = instance_double(DocumentOcr::TextractAdapter, extract: result)
     allow(DocumentOcr::TextractAdapter).to receive(:new).and_return(adapter)
 

@@ -45,9 +45,10 @@ module Sms
 
       def deliver(to:, body:)
         return DeliveryResult.new(success: false, error_code: 'not_configured') unless configured?
+        return DeliveryResult.new(success: false, error_code: 'insecure_endpoint_rejected') unless secure_endpoint?
 
         response = perform_request(to:, body:)
-        parse_response(response.body)
+        parse_http_response(response)
       rescue Net::OpenTimeout, Net::ReadTimeout
         DeliveryResult.new(success: false, error_code: 'timeout')
       rescue SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET, EOFError
@@ -62,6 +63,19 @@ module Sms
       # rather than a delivery problem worth a network round-trip to learn.
       def configured?
         @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id.present?
+      end
+
+      # SENDPK_BASE_URL is env-configurable (Sms::Configuration), which
+      # would otherwise let a misconfiguration silently send the API key,
+      # recipient number and OTP/message body over plain HTTP. Only test
+      # ever legitimately needs a non-HTTPS base (a local stub/mock
+      # endpoint has no real certificate to present).
+      def secure_endpoint?
+        return true if Rails.env.test?
+
+        URI.join(@configuration.sendpk_base_url, ENDPOINT_PATH).scheme == 'https'
+      rescue URI::Error
+        false
       end
 
       def perform_request(to:, body:)
@@ -94,6 +108,22 @@ module Sms
           'mobile' => to,
           'message' => body
         }
+      end
+
+      # Never trusts response *body* content alone -- a non-2xx status (an
+      # API gateway error page, a WAF block page, a maintenance response)
+      # is never handed to the success/error-code text parser, regardless
+      # of what its body happens to contain. `Net::HTTP#request` does not
+      # itself follow redirects, so a 3xx here is send.pk's own response,
+      # not something already silently followed -- mapped to its own error
+      # code for an honest audit trail rather than falling through to
+      # "unknown_error".
+      def parse_http_response(response)
+        case response
+        when Net::HTTPSuccess then parse_response(response.body)
+        when Net::HTTPRedirection then DeliveryResult.new(success: false, error_code: 'unexpected_redirect')
+        else DeliveryResult.new(success: false, error_code: 'http_error')
+        end
       end
 
       def parse_response(raw_body)
