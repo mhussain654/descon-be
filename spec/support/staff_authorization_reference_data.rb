@@ -16,6 +16,8 @@ module StaffAuthorizationReferenceData
       manage_candidate_documents
       manage_workflow
       manage_communications
+      view_mps_dashboard
+      view_reports
     ],
     'finance' => %w[
       view_candidates
@@ -32,6 +34,8 @@ module StaffAuthorizationReferenceData
       view_payments
       view_communications
       view_audit_events
+      view_management_dashboard
+      view_reports
     ]
   }.freeze
 

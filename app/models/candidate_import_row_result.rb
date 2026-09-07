@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# The outcome of processing a single row from a candidate import batch's CSV file.
 class CandidateImportRowResult < ApplicationRecord
   STATUSES = %w[accepted rejected skipped committed].freeze
 
@@ -13,10 +14,13 @@ class CandidateImportRowResult < ApplicationRecord
 
   private
 
+  # Whether this row's status requires an accompanying error field and code.
   def requires_error_details?
     rejected? || skipped?
   end
 
+  # Whether the row failed validation and was not imported.
   def rejected? = status == 'rejected'
+  # Whether the row was intentionally left out of the import (e.g. a duplicate).
   def skipped? = status == 'skipped'
 end

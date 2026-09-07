@@ -93,6 +93,31 @@ FactoryBot.define do
     active { true }
     source_code { 'admin_ui' }
     association :created_by, factory: :user
+
+    transient do
+      # Candidates accept the current consent policy version by default (mirroring the
+      # production backfill for pre-existing candidates) so every other factory/request spec
+      # that immediately hits a protected candidate endpoint isn't blocked by the consent gate.
+      # Specs that exercise the gate itself use :without_consent. Consent records are
+      # immutable (can't be destroyed after the fact), so this has to be skipped up front
+      # rather than created-then-removed.
+      skip_consent { false }
+    end
+
+    after(:create) do |candidate, evaluator|
+      create(:candidate_consent, candidate:) unless evaluator.skip_consent
+    end
+
+    trait :without_consent do
+      skip_consent { true }
+    end
+  end
+
+  factory :candidate_consent do
+    association :candidate, factory: %i[candidate without_consent]
+    policy_version { CandidateConsent::CURRENT_POLICY_VERSION }
+    accepted_at { Time.current }
+    ip_address { '127.0.0.1' }
   end
 
   factory :candidate_import_batch do
@@ -300,6 +325,35 @@ FactoryBot.define do
     end
   end
 
+  factory :document_extraction do
+    candidate_document
+    provider { 'aws_textract' }
+    status { 'pending' }
+    extracted_issued_on { nil }
+    extracted_expires_on { nil }
+    confidence_issued_on { nil }
+    confidence_expires_on { nil }
+    raw_response { {} }
+    error_message { nil }
+    extracted_at { nil }
+
+    trait :succeeded do
+      status { 'succeeded' }
+      extracted_issued_on { 1.year.ago.to_date }
+      extracted_expires_on { 5.years.from_now.to_date }
+      confidence_issued_on { 96.4 }
+      confidence_expires_on { 95.1 }
+      raw_response { { 'DATE_OF_ISSUE' => { 'value' => '01 JAN 2020', 'confidence' => 96.4 } } }
+      extracted_at { Time.current }
+    end
+
+    trait :failed do
+      status { 'failed' }
+      error_message { 'Textract detected no identity document in the uploaded image' }
+      extracted_at { Time.current }
+    end
+  end
+
   factory :candidate_bank_detail do
     candidate_assignment
     reviewed_by { nil }
@@ -408,5 +462,23 @@ FactoryBot.define do
     request_id { SecureRandom.uuid }
     metadata { {} }
     occurred_at { Time.current }
+  end
+
+  factory :system_database_backup do
+    status_code { 'succeeded' }
+    taken_at { Time.current }
+    byte_size { 1024 }
+    checksum_sha256 { SecureRandom.hex(32) }
+    duration_seconds { 5 }
+
+    trait :with_archive do
+      after(:create) do |backup|
+        backup.archive.attach(
+          io: StringIO.new('fake gzip content'),
+          filename: 'database_backup_test.sql.gz',
+          content_type: 'application/gzip'
+        )
+      end
+    end
   end
 end

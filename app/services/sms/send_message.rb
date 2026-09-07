@@ -5,11 +5,10 @@ module Sms
   # CandidateAuthentication::Otp::RequestService) depends only on this
   # class, never on a specific vendor (AGENTS.md: "Isolate external systems
   # behind provider adapters. Application code must not directly depend on
-  # SendPK... or other vendor-specific APIs"). No real vendor is integrated
-  # yet -- this is the first provider adapter in the codebase, added by
-  # MPS-201 to send the OTP; a real SendPK (or other) implementation is a
-  # second class satisfying the same #deliver(to:, body:) interface as
-  # Sms::Providers::TestProvider, selected below by SMS_PROVIDER.
+  # SendPK... or other vendor-specific APIs"). Providers::TestProvider (no
+  # network call) and Providers::SendpkProvider (the real vendor) both
+  # satisfy the same #deliver(to:, body:) interface, selected below by
+  # SMS_PROVIDER.
   #
   # Deliberately called synchronously (not via ActiveJob) from the request
   # path: the raw OTP code only exists in the caller's local scope for the
@@ -37,6 +36,7 @@ module Sms
     def provider
       case provider_name
       when 'test' then Providers::TestProvider.new
+      when 'sendpk' then Providers::SendpkProvider.new
       else
         raise ProviderNotConfiguredError, "Unknown SMS_PROVIDER: #{provider_name.inspect}"
       end

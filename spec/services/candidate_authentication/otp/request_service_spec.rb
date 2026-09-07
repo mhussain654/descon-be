@@ -14,6 +14,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
     CandidateSession.delete_all
     RefreshToken.delete_all
     Session.delete_all
+    CandidateConsent.delete_all
     Candidate.delete_all
     User.delete_all
     example.run
@@ -26,6 +27,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
     CandidateSession.delete_all
     RefreshToken.delete_all
     Session.delete_all
+    CandidateConsent.delete_all
     Candidate.delete_all
     User.delete_all
   end

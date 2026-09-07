@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Reference data: a trade/occupation (craft) a candidate is recruited for, used to scope
+# candidate assignments and document requirements.
 class Craft < ApplicationRecord
   include HasLocalizedName
 

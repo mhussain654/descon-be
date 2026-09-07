@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Records the outcome of a candidate assignment's visa application (issued or rejected),
+# including the rejection reason when applicable.
 class CandidateVisaDecision < ApplicationRecord
   OUTCOME_CODES = %w[issued rejected].freeze
   REJECTION_REASON_CODES = %w[
@@ -24,16 +26,20 @@ class CandidateVisaDecision < ApplicationRecord
   validates :rejection_reason_code, inclusion: { in: REJECTION_REASON_CODES }, allow_nil: true
   validate :rejection_reason_matches_outcome
 
+  # Whether the visa was issued.
   def issued? = outcome_code == 'issued'
 
+  # Whether the visa was rejected.
   def rejected? = outcome_code == 'rejected'
 
   private
 
+  # Assigns a public-facing UUID identifier on creation, if one isn't already set.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
   end
 
+  # An issued visa must not carry a rejection reason, and a rejected visa must carry one.
   def rejection_reason_matches_outcome
     if issued? && rejection_reason_code.present?
       errors.add(:rejection_reason_code, :present)

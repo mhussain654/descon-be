@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# An immutable record of a candidate assignment transitioning from one workflow stage to another.
 class CandidateStageHistory < ApplicationRecord
   include ImmutableRecord
 
@@ -19,6 +20,7 @@ class CandidateStageHistory < ApplicationRecord
 
   private
 
+  # A transition must actually move to a different stage than it came from.
   def transition_stages_are_distinct
     return if from_workflow_stage_id.blank? || from_workflow_stage_id != to_workflow_stage_id
 

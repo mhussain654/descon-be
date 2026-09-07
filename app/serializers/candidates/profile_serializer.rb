@@ -9,7 +9,8 @@ module Candidates
     def as_json(*)
       profile_attributes.merge(
         current_workflow_stage: serialized_workflow_stage,
-        payment: serialized_payment
+        payment: serialized_payment,
+        consent: serialized_consent
       )
     end
 
@@ -43,6 +44,10 @@ module Candidates
 
     def serialized_payment
       Payments::EligibilitySerializer.new(Payments::EligibilityService.call(candidate: @candidate)).as_json
+    end
+
+    def serialized_consent
+      Candidates::ConsentSerializer.new(@candidate).as_json
     end
   end
 end

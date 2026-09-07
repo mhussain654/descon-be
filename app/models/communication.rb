@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# A single inbound or outbound message (e.g. SMS/email/notification) sent to or received from
+# a candidate about their assignment, tracked through its delivery status.
 class Communication < ApplicationRecord
   CODE_FORMAT = /\A[a-z0-9_]+\z/
   DIRECTION_CODES = %w[inbound outbound].freeze
@@ -20,10 +22,13 @@ class Communication < ApplicationRecord
 
   private
 
+  # Assigns a public-facing UUID identifier on creation, if one isn't already set.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
   end
 
+  # Trims and lowercases the channel/direction/status codes and locale, defaulting the
+  # locale to 'en' when blank, then normalizes the remaining optional code fields.
   def normalize_codes
     NORMALIZED_CODE_ATTRIBUTES.each do |attribute|
       self[attribute] = self[attribute].to_s.strip.downcase
@@ -35,14 +40,17 @@ class Communication < ApplicationRecord
     normalize_error_code
   end
 
+  # Trims and lowercases the message template code.
   def normalize_template_code
     self.template_code = template_code.to_s.strip.downcase.presence
   end
 
+  # Trims the provider's reference identifier for this message.
   def normalize_provider_reference
     self.provider_reference = provider_reference.to_s.strip.presence
   end
 
+  # Trims and lowercases the provider error code.
   def normalize_error_code
     self.error_code = error_code.to_s.strip.downcase.presence
   end

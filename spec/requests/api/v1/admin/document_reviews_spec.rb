@@ -373,6 +373,28 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_idempotency_key')
     end
 
+    it 'applies HR-confirmed issued_on/expires_on when verifying an OCR-supported document type (passport)' do
+      actor = create(:user, role: 'admin')
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+      document_type = create_requirement(assignment:, code: 'passport')
+      document = create(:candidate_document, candidate_assignment: assignment, document_type:,
+                                             status_code: 'under_verification')
+      submission = create(:candidate_document_submission, candidate_assignment: assignment)
+      create(:candidate_document_submission_item, candidate_document_submission: submission,
+                                                  candidate_document: document)
+
+      post "/api/v1/admin/candidate_documents/#{document.public_id}/verifications",
+           params: { issued_on: '2020-01-01', expires_on: '2030-01-01' },
+           headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'Idempotency-Key' => 'verify-doc-ocr-1' }
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body.dig('data', 'document', 'issued_on')).to eq('2020-01-01')
+      expect(response.parsed_body.dig('data', 'document', 'expires_on')).to eq('2030-01-01')
+      expect(document.reload.issued_on).to eq(Date.new(2020, 1, 1))
+      expect(document.reload.expires_on).to eq(Date.new(2030, 1, 1))
+    end
+
     it 'returns review errors for unauthorized, non-pending, and missing documents' do
       finance_user = create(:user, role: 'finance')
       submission = create_submission(review_statuses: %w[under_verification])
@@ -394,6 +416,46 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'Idempotency-Key' => 'verify-doc-3' }
       expect(response).to have_http_status(:not_found)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('candidate_document_not_found')
+    end
+  end
+
+  describe 'GET /api/v1/admin/candidate_documents/:id/extraction' do
+    it 'returns not_started when no extraction has run yet' do
+      actor = create(:user, role: 'admin')
+      submission = create_submission(review_statuses: %w[under_verification])
+      document = submission.candidate_documents.first
+
+      get "/api/v1/admin/candidate_documents/#{document.public_id}/extraction",
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body['data']).to eq('status' => 'not_started')
+    end
+
+    it 'returns the latest extraction attempt, normalized' do
+      actor = create(:user, role: 'admin')
+      submission = create_submission(review_statuses: %w[under_verification])
+      document = submission.candidate_documents.first
+      create(:document_extraction, :failed, candidate_document: document, created_at: 1.hour.ago)
+      latest = create(:document_extraction, :succeeded, candidate_document: document, created_at: 1.minute.ago)
+
+      get "/api/v1/admin/candidate_documents/#{document.public_id}/extraction",
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'status')).to eq('succeeded')
+      expect(response.parsed_body.dig('data', 'issued_on')).to eq(latest.extracted_issued_on.iso8601)
+    end
+
+    it 'forbids a staff member without manage_candidate_documents' do
+      finance_user = create(:user, role: 'finance')
+      submission = create_submission(review_statuses: %w[under_verification])
+      document = submission.candidate_documents.first
+
+      get "/api/v1/admin/candidate_documents/#{document.public_id}/extraction",
+          headers: { 'Authorization' => "Bearer #{access_token_for(finance_user)}" }
+
+      expect(response).to have_http_status(:forbidden)
     end
   end
 

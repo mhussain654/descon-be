@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# A staff account (admin, HR, MPS, finance, or management) that authenticates via Devise and
+# acts on candidates, documents, payments, workflow, and communications, gated by its role's
+# permissions and its own invited/active/suspended lifecycle state.
 class User < ApplicationRecord
   devise :database_authenticatable, :recoverable, :lockable, :validatable
 
@@ -43,72 +46,99 @@ class User < ApplicationRecord
 
   delegate :permissions, to: :staff_role
 
+  # Normalizes an email address for comparison/storage: trims whitespace and lowercases it.
   def self.normalize_email_value(email) = email.to_s.strip.downcase
 
+  # Devise hook: on top of the default checks, also requires the staff account to be active
+  # (not invited/suspended) before sign-in is allowed.
   def active_for_authentication?
     super && active_staff_account?
   end
 
+  # True if this user's role is admin.
   def admin? = role?('admin')
 
+  # True if this user's role is one of the recognized staff role codes.
   def staff? = STAFF_ROLE_CODES.include?(role)
 
+  # True if this user is allowed to act at all: their staff account is active and their
+  # assigned staff role is itself active (not disabled by an admin).
   def authorization_active?
     active_staff_account? && active_staff_role?
   end
 
+  # True if this user has been invited but hasn't yet activated their account.
   def invited? = staff_state == 'invited'
 
+  # True if this user's staff account is active.
   def active_staff_account? = staff_state == 'active'
 
+  # True if this user's staff account has been suspended.
   def suspended? = staff_state == 'suspended'
 
+  # True if this user's role is hr.
   def hr? = role?('hr')
 
+  # True if this user's role is mps.
   def mps? = role?('mps')
 
+  # True if this user's role is finance.
   def finance? = role?('finance')
 
+  # True if this user's role is management.
   def management? = role?('management')
 
+  # True if the user is authorized overall and their role has the given permission code active.
   def permission?(permission_code)
     authorization_active? && permissions.where(active: true).exists?(code: permission_code.to_s)
   end
 
+  # The sorted list of active permission codes granted to this user via their role, or an
+  # empty list if the user isn't currently authorized.
   def effective_permission_codes
     return [] unless authorization_active?
 
     permissions.where(active: true).distinct.order(:code).pluck(:code)
   end
 
+  # True if this user has a pending invitation that hasn't expired yet.
   def invitation_active?
     invited? && invitation_token_digest.present? && invitation_expires_at.present? && invitation_expires_at.future?
   end
 
   private
 
+  # True if this user has a staff role assigned and that role itself is active.
   def active_staff_role? = staff? && staff_role&.active?
 
+  # Devise hook: skips the password-required check for invited users who haven't set a
+  # password yet, otherwise defers to Devise's default behavior.
   def password_required?
     return false if invited? && encrypted_password.blank?
 
     super
   end
 
+  # True if this user's role column matches the given role code.
   def role?(role_code) = role == role_code
 
+  # Callback: assigns a public-facing UUID identifier when the user is first created.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
   end
 
+  # Callback: normalizes the email address before validation.
   def normalize_email
     self.email = self.class.normalize_email_value(email)
   end
 
+  # Callback: normalizes the staff_state string, defaulting to 'active' if blank.
   def normalize_staff_state
     self.staff_state = staff_state.to_s.strip.downcase.presence || 'active'
   end
 
+  # Callback: keeps the `active` boolean and `staff_state` string in sync with each other,
+  # preferring whichever one was actually changed on this save.
   def synchronize_active_and_staff_state
     return self.active = active_staff_account? if will_save_change_to_staff_state? || !will_save_change_to_active?
 

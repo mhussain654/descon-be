@@ -415,9 +415,20 @@ components:
           required: [code, name]
         payment:
           $ref: '#/components/schemas/CandidatePaymentEligibility'
+        consent:
+          $ref: '#/components/schemas/CandidateConsentState'
         active:
           type: boolean
-      required: [id, full_name, masked_cnic, reference_number, preferred_locale, candidate_status, payment, active]
+      required:
+        - id
+        - full_name
+        - masked_cnic
+        - reference_number
+        - preferred_locale
+        - candidate_status
+        - payment
+        - consent
+        - active
     CandidateBankProofMetadata:
       type: object
       properties:
@@ -432,6 +443,21 @@ components:
           type: string
           format: date-time
       required: [file_name, content_type, file_size, uploaded_at]
+    CandidateConsentState:
+      type: object
+      properties:
+        current_policy_version:
+          type: string
+        accepted:
+          type: boolean
+        accepted_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        message:
+          type: string
+      required: [current_policy_version, accepted, accepted_at]
     CandidateBankDetailRecord:
       type: object
       properties:
@@ -3085,6 +3111,101 @@ paths:
                         message: Hosted checkout is not available right now.
                     request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
                     timestamp: '2026-08-31T09:00:00Z'
+  /api/v1/candidate/consent:
+    get:
+      summary: Fetch the authenticated candidate's consent status
+      description: >-
+        Returns whether the authenticated candidate has accepted the currently-required
+        policy version. Reachable even when the candidate has not yet accepted -- this
+        endpoint is exempt from the consent gate enforced on every other candidate endpoint.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Candidate consent status retrieved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                pending:
+                  value:
+                    data:
+                      current_policy_version: '2026-09-06'
+                      accepted: false
+                      accepted_at: null
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-09-06T12:00:00Z'
+                    errors: []
+                accepted:
+                  value:
+                    data:
+                      current_policy_version: '2026-09-06'
+                      accepted: true
+                      accepted_at: '2026-09-06T12:00:00Z'
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-09-06T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+    post:
+      summary: Accept the current policy version on behalf of the authenticated candidate
+      description: >-
+        Records the candidate's acceptance of the currently-required policy version, with
+        the acceptance timestamp and originating IP address as evidence. Idempotent -- calling
+        this again after already accepting the current version simply returns the existing
+        (immutable) acceptance rather than erroring. Reachable even when the candidate has not
+        yet accepted -- this endpoint is exempt from the consent gate enforced on every other
+        candidate endpoint.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '201':
+          description: Consent recorded (or idempotently already present) for the current policy version
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                acceptedEn:
+                  value:
+                    data:
+                      current_policy_version: '2026-09-06'
+                      accepted: true
+                      accepted_at: '2026-09-06T12:00:00Z'
+                      message: Consent recorded successfully.
+                    meta:
+                      request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
+                      timestamp: '2026-09-06T12:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
   /api/v1/candidate/bank_details:
     get:
       summary: Fetch the authenticated candidate bank-detail submission state
@@ -6884,6 +7005,469 @@ paths:
           description: Missing, invalid, expired, or revoked staff access token
         '403':
           description: Authenticated staff user lacks view_audit_events, or is inactive
+  /api/v1/admin/system_database_backups:
+    get:
+      summary: Browse the daily database backup history (MPS-903)
+      description: >-
+        Read-only, paginated, most-recent-first list of database backup attempts, produced by
+        the daily Backups::CreateDatabaseBackupJob. Requires the active `manage_backups`
+        permission -- backups are infra-sensitive, so unlike most admin resources this is
+        admin-only (not even mps/management). There is no show, create, update, or destroy
+        route: a backup's outcome is written only by the owning job, never through the API.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated backup collection
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                backups:
+                  value:
+                    data:
+                      - id: 2099d502-a67a-4d4b-a15a-58df5324b2d1
+                        status: succeeded
+                        taken_at: '2026-09-06T00:00:00Z'
+                        byte_size: 10485760
+                        checksum_sha256: b3abbcd58b14094ba6c0fea222f44367d07df2bab6c2ecd15a5b1645f93d556c
+                        duration_seconds: 42
+                        error_message: null
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-06T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_backups, or is inactive
+  /api/v1/admin/system_database_backups/{system_database_backup_id}/access:
+    post:
+      summary: Issue a short-lived signed download URL for a database backup (MPS-903)
+      description: >-
+        Records that the current staff member accessed this backup archive and returns a
+        time-limited download URL, audited exactly like any other sensitive-file access in
+        this app. Requires the active `manage_backups` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: system_database_backup_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Signed download URL issued
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      backup_id: 2099d502-a67a-4d4b-a15a-58df5324b2d1
+                      url: /rails/active_storage/disk/eyJfcmFpbHMiOnsi.../database_backup_20260906_000000.sql.gz
+                      expires_at: '2026-09-06T10:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-06T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_backups, or is inactive
+        '404':
+          description: No backup exists with this id
+        '422':
+          description: The backup has no attached archive (e.g. a failed attempt)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              examples:
+                noArchive:
+                  value:
+                    errors:
+                      - code: backup_archive_not_found
+                        message: This backup's archive is not available.
+                    request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                    timestamp: '2026-09-06T10:00:01Z'
+  /api/v1/admin/dashboard:
+    get:
+      summary: Admin dashboard summary (MPS-801)
+      description: >-
+        Candidate workload, document-review queue depth, workflow-stage queues and payment
+        visibility. Requires the active `view_admin_dashboard` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Admin dashboard summary
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                summary:
+                  value:
+                    data:
+                      candidate_workload:
+                        total_active_candidates: 128
+                      workflow_stage_queue:
+                        - code: registered
+                          position: 1
+                          count: 12
+                        - code: verified
+                          position: 5
+                          count: 40
+                      document_review_queue:
+                        pending_review: 6
+                        verified: 90
+                        rejected: 3
+                        expired_pcc: 1
+                        near_expiry_pcc: 2
+                      payment_summary:
+                        - code: checkout_pending
+                          count: 2
+                        - code: paid
+                          count: 88
+                        - code: failed
+                          count: 1
+                        - code: cancelled
+                          count: 0
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_admin_dashboard, or is inactive
+  /api/v1/admin/mps_dashboard:
+    get:
+      summary: MPS dashboard summary (MPS-802)
+      description: >-
+        Pipeline/status queues, delayed and critical case counts, craft-wise and
+        country/project-wise mobilization summaries, and the mobilization trend. Requires the
+        active `view_mps_dashboard` permission. "Delayed" (>= 7 days in the current stage) and
+        "critical" (>= 14 days) are documented implementation defaults, not a stakeholder-set
+        threshold; `critical` cases are also included in `delayed`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: granularity
+          in: query
+          description: Bucketing for `mobilization_trend`. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: MPS dashboard summary
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                summary:
+                  value:
+                    data:
+                      workflow_stage_queue:
+                        - code: registered
+                          position: 1
+                          count: 12
+                      delayed_cases:
+                        delayed: 9
+                        critical: 2
+                      craft_summary:
+                        - code: electrician
+                          name: Electrician
+                          total: 40
+                          mobilized: 15
+                      mobilization:
+                        by_country:
+                          - code: qa
+                            name: Qatar
+                            count: 15
+                        by_project:
+                          - code: proj-1
+                            name: Project One
+                            count: 15
+                      mobilization_trend:
+                        - period: '2026-06-01'
+                          count: 15
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '400':
+          description: Unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_mps_dashboard, or is inactive
+  /api/v1/admin/management_dashboard:
+    get:
+      summary: Management dashboard summary (MPS-803)
+      description: >-
+        Docs -> Verified -> Mobilized conversion/bottleneck KPIs, negative-outcome tracking, and
+        country/project-wise mobilization insights over time. Requires the active
+        `view_management_dashboard` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: granularity
+          in: query
+          description: Bucketing for `mobilization_trend`. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: Management dashboard summary
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                summary:
+                  value:
+                    data:
+                      conversion_funnel:
+                        - code: documents_uploaded
+                          count: 100
+                          percentage: 90.0
+                        - code: verified
+                          count: 80
+                          percentage: 72.0
+                        - code: mobilized
+                          count: 15
+                          percentage: 13.5
+                      outcome_tracking:
+                        rejected_documents: 6
+                        qvc_re_medical: 2
+                        qvc_rejected: 1
+                        qvc_no_show: 3
+                        visa_rejected: 1
+                      mobilization:
+                        by_country:
+                          - code: qa
+                            name: Qatar
+                            count: 15
+                        by_project:
+                          - code: proj-1
+                            name: Project One
+                            count: 15
+                      mobilization_trend:
+                        - period: '2026-06-01'
+                          count: 15
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '400':
+          description: Unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_management_dashboard, or is inactive
+  /api/v1/admin/reports:
+    get:
+      summary: List available MIS report types (MPS-804/MPS-806)
+      description: >-
+        Report type keys available to fetch via `GET /admin/reports/{report_type}` or export
+        via `GET /admin/reports/{report_type}/export`. Requires the active `view_reports`
+        permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Available report types
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                reportTypes:
+                  value:
+                    data:
+                      - status_summary
+                      - mobilization
+                      - craft_summary
+                      - outcome_tracking
+                      - conversion
+                      - trend
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_reports, or is inactive
+  /api/v1/admin/reports/{report_type}:
+    get:
+      summary: Fetch one MIS report's data (MPS-804/MPS-806)
+      description: >-
+        Returns the same aggregated data shown on the MPS/Management dashboards, addressable and
+        cacheable per report type. Requires the active `view_reports` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: report_type
+          required: true
+          schema:
+            type: string
+            enum: [status_summary, mobilization, craft_summary, outcome_tracking, conversion, trend]
+        - name: granularity
+          in: query
+          description: Bucketing for the `trend` report only. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: Report data
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                statusSummary:
+                  value:
+                    data:
+                      - code: registered
+                        position: 1
+                        count: 12
+                      - code: verified
+                        position: 5
+                        count: 40
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                    errors: []
+        '400':
+          description: Unknown report_type, or an unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_reports, or is inactive
+  /api/v1/admin/reports/{report_type}/export:
+    get:
+      summary: Export one MIS report as a file (MPS-805)
+      description: >-
+        Streams the same data as `GET /admin/reports/{report_type}` as a CSV, XLSX, or PDF file
+        download. Requires the active `view_reports` permission. Responses are never cached.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: report_type
+          required: true
+          schema:
+            type: string
+            enum: [status_summary, mobilization, craft_summary, outcome_tracking, conversion, trend]
+        - name: format
+          in: query
+          required: true
+          schema: { type: string, enum: [csv, xlsx, pdf] }
+        - name: granularity
+          in: query
+          description: Bucketing for the `trend` report only. Defaults to `monthly`.
+          schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+      responses:
+        '200':
+          description: Report file download
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the exported file.
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+        '400':
+          description: Unknown report_type, unsupported format, or an unsupported granularity value
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_reports, or is inactive
   /api/v1/admin/candidate_documents/{candidate_document_id}/access:
     post:
       summary: Generate a short-lived private access path for a submitted document
@@ -6968,6 +7552,11 @@ paths:
   /api/v1/admin/candidate_documents/{candidate_document_id}/verifications:
     post:
       summary: Verify one current pending-review candidate document
+      description: >-
+        For an OCR-supported document type (passport, cnic_front, cnic_back, next_of_kin_cnic --
+        MPS-404), `issued_on`/`expires_on` may be supplied to confirm or correct the extracted
+        dates; they are ignored for every other document type. Extraction never applies these
+        automatically -- HR always confirms them through this action.
       security:
         - bearerAuth: []
       parameters:
@@ -6980,6 +7569,20 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                issued_on: { type: string, format: date }
+                expires_on: { type: string, format: date }
+            examples:
+              ocrConfirmedDates:
+                value:
+                  issued_on: '2020-01-01'
+                  expires_on: '2030-01-01'
       responses:
         '201':
           description: Document verified or idempotent verification replayed
@@ -7069,6 +7672,67 @@ paths:
                         message: This document has already been reviewed.
                     request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
                     timestamp: '2026-08-27T10:06:00Z'
+  /api/v1/admin/candidate_documents/{candidate_document_id}/extraction:
+    get:
+      summary: Latest OCR extraction attempt for a candidate document (MPS-404)
+      description: >-
+        Read-only. Feeds the document-review UI's pre-filled issue/expiry inputs for an
+        OCR-supported document type (passport, cnic_front, cnic_back, next_of_kin_cnic).
+        `status: not_started` when no extraction has run yet. Extracted values are never
+        applied automatically -- HR always confirms or corrects them via the verify action.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: candidate_document_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Latest extraction attempt
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                succeeded:
+                  value:
+                    data:
+                      status: succeeded
+                      issued_on: '2020-01-01'
+                      expires_on: '2030-01-01'
+                      confidence_issued_on: 96.4
+                      confidence_expires_on: 95.1
+                      extracted_at: '2026-08-27T10:00:00Z'
+                    meta:
+                      request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                      timestamp: '2026-08-27T10:00:01Z'
+                    errors: []
+                notStarted:
+                  value:
+                    data:
+                      status: not_started
+                    meta:
+                      request_id: 3ab85790-ab01-41f5-8137-d0cb91340ccc
+                      timestamp: '2026-08-27T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_candidate_documents, or is inactive
+        '404':
+          description: Document public ID not found
   /api/v1/admin/candidate_documents/{candidate_document_id}/rejections:
     post:
       summary: Reject one current pending-review candidate document

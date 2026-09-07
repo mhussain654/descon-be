@@ -3,7 +3,10 @@
 module Api
   module V1
     module Candidate
+      # Lets a candidate view an overall summary of their application's progress through the recruitment workflow.
       class ApplicationProgressController < ProtectedController
+        # Returns a summary of the current candidate's application progress, with cache/ETag
+        # headers reflecting the assignment's last update time.
         def show
           authorize current_candidate, policy_class: ::Candidates::ApplicationProgressPolicy
 
