@@ -29,9 +29,13 @@ class User < ApplicationRecord
                                dependent: :nullify
   has_many :initiated_communications, class_name: 'Communication', foreign_key: :initiated_by_id,
                                       inverse_of: :initiated_by, dependent: :nullify
+  # :restrict_with_exception, not :nullify -- both associations are
+  # ImmutableRecord (append-only). :nullify is a bulk UPDATE that never
+  # instantiates the child records, so it would silently bypass
+  # ImmutableRecord's before_update guard and erase audit-trail attribution.
   has_many :acted_stage_histories, class_name: 'CandidateStageHistory', foreign_key: :actor_id, inverse_of: :actor,
-                                   dependent: :nullify
-  has_many :audit_events, foreign_key: :actor_id, inverse_of: :actor, dependent: :nullify
+                                   dependent: :restrict_with_exception
+  has_many :audit_events, foreign_key: :actor_id, inverse_of: :actor, dependent: :restrict_with_exception
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_email

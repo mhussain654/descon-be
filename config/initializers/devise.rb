@@ -207,14 +207,21 @@ Devise.setup do |config|
   # :time  = Re-enables login after a certain amount of time (see :unlock_in below)
   # :both  = Enables both strategies
   # :none  = No unlock strategy. You should handle unlocking by yourself.
-  # config.unlock_strategy = :both
+  #
+  # This app mounts `devise_for :users, skip: :all` (config/routes.rb) --
+  # every Devise controller, route and mailer view is skipped in favor of
+  # this app's own auth controllers/services. Devise's default :both would
+  # have :lockable try to send an unlock email linking to a
+  # `user_unlock_url` route that doesn't exist here, raising the moment an
+  # account actually locks. :time needs no route/mailer at all.
+  config.unlock_strategy = :time
 
   # Number of authentication tries before locking an account if lock_strategy
   # is failed attempts.
-  # config.maximum_attempts = 20
+  config.maximum_attempts = ENV.fetch('STAFF_LOGIN_MAX_ATTEMPTS', 10).to_i
 
   # Time interval to unlock the account if :time is enabled as unlock_strategy.
-  # config.unlock_in = 1.hour
+  config.unlock_in = ENV.fetch('STAFF_LOGIN_UNLOCK_MINUTES', 60).to_i.minutes
 
   # Warn on the last attempt before the account is locked.
   # config.last_attempt_warning = true

@@ -64,6 +64,15 @@ RSpec.describe Payments::ReconciliationService do
     expect(run.payment_reconciliation_findings.pluck(:finding_code)).to include('workflow_payment_mismatch')
   end
 
+  it 'does not flag a paid payment whose assignment has since progressed past fee_paid -- normal, healthy progress' do
+    assignment = create(:candidate_assignment, current_workflow_stage: stage_for('mobilized'))
+    consistent_paid_payment(candidate_assignment: assignment)
+
+    run = described_class.call(run_date: Date.current)
+
+    expect(run.payment_reconciliation_findings.pluck(:finding_code)).not_to include('workflow_payment_mismatch')
+  end
+
   it 'flags a non-paid payment that already has a payment_succeeded event on record' do
     payment = create(:payment, status_code: 'checkout_pending', paid_at: nil)
     create(:payment_event, payment:, event_type: 'payment_succeeded')

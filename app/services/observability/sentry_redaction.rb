@@ -12,8 +12,16 @@ module Observability
   # breadcrumbs, whose `message`/`data` can carry bound values) and
   # contexts/extra, recursively, since either can be arbitrarily nested.
   module SentryRedaction
-    SENSITIVE_KEY_VALUE_PATTERN =
-      /\b(cnic|passport|otp|password|token|account_number|iban|signature)\b"?\s*[:=]\s*"?[^\s&,;"'}]*/i
+    # `_` is a word character, so a literal `\b` anchor never matches between
+    # it and an adjacent letter -- meaning a plain `\btoken\b`/`\bpassword\b`
+    # silently fails to match `access_token`/`refresh_token`/
+    # `password_confirmation`, exactly the compound key names this app
+    # actually uses. The lookaround anchors below treat `_` as a valid
+    # boundary on both sides, and `(?:_[a-z0-9]+)*` consumes any trailing
+    # snake_case suffix (e.g. `_confirmation`) so the match still reaches the
+    # `:`/`=` separator.
+    SENSITIVE_KEY = '(?<![a-z0-9])(cnic|passport|otp|password|token|account_number|iban|signature)(?:_[a-z0-9]+)*'
+    SENSITIVE_KEY_VALUE_PATTERN = /#{SENSITIVE_KEY}"?\s*[:=]\s*"?[^\s&,;"'}]*/i
     JWT_PATTERN = /\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/
     CNIC_PATTERN = /\b\d{5}-?\d{7}-?\d\b/
 

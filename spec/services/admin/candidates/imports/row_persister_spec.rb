@@ -123,5 +123,44 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
         expect(result.to_h).to include(skipped_rows: 1, successful_rows: 0, failed_rows: 0)
       end
     end
+
+    context 'when the row is imported directly at a later, non-registered stage' do
+      it 'records a CandidateStageHistory row for the direct landing, since AutomaticTransitionService cannot' do
+        later_stage = create(:workflow_stage, position: 99)
+        row_plan = Admin::Candidates::Imports::Result::RowPlan.new(
+          row_number: 2,
+          candidate_attributes: candidate_attributes(cnic: '42101-1234567-1'),
+          assignment_attributes: assignment_attributes(reference_number: 'DES-000123').merge(
+            current_workflow_stage: later_stage
+          ),
+          errors: [],
+          blank: false
+        )
+
+        persister.call(row_plan:, result:)
+
+        assignment = CandidateAssignment.order(:id).last
+        history = assignment.candidate_stage_histories.sole
+        expect(assignment.current_workflow_stage).to eq(later_stage)
+        expect(history.from_workflow_stage).to be_nil
+        expect(history.to_workflow_stage).to eq(later_stage)
+        expect(history.reason_code).to eq('csv_import')
+      end
+    end
+
+    context 'when advancing the workflow raises a workflow-transition error' do
+      it 'records a failure instead of raising and rolling back the whole import batch' do
+        row_plan = build_row_plan
+        allow(CandidateWorkflows::AutomaticTransitionService).to receive(:call)
+          .and_raise(WorkflowTransitionPrerequisiteError)
+
+        expect { persister.call(row_plan:, result:) }.not_to raise_error
+
+        expect(result.to_h[:errors]).to contain_exactly(
+          hash_including(row: 2, field: 'workflow_stage_code', code: 'workflow_transition_failed')
+        )
+        expect(result.to_h).to include(failed_rows: 1, successful_rows: 0, skipped_rows: 0)
+      end
+    end
   end
 end

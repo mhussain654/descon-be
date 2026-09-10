@@ -172,6 +172,7 @@ en:
         duplicate_row: "This row duplicates an existing candidate import record."
         validation_failed: "This row could not be imported."
         incomplete_next_of_kin: "Provide all next-of-kin fields or leave all of them blank."
+        workflow_transition_failed: "This row's workflow stage could not be recorded."
     candidate_document_submissions:
       submitted: "Documents submitted for review."
     candidate_bank_details:

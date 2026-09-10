@@ -25,6 +25,21 @@ RSpec.describe Observability::SentryRedaction do
       expect(described_class.redact_text('{"password": "hunter2"}')).to include('password=[FILTERED]')
     end
 
+    it 'redacts compound snake_case field names, not just the bare word' do
+      # The match starts at the sensitive word itself (not the whole
+      # compound key), so gsub only replaces from there onward -- the
+      # "access_"/"refresh_" prefix survives as harmless context, while the
+      # sensitive value itself is fully redacted either way.
+      expect(described_class.redact_text('access_token: abc123')).to eq('access_token=[FILTERED]')
+      expect(described_class.redact_text('refresh_token=xyz789')).to eq('refresh_token=[FILTERED]')
+      expect(described_class.redact_text('password_confirmation: hunter2')).to eq('password=[FILTERED]')
+    end
+
+    it 'does not redact an unrelated word that merely contains a sensitive word as a substring' do
+      text = 'tokenized_value: safe'
+      expect(described_class.redact_text(text)).to eq(text)
+    end
+
     it 'leaves ordinary text untouched' do
       text = 'Failed to fetch /api/v1/candidates'
       expect(described_class.redact_text(text)).to eq(text)

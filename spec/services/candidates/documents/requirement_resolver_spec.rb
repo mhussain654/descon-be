@@ -59,5 +59,17 @@ RSpec.describe Candidates::Documents::RequirementResolver do
 
       expect(described_class.call(candidate: candidate)).to eq([])
     end
+
+    it 'excludes a requirement whose document type is retired, even if the requirement row is still active' do
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+      retired_type = existing_or_create_document_type('retired_type')
+      retired_type.update!(active: false)
+      create(:document_requirement, document_type: retired_type, country: assignment.country)
+
+      resolved_requirements = described_class.call(candidate: candidate)
+
+      expect(resolved_requirements.map(&:document_type_id)).not_to include(retired_type.id)
+    end
   end
 end

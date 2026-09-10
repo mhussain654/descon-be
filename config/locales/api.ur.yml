@@ -171,6 +171,7 @@ ur:
         duplicate_row: "یہ قطار پہلے سے موجود امپورٹ ریکارڈ کی نقل ہے۔"
         validation_failed: "یہ قطار امپورٹ نہیں ہو سکی۔"
         incomplete_next_of_kin: "تمام قریبی رشتہ دار فیلڈز مہیا کریں یا سب کو خالی چھوڑیں۔"
+        workflow_transition_failed: "اس قطار کا ورک فلو مرحلہ ریکارڈ نہیں ہو سکا۔"
     candidate_document_submissions:
       submitted: "دستاویزات جانچ کے لیے جمع کرا دی گئی ہیں۔"
     candidate_bank_details:
