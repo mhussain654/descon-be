@@ -16,6 +16,26 @@ RSpec.describe User, type: :model do
   it { is_expected.to have_many(:sessions).dependent(:destroy) }
   it { is_expected.to validate_uniqueness_of(:public_id) }
 
+  # Not :nullify -- both associations are ImmutableRecord (append-only), and
+  # :nullify is a bulk UPDATE that bypasses ImmutableRecord's before_update
+  # guard entirely, silently erasing audit-trail attribution.
+  it {
+    expect(user).to have_many(:acted_stage_histories).class_name('CandidateStageHistory')
+                                                     .dependent(:restrict_with_exception)
+  }
+
+  it { is_expected.to have_many(:audit_events).dependent(:restrict_with_exception) }
+
+  it 'refuses to destroy a user with recorded audit events/stage-history actions, instead of silently erasing them' do
+    actor = create(:user)
+    candidate = create(:candidate)
+    AuditEvent.create!(actor:, entity_type: 'Candidate', entity_id: candidate.id, action_code: 'candidate_created',
+                       occurred_at: Time.current)
+
+    expect { actor.destroy! }.to raise_error(ActiveRecord::DeleteRestrictionError)
+    expect(AuditEvent.where(actor:)).to exist
+  end
+
   it 'assigns a public_id on create' do
     user.public_id = nil
 

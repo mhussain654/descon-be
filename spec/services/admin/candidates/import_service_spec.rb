@@ -345,5 +345,43 @@ RSpec.describe Admin::Candidates::ImportService do
         'total_rows' => 2
       )
     end
+
+    it 'fails only the row whose workflow transition errors, without rolling back an earlier already-committed row' do
+      call_count = 0
+
+      allow(CandidateWorkflows::AutomaticTransitionService).to receive(:call).and_wrap_original do |original, **kwargs|
+        call_count += 1
+        raise WorkflowTransitionPrerequisiteError if call_count == 2
+
+        original.call(**kwargs)
+      end
+
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(
+            ['Committed First', '42161-1234567-1', '+923001234567', 'DES-001061', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true'],
+            ['Fails Transition', '42162-1234567-2', '+923001234568', 'DES-001062', 'en', 'registered', 'registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'true']
+          )
+        ),
+        request_id: 'req-import-workflow-error'
+      )
+
+      expect(result).to include(successful_rows: 1, failed_rows: 1, skipped_rows: 0, total_rows: 2)
+      expect(result[:errors]).to include(include(row: 3, field: 'workflow_stage_code', code: 'workflow_transition_failed'))
+      expect(Candidate.find_by(cnic: '42161-1234567-1')).to be_present
+      expect(CandidateAssignment.find_by(reference_number: 'DES-001061')).to be_present
+      expect(Candidate.find_by(cnic: '42162-1234567-2')).to be_nil
+      expect(
+        AuditEvent.find_by!(action_code: 'candidate_import_completed', request_id: 'req-import-workflow-error').metadata
+      ).to eq(
+        'successful_rows' => 1,
+        'failed_rows' => 1,
+        'skipped_rows' => 0,
+        'total_rows' => 2
+      )
+    end
   end
 end

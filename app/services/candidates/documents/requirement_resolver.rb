@@ -25,9 +25,16 @@ module Candidates
       end
 
       def applicable_requirements
+        # `document_types.active` also has to be filtered here, not just
+        # `document_requirements.active` -- retiring a document type
+        # (marking it inactive) is otherwise silently ignored: the
+        # requirement row linking to it can stay active, so the retired
+        # type keeps appearing in candidate checklists and the HR review
+        # queue.
         DocumentRequirement
           .includes(:document_type)
           .where(active: true)
+          .where(document_types: { active: true })
           .where(country_id: [nil, current_assignment.country_id])
           .where(project_id: [nil, current_assignment.project_id])
           .where(craft_id: [nil, current_assignment.craft_id])

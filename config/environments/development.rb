@@ -63,6 +63,13 @@ Rails.application.configure do
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
 
+  # Allows an ngrok tunnel (used to test the mobile app against this machine
+  # from any network, not just the same LAN) to reach the API -- ngrok's
+  # free-tier subdomain changes on every restart, so this matches the whole
+  # domain rather than one session's literal hostname.
+  config.hosts << /.*\.ngrok-free\.app/
+  config.hosts << /.*\.ngrok\.io/
+
   config.after_initialize do
     Bullet.enable = true
     Bullet.bullet_logger = true

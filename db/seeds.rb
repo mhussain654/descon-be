@@ -30,6 +30,8 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_candidate_documents
     manage_workflow
     manage_communications
+    view_mps_dashboard
+    view_reports
   ],
   'finance' => %w[
     view_candidates
@@ -46,6 +48,8 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     view_payments
     view_communications
     view_audit_events
+    view_management_dashboard
+    view_reports
   ]
 }.each do |role_code, permission_codes|
   permission_codes.each do |permission_code|
@@ -105,9 +109,10 @@ end
 # keeping the two sides of this contract-first build aligned.
 [
   { code: 'passport', name_en: 'Passport', name_ur: 'پاسپورٹ', requires_number: true, requires_expiry: true },
-  { code: 'cnic_front', name_en: 'CNIC (Front)', name_ur: 'شناختی کارڈ (اگلا رخ)' },
-  { code: 'cnic_back', name_en: 'CNIC (Back)', name_ur: 'شناختی کارڈ (پچھلا رخ)' },
-  { code: 'next_of_kin_cnic', name_en: 'Next of Kin CNIC', name_ur: 'قریبی رشتہ دار کا شناختی کارڈ' },
+  { code: 'cnic_front', name_en: 'CNIC (Front)', name_ur: 'شناختی کارڈ (اگلا رخ)', requires_expiry: true },
+  { code: 'cnic_back', name_en: 'CNIC (Back)', name_ur: 'شناختی کارڈ (پچھلا رخ)', requires_expiry: true },
+  { code: 'next_of_kin_cnic', name_en: 'Next of Kin CNIC', name_ur: 'قریبی رشتہ دار کا شناختی کارڈ',
+    requires_expiry: true },
   { code: 'police_character', name_en: 'Police Character Certificate', name_ur: 'پولیس کریکٹر سرٹیفکیٹ',
     requires_expiry: true },
   { code: 'bank_details', name_en: 'Bank Account Details', name_ur: 'بینک اکاؤنٹ کی تفصیلات' },
@@ -136,8 +141,13 @@ end
 # duplicate of `police_character` (missing `requires_expiry`) already linked
 # to real candidate_documents rows -- reconciling that duplicate is a
 # separate, consequential data-migration decision, not part of this seed.
+# `bank_details`/`cheque_image` are also excluded from the active set below:
+# candidates now submit bank information through the dedicated, structured
+# CandidateBankDetail resource instead of a generic document upload (see
+# db/migrate/20260904090000_retire_generic_bank_document_requirements.rb) --
+# seeded here as `active: false` so a fresh database matches that migration.
 %w[
-  cnic_back next_of_kin_cnic bank_details cheque_image cv
+  cnic_back next_of_kin_cnic cv
   experience_letter certificates polio_certificate
 ].each do |code|
   document_type = DocumentType.find_by!(code: code)
@@ -145,6 +155,15 @@ end
     document_type: document_type, country: nil, project: nil, craft: nil
   )
   requirement.assign_attributes(required: true, active: true)
+  requirement.save!
+end
+
+%w[bank_details cheque_image].each do |code|
+  document_type = DocumentType.find_by!(code: code)
+  requirement = DocumentRequirement.find_or_initialize_by(
+    document_type: document_type, country: nil, project: nil, craft: nil
+  )
+  requirement.assign_attributes(required: true, active: false)
   requirement.save!
 end
 

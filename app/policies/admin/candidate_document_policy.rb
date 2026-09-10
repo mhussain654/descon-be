@@ -14,6 +14,10 @@ module Admin
       access?
     end
 
+    def extraction?
+      access?
+    end
+
     class Scope < Scope
       def resolve
         return scope.none unless permission_granted?('manage_candidate_documents')

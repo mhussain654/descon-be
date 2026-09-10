@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# An immutable audit log entry recording something that happened to a payment (e.g. a provider
+# webhook callback or a manual status change), including who/what triggered it and the raw payload.
 class PaymentEvent < ApplicationRecord
   include ImmutableRecord
 
@@ -20,6 +22,8 @@ class PaymentEvent < ApplicationRecord
 
   private
 
+  # Callback: strips and downcases the provider/source/type code attributes, and strips the
+  # remaining provider reference string attributes, before validation.
   def normalize_codes
     NORMALIZED_CODE_ATTRIBUTES.each do |attribute|
       self[attribute] = self[attribute].to_s.strip.downcase.presence
@@ -30,6 +34,7 @@ class PaymentEvent < ApplicationRecord
     end
   end
 
+  # Ensures this event's candidate assignment matches the assignment on its associated payment.
   def payment_belongs_to_assignment
     return if payment.blank? || candidate_assignment.blank?
     return if payment.candidate_assignment_id == candidate_assignment_id

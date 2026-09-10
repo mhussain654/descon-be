@@ -10,15 +10,26 @@ module Admin
           persist_row!(row_plan)
           result.record_success
         rescue ActiveRecord::RecordInvalid
-          result.record_failed(
-            row_number: row_plan.row_number,
-            errors: [{ field: 'row', code: 'validation_failed' }]
-          )
+          record_failed(row_plan:, result:, field: 'row', code: 'validation_failed')
         rescue ActiveRecord::RecordNotUnique
           result.record_skipped(row_number: row_plan.row_number, field: 'row', code: 'duplicate_row')
+        rescue WorkflowTransitionPrerequisiteError, InvalidWorkflowTransitionError
+          # Without this rescue, either error escapes persist_row!'s
+          # savepoint (requires_new: true only isolates the DB writes, not
+          # Ruby exceptions) and propagates out through
+          # ImportService#persist_import!'s single outer transaction --
+          # silently rolling back every candidate already committed earlier
+          # in the same CSV upload, and turning one bad row into a 500
+          # instead of the partial-success response this row-by-row design
+          # exists to produce.
+          record_failed(row_plan:, result:, field: 'workflow_stage_code', code: 'workflow_transition_failed')
         end
 
         private
+
+        def record_failed(row_plan:, result:, field:, code:)
+          result.record_failed(row_number: row_plan.row_number, errors: [{ field:, code: }])
+        end
 
         def duplicate_row?(row_plan)
           ::Candidate.exists?(cnic: row_plan.cnic) ||
@@ -65,14 +76,37 @@ module Admin
           end
         end
 
+        # A CSV row can set `workflow_stage_code` to any active stage, not
+        # just `registered` (e.g. importing candidates already mid-pipeline
+        # from a legacy system). AutomaticTransitionService can't record
+        # that directly -- it only knows how to step forward one
+        # sequentially-validated stage at a time starting from `registered`,
+        # and would reject a jump straight to a later stage. For any other
+        # starting stage, record the landing directly instead, so history-
+        # sourced reports (e.g. Admin::Reports::TrendQuery) don't silently
+        # diverge from stage-sourced reports for these candidates.
         def advance_workflow!(candidate:, assignment:)
-          return unless assignment.current_workflow_stage.code == 'registered'
+          if assignment.current_workflow_stage.code == 'registered'
+            ::CandidateWorkflows::AutomaticTransitionService.call(
+              candidate:,
+              event: :assignment_created,
+              actor: assignment.created_by,
+              request_id: "candidate-assignment-#{assignment.public_id}"
+            )
+          else
+            record_direct_import_stage!(assignment:)
+          end
+        end
 
-          ::CandidateWorkflows::AutomaticTransitionService.call(
-            candidate:,
-            event: :assignment_created,
+        def record_direct_import_stage!(assignment:)
+          ::CandidateStageHistory.create!(
+            candidate_assignment: assignment,
+            from_workflow_stage: nil,
+            to_workflow_stage: assignment.current_workflow_stage,
             actor: assignment.created_by,
-            request_id: "candidate-assignment-#{assignment.public_id}"
+            occurred_at: assignment.created_at,
+            reason_code: 'csv_import',
+            metadata: {}
           )
         end
       end

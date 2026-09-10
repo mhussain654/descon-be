@@ -49,8 +49,14 @@ module Authentication
       raise UnauthorizedError
     end
 
+    # `valid_for_authentication?` (not a bare `valid_password?`) is required
+    # here -- it's the hook `:lockable` overrides to increment
+    # `failed_attempts` and lock the account after too many failures. Calling
+    # `valid_password?` directly (as this used to) skips that override
+    # entirely, leaving `:lockable` declared on User but never actually
+    # enforced.
     def authenticated?(user)
-      return user.valid_password?(@password) if user
+      return user.valid_for_authentication? { user.valid_password?(@password) } if user
 
       consume_dummy_password_digest
       false

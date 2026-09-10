@@ -61,8 +61,19 @@ module Payments
                                                     .where.not(id: payment.id).exists?
     end
 
+    # A paid candidate's assignment is expected to keep advancing past
+    # `fee_paid` (documents shared with Qatar BU, QVC, visa, ... mobilized) --
+    # that's normal, healthy progress, not a mismatch. Strict equality
+    # against `fee_paid` would flag nearly every successfully paid candidate
+    # who has since moved on, burying the real mismatches (a payment
+    # recorded for an assignment that never reached `fee_paid` at all) in
+    # false-positive noise.
     def workflow_mismatch?(payment)
-      payment.paid? && payment.candidate_assignment.current_workflow_stage.code != 'fee_paid'
+      payment.paid? && payment.candidate_assignment.current_workflow_stage.position < fee_paid_position
+    end
+
+    def fee_paid_position
+      @fee_paid_position ||= WorkflowStage.find_by!(code: 'fee_paid').position
     end
 
     def terminal_event_conflict?(payment)

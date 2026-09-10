@@ -117,6 +117,8 @@ en:
       payment_correction_not_allowed: "This correction is not allowed for this payment."
       payment_correction_reason_required: "Enter a reason for this correction."
       candidate_assignment_field_locked: "This field can only be changed while the candidate is still at the registered stage."
+      consent_required: "Accept the current policy version to continue."
+      backup_archive_not_found: "This backup's archive is not available."
     authentication:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."
@@ -170,11 +172,14 @@ en:
         duplicate_row: "This row duplicates an existing candidate import record."
         validation_failed: "This row could not be imported."
         incomplete_next_of_kin: "Provide all next-of-kin fields or leave all of them blank."
+        workflow_transition_failed: "This row's workflow stage could not be recorded."
     candidate_document_submissions:
       submitted: "Documents submitted for review."
     candidate_bank_details:
       submitted: "Bank details submitted successfully."
       updated: "Bank details updated successfully."
+    candidate_consents:
+      accepted: "Consent recorded successfully."
     pagination:
       page: "Page"
       per_page: "Items per page"

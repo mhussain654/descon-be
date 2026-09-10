@@ -53,30 +53,37 @@ class CandidateOtpChallenge < ApplicationRecord
     generate_for(cnic:, requested_ip:)
   end
 
+  # Whether the given plaintext code matches this challenge's bcrypt digest.
   def match?(code)
     BCrypt::Password.new(code_digest) == code.to_s
   end
 
+  # Whether the challenge's expiry window has passed.
   def expired?
     expires_at.past?
   end
 
+  # Whether the challenge has already been successfully verified.
   def consumed?
     consumed_at.present?
   end
 
+  # Whether the maximum number of failed verification attempts has been reached.
   def locked?
     attempts >= MAX_ATTEMPTS
   end
 
+  # Whether this challenge can still be verified against (not expired, consumed or locked).
   def usable?
     !expired? && !consumed? && !locked?
   end
 
+  # Marks the challenge as successfully verified.
   def consume!
     update!(consumed_at: Time.current)
   end
 
+  # Records a failed verification attempt against this challenge.
   def register_failed_attempt!
     increment!(:attempts) # rubocop:disable Rails/SkipsModelValidations -- atomic counter increment, not a full save
   end

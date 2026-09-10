@@ -38,6 +38,9 @@ Metrics/MethodLength:
     - db/migrate/20260823130001_create_candidate_otp_challenges.rb
     - db/migrate/20260831050000_create_candidate_visa_decisions.rb
     - db/migrate/20260831050100_create_candidate_flight_details.rb
+    - db/migrate/20260906060000_create_candidate_consents.rb
+    - db/migrate/20260903033000_create_payment_reconciliation_records.rb
+    - db/migrate/20260906140000_create_system_database_backups.rb
     - spec/requests/api/v1/admin/candidate_imports_spec.rb
     - spec/services/admin/candidates/import_service_spec.rb
 

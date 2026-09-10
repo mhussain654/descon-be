@@ -60,6 +60,39 @@ RSpec.describe Authentication::LoginService do
       expect(BCrypt::Password).to have_received(:new).with(described_class::DUMMY_PASSWORD_DIGEST)
     end
 
+    it 'locks the account after the configured number of failed password attempts' do
+      user = create(:user, password: 'Password123!')
+
+      Devise.maximum_attempts.times do
+        expect do
+          described_class.call(
+            email: user.email,
+            password: 'wrong-password',
+            user_agent: 'RSpec',
+            ip_address: '10.0.0.1',
+            request_id:
+          )
+        end.to raise_error(UnauthorizedError)
+      end
+
+      expect(user.reload.access_locked?).to be(true)
+    end
+
+    it 'rejects even the correct password once the account is locked' do
+      user = create(:user, password: 'Password123!')
+      user.lock_access!
+
+      expect do
+        described_class.call(
+          email: user.email,
+          password: 'Password123!',
+          user_agent: 'RSpec',
+          ip_address: '10.0.0.1',
+          request_id:
+        )
+      end.to raise_error(UnauthorizedError)
+    end
+
     it 'sanitizes malformed and oversized user-agent input before persistence' do
       user = create(:user, password: 'Password123!')
       malformed_user_agent = ("Agent\xC3".b * 200).force_encoding('UTF-8')

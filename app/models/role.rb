@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# A staff role (e.g. admin, hr, mps, finance, management) that grants a bundle of permissions
+# to the users assigned to it. System-defined roles are seeded and protected from being renamed
+# or deleted.
 class Role < ApplicationRecord
   include HasLocalizedName
 
@@ -22,12 +25,14 @@ class Role < ApplicationRecord
 
   before_destroy :prevent_system_destroy
 
+  # The I18n key prefix under which this model's translated names are looked up.
   def self.i18n_name_scope
     'reference_data.roles'
   end
 
   private
 
+  # Callback: blocks deletion of any role that is marked as system-defined in the database.
   def prevent_system_destroy
     return unless system_defined_in_database
 
@@ -35,6 +40,7 @@ class Role < ApplicationRecord
     throw :abort
   end
 
+  # Blocks changes to the code or system_defined flag on a role that is system-defined.
   def protect_system_definition_changes
     return unless system_defined_in_database
 
