@@ -26,6 +26,7 @@ class Candidate < ApplicationRecord
   has_many :candidate_sessions, dependent: :destroy
   has_many :candidate_otp_challenges, dependent: :destroy
   has_many :candidate_consents, dependent: :restrict_with_exception
+  has_many :candidate_ai_calls, dependent: :restrict_with_exception
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_cnic

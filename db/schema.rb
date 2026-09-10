@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_090300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -85,6 +85,102 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["occurred_at"], name: "index_authentication_events_on_occurred_at"
     t.index ["session_id"], name: "index_authentication_events_on_session_id"
     t.index ["user_id"], name: "index_authentication_events_on_user_id"
+  end
+
+  create_table "candidate_ai_call_events", force: :cascade do |t|
+    t.bigint "actor_id"
+    t.bigint "candidate_ai_call_id", null: false
+    t.datetime "created_at", null: false
+    t.string "event_key", null: false
+    t.string "event_source", null: false
+    t.string "event_type", null: false
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.string "provider_code", null: false
+    t.string "request_id"
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_candidate_ai_call_events_on_actor_id"
+    t.index ["candidate_ai_call_id", "occurred_at"], name: "index_candidate_ai_call_events_on_call_and_occurred_at"
+    t.index ["candidate_ai_call_id"], name: "index_candidate_ai_call_events_on_candidate_ai_call_id"
+    t.index ["provider_code", "event_key"], name: "index_candidate_ai_call_events_on_provider_code_and_event_key", unique: true
+    t.check_constraint "event_source::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_call_events_event_source_format"
+    t.check_constraint "event_type::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_call_events_event_type_format"
+    t.check_constraint "provider_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_call_events_provider_code_format"
+  end
+
+  create_table "candidate_ai_call_transcripts", force: :cascade do |t|
+    t.bigint "candidate_ai_call_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.datetime "purged_at"
+    t.datetime "recorded_at"
+    t.string "recording_reference"
+    t.datetime "redacted_at"
+    t.text "transcript"
+    t.datetime "updated_at", null: false
+    t.index ["candidate_ai_call_id"], name: "index_candidate_ai_call_transcripts_on_candidate_ai_call_id", unique: true
+  end
+
+  create_table "candidate_ai_calls", force: :cascade do |t|
+    t.string "agent_config_digest"
+    t.datetime "answered_at"
+    t.string "call_reason", null: false
+    t.datetime "callback_requested_at"
+    t.string "caller_number_masked"
+    t.bigint "candidate_assignment_id"
+    t.bigint "candidate_id"
+    t.bigint "communication_id", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.string "direction", null: false
+    t.string "elevenlabs_agent_id"
+    t.string "elevenlabs_agent_phone_number_id"
+    t.string "elevenlabs_agent_version"
+    t.string "elevenlabs_conversation_id"
+    t.jsonb "extracted_data", default: {}, null: false
+    t.string "extraction_schema_version"
+    t.string "failure_code"
+    t.text "failure_message"
+    t.string "language_code", default: "en", null: false
+    t.string "outcome"
+    t.string "outcome_reason"
+    t.string "prompt_template_code"
+    t.string "prompt_template_version"
+    t.string "provider_code", default: "elevenlabs", null: false
+    t.string "provider_status"
+    t.string "public_id", null: false
+    t.text "review_notes"
+    t.string "review_resolution"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
+    t.datetime "started_at"
+    t.string "status", default: "requested", null: false
+    t.text "summary"
+    t.bigint "triggered_by_id"
+    t.string "twilio_call_sid"
+    t.datetime "updated_at", null: false
+    t.integer "verification_attempts", default: 0, null: false
+    t.string "verification_status", default: "not_applicable", null: false
+    t.index ["candidate_assignment_id"], name: "index_candidate_ai_calls_on_candidate_assignment_id"
+    t.index ["candidate_id", "created_at"], name: "index_candidate_ai_calls_on_candidate_and_created_at"
+    t.index ["candidate_id"], name: "index_candidate_ai_calls_on_candidate_id"
+    t.index ["communication_id"], name: "index_candidate_ai_calls_on_communication_id", unique: true
+    t.index ["elevenlabs_conversation_id"], name: "index_candidate_ai_calls_on_elevenlabs_conversation_id", unique: true, where: "(elevenlabs_conversation_id IS NOT NULL)"
+    t.index ["public_id"], name: "index_candidate_ai_calls_on_public_id", unique: true
+    t.index ["reviewed_by_id"], name: "index_candidate_ai_calls_on_reviewed_by_id"
+    t.index ["status", "updated_at"], name: "index_candidate_ai_calls_on_status_and_updated_at"
+    t.index ["triggered_by_id"], name: "index_candidate_ai_calls_on_triggered_by_id"
+    t.index ["twilio_call_sid"], name: "index_candidate_ai_calls_on_twilio_call_sid", unique: true, where: "(twilio_call_sid IS NOT NULL)"
+    t.check_constraint "call_reason::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_call_reason_format"
+    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying]::text[])", name: "candidate_ai_calls_direction"
+    t.check_constraint "failure_code IS NULL OR failure_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_failure_code_format"
+    t.check_constraint "language_code::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidate_ai_calls_language_code"
+    t.check_constraint "outcome IS NULL OR (outcome::text = ANY (ARRAY['answered'::character varying, 'not_answered'::character varying, 'callback_required'::character varying]::text[]))", name: "candidate_ai_calls_outcome"
+    t.check_constraint "outcome_reason IS NULL OR outcome_reason::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_outcome_reason_format"
+    t.check_constraint "provider_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_provider_code_format"
+    t.check_constraint "status::text = ANY (ARRAY['requested'::character varying, 'queued'::character varying, 'ringing'::character varying, 'in_progress'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "candidate_ai_calls_status"
+    t.check_constraint "verification_attempts >= 0", name: "candidate_ai_calls_verification_attempts_non_negative"
+    t.check_constraint "verification_status::text = ANY (ARRAY['not_applicable'::character varying, 'pending'::character varying, 'verified'::character varying, 'failed'::character varying, 'skipped'::character varying]::text[])", name: "candidate_ai_calls_verification_status"
   end
 
   create_table "candidate_assignments", force: :cascade do |t|
@@ -485,7 +581,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
   end
 
   create_table "communications", force: :cascade do |t|
-    t.bigint "candidate_assignment_id", null: false
+    t.bigint "candidate_assignment_id"
     t.string "channel_code", null: false
     t.datetime "created_at", null: false
     t.datetime "delivered_at"
@@ -842,6 +938,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
   add_foreign_key "audit_events", "users", column: "actor_id"
   add_foreign_key "authentication_events", "sessions"
   add_foreign_key "authentication_events", "users"
+  add_foreign_key "candidate_ai_call_events", "candidate_ai_calls"
+  add_foreign_key "candidate_ai_call_events", "users", column: "actor_id"
+  add_foreign_key "candidate_ai_call_transcripts", "candidate_ai_calls"
+  add_foreign_key "candidate_ai_calls", "candidate_assignments"
+  add_foreign_key "candidate_ai_calls", "candidates"
+  add_foreign_key "candidate_ai_calls", "communications"
+  add_foreign_key "candidate_ai_calls", "users", column: "reviewed_by_id"
+  add_foreign_key "candidate_ai_calls", "users", column: "triggered_by_id"
   add_foreign_key "candidate_assignments", "candidates"
   add_foreign_key "candidate_assignments", "countries"
   add_foreign_key "candidate_assignments", "crafts"
