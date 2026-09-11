@@ -12,6 +12,7 @@ class CandidateAiCall < ApplicationRecord
   CODE_FORMAT = /\A[a-z0-9_]+\z/
   DIRECTIONS = %w[inbound outbound].freeze
   STATUSES = %w[requested queued ringing in_progress processing completed failed cancelled].freeze
+  TERMINAL_STATUSES = %w[completed failed cancelled].freeze
   OUTCOMES = %w[answered not_answered callback_required].freeze
   VERIFICATION_STATUSES = %w[not_applicable pending verified failed skipped].freeze
   LANGUAGES = %w[en ur].freeze
@@ -49,10 +50,11 @@ class CandidateAiCall < ApplicationRecord
   scope :inbound, -> { where(direction: 'inbound') }
   scope :in_status, ->(status) { where(status:) }
   scope :awaiting_review, -> { where(outcome_reason: 'needs_manual_review', reviewed_at: nil) }
+  scope :non_terminal, -> { where.not(status: TERMINAL_STATUSES) }
 
   # True once ElevenLabs/Twilio have finished with this call -- the call
   # itself is over, independent of whether its business `outcome` is known.
-  def terminal_status? = status.in?(%w[completed failed cancelled])
+  def terminal_status? = status.in?(TERMINAL_STATUSES)
 
   def needs_manual_review? = outcome.nil? && outcome_reason == 'needs_manual_review'
 

@@ -29,6 +29,12 @@ RSpec.describe AiCalls::Configuration do
     ENV.delete('AI_VOICE_INBOUND_ENABLED')
     ENV.delete('AI_VOICE_RECORDING_ENABLED')
     ENV.delete('AI_VOICE_HUMAN_TRANSFER_ENABLED')
+    ENV.delete('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES')
+    ENV.delete('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT')
+    ENV.delete('AI_VOICE_ADMIN_TRIGGER_RATE_LIMIT_PER_HOUR')
+    ENV.delete('AI_VOICE_CALLING_HOURS_START')
+    ENV.delete('AI_VOICE_CALLING_HOURS_END')
+    ENV.delete('AI_VOICE_MAX_CALL_DURATION_MINUTES')
 
     configuration = described_class.new
 
@@ -50,6 +56,12 @@ RSpec.describe AiCalls::Configuration do
     expect(configuration.inbound_enabled?).to be(false)
     expect(configuration.recording_enabled?).to be(false)
     expect(configuration.human_transfer_enabled?).to be(false)
+    expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
+    expect(configuration.daily_outbound_call_limit).to eq(200)
+    expect(configuration.admin_trigger_rate_limit_per_hour).to eq(50)
+    expect(configuration.calling_hours_start).to eq(9)
+    expect(configuration.calling_hours_end).to eq(19)
+    expect(configuration.max_call_duration_minutes).to eq(15)
   end
 
   it 'normalizes configured environment values' do
@@ -71,6 +83,12 @@ RSpec.describe AiCalls::Configuration do
     ENV['AI_VOICE_INBOUND_ENABLED'] = 'true'
     ENV['AI_VOICE_RECORDING_ENABLED'] = 'true'
     ENV['AI_VOICE_HUMAN_TRANSFER_ENABLED'] = 'true'
+    ENV['AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES'] = '30'
+    ENV['AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT'] = '75'
+    ENV['AI_VOICE_ADMIN_TRIGGER_RATE_LIMIT_PER_HOUR'] = '20'
+    ENV['AI_VOICE_CALLING_HOURS_START'] = '8'
+    ENV['AI_VOICE_CALLING_HOURS_END'] = '20'
+    ENV['AI_VOICE_MAX_CALL_DURATION_MINUTES'] = '25'
 
     configuration = described_class.new
 
@@ -92,6 +110,12 @@ RSpec.describe AiCalls::Configuration do
     expect(configuration.inbound_enabled?).to be(true)
     expect(configuration.recording_enabled?).to be(true)
     expect(configuration.human_transfer_enabled?).to be(true)
+    expect(configuration.outbound_trigger_cooldown_minutes).to eq(30)
+    expect(configuration.daily_outbound_call_limit).to eq(75)
+    expect(configuration.admin_trigger_rate_limit_per_hour).to eq(20)
+    expect(configuration.calling_hours_start).to eq(8)
+    expect(configuration.calling_hours_end).to eq(20)
+    expect(configuration.max_call_duration_minutes).to eq(25)
   end
 
   it 'treats blank strings as absent for presence-checked values' do

@@ -21,6 +21,7 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_candidates
     manage_candidate_documents
     manage_communications
+    trigger_ai_calls
     view_candidate_assignments
     view_workflow
   ],
@@ -30,6 +31,7 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_candidate_documents
     manage_workflow
     manage_communications
+    trigger_ai_calls
     view_mps_dashboard
     view_reports
   ],

@@ -82,6 +82,40 @@ module AiCalls
       flag('AI_VOICE_HUMAN_TRANSFER_ENABLED')
     end
 
+    # Operational safety controls for outbound triggering (admin-triggered and
+    # workflow-stage-triggered) -- see the plan's "Operational safety
+    # controls" section. `outbound_enabled?` above already doubles as the
+    # emergency kill switch: flipping it off stops every outbound trigger
+    # immediately, so a second redundant flag isn't introduced.
+    def outbound_trigger_cooldown_minutes
+      ENV.fetch('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 60).to_i
+    end
+
+    def daily_outbound_call_limit
+      ENV.fetch('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 200).to_i
+    end
+
+    def admin_trigger_rate_limit_per_hour
+      ENV.fetch('AI_VOICE_ADMIN_TRIGGER_RATE_LIMIT_PER_HOUR', 50).to_i
+    end
+
+    # Pakistan-local allowed calling hours (24h clock, start inclusive, end
+    # exclusive).
+    def calling_hours_start
+      ENV.fetch('AI_VOICE_CALLING_HOURS_START', 9).to_i
+    end
+
+    def calling_hours_end
+      ENV.fetch('AI_VOICE_CALLING_HOURS_END', 19).to_i
+    end
+
+    # Used both as the reconciliation job's `in_progress` threshold (plus a
+    # buffer) and, once agent-config sync manages it, the ElevenLabs
+    # `conversation.max_duration_seconds` platform setting.
+    def max_call_duration_minutes
+      ENV.fetch('AI_VOICE_MAX_CALL_DURATION_MINUTES', 15).to_i
+    end
+
     private
 
     def flag(env_var)

@@ -79,6 +79,7 @@ Rails.application.routes.draw do
           resource :flight_detail, only: %i[show create update], controller: :candidate_flight_details do
             resource :ticket_access, only: :create, controller: :candidate_flight_detail_ticket_accesses
           end
+          resources :ai_calls, only: %i[index create], controller: :candidate_ai_calls
         end
         resources :candidate_documents, only: [] do
           resource :access, only: :create, controller: :document_accesses
@@ -111,6 +112,10 @@ Rails.application.routes.draw do
           get :return, to: 'hosted_checkout_returns#show'
           post :callback, to: 'hosted_checkout_callbacks#create'
         end
+      end
+
+      namespace :ai_calls do
+        post 'elevenlabs/webhooks/post_call', to: 'elevenlabs/post_call_webhooks#create'
       end
 
       get 'health/live', to: 'health#live'

@@ -23,6 +23,7 @@ ur:
       view_communications: "مواصلات دیکھیں"
       view_audit_events: "آڈٹ ایونٹس دیکھیں"
       manage_backups: "بیک اپ کا انتظام"
+      trigger_ai_calls: "AI صوتی کالز شروع کریں"
     workflow_stages:
       registered: "رجسٹرڈ"
       documents_pending: "دستاویزات زیر التوا"
