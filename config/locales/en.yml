@@ -54,6 +54,7 @@ en:
       view_audit_events: "View audit events"
       manage_backups: "Manage backups"
       trigger_ai_calls: "Trigger AI voice calls"
+      manage_ai_call_scripts: "Manage AI call scripts"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"

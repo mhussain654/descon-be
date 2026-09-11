@@ -19,11 +19,22 @@ module AiCalls
       raise AiCallAdminRateLimitedError if admin_rate_limited?(actor)
     end
 
-    # Checks that require a locked candidate_assignment -- call inside the
-    # caller's transaction, after acquiring the per-candidate+reason
-    # advisory lock, so a concurrent trigger can't race past these.
-    def ensure_not_throttled!(candidate_assignment:, call_reason:)
+    # Applies to every outbound call regardless of trigger path -- a shared,
+    # account-wide budget across admin-triggered and workflow-stage-
+    # triggered calls alike.
+    def ensure_daily_limit_not_reached!
       raise AiCallDailyLimitReachedError if daily_limit_reached?
+    end
+
+    # Time-windowed, per-(assignment, call_reason) cooldown -- meaningful
+    # only for the admin-triggered flow's 4 distinct call reasons. The
+    # workflow-stage-triggered flow enforces its own, stronger, permanent
+    # per-stage dedup instead (every stage-triggered call shares one
+    # call_reason, so this cooldown would otherwise block a genuinely
+    # different stage's call). Call inside the caller's transaction, after
+    # acquiring the per-candidate+reason advisory lock, so a concurrent
+    # trigger can't race past this.
+    def ensure_cooldown_elapsed!(candidate_assignment:, call_reason:)
       raise AiCallTriggerCooldownError if within_cooldown?(candidate_assignment:, call_reason:)
     end
 

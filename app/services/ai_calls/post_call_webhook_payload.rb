@@ -41,7 +41,8 @@ module AiCalls
       turns = data['transcript']
       return nil unless turns.is_a?(Array)
 
-      turns.filter_map { |turn| turn['message'] || turn['text'] }.join("\n").presence
+      joined = turns.filter_map { |turn| turn['message'] || turn['text'] }.join("\n").presence
+      TranscriptRedactor.call(joined)
     end
 
     private

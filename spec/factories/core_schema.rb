@@ -467,6 +467,8 @@ FactoryBot.define do
       call_reason { 'general_helpline' }
       candidate { nil }
       candidate_assignment { nil }
+      verification_status { 'pending' }
+      status { 'in_progress' }
       association :communication, factory: %i[communication], channel_code: 'ai_voice_call', candidate_assignment: nil,
                                   direction_code: 'inbound'
     end
@@ -508,6 +510,14 @@ FactoryBot.define do
     transcript { 'Agent: Hello. Candidate: Hi there.' }
     recording_reference { nil }
     recorded_at { Time.current }
+  end
+
+  factory :workflow_stage_call_script do
+    workflow_stage_code { 'verified' }
+    announcement { 'Hello, this is Descon Manpower calling about your application.' }
+    active { true }
+    language_code { 'en' }
+    updated_by { nil }
   end
 
   factory :audit_event do

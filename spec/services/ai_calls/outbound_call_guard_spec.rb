@@ -55,33 +55,37 @@ RSpec.describe AiCalls::OutboundCallGuard do
     end
   end
 
-  describe '#ensure_not_throttled!' do
-    let(:assignment) { create(:candidate_assignment) }
-
-    def call_for(assignment, call_reason: 'missing_documents')
-      create(:candidate_ai_call, communication: create(:communication, candidate_assignment: assignment), call_reason:)
-    end
-
-    it 'passes when under the daily limit and outside the cooldown window' do
-      expect do
-        guard.ensure_not_throttled!(candidate_assignment: assignment, call_reason: 'missing_documents')
-      end.not_to raise_error
+  describe '#ensure_daily_limit_not_reached!' do
+    it 'passes when under the daily limit' do
+      expect { guard.ensure_daily_limit_not_reached! }.not_to raise_error
     end
 
     it 'raises once the daily outbound call limit is reached' do
       allow(configuration).to receive(:daily_outbound_call_limit).and_return(1)
       create(:candidate_ai_call)
 
+      expect { guard.ensure_daily_limit_not_reached! }.to raise_error(AiCallDailyLimitReachedError)
+    end
+  end
+
+  describe '#ensure_cooldown_elapsed!' do
+    let(:assignment) { create(:candidate_assignment) }
+
+    def call_for(assignment, call_reason: 'missing_documents')
+      create(:candidate_ai_call, communication: create(:communication, candidate_assignment: assignment), call_reason:)
+    end
+
+    it 'passes when outside the cooldown window' do
       expect do
-        guard.ensure_not_throttled!(candidate_assignment: assignment, call_reason: 'missing_documents')
-      end.to raise_error(AiCallDailyLimitReachedError)
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'missing_documents')
+      end.not_to raise_error
     end
 
     it 'raises when the same candidate_assignment+call_reason was triggered within the cooldown window' do
       call_for(assignment, call_reason: 'missing_documents')
 
       expect do
-        guard.ensure_not_throttled!(candidate_assignment: assignment, call_reason: 'missing_documents')
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'missing_documents')
       end.to raise_error(AiCallTriggerCooldownError)
     end
 
@@ -89,7 +93,7 @@ RSpec.describe AiCalls::OutboundCallGuard do
       call_for(assignment, call_reason: 'missing_documents')
 
       expect do
-        guard.ensure_not_throttled!(candidate_assignment: assignment, call_reason: 'flight_information')
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'flight_information')
       end.not_to raise_error
     end
 
@@ -97,7 +101,7 @@ RSpec.describe AiCalls::OutboundCallGuard do
       travel_to(2.hours.ago) { call_for(assignment, call_reason: 'missing_documents') }
 
       expect do
-        guard.ensure_not_throttled!(candidate_assignment: assignment, call_reason: 'missing_documents')
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'missing_documents')
       end.not_to raise_error
     end
   end

@@ -26,7 +26,8 @@ class Permission < ApplicationRecord
     { code: 'view_management_dashboard' },
     { code: 'view_reports' },
     { code: 'manage_backups' },
-    { code: 'trigger_ai_calls' }
+    { code: 'trigger_ai_calls' },
+    { code: 'manage_ai_call_scripts' }
   ].freeze
 
   has_many :role_permissions, dependent: :destroy

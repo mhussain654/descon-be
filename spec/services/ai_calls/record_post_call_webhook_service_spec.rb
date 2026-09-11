@@ -75,6 +75,20 @@ RSpec.describe AiCalls::RecordPostCallWebhookService do
     expect(CandidateAiCallTranscript.where(candidate_ai_call:).count).to eq(1)
   end
 
+  it 'never persists a spoken CNIC or 6-digit code verbatim in the transcript' do
+    with_secrets = raw_payload.deep_dup
+    with_secrets['data']['transcript'] = [
+      { 'role' => 'user', 'message' => 'My CNIC is 12345-1234567-1 and the code is 123456.' }
+    ]
+
+    result = service(params: with_secrets).call
+
+    transcript = result.candidate_ai_call_transcript.transcript
+    expect(transcript).not_to include('12345-1234567-1')
+    expect(transcript).not_to include('123456')
+    expect(transcript).to eq('My CNIC is [redacted-cnic] and the code is [redacted-code].')
+  end
+
   it 'raises when no call matches the conversation_id' do
     unknown = raw_payload.deep_dup
     unknown['data']['conversation_id'] = 'unknown-conversation'

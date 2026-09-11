@@ -37,6 +37,30 @@ RSpec.describe 'db:seed rake task' do
     expect(WorkflowStage.pluck(:code)).to match_array(WorkflowStage::CANONICAL_STAGES.map { |s| s.fetch(:code) })
   end
 
+  it 'seeds a default, inactive AI call script only for the plausible stages (MPS-708)' do
+    Rake::Task['db:seed'].invoke
+
+    expected_stages = %w[verified fee_paid qvc_completed_outcome_received visa_issued_or_rejected
+                         appeared_for_protection mobilized]
+    expect(WorkflowStageCallScript.pluck(:workflow_stage_code)).to match_array(expected_stages)
+    expect(WorkflowStageCallScript.distinct.pluck(:active)).to eq([false])
+    expect(WorkflowStageCallScript.pluck(:announcement)).to all(include('PLACEHOLDER'))
+  end
+
+  it 'does not clobber an admin-edited AI call script on a second seed run' do
+    Rake::Task['db:seed'].invoke
+    WorkflowStageCallScript.find_by!(workflow_stage_code: 'verified').update!(
+      announcement: 'Approved wording.', active: true
+    )
+    Rake::Task['db:seed'].reenable
+
+    Rake::Task['db:seed'].invoke
+
+    script = WorkflowStageCallScript.find_by!(workflow_stage_code: 'verified')
+    expect(script.announcement).to eq('Approved wording.')
+    expect(script.active).to be(true)
+  end
+
   it 'seeds reference catalogs: countries, projects, crafts and document types' do
     Rake::Task['db:seed'].invoke
 

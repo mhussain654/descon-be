@@ -18,6 +18,7 @@ class CandidateAiCall < ApplicationRecord
   LANGUAGES = %w[en ur].freeze
   NORMALIZED_CODE_ATTRIBUTES = %i[
     direction call_reason status outcome outcome_reason provider_code failure_code verification_status
+    workflow_stage_code
   ].freeze
 
   belongs_to :communication
@@ -44,7 +45,9 @@ class CandidateAiCall < ApplicationRecord
   validates :verification_status, presence: true, inclusion: { in: VERIFICATION_STATUSES }
   validates :verification_attempts, numericality: { greater_than_or_equal_to: 0 }
   validates :extracted_data, exclusion: { in: [nil] }
+  validates :workflow_stage_code, format: { with: CODE_FORMAT }, allow_blank: true
   validate :candidate_assignment_matches_candidate
+  validate :workflow_stage_code_matches_call_reason
 
   scope :outbound, -> { where(direction: 'outbound') }
   scope :inbound, -> { where(direction: 'inbound') }
@@ -83,5 +86,16 @@ class CandidateAiCall < ApplicationRecord
     return if candidate_assignment.candidate_id == candidate_id
 
     errors.add(:candidate_assignment, :invalid)
+  end
+
+  # workflow_stage_code is only meaningful for the automatically-triggered
+  # flow -- keep it from being set (or silently missing) inconsistently
+  # with call_reason.
+  def workflow_stage_code_matches_call_reason
+    if call_reason == 'workflow_stage_notification'
+      errors.add(:workflow_stage_code, :blank) if workflow_stage_code.blank?
+    elsif workflow_stage_code.present?
+      errors.add(:workflow_stage_code, :invalid)
+    end
   end
 end

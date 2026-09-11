@@ -22,6 +22,7 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_candidate_documents
     manage_communications
     trigger_ai_calls
+    manage_ai_call_scripts
     view_candidate_assignments
     view_workflow
   ],
@@ -32,6 +33,7 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_workflow
     manage_communications
     trigger_ai_calls
+    manage_ai_call_scripts
     view_mps_dashboard
     view_reports
   ],
@@ -70,6 +72,30 @@ WorkflowStage::CANONICAL_STAGES.each do |stage_attributes|
     active: true
   )
   stage.save!
+end
+
+# --- AI voice call scripts (MPS-708) ----------------------------------------
+# PLACEHOLDER content, not client-approved -- seeded inactive so nothing gets
+# called on this text until an admin reviews and enables it. Only stages
+# where an automated call plausibly makes sense get a default row; admin can
+# still enable/edit any of these later, but cannot add a stage outside this
+# fixed set (see WorkflowStageCallScript's inclusion validation).
+{
+  'verified' => 'Hello {{candidate_name}}, this is Descon Manpower calling -- your documents have been verified.',
+  'fee_paid' => 'Hello {{candidate_name}}, this is Descon Manpower calling to confirm your fee payment was received.',
+  'qvc_completed_outcome_received' => 'Hello {{candidate_name}}, this is Descon Manpower calling about your QVC ' \
+                                      'appointment outcome.',
+  'visa_issued_or_rejected' => 'Hello {{candidate_name}}, this is Descon Manpower calling with an update on your ' \
+                               'visa.',
+  'appeared_for_protection' => 'Hello {{candidate_name}}, this is Descon Manpower calling following your ' \
+                               'protection appearance.',
+  'mobilized' => 'Hello {{candidate_name}}, this is Descon Manpower calling to confirm your mobilization.'
+}.each do |stage_code, announcement|
+  script = WorkflowStageCallScript.find_or_initialize_by(workflow_stage_code: stage_code)
+  script.announcement ||= "[PLACEHOLDER -- NOT CLIENT-APPROVED] #{announcement}"
+  script.active = false if script.new_record?
+  script.language_code ||= 'en'
+  script.save!
 end
 
 # --- Reference catalogs (MPS-106) -------------------------------------------

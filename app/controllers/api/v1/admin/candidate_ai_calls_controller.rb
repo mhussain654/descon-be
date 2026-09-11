@@ -26,7 +26,8 @@ module Api
 
           render_idempotent_response(scope: 'admin.candidate_ai_calls.create', subject: current_user, required: true) do
             call_record = ::AiCalls::TriggerOutboundCallService.call(
-              candidate:, call_reason: call_reason_param, actor: current_user, request_id: request.request_id
+              candidate:, plan: ::AiCalls::OutboundCallPlan.for_admin_scenario(call_reason_param),
+              actor: current_user, request_id: request.request_id
             )
             success_payload(data: serialized(call_record), status: :created)
           end

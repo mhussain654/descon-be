@@ -44,6 +44,8 @@ class User < ApplicationRecord
                                    dependent: :restrict_with_exception
   has_many :audit_events, foreign_key: :actor_id, inverse_of: :actor, dependent: :restrict_with_exception
   has_many :candidate_ai_call_events, foreign_key: :actor_id, inverse_of: :actor, dependent: :restrict_with_exception
+  has_many :updated_workflow_stage_call_scripts, class_name: 'WorkflowStageCallScript', foreign_key: :updated_by_id,
+                                                 inverse_of: :updated_by, dependent: :nullify
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_email

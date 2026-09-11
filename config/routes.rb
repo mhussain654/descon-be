@@ -89,6 +89,7 @@ Rails.application.routes.draw do
         end
         resources :audit_events, only: :index
         resources :communications, only: :index
+        resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses
         end
@@ -116,6 +117,8 @@ Rails.application.routes.draw do
 
       namespace :ai_calls do
         post 'elevenlabs/webhooks/post_call', to: 'elevenlabs/post_call_webhooks#create'
+        post 'elevenlabs/webhooks/conversation_initiation', to: 'elevenlabs/conversation_initiation_webhooks#create'
+        post 'elevenlabs/tools/:tool_name', to: 'elevenlabs/tool_calls#create'
       end
 
       get 'health/live', to: 'health#live'

@@ -24,6 +24,7 @@ ur:
       view_audit_events: "آڈٹ ایونٹس دیکھیں"
       manage_backups: "بیک اپ کا انتظام"
       trigger_ai_calls: "AI صوتی کالز شروع کریں"
+      manage_ai_call_scripts: "AI کال اسکرپٹس کا انتظام"
     workflow_stages:
       registered: "رجسٹرڈ"
       documents_pending: "دستاویزات زیر التوا"
