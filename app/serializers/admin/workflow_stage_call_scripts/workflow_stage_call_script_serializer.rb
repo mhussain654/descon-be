@@ -10,9 +10,9 @@ module Admin
       def as_json(*)
         {
           workflow_stage_code: @script.workflow_stage_code,
-          announcement: @script.announcement,
+          announcement_en: @script.announcement_en,
+          announcement_ur: @script.announcement_ur,
           active: @script.active,
-          language_code: @script.language_code,
           updated_by: serialized_updated_by,
           updated_at: @script.updated_at.utc.iso8601
         }

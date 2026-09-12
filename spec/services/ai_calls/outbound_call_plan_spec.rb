@@ -16,7 +16,7 @@ RSpec.describe AiCalls::OutboundCallPlan do
   describe '.for_workflow_stage' do
     it 'sets call_reason to workflow_stage_notification and wraps the script announcement' do
       script = build_stubbed(:workflow_stage_call_script, workflow_stage_code: 'verified',
-                                                          announcement: 'Your documents have been verified.')
+                                                          announcement_en: 'Your documents have been verified.')
 
       plan = described_class.for_workflow_stage(script)
 

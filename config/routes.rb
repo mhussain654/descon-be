@@ -90,6 +90,7 @@ Rails.application.routes.draw do
         resources :audit_events, only: :index
         resources :communications, only: :index
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
+        resource :ai_call_operational_settings, only: %i[show update]
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses
         end

@@ -45,16 +45,19 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
   end
 
   describe 'PATCH /api/v1/admin/workflow_stage_call_scripts/:workflow_stage_code' do
-    it 'updates the announcement and active flag, recording the actor and an audit event' do
+    it 'updates both language announcements and the active flag, recording the actor and an audit event' do
       admin = create(:user, role: 'admin')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified', active: false)
 
       patch '/api/v1/admin/workflow_stage_call_scripts/verified',
-            params: { workflow_stage_call_script: { announcement: 'Approved wording.', active: true } }.to_json,
+            params: { workflow_stage_call_script: {
+              announcement_en: 'Approved wording.', announcement_ur: 'منظور شدہ عبارت۔', active: true
+            } }.to_json,
             headers: auth_headers(admin).merge('Content-Type' => 'application/json')
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body.dig('data', 'announcement')).to eq('Approved wording.')
+      expect(response.parsed_body.dig('data', 'announcement_en')).to eq('Approved wording.')
+      expect(response.parsed_body.dig('data', 'announcement_ur')).to eq('منظور شدہ عبارت۔')
       expect(response.parsed_body.dig('data', 'active')).to be(true)
       expect(response.parsed_body.dig('data', 'updated_by', 'id')).to eq(admin.public_id)
 
@@ -62,6 +65,18 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
                                  action_code: 'workflow_stage_call_script_updated')
       expect(audit.actor).to eq(admin)
       expect(audit.metadata['workflow_stage_code']).to eq('verified')
+    end
+
+    it 'allows clearing announcement_ur back to blank (Urdu wording not ready yet)' do
+      admin = create(:user, role: 'admin')
+      create(:workflow_stage_call_script, workflow_stage_code: 'verified', announcement_ur: 'موجودہ عبارت')
+
+      patch '/api/v1/admin/workflow_stage_call_scripts/verified',
+            params: { workflow_stage_call_script: { announcement_ur: '' } }.to_json,
+            headers: auth_headers(admin).merge('Content-Type' => 'application/json')
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'announcement_ur')).to be_nil
     end
 
     it 'returns 404 for a stage with no script row' do
@@ -85,12 +100,12 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it 'rejects an invalid update (blank announcement)' do
+    it 'rejects an invalid update (blank announcement_en)' do
       admin = create(:user, role: 'admin')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified')
 
       patch '/api/v1/admin/workflow_stage_call_scripts/verified',
-            params: { workflow_stage_call_script: { announcement: '' } }.to_json,
+            params: { workflow_stage_call_script: { announcement_en: '' } }.to_json,
             headers: auth_headers(admin).merge('Content-Type' => 'application/json')
 
       expect(response).to have_http_status(:unprocessable_content)

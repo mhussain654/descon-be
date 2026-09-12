@@ -10,7 +10,7 @@ module Api
       # create/destroy route: admin edits an existing stage's script, never
       # adds or removes a stage.
       class WorkflowStageCallScriptsController < ProtectedStaffController
-        UPDATE_PARAMS = %i[announcement active language_code].freeze
+        UPDATE_PARAMS = %i[announcement_en announcement_ur active].freeze
 
         def index
           authorize ::WorkflowStageCallScript, policy_class: ::Admin::WorkflowStageCallScriptPolicy

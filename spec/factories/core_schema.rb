@@ -510,13 +510,14 @@ FactoryBot.define do
     transcript { 'Agent: Hello. Candidate: Hi there.' }
     recording_reference { nil }
     recorded_at { Time.current }
+    expires_at { 90.days.from_now }
   end
 
   factory :workflow_stage_call_script do
     workflow_stage_code { 'verified' }
-    announcement { 'Hello, this is Descon Manpower calling about your application.' }
+    announcement_en { 'Hello, this is Descon Manpower calling about your application.' }
+    announcement_ur { 'السلام علیکم، یہ ڈیسکون مین پاور کی کال ہے آپ کی درخواست کے بارے میں۔' }
     active { true }
-    language_code { 'en' }
     updated_by { nil }
   end
 

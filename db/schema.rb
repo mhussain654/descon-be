@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_11_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_100000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "ai_call_operational_settings", force: :cascade do |t|
+    t.integer "admin_trigger_rate_limit_per_hour"
+    t.integer "calling_hours_end"
+    t.integer "calling_hours_start"
+    t.datetime "created_at", null: false
+    t.integer "daily_outbound_call_limit"
+    t.integer "max_call_duration_minutes"
+    t.integer "outbound_trigger_cooldown_minutes"
+    t.boolean "singleton_guard", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.index ["singleton_guard"], name: "index_ai_call_operational_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_ai_call_operational_settings_on_updated_by_id"
+    t.check_constraint "admin_trigger_rate_limit_per_hour >= 0", name: "ai_call_operational_settings_admin_trigger_rate_limit_per_hour_"
+    t.check_constraint "calling_hours_end IS NULL OR calling_hours_end >= 0 AND calling_hours_end <= 23", name: "ai_call_operational_settings_calling_hours_end_range"
+    t.check_constraint "calling_hours_start IS NULL OR calling_hours_start >= 0 AND calling_hours_start <= 23", name: "ai_call_operational_settings_calling_hours_start_range"
+    t.check_constraint "daily_outbound_call_limit >= 0", name: "ai_call_operational_settings_daily_outbound_call_limit_non_nega"
+    t.check_constraint "max_call_duration_minutes >= 0", name: "ai_call_operational_settings_max_call_duration_minutes_non_nega"
+    t.check_constraint "outbound_trigger_cooldown_minutes >= 0", name: "ai_call_operational_settings_outbound_trigger_cooldown_minutes_"
   end
 
   create_table "audit_events", force: :cascade do |t|
@@ -925,15 +946,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_100000) do
 
   create_table "workflow_stage_call_scripts", force: :cascade do |t|
     t.boolean "active", default: false, null: false
-    t.text "announcement", null: false
+    t.text "announcement_en", null: false
+    t.text "announcement_ur"
     t.datetime "created_at", null: false
-    t.string "language_code", default: "en", null: false
     t.datetime "updated_at", null: false
     t.bigint "updated_by_id"
     t.string "workflow_stage_code", null: false
     t.index ["updated_by_id"], name: "index_workflow_stage_call_scripts_on_updated_by_id"
     t.index ["workflow_stage_code"], name: "index_workflow_stage_call_scripts_on_workflow_stage_code", unique: true
-    t.check_constraint "language_code::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "workflow_stage_call_scripts_language_code"
     t.check_constraint "workflow_stage_code::text ~ '^[a-z0-9_]+$'::text", name: "workflow_stage_call_scripts_stage_code_format"
   end
 
@@ -951,6 +971,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_100000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "ai_call_operational_settings", "users", column: "updated_by_id"
   add_foreign_key "audit_events", "candidate_assignments"
   add_foreign_key "audit_events", "candidates"
   add_foreign_key "audit_events", "users", column: "actor_id"

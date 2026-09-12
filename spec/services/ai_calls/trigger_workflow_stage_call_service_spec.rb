@@ -55,7 +55,8 @@ RSpec.describe AiCalls::TriggerWorkflowStageCallService do
   end
 
   it 'places the call for an active script, unattributed to any admin' do
-    create(:workflow_stage_call_script, workflow_stage_code: 'verified', announcement: 'Your documents are verified.')
+    create(:workflow_stage_call_script, workflow_stage_code: 'verified',
+                                        announcement_en: 'Your documents are verified.')
     stub_successful_call
 
     call_record = service.call

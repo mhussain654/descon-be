@@ -35,6 +35,7 @@ RSpec.describe AiCalls::Configuration do
     ENV.delete('AI_VOICE_CALLING_HOURS_START')
     ENV.delete('AI_VOICE_CALLING_HOURS_END')
     ENV.delete('AI_VOICE_MAX_CALL_DURATION_MINUTES')
+    ENV.delete('AI_VOICE_TRANSCRIPT_RETENTION_DAYS')
 
     configuration = described_class.new
 
@@ -62,6 +63,7 @@ RSpec.describe AiCalls::Configuration do
     expect(configuration.calling_hours_start).to eq(9)
     expect(configuration.calling_hours_end).to eq(19)
     expect(configuration.max_call_duration_minutes).to eq(15)
+    expect(configuration.transcript_retention_days).to eq(90)
   end
 
   it 'normalizes configured environment values' do
@@ -89,6 +91,7 @@ RSpec.describe AiCalls::Configuration do
     ENV['AI_VOICE_CALLING_HOURS_START'] = '8'
     ENV['AI_VOICE_CALLING_HOURS_END'] = '20'
     ENV['AI_VOICE_MAX_CALL_DURATION_MINUTES'] = '25'
+    ENV['AI_VOICE_TRANSCRIPT_RETENTION_DAYS'] = '45'
 
     configuration = described_class.new
 
@@ -116,11 +119,62 @@ RSpec.describe AiCalls::Configuration do
     expect(configuration.calling_hours_start).to eq(8)
     expect(configuration.calling_hours_end).to eq(20)
     expect(configuration.max_call_duration_minutes).to eq(25)
+    expect(configuration.transcript_retention_days).to eq(45)
   end
 
   it 'treats blank strings as absent for presence-checked values' do
     ENV['ELEVENLABS_API_KEY'] = '   '
 
     expect(described_class.new.elevenlabs_api_key).to be_nil
+  end
+
+  describe 'the 5 DB-editable operational knobs' do
+    it 'falls back to ENV when the AiCallOperationalSetting row has every column nil' do
+      AiCallOperationalSetting.current
+
+      configuration = described_class.new
+
+      expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
+      expect(configuration.daily_outbound_call_limit).to eq(200)
+      expect(configuration.admin_trigger_rate_limit_per_hour).to eq(50)
+      expect(configuration.calling_hours_start).to eq(9)
+      expect(configuration.calling_hours_end).to eq(19)
+      expect(configuration.max_call_duration_minutes).to eq(15)
+    end
+
+    it 'prefers the DB row over ENV when a column is set' do
+      AiCallOperationalSetting.current.update!(
+        outbound_trigger_cooldown_minutes: 10, daily_outbound_call_limit: 5,
+        admin_trigger_rate_limit_per_hour: 3, calling_hours_start: 7, calling_hours_end: 21,
+        max_call_duration_minutes: 8
+      )
+      ENV['AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES'] = '999'
+
+      configuration = described_class.new
+
+      expect(configuration.outbound_trigger_cooldown_minutes).to eq(10)
+      expect(configuration.daily_outbound_call_limit).to eq(5)
+      expect(configuration.admin_trigger_rate_limit_per_hour).to eq(3)
+      expect(configuration.calling_hours_start).to eq(7)
+      expect(configuration.calling_hours_end).to eq(21)
+      expect(configuration.max_call_duration_minutes).to eq(8)
+    end
+
+    it 'falls back to ENV per-column when only some DB columns are set' do
+      AiCallOperationalSetting.current.update!(daily_outbound_call_limit: 5)
+
+      configuration = described_class.new
+
+      expect(configuration.daily_outbound_call_limit).to eq(5)
+      expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
+    end
+
+    it 'lazily creates the AiCallOperationalSetting row if none exists yet' do
+      expect(AiCallOperationalSetting.count).to eq(0)
+
+      described_class.new.daily_outbound_call_limit
+
+      expect(AiCallOperationalSetting.count).to eq(1)
+    end
   end
 end
