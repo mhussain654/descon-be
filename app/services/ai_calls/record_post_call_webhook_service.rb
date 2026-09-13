@@ -52,17 +52,7 @@ module AiCalls
         status: 'completed', outcome: mapping.outcome, outcome_reason: mapping.outcome_reason,
         completed_at: Time.current, answered_at: call_record.answered_at || Time.current
       )
-      persist_transcript!(call_record, payload)
-    end
-
-    def persist_transcript!(call_record, payload)
-      text = payload.transcript_text
-      return if text.blank? || call_record.candidate_ai_call_transcript.present?
-
-      call_record.create_candidate_ai_call_transcript!(
-        transcript: text, recording_reference: payload.recording_reference, recorded_at: Time.current,
-        expires_at: Configuration.new.transcript_retention_days.days.from_now
-      )
+      PersistTranscriptService.call(call_record:, payload:)
     end
   end
 end

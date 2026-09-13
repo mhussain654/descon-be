@@ -129,6 +129,15 @@ RSpec.describe AiCalls::Configuration do
   end
 
   describe 'the 5 DB-editable operational knobs' do
+    # db:seed creates the AiCallOperationalSetting singleton row for real
+    # against a freshly prepared test database (see spec/tasks/db_seed_spec.rb's
+    # comment on db:prepare running seeds outside any rolled-back RSpec
+    # transaction) -- these examples assert about the row's exact state (or
+    # its absence), so they need a clean slate regardless of what seeded
+    # earlier (AGENTS.md: "keep examples deterministic and independent of
+    # execution order").
+    before { AiCallOperationalSetting.delete_all }
+
     it 'falls back to ENV when the AiCallOperationalSetting row has every column nil' do
       AiCallOperationalSetting.current
 

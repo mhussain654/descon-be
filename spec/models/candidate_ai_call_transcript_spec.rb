@@ -6,6 +6,7 @@ RSpec.describe CandidateAiCallTranscript, type: :model do
   subject(:transcript) { build(:candidate_ai_call_transcript) }
 
   it { is_expected.to belong_to(:candidate_ai_call) }
+  it { is_expected.to validate_presence_of(:expires_at) }
 
   it 'encrypts the transcript column at rest' do
     transcript.transcript = 'Agent: Hello. Candidate: Hi.'

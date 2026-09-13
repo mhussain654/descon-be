@@ -5,6 +5,13 @@ require 'rails_helper'
 RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
   before do
     ensure_staff_authorization_reference_data!
+    # db:seed creates real WorkflowStageCallScript rows (including for
+    # 'verified'/'fee_paid'/'mobilized') against a freshly prepared test
+    # database (see spec/tasks/db_seed_spec.rb's comment on db:prepare
+    # running seeds outside any rolled-back RSpec transaction). These
+    # examples assert about exactly which rows exist per stage code, so
+    # they need a clean slate regardless of what seeded earlier.
+    WorkflowStageCallScript.delete_all
   end
 
   def login_as(user)

@@ -91,16 +91,62 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Tool Calls', type: :request do
   end
 
   describe 'CandidateAiCallEvent recording' do
-    it 'records one event per tool call, without deduping repeated identical calls' do
+    it 'records one event for a genuinely new tool call' do
+      call_record
+      call_tool('create_callback_request', params: { reason: 'first' })
+
+      events = call_record.candidate_ai_call_events.where(event_type: 'create_callback_request')
+      expect(events.count).to eq(1)
+    end
+
+    it 'is idempotent -- a replayed delivery with identical arguments does not re-run the handler' do
       call_record
 
       expect do
         call_tool('create_callback_request', params: { reason: 'first' })
         call_tool('create_callback_request', params: { reason: 'first' })
-      end.to change { call_record.candidate_ai_call_events.count }.by(2)
+      end.to change { call_record.candidate_ai_call_events.count }.by(1)
 
-      events = call_record.candidate_ai_call_events.where(event_type: 'create_callback_request')
-      expect(events.pluck(:event_key).uniq.size).to eq(2)
+      first_requested_at = call_record.reload.callback_requested_at
+      call_tool('create_callback_request', params: { reason: 'first' })
+      expect(call_record.reload.callback_requested_at).to eq(first_requested_at)
+    end
+
+    it 'records a distinct event when the same tool is called with different arguments' do
+      call_record
+
+      expect do
+        call_tool('create_callback_request', params: { reason: 'first' })
+        call_tool('create_callback_request', params: { reason: 'second' })
+      end.to change { call_record.candidate_ai_call_events.count }.by(2)
+    end
+
+    it 'returns the first invocation result on a replayed delivery' do
+      call_record
+      call_tool('create_callback_request', params: { reason: 'first' })
+      first_body = response.parsed_body
+
+      call_tool('create_callback_request', params: { reason: 'first' })
+
+      expect(response.parsed_body['data']).to eq(first_body['data'])
+    end
+
+    it 'does not re-increment verification_attempts when an identical verify_caller_identity call is replayed' do
+      call_record
+
+      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
+      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
+
+      expect(call_record.reload.verification_attempts).to eq(1)
+    end
+
+    it 'still counts a genuinely new verify_caller_identity attempt with different arguments' do
+      call_record
+
+      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
+      call_tool('verify_caller_identity', params: { reference_number: 'another-ref' })
+
+      expect(call_record.reload.verification_attempts).to eq(2)
     end
   end
 end

@@ -3,6 +3,16 @@
 require 'rails_helper'
 
 RSpec.describe WorkflowStageCallScript do
+  # db:seed creates a default script row for several canonical stages
+  # (including 'verified' and 'fee_paid', used by name throughout this file)
+  # for real against a freshly prepared test database (see
+  # spec/tasks/db_seed_spec.rb's comment on db:prepare running seeds outside
+  # any rolled-back RSpec transaction). These examples assert about exactly
+  # which rows exist per stage code, so they need a clean slate regardless of
+  # what seeded earlier (AGENTS.md: "keep examples deterministic and
+  # independent of execution order").
+  before { described_class.delete_all }
+
   it 'has a valid factory' do
     expect(build(:workflow_stage_call_script)).to be_valid
   end

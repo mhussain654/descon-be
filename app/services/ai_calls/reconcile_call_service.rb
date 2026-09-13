@@ -22,6 +22,8 @@ module AiCalls
       'busy' => 'busy', 'no-answer' => 'no_answer', 'failed' => 'provider_failure', 'canceled' => 'provider_failure'
     }.freeze
 
+    UNKNOWN_ELEVENLABS_STATUS_REVIEW_AFTER = 30.minutes
+
     def self.due?(candidate_ai_call, configuration: AiCalls::Configuration.new, now: Time.current)
       return in_progress_due?(candidate_ai_call, configuration:, now:) if candidate_ai_call.status == 'in_progress'
 
@@ -47,7 +49,7 @@ module AiCalls
       return @candidate_ai_call if @candidate_ai_call.terminal_status?
 
       elevenlabs_payload = fetch_elevenlabs_conversation
-      return apply_elevenlabs_outcome!(elevenlabs_payload) if elevenlabs_payload&.conversation_id.present?
+      return apply_elevenlabs_status!(elevenlabs_payload) if elevenlabs_payload&.conversation_id.present?
 
       close_from_twilio_status!(fetch_twilio_status)
     end
@@ -72,14 +74,50 @@ module AiCalls
       nil
     end
 
+    # Branches on ElevenLabs' authoritative conversation status (see
+    # AiCalls::ElevenlabsConversationStatus) rather than treating any
+    # conversation record as a finished, answered call.
+    def apply_elevenlabs_status!(payload)
+      classification = ElevenlabsConversationStatus.classify(payload.status)
+      case classification
+      when :done then apply_elevenlabs_outcome!(payload)
+      when :failed then close_from_twilio_status!(fetch_twilio_status)
+      when :unknown then handle_unknown_elevenlabs_status!
+      else sync_open_status!(elevenlabs_status: payload.status, local_status: classification)
+      end
+    end
+
     def apply_elevenlabs_outcome!(payload)
       mapping = OutcomeMapper.call(telephony_outcome: 'answered', extraction: payload.extraction)
 
       record_event!(observed_status: 'elevenlabs_conversation_found') do |call_record|
         call_record.update!(status: 'completed', outcome: mapping.outcome, outcome_reason: mapping.outcome_reason,
                             completed_at: Time.current, answered_at: call_record.answered_at || Time.current)
-        persist_transcript!(call_record, payload)
+        PersistTranscriptService.call(call_record:, payload:)
       end
+    end
+
+    # Leaves the call open (never completes/fails it) and synchronizes the
+    # local `status` to reflect ElevenLabs' in-progress conversation state,
+    # never regressing it (e.g. a late 'initiated' read must not move a
+    # call already locally 'in_progress' back to 'ringing').
+    def sync_open_status!(elevenlabs_status:, local_status:)
+      order = CandidateAiCall::STATUSES
+      return @candidate_ai_call unless order.index(local_status) > order.index(@candidate_ai_call.status)
+
+      record_event!(observed_status: "elevenlabs_#{elevenlabs_status.tr('-', '_')}") do |call_record|
+        call_record.update!(status: local_status)
+      end
+    end
+
+    # Missing/malformed/unrecognized ElevenLabs status: retried on the next
+    # job run (a no-op here) until the call has been stuck long enough that
+    # it's no longer plausibly a transient read, at which point it's routed
+    # to manual review instead of being retried indefinitely.
+    def handle_unknown_elevenlabs_status!
+      return @candidate_ai_call if @candidate_ai_call.updated_at > Time.current - UNKNOWN_ELEVENLABS_STATUS_REVIEW_AFTER
+
+      needs_manual_review!('elevenlabs_status_unknown')
     end
 
     def close_from_twilio_status!(twilio_status)
@@ -107,15 +145,6 @@ module AiCalls
         payload: { observed_status: }, request_id: @request_id
       }
       WebhookEventRecorder.new(candidate_ai_call: @candidate_ai_call, event:).call(&).candidate_ai_call
-    end
-
-    def persist_transcript!(call_record, payload)
-      text = payload.transcript_text
-      return if text.blank? || call_record.candidate_ai_call_transcript.present?
-
-      call_record.create_candidate_ai_call_transcript!(
-        transcript: text, recording_reference: payload.recording_reference, recorded_at: Time.current
-      )
     end
   end
 end

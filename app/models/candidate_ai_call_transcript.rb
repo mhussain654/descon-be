@@ -23,6 +23,8 @@ class CandidateAiCallTranscript < ApplicationRecord
 
   belongs_to :candidate_ai_call
 
+  validates :expires_at, presence: true
+
   before_update :assert_only_purge_fields_changed!
   before_update :assert_content_only_cleared_not_replaced!
   before_destroy :raise_readonly_record

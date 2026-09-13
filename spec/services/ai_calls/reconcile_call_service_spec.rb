@@ -48,11 +48,11 @@ RSpec.describe AiCalls::ReconcileCallService do
       expect(call_record.candidate_ai_call_events.count).to eq(0)
     end
 
-    it 'applies the outcome when ElevenLabs has a conversation record' do
+    it 'applies the outcome when ElevenLabs reports the conversation is done' do
       call_record = create(:candidate_ai_call, status: 'ringing', elevenlabs_conversation_id: 'conversation-1')
       allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
         'data' => {
-          'conversation_id' => 'conversation-1',
+          'conversation_id' => 'conversation-1', 'status' => 'done',
           'analysis' => { 'data_collection_results' => { 'human_answered' => true, 'call_resolved' => true } },
           'transcript' => [{ 'role' => 'agent', 'message' => 'Hello.' }]
         }
@@ -64,6 +64,103 @@ RSpec.describe AiCalls::ReconcileCallService do
       expect(result.outcome).to eq('answered')
       expect(result.outcome_reason).to eq('resolved')
       expect(result.candidate_ai_call_transcript.transcript).to eq('Hello.')
+    end
+
+    it 'stamps an expiry on a transcript recovered through reconciliation' do
+      call_record = create(:candidate_ai_call, status: 'ringing', elevenlabs_conversation_id: 'conversation-1')
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => {
+          'conversation_id' => 'conversation-1', 'status' => 'done',
+          'analysis' => { 'data_collection_results' => { 'human_answered' => true, 'call_resolved' => true } },
+          'transcript' => [{ 'role' => 'agent', 'message' => 'Hello.' }]
+        }
+      )
+
+      freeze_time do
+        result = service_for(call_record).call
+
+        expect(result.candidate_ai_call_transcript.expires_at).to eq(90.days.from_now)
+      end
+    end
+
+    it 'does not complete the call while ElevenLabs reports it queued or in progress' do
+      %w[initiated in-progress processing].each do |elevenlabs_status|
+        call_record = create(:candidate_ai_call, status: 'ringing',
+                                                 elevenlabs_conversation_id: "conversation-#{elevenlabs_status}")
+        allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+          'data' => { 'conversation_id' => "conversation-#{elevenlabs_status}", 'status' => elevenlabs_status }
+        )
+
+        result = service_for(call_record).call
+
+        expect(result.status).not_to be_in(%w[completed failed cancelled])
+      end
+    end
+
+    it "synchronizes local status forward to match ElevenLabs' in-progress conversation state" do
+      call_record = create(:candidate_ai_call, status: 'ringing', elevenlabs_conversation_id: 'conversation-1')
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => { 'conversation_id' => 'conversation-1', 'status' => 'in-progress' }
+      )
+
+      result = service_for(call_record).call
+
+      expect(result.status).to eq('in_progress')
+      expect(result.candidate_ai_call_events.count).to eq(1)
+    end
+
+    it 'never regresses local status when ElevenLabs reports an earlier-looking open status' do
+      call_record = create(:candidate_ai_call, status: 'processing', elevenlabs_conversation_id: 'conversation-1')
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => { 'conversation_id' => 'conversation-1', 'status' => 'initiated' }
+      )
+
+      result = service_for(call_record).call
+
+      expect(result.status).to eq('processing')
+      expect(result.candidate_ai_call_events.count).to eq(0)
+    end
+
+    it 'reconciles against Twilio when ElevenLabs reports the conversation failed' do
+      call_record = create(:candidate_ai_call, status: 'in_progress', elevenlabs_conversation_id: 'conversation-1',
+                                               twilio_call_sid: 'CA-1')
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => { 'conversation_id' => 'conversation-1', 'status' => 'failed' }
+      )
+      allow(twilio_adapter).to receive(:fetch_call).and_return('status' => 'no-answer')
+
+      result = service_for(call_record).call
+
+      expect(result.status).to eq('failed')
+      expect(result.outcome).to eq('not_answered')
+      expect(result.outcome_reason).to eq('no_answer')
+    end
+
+    it 'retries (no-op) on a missing/unrecognized ElevenLabs status before the review bound elapses' do
+      call_record = create(:candidate_ai_call, status: 'in_progress', elevenlabs_conversation_id: 'conversation-1',
+                                               updated_at: 5.minutes.ago)
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => { 'conversation_id' => 'conversation-1', 'status' => 'something_new' }
+      )
+
+      result = service_for(call_record).call
+
+      expect(result.status).to eq('in_progress')
+      expect(result.candidate_ai_call_events.count).to eq(0)
+    end
+
+    it 'routes a missing/unrecognized ElevenLabs status to manual review once stuck past the bound' do
+      call_record = create(:candidate_ai_call, status: 'in_progress', elevenlabs_conversation_id: 'conversation-1',
+                                               updated_at: 31.minutes.ago)
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => { 'conversation_id' => 'conversation-1' }
+      )
+
+      result = service_for(call_record).call
+
+      expect(result.status).to eq('completed')
+      expect(result.outcome).to be_nil
+      expect(result.outcome_reason).to eq('needs_manual_review')
     end
 
     it 'closes as not_answered when ElevenLabs has no record and Twilio reports busy' do

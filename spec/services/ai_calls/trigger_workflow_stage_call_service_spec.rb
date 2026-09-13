@@ -3,6 +3,14 @@
 require 'rails_helper'
 
 RSpec.describe AiCalls::TriggerWorkflowStageCallService do
+  # db:seed creates a real (inactive) WorkflowStageCallScript row for
+  # 'verified'/'fee_paid' against a freshly prepared test database (see
+  # spec/tasks/db_seed_spec.rb's comment on db:prepare running seeds outside
+  # any rolled-back RSpec transaction); every example below creates its own
+  # row for these same stage codes, so it needs a clean slate regardless of
+  # what seeded earlier.
+  before { WorkflowStageCallScript.delete_all }
+
   let(:configuration) do
     instance_double(
       AiCalls::Configuration,

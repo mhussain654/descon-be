@@ -21,6 +21,16 @@ module AiCalls
       data['conversation_id']
     end
 
+    # ElevenLabs' documented conversation lifecycle status: 'initiated',
+    # 'in-progress', 'processing', 'done', or 'failed'. Only present on the
+    # GET /v1/convai/conversations/:id response the reconciliation job reads
+    # (AiCalls::ReconcileCallService) -- the post_call_transcription webhook
+    # payload doesn't carry it (a webhook only fires once the conversation
+    # is already done), so this is nil on that path.
+    def status
+      data['status']
+    end
+
     def call_duration_seconds
       data.dig('metadata', 'call_duration_secs')
     end

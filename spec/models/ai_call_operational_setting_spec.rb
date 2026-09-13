@@ -3,6 +3,16 @@
 require 'rails_helper'
 
 RSpec.describe AiCallOperationalSetting do
+  # db:seed creates this singleton row for real against a freshly prepared
+  # test database (see spec/tasks/db_seed_spec.rb's comment on db:prepare
+  # running seeds outside any rolled-back RSpec transaction), so a suite run
+  # against such a database starts with this table non-empty. This example
+  # group's assertions are specifically about the singleton being *created*,
+  # so it needs a genuinely empty table regardless of what seeded/ran
+  # earlier (AGENTS.md: "keep examples deterministic and independent of
+  # execution order").
+  before { described_class.delete_all }
+
   describe '.current' do
     it 'creates the singleton row on first access' do
       expect { described_class.current }.to change(described_class, :count).from(0).to(1)

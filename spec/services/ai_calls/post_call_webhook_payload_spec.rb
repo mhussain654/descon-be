@@ -32,6 +32,16 @@ RSpec.describe AiCalls::PostCallWebhookPayload do
     expect(payload.conversation_id).to eq('conversation-1')
   end
 
+  it 'reads the conversation status when present' do
+    with_status = described_class.new(raw.deep_merge('data' => { 'status' => 'done' }))
+
+    expect(with_status.status).to eq('done')
+  end
+
+  it 'returns nil for status when absent, as on the post-call webhook payload' do
+    expect(payload.status).to be_nil
+  end
+
   it 'reads the call duration' do
     expect(payload.call_duration_seconds).to eq(42)
   end

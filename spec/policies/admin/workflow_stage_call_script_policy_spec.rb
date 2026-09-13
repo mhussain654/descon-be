@@ -5,6 +5,12 @@ require 'rails_helper'
 RSpec.describe Admin::WorkflowStageCallScriptPolicy do
   before do
     ensure_staff_authorization_reference_data!
+    # db:seed creates real WorkflowStageCallScript rows against a freshly
+    # prepared test database (see spec/tasks/db_seed_spec.rb's comment on
+    # db:prepare running seeds outside any rolled-back RSpec transaction);
+    # the Scope example below asserts an exact row count, so it needs a
+    # clean slate regardless of what seeded earlier.
+    WorkflowStageCallScript.delete_all
   end
 
   describe '#index? and #update?' do

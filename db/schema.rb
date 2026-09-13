@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_12_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_13_090100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -132,7 +132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_110000) do
   create_table "candidate_ai_call_transcripts", force: :cascade do |t|
     t.bigint "candidate_ai_call_id", null: false
     t.datetime "created_at", null: false
-    t.datetime "expires_at"
+    t.datetime "expires_at", null: false
     t.datetime "purged_at"
     t.datetime "recorded_at"
     t.string "recording_reference"

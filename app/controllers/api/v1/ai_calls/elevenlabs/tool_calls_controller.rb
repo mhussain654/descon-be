@@ -14,10 +14,12 @@ module Api
           def create
             verify_tool_secret!
             handler = tool_handler
-            result = handler.call(candidate_ai_call:, params: tool_params)
-            record_event!(result)
 
-            render_success(data: result)
+            outcome = ::AiCalls::ClaimToolCallEventService.call(
+              candidate_ai_call:, tool_name: params[:tool_name], params: tool_params, request_id: request.request_id
+            ) { |call_record| handler.call(candidate_ai_call: call_record, params: tool_params) }
+
+            render_success(data: outcome.payload)
           end
 
           private
@@ -46,14 +48,6 @@ module Api
 
           def tool_params
             params.except(:controller, :action, :tool_name, :conversation_id).to_unsafe_h
-          end
-
-          def record_event!(result)
-            candidate_ai_call.candidate_ai_call_events.create!(
-              provider_code: 'elevenlabs', event_source: 'tool_call', event_type: params[:tool_name].to_s,
-              event_key: "tool_call:#{candidate_ai_call.id}:#{params[:tool_name]}:#{SecureRandom.uuid}",
-              occurred_at: Time.current, payload: result, request_id: request.request_id
-            )
           end
         end
       end
