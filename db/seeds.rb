@@ -126,6 +126,13 @@ end
 # ENV-driven AiCalls::Configuration defaults unchanged.
 AiCallOperationalSetting.current
 
+# --- Training link setting ---------------------------------------------------
+# Seeds the singleton row up front (with its placeholder default URL --
+# TrainingSetting::DEFAULT_URL) so both the admin settings screen and the
+# candidate Training page are never empty before the client provides their
+# real training link.
+TrainingSetting.current
+
 # --- Reference catalogs (MPS-106) -------------------------------------------
 
 [
@@ -202,9 +209,16 @@ end
 # CandidateBankDetail resource instead of a generic document upload (see
 # db/migrate/20260904090000_retire_generic_bank_document_requirements.rb) --
 # seeded here as `active: false` so a fresh database matches that migration.
+# `passport`/`cnic_front`/`police_character` were originally left out of
+# this active set with no requirement row at all, so they silently never
+# appeared on a candidate's checklist even though passport and cnic_front
+# are already OCR-extraction-enabled -- see
+# db/migrate/20260912100000_activate_missing_global_document_requirements.rb,
+# which activates them for existing databases; seeded here as active so a
+# fresh database matches that migration.
 %w[
-  cnic_back next_of_kin_cnic cv
-  experience_letter certificates polio_certificate
+  passport cnic_front cnic_back next_of_kin_cnic police_character
+  cv experience_letter certificates polio_certificate
 ].each do |code|
   document_type = DocumentType.find_by!(code: code)
   requirement = DocumentRequirement.find_or_initialize_by(

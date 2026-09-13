@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_12_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -912,6 +912,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_090000) do
     t.check_constraint "status_code::text = ANY (ARRAY['in_progress'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])", name: "system_database_backups_status_code_allowed"
   end
 
+  create_table "training_settings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "singleton_guard", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.string "url", null: false
+    t.index ["singleton_guard"], name: "index_training_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_training_settings_on_updated_by_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
@@ -1051,6 +1061,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_090000) do
   add_foreign_key "role_permissions", "permissions", on_delete: :cascade
   add_foreign_key "role_permissions", "roles", on_delete: :cascade
   add_foreign_key "sessions", "users"
+  add_foreign_key "training_settings", "users", column: "updated_by_id"
   add_foreign_key "users", "roles", column: "role", primary_key: "code"
   add_foreign_key "users", "users", column: "invited_by_id"
   add_foreign_key "workflow_stage_call_scripts", "users", column: "updated_by_id"

@@ -1413,6 +1413,18 @@ components:
               nullable: true
           additionalProperties: false
       required: [ai_call_operational_setting]
+    AdminTrainingSettingRequest:
+      type: object
+      properties:
+        training_setting:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+          additionalProperties: false
+          required: [url]
+      required: [training_setting]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -1578,8 +1590,9 @@ components:
         visa_decision:
           $ref: '#/components/schemas/AdminVisaDecision'
       required: [workflow, visa_decision]
-    AdminVisaDecisionAccess:
+    VisaCopyAccess:
       type: object
+      description: Shared by both the admin and candidate visa-copy-access endpoints (CandidateWorkflows::VisaCopyAccessService).
       properties:
         visa_decision_id:
           type: string
@@ -1590,6 +1603,19 @@ components:
           type: string
           format: date-time
       required: [visa_decision_id, url, expires_at]
+    CandidateVisaDecisionsCollection:
+      type: object
+      properties:
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        visa_decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateVisaDecision'
+      required: [assignment_id, visa_decisions]
     CandidateFlightDetail:
       type: object
       properties:
@@ -6285,14 +6311,236 @@ paths:
           description: Flight detail not found
         '422':
           description: Flight detail exists but has no attached ticket
-  /api/v1/payments/hosted_checkout/{provider_code}/return:
+  /api/v1/candidate/visa_decisions:
+    get:
+      summary: List the authenticated candidate's own visa decisions
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Visa decisions retrieved (empty list before any have been recorded)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                visaDecisions:
+                  value:
+                    data:
+                      assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                      visa_decisions:
+                        - id: 9b8a5883-70d5-4040-8823-424f4b4b669b
+                          outcome_code: issued
+                          decision_date: '2026-09-05'
+                          rejection_reason_code: null
+                          visa_copy_attached: true
+                          created_at: '2026-09-05T10:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-05T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/candidate/visa_decisions/{visa_decision_id}/visa_copy_access:
     post:
-      summary: Process a signed hosted-checkout browser return
+      summary: Generate a short-lived private access path for the candidate's own visa copy
       description: >-
-        Processes a signed hosted-checkout return after server-side signature verification.
-        The signed payload must match the stored payment order, amount, and currency when
-        currency is present. Safe duplicates replay without creating duplicate payment or
-        workflow history records.
+        Returns a private Active Storage proxy path for the visa copy
+        attached to one of the authenticated candidate's own visa decisions.
+        The path is time-limited, does not expose storage keys, and every
+        successful access is audited. Scoped to the candidate's current
+        assignment -- a `visa_decision_id` belonging to another candidate
+        resolves to `404`, never another candidate's file.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - name: visa_decision_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      visa_decision_id: 9b8a5883-70d5-4040-8823-424f4b4b669b
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/visa.pdf?disposition=inline
+                      expires_at: '2026-09-05T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-05T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '404':
+          description: Visa decision not found (including one belonging to another candidate)
+        '422':
+          description: Visa decision exists but has no attached visa copy (a rejected decision)
+  /api/v1/candidate/training_setting:
+    get:
+      summary: Read the one shared training link
+      description: >-
+        Returns the single link (e.g. a YouTube channel/playlist) where all
+        training documents and videos live -- not per-candidate content, so
+        any authenticated, active candidate can read it.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current training link
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      url: https://www.youtube.com/@DesconManpower
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-12T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/payments/hosted_checkout/{provider_code}/return:
+    get:
+      summary: Process a signed hosted-checkout browser return (GET redirect)
+      description: >-
+        Handles the candidate's browser being redirected back from the hosted checkout
+        page. Every outcome -- success or any error -- redirects the browser to the
+        frontend's payment-pending page (see the `302`/`303` responses below); this
+        endpoint never renders payment/workflow data or error detail as JSON, since it
+        is an unauthenticated response reachable by anyone who lands on the URL. The
+        candidate's own client polls `GET /api/v1/candidate/payment` separately for the
+        authoritative outcome. Safe duplicate returns are processed without creating
+        duplicate payment or workflow history records.
+      parameters:
+        - name: provider_code
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [mock_hosted_checkout, kuickpay]
+        - name: orderid
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: transactionid
+          in: query
+          schema:
+            type: string
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: currency
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [SUCCESS, FAILED, CANCELLED]
+        - name: responsecode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: signature
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '302':
+          description: >-
+            Signed return processed (or safely replayed) for this success/error outcome.
+            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
+            workflow data is included in this response.
+          headers:
+            Location:
+              description: The configured FRONTEND_PAYMENT_RETURN_URL.
+              schema:
+                type: string
+                format: uri
+        '401':
+          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
+        '404':
+          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
+        '409':
+          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
+        '422':
+          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
+        '503':
+          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
+    post:
+      summary: Process a signed hosted-checkout browser return (POST redirect)
+      description: >-
+        Same processing and redirect-only behavior as the GET operation above, for a
+        provider that returns the candidate's browser via a POST instead of a query
+        string. Uses `303 See Other` rather than `302` so the browser follows the
+        redirect with GET instead of re-submitting the provider's payload.
       parameters:
         - name: provider_code
           in: path
@@ -6312,65 +6560,27 @@ paths:
             schema:
               $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
       responses:
-        '200':
-          description: Signed return processed or safely replayed
+        '303':
+          description: >-
+            Signed return processed (or safely replayed) for this success/error outcome.
+            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
+            workflow data is included in this response.
           headers:
-            Content-Language:
-              $ref: '#/components/headers/ContentLanguageHeader'
-            Vary:
-              $ref: '#/components/headers/VaryLanguageHeaders'
-            X-Request-Id:
-              $ref: '#/components/headers/RequestIdHeader'
-          content:
-            application/json:
+            Location:
+              description: The configured FRONTEND_PAYMENT_RETURN_URL.
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-              examples:
-                paid:
-                  value:
-                    data:
-                      payment:
-                        id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
-                        payment_type_code: onboarding_fee
-                        status: paid
-                        amount: '1500.0'
-                        currency_code: PKR
-                        provider: mock_hosted_checkout
-                        checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
-                        checkout_expires_at: '2026-08-31T09:30:00Z'
-                        paid_at: '2026-08-31T09:05:00Z'
-                        updated_at: '2026-08-31T09:05:00Z'
-                      workflow:
-                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
-                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
-                        candidate_status: fee_paid
-                        current_stage:
-                          code: fee_paid
-                          name: Fee Paid
-                          position: 7
-                          status: current
-                          started_at: '2026-08-31T09:05:00Z'
-                        timeline: []
-                        qvc_attempts: []
-                        protection: null
-                        completed_count: 6
-                        total_count: 15
-                        progress_percentage: 40
-                        updated_at: '2026-08-31T09:05:00Z'
-                    meta:
-                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
-                      timestamp: '2026-08-31T09:05:00Z'
-                    errors: []
+                type: string
+                format: uri
         '401':
-          description: Signature missing or invalid
+          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
         '404':
-          description: Stored payment order not found
+          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
         '409':
-          description: Signed payload conflicts with an already-finalized payment
+          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
         '422':
-          description: Signed payload does not match the stored payment state
+          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
         '503':
-          description: Provider is unavailable or not configured
+          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
   /api/v1/ai_calls/elevenlabs/webhooks/post_call:
     post:
       summary: Receive an ElevenLabs post-call webhook delivery
@@ -7703,6 +7913,99 @@ paths:
           description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
         '422':
           description: A knob is out of its valid range (e.g. calling_hours_start > 23)
+  /api/v1/admin/training_setting:
+    get:
+      summary: Read the training-link singleton
+      description: >-
+        Returns the single admin-editable TrainingSetting row -- the one
+        external link (e.g. a YouTube channel/playlist) candidates are sent
+        to for all training documents and videos; the content itself is
+        managed entirely off-platform. Requires the
+        `manage_training_settings` permission -- admin-only by default.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current training link
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      url: https://www.youtube.com/@DesconManpower
+                      updated_by: null
+                      updated_at: '2026-09-12T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-12T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_training_settings, or is inactive
+    patch:
+      summary: Edit the training-link singleton
+      description: >-
+        Updates the training link. Requires the `manage_training_settings`
+        permission; a change is recorded as an AuditEvent carrying the actor
+        and the before/after value.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminTrainingSettingRequest'
+      responses:
+        '200':
+          description: Training link updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      url: https://www.youtube.com/@DesconManpowerTraining
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-09-12T09:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-12T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_training_settings, or is inactive
+        '422':
+          description: url is missing, blank, or not a valid http(s) URL
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)

@@ -24,6 +24,7 @@ RSpec.describe Payments::Configuration do
     ENV.delete('KUICKPAY_RETURN_URL')
     ENV.delete('KUICKPAY_OPEN_TIMEOUT_SECONDS')
     ENV.delete('KUICKPAY_READ_TIMEOUT_SECONDS')
+    ENV.delete('FRONTEND_PAYMENT_RETURN_URL')
 
     configuration = described_class.new
 
@@ -40,6 +41,7 @@ RSpec.describe Payments::Configuration do
     expect(configuration.kuickpay_return_url).to be_nil
     expect(configuration.kuickpay_open_timeout).to eq(5)
     expect(configuration.kuickpay_read_timeout).to eq(10)
+    expect(configuration.frontend_payment_return_url).to be_nil
   end
 
   it 'normalizes configured environment values' do
@@ -56,6 +58,7 @@ RSpec.describe Payments::Configuration do
     ENV['KUICKPAY_RETURN_URL'] = ' https://app.example.test/return '
     ENV['KUICKPAY_OPEN_TIMEOUT_SECONDS'] = '9'
     ENV['KUICKPAY_READ_TIMEOUT_SECONDS'] = '12'
+    ENV['FRONTEND_PAYMENT_RETURN_URL'] = ' https://app.example.test/payment/pending '
 
     configuration = described_class.new
 
@@ -72,5 +75,6 @@ RSpec.describe Payments::Configuration do
     expect(configuration.kuickpay_return_url).to eq('https://app.example.test/return')
     expect(configuration.kuickpay_open_timeout).to eq(9)
     expect(configuration.kuickpay_read_timeout).to eq(12)
+    expect(configuration.frontend_payment_return_url).to eq('https://app.example.test/payment/pending')
   end
 end
