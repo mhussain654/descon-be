@@ -14,6 +14,7 @@ module CandidateWorkflows
       record_protection_record!
       record_visa_decision!
       record_flight_detail!
+      trigger_workflow_stage_call!
       PostTransitionEventRecorder.call(
         history_entry: @history_entry,
         context: @context,
@@ -22,6 +23,18 @@ module CandidateWorkflows
     end
 
     private
+
+    # Enqueued unconditionally -- AiCalls::TriggerWorkflowStageCallService
+    # itself checks whether the destination stage has an active script, so
+    # this recorder doesn't need to know or care. Enqueuing inside this
+    # transaction (Solid Queue is DB-backed) means the job only becomes
+    # visible if the transition actually commits.
+    def trigger_workflow_stage_call!
+      AiCalls::TriggerWorkflowStageCallJob.perform_later(
+        candidate_assignment_id: assignment.id, workflow_stage_code: destination_stage_code,
+        request_id: @transition.fetch(:request_id)
+      )
+    end
 
     def record_qvc_attempt!
       create_qvc_attempt! if destination_stage_code == 'qvc_appointment_booked'

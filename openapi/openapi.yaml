@@ -1352,6 +1352,67 @@ components:
               format: date-time
             - type: 'null'
       required: [candidate_id, assignment_id, qvc_attempts, updated_at]
+    AdminCandidateAiCallRequest:
+      type: object
+      properties:
+        candidate_ai_call:
+          type: object
+          required: [call_reason]
+          properties:
+            call_reason:
+              type: string
+              enum: [missing_documents, protection_appearance_reminder, urgent_compliance_action, flight_information]
+          additionalProperties: false
+      required: [candidate_ai_call]
+    AdminWorkflowStageCallScriptRequest:
+      type: object
+      properties:
+        workflow_stage_call_script:
+          type: object
+          properties:
+            announcement_en:
+              type: string
+            announcement_ur:
+              type: string
+              nullable: true
+            active:
+              type: boolean
+          additionalProperties: false
+      required: [workflow_stage_call_script]
+    AdminAiCallOperationalSettingRequest:
+      type: object
+      properties:
+        ai_call_operational_setting:
+          type: object
+          properties:
+            outbound_trigger_cooldown_minutes:
+              type: integer
+              minimum: 0
+              nullable: true
+            daily_outbound_call_limit:
+              type: integer
+              minimum: 0
+              nullable: true
+            admin_trigger_rate_limit_per_hour:
+              type: integer
+              minimum: 0
+              nullable: true
+            calling_hours_start:
+              type: integer
+              minimum: 0
+              maximum: 23
+              nullable: true
+            calling_hours_end:
+              type: integer
+              minimum: 0
+              maximum: 23
+              nullable: true
+            max_call_duration_minutes:
+              type: integer
+              minimum: 0
+              nullable: true
+          additionalProperties: false
+      required: [ai_call_operational_setting]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -5167,6 +5228,151 @@ paths:
                             - expired_pcc
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                     timestamp: '2026-08-30T12:00:00Z'
+  /api/v1/admin/candidates/{candidate_id}/ai_calls:
+    get:
+      summary: List a candidate's admin-triggered AI voice call history
+      description: >-
+        Read-only, most-recent-first list of admin-triggered outbound AI voice calls for
+        this candidate. Requires the `trigger_ai_calls` permission. Inbound helpline calls
+        and workflow-stage-triggered calls are not included here -- see
+        GET /api/v1/admin/communications for the full cross-channel log.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Admin-triggered AI call history
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                calls:
+                  value:
+                    data:
+                      - id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
+                        direction: outbound
+                        call_reason: missing_documents
+                        language_code: en
+                        status: queued
+                        triggered_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: admin
+                        outcome: null
+                        outcome_reason: null
+                        verification_status: not_applicable
+                        summary: null
+                        started_at: null
+                        answered_at: null
+                        completed_at: null
+                        created_at: '2026-09-10T10:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-10T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+    post:
+      summary: Trigger an admin-initiated outbound AI voice call
+      description: >-
+        Places a real two-way ElevenLabs conversational AI call to the candidate for one
+        of 4 reasons. Subject to the outbound feature flag, allowed calling hours, a
+        per-admin hourly rate limit, a daily account-wide cap, and a per-candidate+reason
+        cooldown (see AiCalls::OutboundCallGuard). Requires the `trigger_ai_calls`
+        permission and an Idempotency-Key header.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCandidateAiCallRequest'
+      responses:
+        '201':
+          description: Call triggered or replayed idempotently
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                triggered:
+                  value:
+                    data:
+                      id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
+                      direction: outbound
+                      call_reason: missing_documents
+                      language_code: en
+                      status: queued
+                      triggered_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      outcome: null
+                      outcome_reason: null
+                      verification_status: not_applicable
+                      summary: null
+                      started_at: null
+                      answered_at: null
+                      completed_at: null
+                      created_at: '2026-09-10T10:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-10T10:00:01Z'
+                    errors: []
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: >-
+            Unknown call_reason, candidate has no current assignment, candidate is
+            inactive, or the call is outside allowed calling hours
+        '429':
+          description: Admin rate limit, daily account limit, or per-candidate+reason cooldown exceeded
+        '502':
+          description: The ElevenLabs provider request failed
+        '503':
+          description: Outbound AI calling is disabled, or the provider is not configured
   /api/v1/admin/candidates/{candidate_id}/qvc_attempts:
     get:
       summary: List structured QVC attempts for a candidate
@@ -6165,6 +6371,172 @@ paths:
           description: Signed payload does not match the stored payment state
         '503':
           description: Provider is unavailable or not configured
+  /api/v1/ai_calls/elevenlabs/webhooks/post_call:
+    post:
+      summary: Receive an ElevenLabs post-call webhook delivery
+      description: >-
+        Applies a finished conversation's outcome to the matching CandidateAiCall.
+        Authenticity comes entirely from the `ElevenLabs-Signature` HMAC-SHA256 header
+        (verified against the raw request body before anything else happens, with a
+        30-minute replay-tolerance window) -- there is no staff session involved.
+        Idempotent: a redelivered event with the same conversation_id is a no-op.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: ElevenLabs-Signature
+          in: header
+          required: true
+          description: 't=<unix_timestamp>,v0=<hex_hmac_sha256>'
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: ElevenLabs' post_call_transcription webhook payload (see AiCalls::PostCallWebhookPayload).
+      responses:
+        '200':
+          description: Webhook applied or safely replayed
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                applied:
+                  value:
+                    data:
+                      id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
+                      status: completed
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-10T10:05:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or malformed ElevenLabs-Signature header
+        '404':
+          description: No CandidateAiCall matches the delivered conversation_id
+  /api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation:
+    post:
+      summary: Receive an ElevenLabs inbound-call conversation-initiation webhook
+      description: >-
+        Fired when a candidate calls the inbound helpline number, before the
+        conversation begins. Creates (or, on redelivery, finds) one CandidateAiCall
+        and its Communication envelope, keyed idempotently on elevenlabs_conversation_id.
+        The candidate is linked automatically if the caller's normalized number matches
+        an active Candidate's registered mobile_number; otherwise the call proceeds
+        unidentified until AiCalls::Tools::VerifyCallerIdentity links it mid-call.
+        Authenticity comes from the `ElevenLabs-Signature` HMAC-SHA256 header, verified
+        the same way as the post_call webhook -- there is no staff session involved.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: ElevenLabs-Signature
+          in: header
+          required: true
+          description: 't=<unix_timestamp>,v0=<hex_hmac_sha256>'
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: ElevenLabs' conversation-initiation webhook payload (see AiCalls::ConversationInitiationPayload).
+      responses:
+        '200':
+          description: >-
+            CandidateAiCall created or found (uniformly shaped whether or not a
+            candidate was matched -- the response never signals match/no-match directly)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or malformed ElevenLabs-Signature header
+  /api/v1/ai_calls/elevenlabs/tools/{tool_name}:
+    post:
+      summary: Dispatch an ElevenLabs in-call tool invocation
+      description: >-
+        Single dispatcher for every ElevenLabs conversational tool (verify_caller_identity,
+        the 7 data-retrieval tools, create_callback_request, transfer_to_human), routed by
+        `AiCalls::Tools::Registry`. Authenticated by a shared secret
+        (`X-AI-Calls-Tool-Secret`, constant-time compared) rather than a staff session --
+        there is no candidate/staff login on an in-progress voice call. Every invocation is
+        recorded as its own CandidateAiCallEvent (event_source: tool_call); unlike webhook
+        events, repeated identical calls are never deduped, since an agent may legitimately
+        call the same tool more than once in one conversation. Every data-revealing tool
+        independently re-checks candidate_ai_call.verification_status server-side before
+        returning anything -- it never trusts the agent's own claim that verification
+        already succeeded.
+      parameters:
+        - name: tool_name
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - verify_caller_identity
+              - get_application_status
+              - get_missing_documents
+              - get_payment_status
+              - get_qvc_status
+              - get_visa_status
+              - get_protection_status
+              - get_flight_information
+              - create_callback_request
+              - transfer_to_human
+        - name: X-AI-Calls-Tool-Secret
+          in: header
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: >-
+                conversation_id (required, identifies the CandidateAiCall) plus whatever
+                arguments the named tool expects (e.g. reference_number/cnic for
+                verify_caller_identity, reason for create_callback_request/transfer_to_human).
+      responses:
+        '200':
+          description: Tool result, shaped per the dispatched tool
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing or invalid X-AI-Calls-Tool-Secret header
+        '404':
+          description: Unknown tool_name, or no CandidateAiCall matches the given conversation_id
   /api/v1/payments/hosted_checkout/{provider_code}/callback:
     post:
       summary: Process a signed hosted-checkout provider callback
@@ -7117,6 +7489,220 @@ paths:
           description: Missing, invalid, expired, or revoked staff access token
         '403':
           description: Authenticated staff user lacks view_communications/manage_communications, or is inactive
+  /api/v1/admin/workflow_stage_call_scripts:
+    get:
+      summary: List the per-workflow-stage AI call scripts
+      description: >-
+        Read-only list of every WorkflowStageCallScript row (one per canonical workflow stage
+        that can trigger an automatic AI call, seeded up front -- see MPS-708). Requires the
+        `manage_ai_call_scripts` permission. There is no create/destroy route: the row set is
+        fixed to WorkflowStage::CANONICAL_STAGES.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The full list of workflow-stage call scripts
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                scripts:
+                  value:
+                    data:
+                      - workflow_stage_code: verified
+                        announcement_en: "Hello {{candidate_name}}, this is Descon Manpower calling -- your documents have been verified."
+                        announcement_ur: "السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے -- آپ کی دستاویزات کی تصدیق ہو گئی ہے۔"
+                        active: false
+                        updated_by: null
+                        updated_at: '2026-09-11T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_scripts, or is inactive
+  /api/v1/admin/workflow_stage_call_scripts/{workflow_stage_code}:
+    patch:
+      summary: Edit one workflow stage's AI call script
+      description: >-
+        Updates the English/Urdu opening-announcement text and/or active flag for one canonical
+        workflow stage's automated call script. The actual call always speaks in the candidate's
+        own preferred language, selecting between announcement_en/announcement_ur at call time
+        (falling back to announcement_en if the Urdu wording isn't ready yet) -- only the
+        announcement text is admin-editable content, the underlying call guardrails/tool-use
+        rules stay repo-committed and are never exposed here. Requires the
+        `manage_ai_call_scripts` permission; every update is recorded as an AuditEvent.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workflow_stage_code
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminWorkflowStageCallScriptRequest'
+      responses:
+        '200':
+          description: Script updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      workflow_stage_code: verified
+                      announcement_en: Approved wording.
+                      announcement_ur: منظور شدہ عبارت۔
+                      active: true
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-09-11T09:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_scripts, or is inactive
+        '404':
+          description: No script row for this workflow_stage_code
+        '422':
+          description: Invalid announcement or language_code
+  /api/v1/admin/ai_call_operational_settings:
+    get:
+      summary: Read the AI call rate-limit / calling-hours singleton
+      description: >-
+        Returns the single admin-editable AiCallOperationalSetting row -- the DB-driven
+        overrides for AiCalls::Configuration's 5 otherwise ENV-only knobs (outbound trigger
+        cooldown, daily outbound call limit, admin trigger rate limit, calling hours,
+        max call duration). A column reading null means that knob still falls back to its
+        ENV var/default. Requires the `manage_ai_call_settings` permission -- admin-only by
+        default, independent from `trigger_ai_calls`/`manage_ai_call_scripts`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current operational settings
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                settings:
+                  value:
+                    data:
+                      outbound_trigger_cooldown_minutes: null
+                      daily_outbound_call_limit: null
+                      admin_trigger_rate_limit_per_hour: null
+                      calling_hours_start: null
+                      calling_hours_end: null
+                      max_call_duration_minutes: null
+                      updated_by: null
+                      updated_at: '2026-09-11T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
+    patch:
+      summary: Edit the AI call rate-limit / calling-hours singleton
+      description: >-
+        Updates any subset of the 5 DB-editable operational knobs. Requires the
+        `manage_ai_call_settings` permission; every update that actually changes a value is
+        recorded as an AuditEvent carrying the actor and the before/after values changed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAiCallOperationalSettingRequest'
+      responses:
+        '200':
+          description: Settings updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      outbound_trigger_cooldown_minutes: 60
+                      daily_outbound_call_limit: 50
+                      admin_trigger_rate_limit_per_hour: 50
+                      calling_hours_start: 8
+                      calling_hours_end: 19
+                      max_call_duration_minutes: 15
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-09-11T09:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
+        '422':
+          description: A knob is out of its valid range (e.g. calling_hours_start > 23)
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)

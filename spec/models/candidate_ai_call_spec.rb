@@ -90,6 +90,31 @@ RSpec.describe CandidateAiCall, type: :model do
     expect(candidate_ai_call.errors[:extracted_data]).to be_present
   end
 
+  describe 'workflow_stage_code / call_reason consistency' do
+    it 'requires workflow_stage_code when call_reason is workflow_stage_notification' do
+      candidate_ai_call.call_reason = 'workflow_stage_notification'
+      candidate_ai_call.workflow_stage_code = nil
+
+      expect(candidate_ai_call).not_to be_valid
+      expect(candidate_ai_call.errors[:workflow_stage_code]).to be_present
+    end
+
+    it 'is valid with a workflow_stage_code when call_reason is workflow_stage_notification' do
+      candidate_ai_call.call_reason = 'workflow_stage_notification'
+      candidate_ai_call.workflow_stage_code = 'verified'
+
+      expect(candidate_ai_call).to be_valid
+    end
+
+    it 'rejects a workflow_stage_code for any other call_reason' do
+      candidate_ai_call.call_reason = 'missing_documents'
+      candidate_ai_call.workflow_stage_code = 'verified'
+
+      expect(candidate_ai_call).not_to be_valid
+      expect(candidate_ai_call.errors[:workflow_stage_code]).to be_present
+    end
+  end
+
   describe '#terminal_status?' do
     it 'is true for completed, failed and cancelled statuses' do
       %w[completed failed cancelled].each do |status|

@@ -12,11 +12,13 @@ class CandidateAiCall < ApplicationRecord
   CODE_FORMAT = /\A[a-z0-9_]+\z/
   DIRECTIONS = %w[inbound outbound].freeze
   STATUSES = %w[requested queued ringing in_progress processing completed failed cancelled].freeze
+  TERMINAL_STATUSES = %w[completed failed cancelled].freeze
   OUTCOMES = %w[answered not_answered callback_required].freeze
   VERIFICATION_STATUSES = %w[not_applicable pending verified failed skipped].freeze
   LANGUAGES = %w[en ur].freeze
   NORMALIZED_CODE_ATTRIBUTES = %i[
     direction call_reason status outcome outcome_reason provider_code failure_code verification_status
+    workflow_stage_code
   ].freeze
 
   belongs_to :communication
@@ -43,16 +45,19 @@ class CandidateAiCall < ApplicationRecord
   validates :verification_status, presence: true, inclusion: { in: VERIFICATION_STATUSES }
   validates :verification_attempts, numericality: { greater_than_or_equal_to: 0 }
   validates :extracted_data, exclusion: { in: [nil] }
+  validates :workflow_stage_code, format: { with: CODE_FORMAT }, allow_blank: true
   validate :candidate_assignment_matches_candidate
+  validate :workflow_stage_code_matches_call_reason
 
   scope :outbound, -> { where(direction: 'outbound') }
   scope :inbound, -> { where(direction: 'inbound') }
   scope :in_status, ->(status) { where(status:) }
   scope :awaiting_review, -> { where(outcome_reason: 'needs_manual_review', reviewed_at: nil) }
+  scope :non_terminal, -> { where.not(status: TERMINAL_STATUSES) }
 
   # True once ElevenLabs/Twilio have finished with this call -- the call
   # itself is over, independent of whether its business `outcome` is known.
-  def terminal_status? = status.in?(%w[completed failed cancelled])
+  def terminal_status? = status.in?(TERMINAL_STATUSES)
 
   def needs_manual_review? = outcome.nil? && outcome_reason == 'needs_manual_review'
 
@@ -81,5 +86,16 @@ class CandidateAiCall < ApplicationRecord
     return if candidate_assignment.candidate_id == candidate_id
 
     errors.add(:candidate_assignment, :invalid)
+  end
+
+  # workflow_stage_code is only meaningful for the automatically-triggered
+  # flow -- keep it from being set (or silently missing) inconsistently
+  # with call_reason.
+  def workflow_stage_code_matches_call_reason
+    if call_reason == 'workflow_stage_notification'
+      errors.add(:workflow_stage_code, :blank) if workflow_stage_code.blank?
+    elsif workflow_stage_code.present?
+      errors.add(:workflow_stage_code, :invalid)
+    end
   end
 end

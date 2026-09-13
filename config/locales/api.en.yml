@@ -98,6 +98,11 @@ en:
       ai_call_provider_request_failed: "The voice calling provider request failed."
       ai_call_signature_invalid: "The webhook signature is invalid."
       ai_call_tool_secret_invalid: "The tool request could not be authenticated."
+      ai_call_outbound_disabled: "Outbound AI voice calling is currently disabled."
+      ai_call_trigger_cooldown: "A call for this candidate and reason was already placed recently. Please wait before trying again."
+      ai_call_daily_limit_reached: "The daily outbound AI call limit has been reached."
+      ai_call_admin_rate_limited: "You have triggered too many AI calls recently. Please wait before trying again."
+      ai_call_outside_calling_hours: "AI calls can only be placed during allowed calling hours."
       candidate_full_name_required: "Enter the candidate's full name."
       candidate_mobile_number_invalid: "Enter a valid mobile number."
       candidate_passport_number_invalid: "Enter a valid passport number."
@@ -207,6 +212,23 @@ en:
             assistant at the start of the call. Only discuss the candidate's own application.
             Never reveal information about other candidates. If the candidate asks to speak to a
             human, offer to arrange a callback."
+        # Per-scenario opening lines for the 4 admin-triggered outbound calls
+        # (AiCalls::Prompts::ScenarioPrompt) -- spoken content, so (unlike the
+        # baseline above) both locales are required. PLACEHOLDER TEXT, same
+        # not-client-approved caveat as the baseline.
+        missing_documents:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling about your application. We noticed some documents are still
+            missing -- I can tell you exactly what's needed and answer any questions you have."
+        protection_appearance_reminder:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling with a reminder about your upcoming protection appearance."
+        urgent_compliance_action:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling about an urgent action needed on your application."
+        flight_information:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling with your flight information ahead of your travel."
         inbound:
           baseline: "[PLACEHOLDER -- NOT CLIENT-APPROVED] You are a Descon Manpower candidate
             helpline assistant answering an inbound call. Identify yourself as an AI assistant at
@@ -214,3 +236,9 @@ en:
             status, documents, payments, visa, protection, or flight details) until the caller's
             identity has been verified through the verify_caller_identity tool. If the caller asks
             to speak to a human, offer to transfer or arrange a callback."
+          # Client-delegated default (2026-09-11: "set it changeable... which looks
+          # best to you") -- not a placeholder needing approval, this wording stands
+          # unless the client later asks to change it. Change it here, not in code.
+          opening_line: "Hello, thank you for calling Descon Manpower. I'm an AI assistant, and
+            I'm here to help with your application. Could you tell me your application or
+            reference number to get started?"

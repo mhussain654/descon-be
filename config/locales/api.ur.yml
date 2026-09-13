@@ -97,6 +97,11 @@ ur:
       ai_call_provider_request_failed: "وائس کالنگ فراہم کنندہ کی درخواست ناکام ہو گئی۔"
       ai_call_signature_invalid: "ویب ہک دستخط درست نہیں ہیں۔"
       ai_call_tool_secret_invalid: "ٹول کی درخواست کی توثیق نہیں ہو سکی۔"
+      ai_call_outbound_disabled: "آؤٹ باؤنڈ AI وائس کالنگ اس وقت غیر فعال ہے۔"
+      ai_call_trigger_cooldown: "اس امیدوار اور وجہ کے لیے کال حال ہی میں کی جا چکی ہے۔ براہ کرم دوبارہ کوشش کرنے سے پہلے انتظار کریں۔"
+      ai_call_daily_limit_reached: "روزانہ کی آؤٹ باؤنڈ AI کال کی حد مکمل ہو چکی ہے۔"
+      ai_call_admin_rate_limited: "آپ نے حال ہی میں بہت زیادہ AI کالز شروع کی ہیں۔ براہ کرم دوبارہ کوشش کرنے سے پہلے انتظار کریں۔"
+      ai_call_outside_calling_hours: "AI کالز صرف مقررہ کالنگ اوقات کے دوران کی جا سکتی ہیں۔"
       candidate_full_name_required: "امیدوار کا پورا نام درج کریں۔"
       candidate_mobile_number_invalid: "ایک درست موبائل نمبر درج کریں۔"
       candidate_passport_number_invalid: "ایک درست پاسپورٹ نمبر درج کریں۔"
@@ -190,3 +195,21 @@ ur:
       total_pages: "کل صفحات"
       next: "اگلا صفحہ"
       previous: "پچھلا صفحہ"
+    ai_calls:
+      # Per-scenario opening lines only -- the baseline agent prompt is
+      # intentionally English-only (see config/locales/api.en.yml). PLACEHOLDER
+      # TEXT, not client-approved.
+      prompts:
+        missing_documents:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے کال ہے۔ آپ کی درخواست میں کچھ دستاویزات ابھی باقی ہیں
+            -- میں آپ کو بتا سکتا ہوں کہ کیا درکار ہے اور آپ کے سوالات کا جواب دے سکتا ہوں۔"
+        protection_appearance_reminder:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے آپ کی آئندہ پروٹیکشن پیشی کی یاد دہانی کے لیے کال ہے۔"
+        urgent_compliance_action:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے کال ہے، آپ کی درخواست پر فوری کارروائی درکار ہے۔"
+        flight_information:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے آپ کی پرواز کی معلومات کے بارے میں کال ہے۔"

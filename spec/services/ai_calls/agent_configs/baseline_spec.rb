@@ -47,6 +47,14 @@ RSpec.describe AiCalls::AgentConfigs::Baseline do
     it 'differs between outbound and inbound baselines' do
       expect(described_class.for(:outbound).digest).not_to eq(described_class.for(:inbound).digest)
     end
+
+    it 'sets first_message to the inbound opening line, but not for outbound' do
+      inbound_config = described_class.for(:inbound).config
+      outbound_config = described_class.for(:outbound).config
+
+      expect(inbound_config.dig('conversation_config', 'agent', 'first_message')).to include('Descon Manpower')
+      expect(outbound_config.dig('conversation_config', 'agent')).not_to have_key('first_message')
+    end
   end
 
   describe '#digest_for_remote' do

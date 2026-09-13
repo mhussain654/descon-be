@@ -7,6 +7,8 @@ module StaffAuthorizationReferenceData
       manage_candidates
       manage_candidate_documents
       manage_communications
+      trigger_ai_calls
+      manage_ai_call_scripts
       view_candidate_assignments
       view_workflow
     ],
@@ -16,6 +18,8 @@ module StaffAuthorizationReferenceData
       manage_candidate_documents
       manage_workflow
       manage_communications
+      trigger_ai_calls
+      manage_ai_call_scripts
       view_mps_dashboard
       view_reports
     ],

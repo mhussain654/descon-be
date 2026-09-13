@@ -82,10 +82,67 @@ module AiCalls
       flag('AI_VOICE_HUMAN_TRANSFER_ENABLED')
     end
 
+    # Operational safety controls for outbound triggering (admin-triggered and
+    # workflow-stage-triggered) -- see the plan's "Operational safety
+    # controls" section. `outbound_enabled?` above already doubles as the
+    # emergency kill switch: flipping it off stops every outbound trigger
+    # immediately, so a second redundant flag isn't introduced.
+    #
+    # These 5 knobs are the one deliberate exception to this class's
+    # otherwise pure-ENV convention: each checks AiCallOperationalSetting's
+    # singleton row first (admin-editable without a deploy -- see the plan's
+    # "DB-driven, admin-editable rate limits"), falling back to ENV/the
+    # default below only when the row's column is nil. The row itself is
+    # never absent (AiCallOperationalSetting.current creates it lazily), so
+    # "the row is absent" only ever describes a never-touched-by-an-admin
+    # column, not a missing table row.
+    def outbound_trigger_cooldown_minutes
+      operational_setting.outbound_trigger_cooldown_minutes ||
+        ENV.fetch('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 60).to_i
+    end
+
+    def daily_outbound_call_limit
+      operational_setting.daily_outbound_call_limit || ENV.fetch('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 200).to_i
+    end
+
+    def admin_trigger_rate_limit_per_hour
+      operational_setting.admin_trigger_rate_limit_per_hour ||
+        ENV.fetch('AI_VOICE_ADMIN_TRIGGER_RATE_LIMIT_PER_HOUR', 50).to_i
+    end
+
+    # Pakistan-local allowed calling hours (24h clock, start inclusive, end
+    # exclusive).
+    def calling_hours_start
+      operational_setting.calling_hours_start || ENV.fetch('AI_VOICE_CALLING_HOURS_START', 9).to_i
+    end
+
+    def calling_hours_end
+      operational_setting.calling_hours_end || ENV.fetch('AI_VOICE_CALLING_HOURS_END', 19).to_i
+    end
+
+    # Used both as the reconciliation job's `in_progress` threshold (plus a
+    # buffer) and, once agent-config sync manages it, the ElevenLabs
+    # `conversation.max_duration_seconds` platform setting.
+    def max_call_duration_minutes
+      operational_setting.max_call_duration_minutes || ENV.fetch('AI_VOICE_MAX_CALL_DURATION_MINUTES', 15).to_i
+    end
+
+    # How long a call transcript (which may contain CNIC/passport/medical/
+    # financial details discussed on the call) is retained before
+    # AiCalls::PurgeExpiredTranscriptsJob clears its content. Stamped as
+    # CandidateAiCallTranscript#expires_at at creation time.
+    def transcript_retention_days
+      ENV.fetch('AI_VOICE_TRANSCRIPT_RETENTION_DAYS', 90).to_i
+    end
+
     private
 
     def flag(env_var)
       ActiveModel::Type::Boolean.new.cast(ENV.fetch(env_var, 'false'))
+    end
+
+    def operational_setting
+      @operational_setting ||= AiCallOperationalSetting.current
     end
   end
 end
