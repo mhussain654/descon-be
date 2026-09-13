@@ -54,6 +54,27 @@ RSpec.describe AiCalls::RecordPostCallWebhookService do
     expect(result.candidate_ai_call_transcript.transcript).to eq('Hello.')
   end
 
+  it 'stamps the transcript expiry per the configured retention window' do
+    freeze_time do
+      result = service.call
+
+      expect(result.candidate_ai_call_transcript.expires_at).to eq(90.days.from_now)
+    end
+  end
+
+  it 'honors a custom retention window from AI_VOICE_TRANSCRIPT_RETENTION_DAYS' do
+    original = ENV.fetch('AI_VOICE_TRANSCRIPT_RETENTION_DAYS', nil)
+    ENV['AI_VOICE_TRANSCRIPT_RETENTION_DAYS'] = '30'
+
+    freeze_time do
+      result = service.call
+
+      expect(result.candidate_ai_call_transcript.expires_at).to eq(30.days.from_now)
+    end
+  ensure
+    ENV['AI_VOICE_TRANSCRIPT_RETENTION_DAYS'] = original
+  end
+
   it 'routes a malformed extraction to needs_manual_review' do
     malformed = raw_payload.deep_dup
     malformed['data']['analysis']['data_collection_results'] = nil

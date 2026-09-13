@@ -55,6 +55,7 @@ en:
       manage_backups: "Manage backups"
       trigger_ai_calls: "Trigger AI voice calls"
       manage_ai_call_scripts: "Manage AI call scripts"
+      manage_ai_call_settings: "Manage AI call rate limits"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"

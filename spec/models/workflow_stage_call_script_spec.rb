@@ -29,24 +29,25 @@ RSpec.describe WorkflowStageCallScript do
     expect { duplicate.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
   end
 
-  it 'requires a non-blank announcement' do
-    script = build(:workflow_stage_call_script, announcement: '   ')
+  it 'requires a non-blank announcement_en' do
+    script = build(:workflow_stage_call_script, announcement_en: '   ')
 
     expect(script).not_to be_valid
-    expect(script.errors[:announcement]).to be_present
+    expect(script.errors[:announcement_en]).to be_present
   end
 
-  it 'normalizes the stage and language codes' do
-    script = create(:workflow_stage_call_script, workflow_stage_code: ' VERIFIED ', language_code: ' EN ')
+  it 'allows a blank announcement_ur (Urdu wording may not be ready yet)' do
+    script = build(:workflow_stage_call_script, announcement_ur: '   ')
+
+    expect(script).to be_valid
+    expect(script.announcement_ur).to be_nil
+  end
+
+  it 'normalizes the stage code and strips announcement whitespace' do
+    script = create(:workflow_stage_call_script, workflow_stage_code: ' VERIFIED ', announcement_en: '  Hi  ')
 
     expect(script.workflow_stage_code).to eq('verified')
-    expect(script.language_code).to eq('en')
-  end
-
-  it 'rejects an unsupported language_code' do
-    script = build(:workflow_stage_call_script, language_code: 'fr')
-
-    expect(script).not_to be_valid
+    expect(script.announcement_en).to eq('Hi')
   end
 
   describe '.active' do

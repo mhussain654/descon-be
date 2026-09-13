@@ -19,7 +19,9 @@ module AiCalls
     def self.for_workflow_stage(script)
       new(
         call_reason: 'workflow_stage_notification',
-        prompt_source: Prompts::WorkflowStageAnnouncementPrompt.new(announcement: script.announcement),
+        prompt_source: Prompts::WorkflowStageAnnouncementPrompt.new(
+          announcement_en: script.announcement_en, announcement_ur: script.announcement_ur
+        ),
         workflow_stage_code: script.workflow_stage_code
       )
     end

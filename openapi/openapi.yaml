@@ -1370,15 +1370,49 @@ components:
         workflow_stage_call_script:
           type: object
           properties:
-            announcement:
+            announcement_en:
               type: string
+            announcement_ur:
+              type: string
+              nullable: true
             active:
               type: boolean
-            language_code:
-              type: string
-              enum: [en, ur]
           additionalProperties: false
       required: [workflow_stage_call_script]
+    AdminAiCallOperationalSettingRequest:
+      type: object
+      properties:
+        ai_call_operational_setting:
+          type: object
+          properties:
+            outbound_trigger_cooldown_minutes:
+              type: integer
+              minimum: 0
+              nullable: true
+            daily_outbound_call_limit:
+              type: integer
+              minimum: 0
+              nullable: true
+            admin_trigger_rate_limit_per_hour:
+              type: integer
+              minimum: 0
+              nullable: true
+            calling_hours_start:
+              type: integer
+              minimum: 0
+              maximum: 23
+              nullable: true
+            calling_hours_end:
+              type: integer
+              minimum: 0
+              maximum: 23
+              nullable: true
+            max_call_duration_minutes:
+              type: integer
+              minimum: 0
+              nullable: true
+          additionalProperties: false
+      required: [ai_call_operational_setting]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -7487,9 +7521,9 @@ paths:
                   value:
                     data:
                       - workflow_stage_code: verified
-                        announcement: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is Descon Manpower calling -- your documents have been verified."
+                        announcement_en: "Hello {{candidate_name}}, this is Descon Manpower calling -- your documents have been verified."
+                        announcement_ur: "السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے -- آپ کی دستاویزات کی تصدیق ہو گئی ہے۔"
                         active: false
-                        language_code: en
                         updated_by: null
                         updated_at: '2026-09-11T09:00:00Z'
                     meta:
@@ -7504,11 +7538,13 @@ paths:
     patch:
       summary: Edit one workflow stage's AI call script
       description: >-
-        Updates the opening-announcement text, active flag, and/or language for one canonical
-        workflow stage's automated call script. Only the announcement is admin-editable content
-        -- the underlying call guardrails/tool-use rules stay repo-committed and are never
-        exposed here. Requires the `manage_ai_call_scripts` permission; every update is recorded
-        as an AuditEvent.
+        Updates the English/Urdu opening-announcement text and/or active flag for one canonical
+        workflow stage's automated call script. The actual call always speaks in the candidate's
+        own preferred language, selecting between announcement_en/announcement_ur at call time
+        (falling back to announcement_en if the Urdu wording isn't ready yet) -- only the
+        announcement text is admin-editable content, the underlying call guardrails/tool-use
+        rules stay repo-committed and are never exposed here. Requires the
+        `manage_ai_call_scripts` permission; every update is recorded as an AuditEvent.
       security:
         - bearerAuth: []
       parameters:
@@ -7544,9 +7580,9 @@ paths:
                   value:
                     data:
                       workflow_stage_code: verified
-                      announcement: Approved wording.
+                      announcement_en: Approved wording.
+                      announcement_ur: منظور شدہ عبارت۔
                       active: true
-                      language_code: en
                       updated_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                         role: admin
@@ -7563,6 +7599,110 @@ paths:
           description: No script row for this workflow_stage_code
         '422':
           description: Invalid announcement or language_code
+  /api/v1/admin/ai_call_operational_settings:
+    get:
+      summary: Read the AI call rate-limit / calling-hours singleton
+      description: >-
+        Returns the single admin-editable AiCallOperationalSetting row -- the DB-driven
+        overrides for AiCalls::Configuration's 5 otherwise ENV-only knobs (outbound trigger
+        cooldown, daily outbound call limit, admin trigger rate limit, calling hours,
+        max call duration). A column reading null means that knob still falls back to its
+        ENV var/default. Requires the `manage_ai_call_settings` permission -- admin-only by
+        default, independent from `trigger_ai_calls`/`manage_ai_call_scripts`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current operational settings
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                settings:
+                  value:
+                    data:
+                      outbound_trigger_cooldown_minutes: null
+                      daily_outbound_call_limit: null
+                      admin_trigger_rate_limit_per_hour: null
+                      calling_hours_start: null
+                      calling_hours_end: null
+                      max_call_duration_minutes: null
+                      updated_by: null
+                      updated_at: '2026-09-11T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
+    patch:
+      summary: Edit the AI call rate-limit / calling-hours singleton
+      description: >-
+        Updates any subset of the 5 DB-editable operational knobs. Requires the
+        `manage_ai_call_settings` permission; every update that actually changes a value is
+        recorded as an AuditEvent carrying the actor and the before/after values changed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAiCallOperationalSettingRequest'
+      responses:
+        '200':
+          description: Settings updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      outbound_trigger_cooldown_minutes: 60
+                      daily_outbound_call_limit: 50
+                      admin_trigger_rate_limit_per_hour: 50
+                      calling_hours_start: 8
+                      calling_hours_end: 19
+                      max_call_duration_minutes: 15
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-09-11T09:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
+        '422':
+          description: A knob is out of its valid range (e.g. calling_hours_start > 23)
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)
