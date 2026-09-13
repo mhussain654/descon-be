@@ -3,6 +3,14 @@
 require 'rails_helper'
 
 RSpec.describe 'GET /mock_checkout', type: :request do
+  around do |example|
+    original_env = ENV.to_h
+    ENV['FRONTEND_PAYMENT_RETURN_URL'] = 'https://app.example.test/payment/pending'
+    example.run
+  ensure
+    ENV.replace(original_env)
+  end
+
   let(:payment) do
     create(
       :payment,
@@ -36,7 +44,8 @@ RSpec.describe 'GET /mock_checkout', type: :request do
 
     get CGI.unescapeHTML(success_href)
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:found)
+    expect(response).to redirect_to('https://app.example.test/payment/pending')
     expect(payment.reload).to be_paid
   end
 
@@ -80,7 +89,8 @@ RSpec.describe 'GET /mock_checkout', type: :request do
     get success_href
     get success_href
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:found)
+    expect(response).to redirect_to('https://app.example.test/payment/pending')
     expect(payment.reload).to be_paid
   end
 
@@ -91,7 +101,8 @@ RSpec.describe 'GET /mock_checkout', type: :request do
 
     get tampered_href
 
-    expect(response).to have_http_status(:unauthorized)
+    expect(response).to have_http_status(:found)
+    expect(response).to redirect_to('https://app.example.test/payment/pending')
     expect(payment.reload).not_to be_paid
   end
 
@@ -104,7 +115,8 @@ RSpec.describe 'GET /mock_checkout', type: :request do
 
     get redirected_href
 
-    expect(response).to have_http_status(:unauthorized)
+    expect(response).to have_http_status(:found)
+    expect(response).to redirect_to('https://app.example.test/payment/pending')
     expect(other_payment.reload).not_to be_paid
   end
 end

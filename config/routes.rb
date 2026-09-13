@@ -38,6 +38,10 @@ Rails.application.routes.draw do
         resource :flight_detail, only: :show, controller: :flight_details do
           resource :ticket_access, only: :create, controller: :flight_detail_ticket_accesses
         end
+        resources :visa_decisions, only: :index do
+          resource :visa_copy_access, only: :create, controller: :visa_decision_visa_copy_accesses
+        end
+        resource :training_setting, only: :show
       end
 
       namespace :admin do
@@ -91,6 +95,7 @@ Rails.application.routes.draw do
         resources :communications, only: :index
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resource :ai_call_operational_settings, only: %i[show update]
+        resource :training_setting, only: %i[show update]
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses
         end
@@ -112,6 +117,7 @@ Rails.application.routes.draw do
       namespace :payments do
         scope 'hosted_checkout/:provider_code' do
           get :return, to: 'hosted_checkout_returns#show'
+          post :return, to: 'hosted_checkout_returns#create'
           post :callback, to: 'hosted_checkout_callbacks#create'
         end
       end
