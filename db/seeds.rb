@@ -22,6 +22,7 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_candidate_documents
     manage_communications
     trigger_ai_calls
+    manage_ai_call_scripts
     view_candidate_assignments
     view_workflow
   ],
@@ -32,6 +33,7 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     manage_workflow
     manage_communications
     trigger_ai_calls
+    manage_ai_call_scripts
     view_mps_dashboard
     view_reports
   ],
@@ -71,6 +73,58 @@ WorkflowStage::CANONICAL_STAGES.each do |stage_attributes|
   )
   stage.save!
 end
+
+# --- AI voice call scripts (MPS-708) ----------------------------------------
+# Seeded inactive so nothing gets called until an admin reviews and enables
+# it. Only stages where an automated call plausibly makes sense get a
+# default row; admin can still enable/edit any of these later, but cannot
+# add a stage outside this fixed set (see WorkflowStageCallScript's
+# inclusion validation). Both languages are seeded for every stage --
+# WorkflowStageAnnouncementPrompt selects between them per candidate at
+# call time (see its own doc comment), so a stage needs both ready, not
+# just one. `{{candidate_name}}` is an ElevenLabs dynamic-variable
+# placeholder, substituted provider-side -- not literal text.
+{
+  'verified' => {
+    en: 'Hello {{candidate_name}}, this is Descon Manpower calling -- your documents have been verified.',
+    ur: 'السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے -- آپ کی دستاویزات کی تصدیق ہو گئی ہے۔'
+  },
+  'fee_paid' => {
+    en: 'Hello {{candidate_name}}, this is Descon Manpower calling to confirm your fee payment was received.',
+    ur: 'السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے یہ تصدیق کرنے کے لیے کہ آپ کی فیس کی ' \
+        'ادائیگی موصول ہو گئی ہے۔'
+  },
+  'qvc_completed_outcome_received' => {
+    en: 'Hello {{candidate_name}}, this is Descon Manpower calling about your QVC appointment outcome.',
+    ur: 'السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے آپ کے QVC اپائنٹمنٹ کے نتیجے کے بارے میں۔'
+  },
+  'visa_issued_or_rejected' => {
+    en: 'Hello {{candidate_name}}, this is Descon Manpower calling with an update on your visa.',
+    ur: 'السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے آپ کے ویزا کے بارے میں تازہ ترین اطلاع کے ساتھ۔'
+  },
+  'appeared_for_protection' => {
+    en: 'Hello {{candidate_name}}, this is Descon Manpower calling following your protection appearance.',
+    ur: 'السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے آپ کی پروٹیکشن حاضری کے بعد۔'
+  },
+  'mobilized' => {
+    en: 'Hello {{candidate_name}}, this is Descon Manpower calling to confirm your mobilization.',
+    ur: 'السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے آپ کی روانگی کی تصدیق کے لیے۔'
+  }
+}.each do |stage_code, announcements|
+  script = WorkflowStageCallScript.find_or_initialize_by(workflow_stage_code: stage_code)
+  script.announcement_en ||= announcements.fetch(:en)
+  script.announcement_ur ||= announcements.fetch(:ur)
+  script.active = false if script.new_record?
+  script.save!
+end
+
+# --- AI call operational settings (MPS-712) ---------------------------------
+# Seeds the singleton row up front so it's visible to an admin immediately,
+# rather than only appearing on first lazy access. Every column stays nil
+# (AiCallOperationalSetting.current would create it the same way regardless)
+# -- an environment that never touches the admin UI keeps its existing
+# ENV-driven AiCalls::Configuration defaults unchanged.
+AiCallOperationalSetting.current
 
 # --- Reference catalogs (MPS-106) -------------------------------------------
 

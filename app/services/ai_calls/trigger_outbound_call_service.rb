@@ -1,20 +1,21 @@
 # frozen_string_literal: true
 
 module AiCalls
-  # Places one admin-triggered outbound AI voice call for `call_reason`
-  # (one of AiCalls::Prompts::ScenarioPromptRegistry's 4 known reasons).
-  # Mirrors Payments::CheckoutSessionService's shape: lock the candidate/
-  # assignment, enforce eligibility/safety checks (AiCalls::OutboundCallGuard),
-  # then create the local records and call the provider inside the same
-  # transaction -- if the provider call raises, everything rolls back
-  # cleanly (no orphaned "failed" row), matching how a failed KuickPay
-  # checkout-session creation is handled.
+  # Places one outbound AI voice call per `plan` (AiCalls::OutboundCallPlan)
+  # -- shared by the admin-triggered flow (4 fixed scenarios, `actor` set)
+  # and the workflow-stage-triggered flow (`actor` nil). Mirrors Payments::
+  # CheckoutSessionService's shape: lock the candidate/assignment, enforce
+  # eligibility/safety checks (AiCalls::OutboundCallGuard), then create the
+  # local records and call the provider inside the same transaction -- if
+  # the provider call raises, everything rolls back cleanly (no orphaned
+  # "failed" row), matching how a failed KuickPay checkout-session creation
+  # is handled.
   class TriggerOutboundCallService < ApplicationService
     LOCK_SCOPE = 'ai_calls:trigger_outbound'
 
-    def initialize(candidate:, call_reason:, actor:, request_id:, configuration: AiCalls::Configuration.new)
+    def initialize(candidate:, plan:, request_id:, actor: nil, configuration: AiCalls::Configuration.new)
       @candidate = candidate
-      @call_reason = call_reason.to_s
+      @plan = plan
       @actor = actor
       @request_id = request_id
       @configuration = configuration
@@ -33,7 +34,12 @@ module AiCalls
     def execute_trigger
       lock_trigger!
       candidate, assignment = locked_candidate_and_assignment
-      @guard.ensure_not_throttled!(candidate_assignment: assignment, call_reason: @call_reason)
+      @guard.ensure_daily_limit_not_reached!
+      # Only the admin-triggered (attributed) flow uses the per-reason
+      # cooldown -- the workflow-stage-triggered flow (@actor nil) already
+      # enforces its own, stronger, permanent per-stage dedup at the caller
+      # (see AiCalls::OutboundCallGuard#ensure_cooldown_elapsed!).
+      @guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: @plan.call_reason) if @actor
 
       call_record = create_call_record!(candidate:, assignment:)
       initiate_provider_call!(call_record)
@@ -45,7 +51,7 @@ module AiCalls
     # before either has committed -- the second waits for the first to
     # finish, then sees its just-created row and is correctly rejected.
     def lock_trigger!
-      Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: "#{@candidate.id}:#{@call_reason}")
+      Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: "#{@candidate.id}:#{@plan.call_reason}")
     end
 
     def locked_candidate_and_assignment
@@ -83,8 +89,8 @@ module AiCalls
     def identity_attributes(candidate:, assignment:)
       {
         candidate:, candidate_assignment: assignment, triggered_by: @actor,
-        direction: 'outbound', call_reason: @call_reason, language_code: candidate.preferred_locale,
-        status: 'requested', verification_status: 'not_applicable'
+        direction: 'outbound', call_reason: @plan.call_reason, workflow_stage_code: @plan.workflow_stage_code,
+        language_code: candidate.preferred_locale, status: 'requested', verification_status: 'not_applicable'
       }
     end
 
@@ -93,7 +99,7 @@ module AiCalls
         provider_code: 'elevenlabs',
         elevenlabs_agent_id: @configuration.elevenlabs_outbound_agent_id,
         elevenlabs_agent_phone_number_id: @configuration.elevenlabs_agent_phone_number_id,
-        prompt_template_code: @call_reason,
+        prompt_template_code: @plan.call_reason,
         prompt_template_version: '1',
         agent_config_digest: AgentConfigs::Baseline.for(:outbound).digest,
         caller_number_masked: PhoneNumbers::Masker.call(candidate.mobile_number)
@@ -101,9 +107,7 @@ module AiCalls
     end
 
     def initiate_provider_call!(call_record)
-      prompt = Prompts::ScenarioPromptRegistry.fetch(@call_reason).build(
-        candidate: call_record.candidate, language_code: call_record.language_code
-      )
+      prompt = @plan.prompt_source.build(candidate: call_record.candidate, language_code: call_record.language_code)
       result = @adapter.initiate_outbound_call(outbound_call_request(call_record:, prompt:))
 
       call_record.update!(elevenlabs_conversation_id: result.conversation_id, twilio_call_sid: result.twilio_call_sid,
@@ -123,10 +127,11 @@ module AiCalls
     end
 
     def record_trigger_event!(call_record)
+      event_source = @actor.present? ? 'admin_trigger' : 'workflow_stage_trigger'
       call_record.candidate_ai_call_events.create!(
-        actor: @actor, provider_code: 'elevenlabs', event_source: 'admin_trigger', event_type: 'call_initiated',
-        event_key: "admin_trigger:#{call_record.id}", occurred_at: Time.current, request_id: @request_id,
-        payload: { call_reason: @call_reason, conversation_id: call_record.elevenlabs_conversation_id }.compact
+        actor: @actor, provider_code: 'elevenlabs', event_source:, event_type: 'call_initiated',
+        event_key: "#{event_source}:#{call_record.id}", occurred_at: Time.current, request_id: @request_id,
+        payload: { call_reason: @plan.call_reason, conversation_id: call_record.elevenlabs_conversation_id }.compact
       )
     end
   end

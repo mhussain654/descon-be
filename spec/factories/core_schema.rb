@@ -467,6 +467,8 @@ FactoryBot.define do
       call_reason { 'general_helpline' }
       candidate { nil }
       candidate_assignment { nil }
+      verification_status { 'pending' }
+      status { 'in_progress' }
       association :communication, factory: %i[communication], channel_code: 'ai_voice_call', candidate_assignment: nil,
                                   direction_code: 'inbound'
     end
@@ -508,6 +510,15 @@ FactoryBot.define do
     transcript { 'Agent: Hello. Candidate: Hi there.' }
     recording_reference { nil }
     recorded_at { Time.current }
+    expires_at { 90.days.from_now }
+  end
+
+  factory :workflow_stage_call_script do
+    workflow_stage_code { 'verified' }
+    announcement_en { 'Hello, this is Descon Manpower calling about your application.' }
+    announcement_ur { 'السلام علیکم، یہ ڈیسکون مین پاور کی کال ہے آپ کی درخواست کے بارے میں۔' }
+    active { true }
+    updated_by { nil }
   end
 
   factory :audit_event do

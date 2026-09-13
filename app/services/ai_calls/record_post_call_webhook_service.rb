@@ -60,7 +60,8 @@ module AiCalls
       return if text.blank? || call_record.candidate_ai_call_transcript.present?
 
       call_record.create_candidate_ai_call_transcript!(
-        transcript: text, recording_reference: payload.recording_reference, recorded_at: Time.current
+        transcript: text, recording_reference: payload.recording_reference, recorded_at: Time.current,
+        expires_at: Configuration.new.transcript_retention_days.days.from_now
       )
     end
   end

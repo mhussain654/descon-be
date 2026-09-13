@@ -43,9 +43,7 @@ module AiCalls
       def config
         {
           'name' => "Descon #{role.capitalize} AI Call Agent",
-          'conversation_config' => {
-            'agent' => { 'language' => 'en', 'prompt' => { 'prompt' => prompt_text } }
-          }
+          'conversation_config' => { 'agent' => agent_config }
         }
       end
 
@@ -61,8 +59,23 @@ module AiCalls
 
       private
 
+      # Inbound has no per-call trigger service to layer a `first_message`
+      # override onto (unlike outbound, whose ScenarioPrompt/
+      # WorkflowStageAnnouncementPrompt set it per call) -- the greeting
+      # that answers every inbound call has to live on the baseline itself.
+      def agent_config
+        base = { 'language' => 'en', 'prompt' => { 'prompt' => prompt_text } }
+        return base unless role == 'inbound'
+
+        base.merge('first_message' => opening_line_text)
+      end
+
       def prompt_text
         I18n.t("api.ai_calls.prompts.#{role}.baseline", locale: :en)
+      end
+
+      def opening_line_text
+        I18n.t('api.ai_calls.prompts.inbound.opening_line', locale: :en)
       end
 
       def normalized_json(value)

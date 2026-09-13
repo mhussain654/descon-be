@@ -236,3 +236,9 @@ en:
             status, documents, payments, visa, protection, or flight details) until the caller's
             identity has been verified through the verify_caller_identity tool. If the caller asks
             to speak to a human, offer to transfer or arrange a callback."
+          # Client-delegated default (2026-09-11: "set it changeable... which looks
+          # best to you") -- not a placeholder needing approval, this wording stands
+          # unless the client later asks to change it. Change it here, not in code.
+          opening_line: "Hello, thank you for calling Descon Manpower. I'm an AI assistant, and
+            I'm here to help with your application. Could you tell me your application or
+            reference number to get started?"

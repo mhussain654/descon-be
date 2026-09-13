@@ -23,3 +23,7 @@ production:
     class: AiCalls::ReconcileStuckCallsJob
     queue: default
     schedule: every minute
+  purge_expired_ai_call_transcripts:
+    class: AiCalls::PurgeExpiredTranscriptsJob
+    queue: default
+    schedule: at 1am every day

@@ -25,9 +25,10 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
   let(:candidate) { create(:candidate) }
   let!(:assignment) { create(:candidate_assignment, candidate:) }
   let(:actor) { create(:user, role: 'admin') }
+  let(:plan) { AiCalls::OutboundCallPlan.for_admin_scenario('missing_documents') }
 
-  def service
-    described_class.new(candidate:, call_reason: 'missing_documents', actor:, request_id: 'req-1', configuration:)
+  def service(plan: self.plan)
+    described_class.new(candidate:, plan:, actor:, request_id: 'req-1', configuration:)
   end
 
   def stub_successful_call
@@ -48,6 +49,20 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
     expect(call_record.communication.channel_code).to eq('ai_voice_call')
     expect(call_record.communication.recipient_masked).to be_present
     expect(call_record.candidate_ai_call_events.sole.event_type).to eq('call_initiated')
+    expect(call_record.candidate_ai_call_events.sole.event_source).to eq('admin_trigger')
+  end
+
+  it 'records event_source as workflow_stage_trigger and no triggered_by when actor is nil' do
+    stub_successful_call
+    stage_plan = AiCalls::OutboundCallPlan.for_workflow_stage(
+      build_stubbed(:workflow_stage_call_script, workflow_stage_code: 'verified')
+    )
+
+    call_record = described_class.new(candidate:, plan: stage_plan, request_id: 'req-1', configuration:).call
+
+    expect(call_record.triggered_by).to be_nil
+    expect(call_record.workflow_stage_code).to eq('verified')
+    expect(call_record.candidate_ai_call_events.sole.event_source).to eq('workflow_stage_trigger')
   end
 
   it 'raises when outbound calling is disabled and creates no rows' do
@@ -62,8 +77,7 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
     unassigned = create(:candidate)
 
     expect do
-      described_class.new(candidate: unassigned, call_reason: 'missing_documents', actor:, request_id: 'req-1',
-                          configuration:).call
+      described_class.new(candidate: unassigned, plan:, actor:, request_id: 'req-1', configuration:).call
     end.to raise_error(NoCurrentAssignmentError)
   end
 
@@ -73,10 +87,8 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
     expect { service.call }.to raise_error(InactiveAccountError)
   end
 
-  it 'raises for an unknown call_reason before creating any rows' do
-    expect do
-      described_class.new(candidate:, call_reason: 'bogus', actor:, request_id: 'req-1', configuration:).call
-    end.to raise_error(ArgumentError)
+  it 'raises when constructing a plan for an unknown call_reason' do
+    expect { AiCalls::OutboundCallPlan.for_admin_scenario('bogus') }.to raise_error(ArgumentError)
     expect(CandidateAiCall.count).to eq(0)
   end
 
