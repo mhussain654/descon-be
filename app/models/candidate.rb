@@ -26,6 +26,7 @@ class Candidate < ApplicationRecord
   has_many :candidate_sessions, dependent: :destroy
   has_many :candidate_otp_challenges, dependent: :destroy
   has_many :candidate_consents, dependent: :restrict_with_exception
+  has_many :candidate_ai_calls, dependent: :restrict_with_exception
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_cnic
@@ -87,11 +88,8 @@ class Candidate < ApplicationRecord
 
   # Strips whitespace and keeps only digits (plus a leading '+' if present) in the mobile number.
   def normalize_mobile_number
-    raw_value = mobile_number.to_s.strip
-    digits = raw_value.gsub(/\D/, '')
-    return if digits.blank?
-
-    self.mobile_number = raw_value.start_with?('+') ? "+#{digits}" : digits
+    normalized = PhoneNumbers::Normalizer.call(mobile_number)
+    self.mobile_number = normalized.presence || mobile_number
   end
 
   # Uppercases the passport number and removes internal whitespace, blanking it out if empty.

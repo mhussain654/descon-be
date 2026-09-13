@@ -23,6 +23,7 @@ class CandidateAssignment < ApplicationRecord
   has_many :payments, dependent: :restrict_with_exception
   has_many :payment_events, through: :payments
   has_many :communications, dependent: :restrict_with_exception
+  has_many :candidate_ai_calls, dependent: :restrict_with_exception
   has_many :candidate_workflow_events, dependent: :restrict_with_exception
   has_many :audit_events, dependent: :restrict_with_exception
 

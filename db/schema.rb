@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_12_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "ai_call_operational_settings", force: :cascade do |t|
+    t.integer "admin_trigger_rate_limit_per_hour"
+    t.integer "calling_hours_end"
+    t.integer "calling_hours_start"
+    t.datetime "created_at", null: false
+    t.integer "daily_outbound_call_limit"
+    t.integer "max_call_duration_minutes"
+    t.integer "outbound_trigger_cooldown_minutes"
+    t.boolean "singleton_guard", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.index ["singleton_guard"], name: "index_ai_call_operational_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_ai_call_operational_settings_on_updated_by_id"
+    t.check_constraint "admin_trigger_rate_limit_per_hour >= 0", name: "ai_call_operational_settings_admin_trigger_rate_limit_per_hour_"
+    t.check_constraint "calling_hours_end IS NULL OR calling_hours_end >= 0 AND calling_hours_end <= 23", name: "ai_call_operational_settings_calling_hours_end_range"
+    t.check_constraint "calling_hours_start IS NULL OR calling_hours_start >= 0 AND calling_hours_start <= 23", name: "ai_call_operational_settings_calling_hours_start_range"
+    t.check_constraint "daily_outbound_call_limit >= 0", name: "ai_call_operational_settings_daily_outbound_call_limit_non_nega"
+    t.check_constraint "max_call_duration_minutes >= 0", name: "ai_call_operational_settings_max_call_duration_minutes_non_nega"
+    t.check_constraint "outbound_trigger_cooldown_minutes >= 0", name: "ai_call_operational_settings_outbound_trigger_cooldown_minutes_"
   end
 
   create_table "audit_events", force: :cascade do |t|
@@ -85,6 +106,106 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["occurred_at"], name: "index_authentication_events_on_occurred_at"
     t.index ["session_id"], name: "index_authentication_events_on_session_id"
     t.index ["user_id"], name: "index_authentication_events_on_user_id"
+  end
+
+  create_table "candidate_ai_call_events", force: :cascade do |t|
+    t.bigint "actor_id"
+    t.bigint "candidate_ai_call_id", null: false
+    t.datetime "created_at", null: false
+    t.string "event_key", null: false
+    t.string "event_source", null: false
+    t.string "event_type", null: false
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.string "provider_code", null: false
+    t.string "request_id"
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_candidate_ai_call_events_on_actor_id"
+    t.index ["candidate_ai_call_id", "occurred_at"], name: "index_candidate_ai_call_events_on_call_and_occurred_at"
+    t.index ["candidate_ai_call_id"], name: "index_candidate_ai_call_events_on_candidate_ai_call_id"
+    t.index ["provider_code", "event_key"], name: "index_candidate_ai_call_events_on_provider_code_and_event_key", unique: true
+    t.check_constraint "event_source::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_call_events_event_source_format"
+    t.check_constraint "event_type::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_call_events_event_type_format"
+    t.check_constraint "provider_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_call_events_provider_code_format"
+  end
+
+  create_table "candidate_ai_call_transcripts", force: :cascade do |t|
+    t.bigint "candidate_ai_call_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.datetime "purged_at"
+    t.datetime "recorded_at"
+    t.string "recording_reference"
+    t.datetime "redacted_at"
+    t.text "transcript"
+    t.datetime "updated_at", null: false
+    t.index ["candidate_ai_call_id"], name: "index_candidate_ai_call_transcripts_on_candidate_ai_call_id", unique: true
+  end
+
+  create_table "candidate_ai_calls", force: :cascade do |t|
+    t.string "agent_config_digest"
+    t.datetime "answered_at"
+    t.string "call_reason", null: false
+    t.datetime "callback_requested_at"
+    t.string "caller_number"
+    t.string "caller_number_masked"
+    t.bigint "candidate_assignment_id"
+    t.bigint "candidate_id"
+    t.bigint "communication_id", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.string "direction", null: false
+    t.string "elevenlabs_agent_id"
+    t.string "elevenlabs_agent_phone_number_id"
+    t.string "elevenlabs_agent_version"
+    t.string "elevenlabs_conversation_id"
+    t.jsonb "extracted_data", default: {}, null: false
+    t.string "extraction_schema_version"
+    t.string "failure_code"
+    t.text "failure_message"
+    t.string "language_code", default: "en", null: false
+    t.string "outcome"
+    t.string "outcome_reason"
+    t.string "prompt_template_code"
+    t.string "prompt_template_version"
+    t.string "provider_code", default: "elevenlabs", null: false
+    t.string "provider_status"
+    t.string "public_id", null: false
+    t.text "review_notes"
+    t.string "review_resolution"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
+    t.datetime "started_at"
+    t.string "status", default: "requested", null: false
+    t.text "summary"
+    t.bigint "triggered_by_id"
+    t.string "twilio_call_sid"
+    t.datetime "updated_at", null: false
+    t.integer "verification_attempts", default: 0, null: false
+    t.string "verification_status", default: "not_applicable", null: false
+    t.string "workflow_stage_code"
+    t.index ["candidate_assignment_id", "workflow_stage_code"], name: "index_candidate_ai_calls_on_assignment_and_workflow_stage"
+    t.index ["candidate_assignment_id"], name: "index_candidate_ai_calls_on_candidate_assignment_id"
+    t.index ["candidate_id", "created_at"], name: "index_candidate_ai_calls_on_candidate_and_created_at"
+    t.index ["candidate_id"], name: "index_candidate_ai_calls_on_candidate_id"
+    t.index ["communication_id"], name: "index_candidate_ai_calls_on_communication_id", unique: true
+    t.index ["elevenlabs_conversation_id"], name: "index_candidate_ai_calls_on_elevenlabs_conversation_id", unique: true, where: "(elevenlabs_conversation_id IS NOT NULL)"
+    t.index ["public_id"], name: "index_candidate_ai_calls_on_public_id", unique: true
+    t.index ["reviewed_by_id"], name: "index_candidate_ai_calls_on_reviewed_by_id"
+    t.index ["status", "updated_at"], name: "index_candidate_ai_calls_on_status_and_updated_at"
+    t.index ["triggered_by_id"], name: "index_candidate_ai_calls_on_triggered_by_id"
+    t.index ["twilio_call_sid"], name: "index_candidate_ai_calls_on_twilio_call_sid", unique: true, where: "(twilio_call_sid IS NOT NULL)"
+    t.check_constraint "call_reason::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_call_reason_format"
+    t.check_constraint "direction::text = ANY (ARRAY['inbound'::character varying::text, 'outbound'::character varying::text])", name: "candidate_ai_calls_direction"
+    t.check_constraint "failure_code IS NULL OR failure_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_failure_code_format"
+    t.check_constraint "language_code::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidate_ai_calls_language_code"
+    t.check_constraint "outcome IS NULL OR (outcome::text = ANY (ARRAY['answered'::character varying::text, 'not_answered'::character varying::text, 'callback_required'::character varying::text]))", name: "candidate_ai_calls_outcome"
+    t.check_constraint "outcome_reason IS NULL OR outcome_reason::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_outcome_reason_format"
+    t.check_constraint "provider_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_provider_code_format"
+    t.check_constraint "status::text = ANY (ARRAY['requested'::character varying::text, 'queued'::character varying::text, 'ringing'::character varying::text, 'in_progress'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'failed'::character varying::text, 'cancelled'::character varying::text])", name: "candidate_ai_calls_status"
+    t.check_constraint "verification_attempts >= 0", name: "candidate_ai_calls_verification_attempts_non_negative"
+    t.check_constraint "verification_status::text = ANY (ARRAY['not_applicable'::character varying::text, 'pending'::character varying::text, 'verified'::character varying::text, 'failed'::character varying::text, 'skipped'::character varying::text])", name: "candidate_ai_calls_verification_status"
+    t.check_constraint "workflow_stage_code IS NULL OR workflow_stage_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_ai_calls_workflow_stage_code_format"
   end
 
   create_table "candidate_assignments", force: :cascade do |t|
@@ -211,8 +332,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["public_id"], name: "index_candidate_documents_on_public_id", unique: true
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
-    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying]::text[])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
-    t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])", name: "candidate_documents_status_code"
+    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
+    t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_documents_status_code"
   end
 
   create_table "candidate_flight_details", force: :cascade do |t|
@@ -275,7 +396,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
     t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'processing'::character varying, 'completed'::character varying, 'partial'::character varying, 'failed'::character varying, 'invalidated'::character varying]::text[])", name: "candidate_import_batches_status"
+    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_import_row_results", force: :cascade do |t|
@@ -288,7 +409,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.datetime "updated_at", null: false
     t.index ["candidate_import_batch_id", "row_number"], name: "index_import_row_results_on_batch_and_row", unique: true
     t.index ["candidate_import_batch_id"], name: "idx_on_candidate_import_batch_id_3bd4f60271"
-    t.check_constraint "status::text = ANY (ARRAY['accepted'::character varying, 'rejected'::character varying, 'skipped'::character varying, 'committed'::character varying]::text[])", name: "candidate_import_row_results_status"
+    t.check_constraint "status::text = ANY (ARRAY['accepted'::character varying::text, 'rejected'::character varying::text, 'skipped'::character varying::text, 'committed'::character varying::text])", name: "candidate_import_row_results_status"
   end
 
   create_table "candidate_otp_challenges", force: :cascade do |t|
@@ -479,13 +600,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
-    t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidates_preferred_locale"
-    t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying, 'csv_import'::character varying]::text[])", name: "candidates_source_code"
+    t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
+    t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"
   end
 
   create_table "communications", force: :cascade do |t|
-    t.bigint "candidate_assignment_id", null: false
+    t.bigint "candidate_assignment_id"
     t.string "channel_code", null: false
     t.datetime "created_at", null: false
     t.datetime "delivered_at"
@@ -507,9 +628,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["provider_reference"], name: "index_communications_on_provider_reference"
     t.index ["public_id"], name: "index_communications_on_public_id", unique: true
     t.check_constraint "channel_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_channel_code_format"
-    t.check_constraint "direction_code::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying]::text[])", name: "communications_direction_code"
+    t.check_constraint "direction_code::text = ANY (ARRAY['inbound'::character varying::text, 'outbound'::character varying::text])", name: "communications_direction_code"
     t.check_constraint "error_code IS NULL OR error_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_error_code_format"
-    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "communications_locale"
+    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "communications_locale"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_status_code_format"
     t.check_constraint "template_code IS NULL OR template_code::text ~ '^[a-z0-9_]+$'::text", name: "communications_template_code_format"
   end
@@ -549,9 +670,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.jsonb "raw_response", default: {}, null: false
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
-    t.index ["candidate_document_id"], name: "index_document_extractions_on_active_attempt", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'succeeded'::character varying])::text[]))"
+    t.index ["candidate_document_id"], name: "index_document_extractions_on_active_attempt", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('succeeded'::character varying)::text]))"
     t.index ["candidate_document_id"], name: "index_document_extractions_on_candidate_document_id"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])", name: "document_extractions_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])", name: "document_extractions_status"
   end
 
   create_table "document_requirements", force: :cascade do |t|
@@ -604,7 +725,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.check_constraint "char_length(key_digest::text) = 64", name: "idempotency_keys_key_digest_length"
     t.check_constraint "request_method::text ~ '^[A-Z]+$'::text", name: "idempotency_keys_request_method_format"
     t.check_constraint "status::text = 'processing'::text AND response_status IS NULL AND response_payload IS NULL AND completed_at IS NULL OR status::text = 'completed'::text AND response_status IS NOT NULL AND response_payload IS NOT NULL AND completed_at IS NOT NULL", name: "idempotency_keys_response_consistency"
-    t.check_constraint "status::text = ANY (ARRAY['processing'::character varying, 'completed'::character varying]::text[])", name: "idempotency_keys_status"
+    t.check_constraint "status::text = ANY (ARRAY['processing'::character varying::text, 'completed'::character varying::text])", name: "idempotency_keys_status"
   end
 
   create_table "payment_events", force: :cascade do |t|
@@ -788,7 +909,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["public_id"], name: "index_system_database_backups_on_public_id", unique: true
     t.index ["taken_at"], name: "index_system_database_backups_on_taken_at"
     t.check_constraint "public_id::text ~ '^[0-9a-f-]{36}$'::text", name: "system_database_backups_public_id_format"
-    t.check_constraint "status_code::text = ANY (ARRAY['in_progress'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])", name: "system_database_backups_status_code_allowed"
+    t.check_constraint "status_code::text = ANY (ARRAY['in_progress'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])", name: "system_database_backups_status_code_allowed"
   end
 
   create_table "users", force: :cascade do |t|
@@ -819,8 +940,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
     t.index ["role"], name: "index_users_on_role"
     t.index ["staff_state"], name: "index_users_on_staff_state"
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
-    t.check_constraint "staff_state::text = 'active'::text AND active = true OR (staff_state::text = ANY (ARRAY['invited'::character varying, 'suspended'::character varying]::text[])) AND active = false", name: "users_staff_state_matches_active"
-    t.check_constraint "staff_state::text = ANY (ARRAY['invited'::character varying, 'active'::character varying, 'suspended'::character varying]::text[])", name: "users_staff_state"
+    t.check_constraint "staff_state::text = 'active'::text AND active = true OR (staff_state::text = ANY (ARRAY['invited'::character varying::text, 'suspended'::character varying::text])) AND active = false", name: "users_staff_state_matches_active"
+    t.check_constraint "staff_state::text = ANY (ARRAY['invited'::character varying::text, 'active'::character varying::text, 'suspended'::character varying::text])", name: "users_staff_state"
+  end
+
+  create_table "workflow_stage_call_scripts", force: :cascade do |t|
+    t.boolean "active", default: false, null: false
+    t.text "announcement_en", null: false
+    t.text "announcement_ur"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.string "workflow_stage_code", null: false
+    t.index ["updated_by_id"], name: "index_workflow_stage_call_scripts_on_updated_by_id"
+    t.index ["workflow_stage_code"], name: "index_workflow_stage_call_scripts_on_workflow_stage_code", unique: true
+    t.check_constraint "workflow_stage_code::text ~ '^[a-z0-9_]+$'::text", name: "workflow_stage_call_scripts_stage_code_format"
   end
 
   create_table "workflow_stages", force: :cascade do |t|
@@ -837,11 +971,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "ai_call_operational_settings", "users", column: "updated_by_id"
   add_foreign_key "audit_events", "candidate_assignments"
   add_foreign_key "audit_events", "candidates"
   add_foreign_key "audit_events", "users", column: "actor_id"
   add_foreign_key "authentication_events", "sessions"
   add_foreign_key "authentication_events", "users"
+  add_foreign_key "candidate_ai_call_events", "candidate_ai_calls"
+  add_foreign_key "candidate_ai_call_events", "users", column: "actor_id"
+  add_foreign_key "candidate_ai_call_transcripts", "candidate_ai_calls"
+  add_foreign_key "candidate_ai_calls", "candidate_assignments"
+  add_foreign_key "candidate_ai_calls", "candidates"
+  add_foreign_key "candidate_ai_calls", "communications"
+  add_foreign_key "candidate_ai_calls", "users", column: "reviewed_by_id"
+  add_foreign_key "candidate_ai_calls", "users", column: "triggered_by_id"
   add_foreign_key "candidate_assignments", "candidates"
   add_foreign_key "candidate_assignments", "countries"
   add_foreign_key "candidate_assignments", "crafts"
@@ -910,4 +1053,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_090000) do
   add_foreign_key "sessions", "users"
   add_foreign_key "users", "roles", column: "role", primary_key: "code"
   add_foreign_key "users", "users", column: "invited_by_id"
+  add_foreign_key "workflow_stage_call_scripts", "users", column: "updated_by_id"
 end
