@@ -5,6 +5,7 @@ require 'zlib'
 require 'stringio'
 require 'digest'
 require 'pg'
+require 'cgi'
 
 RSpec.describe Backups::RestoreDatabaseBackupService do
   def gzip(sql)
@@ -114,7 +115,10 @@ RSpec.describe Backups::RestoreDatabaseBackupService do
       config = ActiveRecord::Base.connection_db_config.configuration_hash
       host = config.fetch(:host, 'localhost')
       port = config.fetch(:port, 5432)
-      "postgres://#{config.fetch(:username)}@#{host}:#{port}/#{target_database_name}"
+      password = config[:password]
+      username = config.fetch(:username)
+      userinfo = password.present? ? "#{username}:#{CGI.escape(password.to_s)}" : username.to_s
+      "postgres://#{userinfo}@#{host}:#{port}/#{target_database_name}"
     end
 
     before do

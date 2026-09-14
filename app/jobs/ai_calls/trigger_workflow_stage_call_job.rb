@@ -16,8 +16,9 @@ module AiCalls
     retry_on AiCallOutsideCallingHoursError, wait: 30.minutes, attempts: 48
     retry_on AiCallDailyLimitReachedError, wait: 1.hour, attempts: 30
 
-    def perform(candidate_assignment_id:, workflow_stage_code:, request_id:)
-      TriggerWorkflowStageCallService.new(candidate_assignment_id:, workflow_stage_code:, request_id:).call
+    def perform(candidate_assignment_id:, workflow_stage_code:, request_id:, transitioned_at: Time.current)
+      TriggerWorkflowStageCallService.new(candidate_assignment_id:, workflow_stage_code:, request_id:,
+                                          transitioned_at:).call
     end
   end
 end

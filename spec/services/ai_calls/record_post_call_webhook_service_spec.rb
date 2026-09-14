@@ -54,6 +54,24 @@ RSpec.describe AiCalls::RecordPostCallWebhookService do
     expect(result.candidate_ai_call_transcript.transcript).to eq('Hello.')
   end
 
+  it 'persists the summary and structured extraction onto the call' do
+    with_summary = raw_payload.deep_dup
+    with_summary['data']['analysis']['transcript_summary'] = 'Candidate confirmed receipt of documents.'
+
+    result = service(params: with_summary).call
+
+    expect(result.summary).to eq('Candidate confirmed receipt of documents.')
+    expect(result.extracted_data).to eq(raw_payload['data']['analysis']['data_collection_results'])
+  end
+
+  it "syncs the call's Communication envelope status and provider reference" do
+    result = service.call
+
+    communication = result.communication.reload
+    expect(communication.status_code).to eq('completed')
+    expect(communication.provider_reference).to eq('conversation-1')
+  end
+
   it 'stamps the transcript expiry per the configured retention window' do
     freeze_time do
       result = service.call

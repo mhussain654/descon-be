@@ -5296,6 +5296,9 @@ paths:
                         call_reason: missing_documents
                         language_code: en
                         status: queued
+                        candidate:
+                          id: 1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+                          full_name: Ayesha Khan
                         triggered_by:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                           role: admin
@@ -5303,6 +5306,10 @@ paths:
                         outcome_reason: null
                         verification_status: not_applicable
                         summary: null
+                        reviewed_by: null
+                        reviewed_at: null
+                        review_resolution: null
+                        review_notes: null
                         started_at: null
                         answered_at: null
                         completed_at: null
@@ -5366,6 +5373,9 @@ paths:
                       call_reason: missing_documents
                       language_code: en
                       status: queued
+                      candidate:
+                        id: 1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+                        full_name: Ayesha Khan
                       triggered_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                         role: admin
@@ -5373,6 +5383,10 @@ paths:
                       outcome_reason: null
                       verification_status: not_applicable
                       summary: null
+                      reviewed_by: null
+                      reviewed_at: null
+                      review_resolution: null
+                      review_notes: null
                       started_at: null
                       answered_at: null
                       completed_at: null
@@ -5399,6 +5413,192 @@ paths:
           description: The ElevenLabs provider request failed
         '503':
           description: Outbound AI calling is disabled, or the provider is not configured
+  /api/v1/admin/ai_calls:
+    get:
+      summary: List AI voice calls across every candidate, primarily the manual-review queue
+      description: >-
+        Cross-candidate, paginated, newest-first view over every CandidateAiCall (inbound,
+        admin-triggered outbound, and workflow-stage-triggered outbound) -- distinct from
+        GET /api/v1/admin/candidates/{candidate_id}/ai_calls, which is scoped to one
+        candidate's admin-triggered history only. Defaults to the manual-review queue
+        (outcome_reason == needs_manual_review, not yet reviewed); pass
+        filter[awaiting_review]=false to browse every call instead. Requires the
+        `trigger_ai_calls` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: filter[awaiting_review]
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: page[number]
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: page[size]
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Paginated AI call listing
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                awaiting_review:
+                  value:
+                    data:
+                      - id: 9f8e7d6c-5b4a-3c2d-1e0f-9a8b7c6d5e4f
+                        direction: inbound
+                        call_reason: general_helpline
+                        language_code: en
+                        status: completed
+                        candidate: null
+                        triggered_by: null
+                        outcome: null
+                        outcome_reason: needs_manual_review
+                        verification_status: pending
+                        summary: null
+                        reviewed_by: null
+                        reviewed_at: null
+                        review_resolution: null
+                        review_notes: null
+                        started_at: '2026-09-14T09:00:00Z'
+                        answered_at: '2026-09-14T09:00:05Z'
+                        completed_at: '2026-09-14T09:04:00Z'
+                        created_at: '2026-09-14T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba6
+                      timestamp: '2026-09-14T09:05:00Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                      applied_filters:
+                        awaiting_review: true
+                    errors: []
+        '400':
+          description: Invalid page or filter parameter
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+  /api/v1/admin/ai_calls/{id}:
+    get:
+      summary: Show one AI voice call's full detail
+      description: >-
+        Single-call detail, including summary and review-resolution state -- never the
+        transcript or raw extracted_data. Requires the `trigger_ai_calls` permission.
+        Scoped the same way the index is, before authorization: an unauthorized or
+        non-existent id both return 404, never 403, so a forbidden lookup can't confirm
+        whether the call exists.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The AI call's detail
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '404':
+          description: Call not found, or the authenticated staff user lacks trigger_ai_calls
+  /api/v1/admin/ai_calls/{ai_call_id}/review:
+    post:
+      summary: Resolve a needs_manual_review AI voice call
+      description: >-
+        Records an admin's decision of what a call's outcome actually was (having
+        listened to the recording/read the transcript), stamping the reviewer and
+        recording an immutable CandidateAiCallEvent (event_type: manual_outcome_resolved)
+        alongside the mutable header update -- see AiCalls::ResolveManualReviewService.
+        Create-only and single-use: a resolution, once made, stands, and a second attempt
+        is rejected with ai_call_not_awaiting_review. Requires the `trigger_ai_calls`
+        permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ai_call_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                outcome:
+                  type: string
+                  enum: [answered, not_answered, callback_required]
+                outcome_reason:
+                  type: string
+                  nullable: true
+                notes:
+                  type: string
+                  nullable: true
+              required: [outcome]
+      responses:
+        '201':
+          description: The call, updated with the resolved outcome and review state
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '404':
+          description: Call not found, or the authenticated staff user lacks trigger_ai_calls
+        '422':
+          description: Unrecognized outcome, or the call is not currently awaiting manual review
   /api/v1/admin/candidates/{candidate_id}/qvc_attempts:
     get:
       summary: List structured QVC attempts for a candidate
@@ -6680,6 +6880,8 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         '401':
           description: Missing, invalid, expired, or malformed ElevenLabs-Signature header
+        '503':
+          description: Inbound AI calling is disabled (AI_VOICE_INBOUND_ENABLED)
   /api/v1/ai_calls/elevenlabs/tools/{tool_name}:
     post:
       summary: Dispatch an ElevenLabs in-call tool invocation
@@ -6689,12 +6891,18 @@ paths:
         `AiCalls::Tools::Registry`. Authenticated by a shared secret
         (`X-AI-Calls-Tool-Secret`, constant-time compared) rather than a staff session --
         there is no candidate/staff login on an in-progress voice call. Every invocation is
-        recorded as its own CandidateAiCallEvent (event_source: tool_call); unlike webhook
-        events, repeated identical calls are never deduped, since an agent may legitimately
-        call the same tool more than once in one conversation. Every data-revealing tool
-        independently re-checks candidate_ai_call.verification_status server-side before
-        returning anything -- it never trusts the agent's own claim that verification
-        already succeeded.
+        recorded as its own CandidateAiCallEvent (event_source: tool_call). A repeated,
+        identical invocation of verify_caller_identity, create_callback_request, or
+        transfer_to_human replays its first result rather than re-running (idempotent
+        replay protection for their side effects); the 7 data-retrieval tools are pure
+        reads and always re-run, so repeated identical questions in one conversation get
+        current data, not a cached first answer. Every data-revealing tool independently
+        re-checks candidate_ai_call.verification_status server-side before returning
+        anything -- it never trusts the agent's own claim that verification already
+        succeeded. Refuses a call that has already ended (terminal status), or whose
+        direction is currently disabled by the outbound/inbound feature flag, regardless
+        of how old or new the conversation_id is -- a valid shared secret plus a
+        historical conversation_id does not grant indefinite access to current data.
       parameters:
         - name: tool_name
           in: path
@@ -6745,8 +6953,12 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         '401':
           description: Missing or invalid X-AI-Calls-Tool-Secret header
+        '403':
+          description: The call has already ended (terminal status) and no longer accepts tool calls
         '404':
           description: Unknown tool_name, or no CandidateAiCall matches the given conversation_id
+        '503':
+          description: The feature flag for this call's direction (inbound/outbound) is currently disabled
   /api/v1/payments/hosted_checkout/{provider_code}/callback:
     post:
       summary: Process a signed hosted-checkout provider callback

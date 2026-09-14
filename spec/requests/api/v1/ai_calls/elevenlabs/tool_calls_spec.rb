@@ -6,6 +6,8 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Tool Calls', type: :request do
   around do |example|
     original_env = ENV.to_h
     ENV['AI_CALLS_TOOL_SHARED_SECRET'] = 'tool-secret'
+    ENV['AI_VOICE_INBOUND_ENABLED'] = 'true'
+    ENV['AI_VOICE_OUTBOUND_ENABLED'] = 'true'
     example.run
   ensure
     ENV.replace(original_env)
@@ -38,6 +40,40 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Tool Calls', type: :request do
       call_tool('create_callback_request')
 
       expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  # Regression: a global shared secret plus a historical conversation_id
+  # must not grant indefinite access to *current* candidate data.
+  describe 'terminal calls and disabled directions' do
+    it 'refuses a tool call for a call that has already ended' do
+      terminal_call = create(:candidate_ai_call, :inbound, :completed, elevenlabs_conversation_id: 'conversation-1')
+
+      call_tool('create_callback_request')
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('ai_call_tool_call_not_allowed')
+      expect(terminal_call.reload.callback_requested_at).to be_nil
+    end
+
+    it 'refuses an inbound tool call once AI_VOICE_INBOUND_ENABLED is off' do
+      call_record
+      ENV['AI_VOICE_INBOUND_ENABLED'] = 'false'
+
+      call_tool('create_callback_request')
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('ai_call_inbound_disabled')
+    end
+
+    it 'refuses an outbound tool call once AI_VOICE_OUTBOUND_ENABLED is off' do
+      create(:candidate_ai_call, elevenlabs_conversation_id: 'conversation-1')
+      ENV['AI_VOICE_OUTBOUND_ENABLED'] = 'false'
+
+      call_tool('get_application_status')
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('ai_call_outbound_disabled')
     end
   end
 

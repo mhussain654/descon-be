@@ -163,6 +163,71 @@ RSpec.describe AiCalls::ReconcileCallService do
       expect(result.outcome_reason).to eq('needs_manual_review')
     end
 
+    # Regression: a transient ElevenLabs failure (rate limit, timeout, 5xx)
+    # fetching a conversation that *is* expected to exist must not be
+    # treated the same as "no conversation exists" -- previously this fell
+    # straight through to close_from_twilio_status!, which immediately
+    # closed the call as needs_manual_review the moment Twilio reported
+    # 'completed', permanently losing the chance to ever fetch the
+    # transcript/analysis (reconciliation never revisits a terminal call).
+    it 'retries (no-op) on a transient ElevenLabs fetch failure, even if Twilio already reports the call completed' do
+      call_record = create(:candidate_ai_call, status: 'processing', elevenlabs_conversation_id: 'conversation-1',
+                                               twilio_call_sid: 'CA-1', updated_at: 5.minutes.ago)
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_raise(AiCallProviderRequestError)
+      allow(twilio_adapter).to receive(:fetch_call).and_return('status' => 'completed')
+
+      result = service_for(call_record).call
+
+      expect(result.status).to eq('processing')
+      expect(result.candidate_ai_call_events.count).to eq(0)
+      expect(twilio_adapter).not_to have_received(:fetch_call)
+    end
+
+    it 'routes a persistent ElevenLabs fetch failure to manual review, with a failure_message, past the review bound' do
+      call_record = create(:candidate_ai_call, status: 'processing', elevenlabs_conversation_id: 'conversation-1',
+                                               updated_at: 31.minutes.ago)
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_raise(AiCallProviderRequestError)
+
+      result = service_for(call_record).call
+
+      expect(result.status).to eq('completed')
+      expect(result.outcome).to be_nil
+      expect(result.outcome_reason).to eq('needs_manual_review')
+      expect(result.failure_message).to be_present
+    end
+
+    it 'persists summary, extracted_data and provider_status when ElevenLabs reports the conversation is done' do
+      call_record = create(:candidate_ai_call, status: 'ringing', elevenlabs_conversation_id: 'conversation-1')
+      extraction = { 'human_answered' => true, 'call_resolved' => true }
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => {
+          'conversation_id' => 'conversation-1', 'status' => 'done',
+          'analysis' => { 'data_collection_results' => extraction,
+                          'transcript_summary' => 'Candidate confirmed receipt.' }
+        }
+      )
+
+      result = service_for(call_record).call
+
+      expect(result.summary).to eq('Candidate confirmed receipt.')
+      expect(result.extracted_data).to eq(extraction)
+      expect(result.provider_status).to eq('done')
+    end
+
+    it "syncs the call's Communication envelope when reconciliation closes it out" do
+      call_record = create(:candidate_ai_call, status: 'ringing', elevenlabs_conversation_id: 'conversation-1')
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => {
+          'conversation_id' => 'conversation-1', 'status' => 'done',
+          'analysis' => { 'data_collection_results' => { 'human_answered' => true, 'call_resolved' => true } }
+        }
+      )
+
+      result = service_for(call_record).call
+
+      expect(result.communication.reload.status_code).to eq('completed')
+    end
+
     it 'closes as not_answered when ElevenLabs has no record and Twilio reports busy' do
       call_record = create(:candidate_ai_call, status: 'ringing', twilio_call_sid: 'CA-1')
       allow(twilio_adapter).to receive(:fetch_call).and_return('status' => 'busy')

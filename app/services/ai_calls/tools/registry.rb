@@ -27,11 +27,18 @@ module AiCalls
       # verification itself or never disclose candidate-specific data).
       PRE_VERIFICATION_TOOLS = %w[verify_caller_identity create_callback_request transfer_to_human].freeze
 
+      # The 7 data-retrieval tools -- pure reads with no side effect to
+      # protect via replay-cached idempotency (see
+      # AiCalls::ClaimToolCallEventService).
+      READ_ONLY_TOOL_NAMES = (HANDLERS_BY_TOOL_NAME.keys - PRE_VERIFICATION_TOOLS).freeze
+
       def self.fetch(tool_name)
         HANDLERS_BY_TOOL_NAME.fetch(tool_name.to_s) do
           raise ArgumentError, "Unknown AI call tool: #{tool_name.inspect}"
         end
       end
+
+      def self.read_only_tool_names = READ_ONLY_TOOL_NAMES
     end
   end
 end

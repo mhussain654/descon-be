@@ -52,6 +52,30 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
     expect(call_record.candidate_ai_call_events.sole.event_source).to eq('admin_trigger')
   end
 
+  it "syncs the call's Communication status_code and provider_reference once queued" do
+    stub_successful_call
+
+    call_record = service.call
+
+    communication = call_record.communication.reload
+    expect(communication.status_code).to eq('queued')
+    expect(communication.provider_reference).to eq('conversation-1')
+  end
+
+  # Regression: a 2xx ElevenLabs response missing conversation_id would
+  # otherwise mark the call 'queued' with nothing to ever reconcile it by --
+  # neither Twilio nor ElevenLabs cross-checks work without an id, so it
+  # would stay 'queued' forever, past every reconciliation threshold.
+  it 'rolls back and raises when the provider response is missing a conversation_id, creating no rows' do
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    allow(response).to receive(:body).and_return({ callSid: 'CA-1' }.to_json)
+    allow(Net::HTTP).to receive(:start).and_return(response)
+
+    expect { service.call }.to raise_error(AiCallProviderRequestError)
+    expect(CandidateAiCall.count).to eq(0)
+    expect(Communication.count).to eq(0)
+  end
+
   it 'records event_source as workflow_stage_trigger and no triggered_by when actor is nil' do
     stub_successful_call
     stage_plan = AiCalls::OutboundCallPlan.for_workflow_stage(

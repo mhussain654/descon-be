@@ -50,7 +50,8 @@ module AiCalls
     def apply_outcome!(call_record, payload:, mapping:)
       call_record.update!(
         status: 'completed', outcome: mapping.outcome, outcome_reason: mapping.outcome_reason,
-        completed_at: Time.current, answered_at: call_record.answered_at || Time.current
+        completed_at: Time.current, answered_at: call_record.answered_at || Time.current,
+        summary: payload.summary || call_record.summary, extracted_data: payload.extraction || {}
       )
       PersistTranscriptService.call(call_record:, payload:)
     end

@@ -6,6 +6,7 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Conversation Initiation Webhooks', ty
   around do |example|
     original_env = ENV.to_h
     ENV['ELEVENLABS_WEBHOOK_SIGNING_SECRET'] = 'webhook-secret'
+    ENV['AI_VOICE_INBOUND_ENABLED'] = 'true'
     example.run
   ensure
     ENV.replace(original_env)
@@ -35,6 +36,18 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Conversation Initiation Webhooks', ty
          headers: { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => "t=1,v0=#{'0' * 64}" }
 
     expect(response).to have_http_status(:unauthorized)
+  end
+
+  it 'refuses the call and creates no row once AI_VOICE_INBOUND_ENABLED is off' do
+    ENV['AI_VOICE_INBOUND_ENABLED'] = 'false'
+    body = { data: { conversation_id: 'conversation-3', caller_id: '+920000000000' } }.to_json
+
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation',
+         params: body,
+         headers: { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => signed_header(body:) }
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(CandidateAiCall.where(elevenlabs_conversation_id: 'conversation-3')).not_to exist
   end
 
   it 'is idempotent across a redelivered webhook' do

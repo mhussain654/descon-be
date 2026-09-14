@@ -20,6 +20,8 @@ module AiCalls
 
     def call
       @adapter.verify_webhook_signature!(header: @header, raw_body: @raw_body)
+      raise AiCallInboundDisabledError unless @configuration.inbound_enabled?
+
       payload = ConversationInitiationPayload.new(@params)
       raise AiCallProviderRequestError if payload.conversation_id.blank?
 

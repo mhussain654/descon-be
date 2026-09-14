@@ -5,7 +5,7 @@ require 'rails_helper'
 RSpec.describe AiCalls::HandleConversationInitiationService do
   let(:configuration) do
     instance_double(AiCalls::Configuration, elevenlabs_webhook_signing_secret: 'webhook-secret',
-                                            elevenlabs_inbound_agent_id: 'agent-in-1')
+                                            elevenlabs_inbound_agent_id: 'agent-in-1', inbound_enabled?: true)
   end
 
   def signed_header(body:, timestamp: Time.current.to_i, secret: 'webhook-secret')
@@ -75,5 +75,13 @@ RSpec.describe AiCalls::HandleConversationInitiationService do
 
   it 'raises when no conversation_id is present' do
     expect { service(params: { data: {} }).call }.to raise_error(AiCallProviderRequestError)
+  end
+
+  it 'raises when inbound calling is disabled, creating no rows' do
+    allow(configuration).to receive(:inbound_enabled?).and_return(false)
+    params = { data: { conversation_id: 'conversation-6', caller_id: '+920000000000' } }
+
+    expect { service(params:).call }.to raise_error(AiCallInboundDisabledError)
+    expect(CandidateAiCall.where(elevenlabs_conversation_id: 'conversation-6')).not_to exist
   end
 end

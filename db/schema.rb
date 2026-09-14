@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_090100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_14_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -595,7 +595,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_090100) do
     t.index ["cnic"], name: "index_candidates_on_cnic", unique: true
     t.index ["created_by_id", "created_at"], name: "index_candidates_on_created_by_id_and_created_at"
     t.index ["created_by_id"], name: "index_candidates_on_created_by_id"
-    t.index ["mobile_number"], name: "index_candidates_on_mobile_number"
+    t.index ["mobile_number"], name: "index_candidates_on_mobile_number_unique", unique: true
     t.index ["passport_number"], name: "index_candidates_on_passport_number", unique: true, where: "(passport_number IS NOT NULL)"
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"

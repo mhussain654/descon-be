@@ -89,6 +89,29 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
     expect(call_record.reload.verification_attempts).to eq(attempts_before)
   end
 
+  # Regression: a call pre-linked by caller-ID to candidate A (see
+  # AiCalls::HandleConversationInitiationService) must not be markable
+  # "verified" by proving knowledge of a different candidate B's reference
+  # number + CNIC -- otherwise every subsequent tool call would serve A's
+  # data to whoever supplied B's credentials.
+  it 'does not verify, and does not change the link, when the call is already linked to a different candidate' do
+    other_candidate = create(:candidate, mobile_number: '+923009999999', cnic: '61101-7654321-9')
+    other_assignment = create(:candidate_assignment, candidate: other_candidate)
+    call_record = create(:candidate_ai_call, :inbound, caller_number: other_candidate.mobile_number,
+                                                       candidate: other_candidate,
+                                                       candidate_assignment: other_assignment)
+
+    result = described_class.call(
+      candidate_ai_call: call_record,
+      params: { 'reference_number' => assignment.reference_number, 'cnic' => candidate.cnic }
+    )
+
+    expect(result.verified).to be(false)
+    expect(call_record.reload.verification_status).to eq('pending')
+    expect(call_record.candidate).to eq(other_candidate)
+    expect(call_record.candidate_assignment).to eq(other_assignment)
+  end
+
   it 'short-circuits to locked once already failed, without consuming another attempt' do
     call_record = call_for(caller_number: '+929999999999')
     described_class::MAX_ATTEMPTS.times do

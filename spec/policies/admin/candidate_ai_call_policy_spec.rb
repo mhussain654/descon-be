@@ -35,6 +35,24 @@ RSpec.describe Admin::CandidateAiCallPolicy do
     end
   end
 
+  describe '#show? and #review?' do
+    it 'allows staff with trigger_ai_calls' do
+      actor = create(:user, role: 'admin')
+      call_record = create(:candidate_ai_call)
+
+      expect(described_class.new(actor, call_record).show?).to be(true)
+      expect(described_class.new(actor, call_record).review?).to be(true)
+    end
+
+    it 'denies staff without trigger_ai_calls' do
+      actor = create(:user, role: 'finance')
+      call_record = create(:candidate_ai_call)
+
+      expect(described_class.new(actor, call_record).show?).to be(false)
+      expect(described_class.new(actor, call_record).review?).to be(false)
+    end
+  end
+
   describe '::Scope' do
     it 'resolves the full scope for a permitted actor and none for a denied one' do
       admin = create(:user, role: 'admin')

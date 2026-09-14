@@ -34,15 +34,32 @@ class BackfillCandidateMobileNumbersToE164 < ActiveRecord::Migration[8.1]
 
   private
 
+  # `mobile_number` has no database uniqueness constraint (only an app-level
+  # `validates ... uniqueness: true` on Candidate, which `update_column`
+  # deliberately bypasses for a bulk backfill) -- so two previously-distinct
+  # values (e.g. '03001234567' and '+923001234567') can normalize to the
+  # same E.164 string without ever raising `RecordNotUnique`. Inbound AI-call
+  # caller-ID lookup (`Candidate.active.find_by(mobile_number:)`) would then
+  # silently resolve to an arbitrary one of the colliding rows. Detect the
+  # collision explicitly before writing, and skip + report it loudly instead
+  # of writing a value that already belongs to another candidate -- cleaning
+  # up any pre-existing duplicate is a separate, consequential data decision
+  # (which row is canonical) that this migration must not make unilaterally.
   def backfill_one!(candidate)
     normalized = normalize(candidate.mobile_number)
     return if normalized.blank? || normalized == candidate.mobile_number
 
+    colliding_id = MigrationCandidate.where(mobile_number: normalized).where.not(id: candidate.id).pick(:id)
+    return report_collision!(candidate, colliding_id) if colliding_id.present?
+
     candidate.update_column(:mobile_number, normalized) # rubocop:disable Rails/SkipsModelValidations -- data backfill
-  rescue ActiveRecord::RecordNotUnique => e
+  end
+
+  def report_collision!(candidate, colliding_id)
     Rails.logger.warn(
       "[BackfillCandidateMobileNumbersToE164] skipped candidate ##{candidate.id}: " \
-      "normalizing to #{normalized.inspect} collides with an existing row (#{e.message})"
+      "normalizing its mobile_number would collide with existing candidate ##{colliding_id} -- " \
+      'resolve this duplicate manually before either row can be safely normalized'
     )
   end
 

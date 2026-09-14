@@ -29,11 +29,13 @@ module AiCalls
       def call
         return Result.new(verified: true) if @candidate_ai_call.verification_status == 'verified'
         return Result.new(verified: false, locked: true) if @candidate_ai_call.verification_status == 'failed'
+        return lock! if @candidate_ai_call.verification_attempts >= MAX_ATTEMPTS
 
         @candidate_ai_call.update!(verification_attempts: @candidate_ai_call.verification_attempts + 1)
-        return lock! if @candidate_ai_call.verification_attempts > MAX_ATTEMPTS
+        result = attempt_verification
+        return result unless result.verified == false && @candidate_ai_call.verification_attempts >= MAX_ATTEMPTS
 
-        attempt_verification
+        lock!
       end
 
       private
@@ -72,7 +74,11 @@ module AiCalls
       end
 
       def succeed!(candidate:, assignment:)
-        ::AiCalls::LinkVerifiedCandidateService.call(candidate_ai_call: @candidate_ai_call, candidate:, assignment:)
+        link_result = ::AiCalls::LinkVerifiedCandidateService.call(
+          candidate_ai_call: @candidate_ai_call, candidate:, assignment:
+        )
+        return Result.new(verified: false) if link_result.mismatch
+
         @candidate_ai_call.update!(verification_status: 'verified')
         Result.new(verified: true)
       end

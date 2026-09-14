@@ -158,5 +158,26 @@ RSpec.describe 'API V1 Admin Candidate AI Calls', type: :request do
 
       expect(response).to have_http_status(:forbidden)
     end
+
+    # Regression: this history is documented (see the frontend's
+    # AdminAiCallReason type) as admin-triggered calls only -- a
+    # workflow-stage-triggered call is also `direction == 'outbound'` but
+    # is a distinct, undocumented call_reason that must not leak in here.
+    it 'excludes workflow-stage-triggered calls' do
+      admin = create(:user, role: 'admin')
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+      communication = create(:communication, channel_code: 'ai_voice_call', direction_code: 'outbound',
+                                             candidate_assignment: assignment)
+      communication.create_candidate_ai_call!(
+        candidate:, candidate_assignment: assignment, direction: 'outbound', call_reason: 'workflow_stage_notification',
+        workflow_stage_code: 'verified', language_code: 'en', status: 'queued', verification_status: 'not_applicable'
+      )
+
+      get "/api/v1/admin/candidates/#{candidate.public_id}/ai_calls", headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body['data']).to eq([])
+    end
   end
 end

@@ -6,6 +6,12 @@ module AiCalls
   # parent row, check for a duplicate event, and only run the caller's
   # state-changing block (and record the event) if it's genuinely new --
   # a replayed delivery is a no-op that returns the existing state.
+  #
+  # Also syncs the call's Communication envelope after the caller's block
+  # runs (AiCalls::SyncCommunicationStatusService) -- every consumer of this
+  # class changes call state, so this is the one place that can guarantee
+  # the central admin communications log never falls out of sync with it,
+  # without every caller having to remember to do so itself.
   class WebhookEventRecorder < ApplicationService
     Result = Struct.new(:candidate_ai_call, :replayed, keyword_init: true)
 
@@ -28,6 +34,7 @@ module AiCalls
       return Result.new(candidate_ai_call: call_record, replayed: true) if duplicate_event?
 
       yield(call_record) if block_given?
+      SyncCommunicationStatusService.call(call_record)
       record_event!(call_record)
       Result.new(candidate_ai_call: call_record.reload, replayed: false)
     end

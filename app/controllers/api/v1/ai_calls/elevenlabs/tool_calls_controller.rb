@@ -13,6 +13,7 @@ module Api
         class ToolCallsController < ApplicationController
           def create
             verify_tool_secret!
+            ensure_call_accepts_tool_calls!
             handler = tool_handler
 
             outcome = ::AiCalls::ClaimToolCallEventService.call(
@@ -30,6 +31,24 @@ module Api
             valid = configured.present? && provided.bytesize == configured.bytesize &&
                     ActiveSupport::SecurityUtils.secure_compare(provided, configured)
             raise AiCallToolSecretInvalidError unless valid
+          end
+
+          # A global shared secret plus a historical (ElevenLabs-controlled,
+          # permanent) conversation_id must not grant indefinite access to
+          # *current* candidate data -- reject once the call itself has
+          # ended, and reject if the feature is currently disabled for that
+          # call's direction (the initiation/trigger-time flag check alone
+          # doesn't stop an already-in-flight call's tool calls once the
+          # flag is flipped off mid-call).
+          def ensure_call_accepts_tool_calls!
+            raise AiCallToolCallNotAllowedError if candidate_ai_call.terminal_status?
+
+            configuration = ::AiCalls::Configuration.new
+            if candidate_ai_call.direction == 'inbound'
+              raise AiCallInboundDisabledError unless configuration.inbound_enabled?
+            elsif !configuration.outbound_enabled?
+              raise AiCallOutboundDisabledError
+            end
           end
 
           def tool_handler

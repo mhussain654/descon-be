@@ -26,6 +26,18 @@ module AiCalls
   # parent CandidateAiCall row is locked for the duration of the check +
   # handler execution + event write, so two concurrent deliveries of the
   # same call serialize instead of racing.
+  #
+  # The replay-cached-payload behavior above only applies to the 3 tools
+  # with a genuine side effect to protect (verify_caller_identity,
+  # create_callback_request, transfer_to_human -- AiCalls::Tools::Registry
+  # ::PRE_VERIFICATION_TOOLS). The 7 data-retrieval tools are pure reads:
+  # caching their result under an arguments-only key would mean a candidate
+  # asking the same question twice in one call (e.g. "what's my status?"
+  # asked again after the agent said something changed) gets back the
+  # FIRST answer's stale data forever, for the rest of that call. Read
+  # tools are still recorded for audit purposes, just under a key that
+  # can't collide with a previous invocation (the request_id, which is
+  # unique per HTTP delivery).
   class ClaimToolCallEventService
     Result = Struct.new(:payload, :replayed, keyword_init: true)
 
@@ -43,7 +55,7 @@ module AiCalls
     def call
       CandidateAiCall.transaction do
         call_record = CandidateAiCall.lock.find(@candidate_ai_call.id)
-        existing = existing_event(call_record)
+        existing = idempotent_tool? ? existing_event(call_record) : nil
         next Result.new(payload: existing.payload, replayed: true) if existing
 
         payload = yield(call_record)
@@ -54,8 +66,16 @@ module AiCalls
 
     private
 
+    def idempotent_tool?
+      Tools::Registry.read_only_tool_names.exclude?(@tool_name)
+    end
+
     def event_key
-      @event_key ||= "tool_call:#{@candidate_ai_call.id}:#{@tool_name}:#{arguments_digest}"
+      @event_key ||= if idempotent_tool?
+                       "tool_call:#{@candidate_ai_call.id}:#{@tool_name}:#{arguments_digest}"
+                     else
+                       "tool_call:#{@candidate_ai_call.id}:#{@tool_name}:#{@request_id}"
+                     end
     end
 
     def arguments_digest

@@ -12,7 +12,7 @@ module Admin
       end
 
       def as_json(*)
-        identity_attributes.merge(outcome_attributes).merge(timestamp_attributes)
+        identity_attributes.merge(outcome_attributes).merge(review_attributes).merge(timestamp_attributes)
       end
 
       private
@@ -24,6 +24,7 @@ module Admin
           call_reason: @candidate_ai_call.call_reason,
           language_code: @candidate_ai_call.language_code,
           status: @candidate_ai_call.status,
+          candidate: serialized_candidate,
           triggered_by: serialized_triggered_by
         }
       end
@@ -37,6 +38,18 @@ module Admin
         }
       end
 
+      # Review-resolution state for a needs_manual_review outcome (see
+      # AiCalls::ResolveManualReviewService) -- always present, nil until a
+      # review actually happens.
+      def review_attributes
+        {
+          reviewed_by: serialized_reviewed_by,
+          reviewed_at: @candidate_ai_call.reviewed_at&.utc&.iso8601,
+          review_resolution: @candidate_ai_call.review_resolution,
+          review_notes: @candidate_ai_call.review_notes
+        }
+      end
+
       def timestamp_attributes
         {
           started_at: @candidate_ai_call.started_at&.utc&.iso8601,
@@ -46,8 +59,22 @@ module Admin
         }
       end
 
+      def serialized_candidate
+        candidate = @candidate_ai_call.candidate
+        return nil if candidate.blank?
+
+        { id: candidate.public_id, full_name: candidate.full_name }
+      end
+
       def serialized_triggered_by
         actor = @candidate_ai_call.triggered_by
+        return nil if actor.blank?
+
+        { id: actor.public_id, role: actor.role }
+      end
+
+      def serialized_reviewed_by
+        actor = @candidate_ai_call.reviewed_by
         return nil if actor.blank?
 
         { id: actor.public_id, role: actor.role }

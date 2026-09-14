@@ -93,6 +93,9 @@ Rails.application.routes.draw do
         end
         resources :audit_events, only: :index
         resources :communications, only: :index
+        resources :ai_calls, only: %i[index show] do
+          resource :review, only: :create, controller: :ai_call_reviews
+        end
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resource :ai_call_operational_settings, only: %i[show update]
         resource :training_setting, only: %i[show update]

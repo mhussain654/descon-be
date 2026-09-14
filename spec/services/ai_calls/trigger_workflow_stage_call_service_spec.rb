@@ -31,11 +31,17 @@ RSpec.describe AiCalls::TriggerWorkflowStageCallService do
   end
 
   let(:candidate) { create(:candidate) }
-  let!(:assignment) { create(:candidate_assignment, candidate:) }
+  let!(:assignment) do
+    create(:candidate_assignment, candidate:, current_workflow_stage: WorkflowStage.find_by!(code: 'verified'))
+  end
 
-  def service(workflow_stage_code: 'verified')
+  def service(workflow_stage_code: 'verified', transitioned_at: Time.current)
     described_class.new(candidate_assignment_id: assignment.id, workflow_stage_code:, request_id: 'req-1',
-                        configuration:)
+                        transitioned_at:, configuration:)
+  end
+
+  def move_assignment_to_stage!(code)
+    assignment.update!(current_workflow_stage: WorkflowStage.find_by!(code:))
   end
 
   def stub_successful_call
@@ -86,16 +92,44 @@ RSpec.describe AiCalls::TriggerWorkflowStageCallService do
     expect(CandidateAiCall.count).to eq(1)
   end
 
-  it 'allows a different stage to still trigger its own call for the same assignment' do
+  it 'allows a different stage to still trigger its own call once the assignment has progressed to it' do
     create(:workflow_stage_call_script, workflow_stage_code: 'verified')
     create(:workflow_stage_call_script, workflow_stage_code: 'fee_paid')
     stub_successful_call
 
     service(workflow_stage_code: 'verified').call
+    move_assignment_to_stage!('fee_paid')
     result = service(workflow_stage_code: 'fee_paid').call
 
     expect(result).to be_present
     expect(CandidateAiCall.count).to eq(2)
+  end
+
+  # Regression: a retried job (outside calling hours / daily cap) can
+  # execute long after the transition it was enqueued for -- by which point
+  # the candidate may have already progressed past the stage this call was
+  # meant to announce. Placing it anyway would describe a situation that's
+  # no longer true.
+  it 'is a no-op when the assignment has already progressed past the triggering stage' do
+    create(:workflow_stage_call_script, workflow_stage_code: 'verified')
+    move_assignment_to_stage!('fee_paid')
+
+    expect(service(workflow_stage_code: 'verified').call).to be_nil
+    expect(CandidateAiCall.count).to eq(0)
+  end
+
+  it 'is a no-op when the notification has gone stale past the notification window' do
+    create(:workflow_stage_call_script, workflow_stage_code: 'verified')
+
+    expect(service(workflow_stage_code: 'verified', transitioned_at: 25.hours.ago).call).to be_nil
+    expect(CandidateAiCall.count).to eq(0)
+  end
+
+  it 'still places the call just inside the notification window' do
+    create(:workflow_stage_call_script, workflow_stage_code: 'verified')
+    stub_successful_call
+
+    expect(service(workflow_stage_code: 'verified', transitioned_at: 23.hours.ago).call).to be_present
   end
 
   it 'is a no-op for an inactive candidate' do

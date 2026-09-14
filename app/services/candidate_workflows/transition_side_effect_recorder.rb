@@ -32,7 +32,7 @@ module CandidateWorkflows
     def trigger_workflow_stage_call!
       AiCalls::TriggerWorkflowStageCallJob.perform_later(
         candidate_assignment_id: assignment.id, workflow_stage_code: destination_stage_code,
-        request_id: @transition.fetch(:request_id)
+        request_id: @transition.fetch(:request_id), transitioned_at: @transition.fetch(:transitioned_at)
       )
     end
 

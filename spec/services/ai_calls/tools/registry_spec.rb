@@ -36,4 +36,13 @@ RSpec.describe AiCalls::Tools::Registry do
         .to contain_exactly('verify_caller_identity', 'create_callback_request', 'transfer_to_human')
     end
   end
+
+  describe '.read_only_tool_names' do
+    it 'lists exactly the 7 data-retrieval tools' do
+      expect(described_class.read_only_tool_names).to contain_exactly(
+        'get_application_status', 'get_missing_documents', 'get_payment_status', 'get_qvc_status',
+        'get_visa_status', 'get_protection_status', 'get_flight_information'
+      )
+    end
+  end
 end

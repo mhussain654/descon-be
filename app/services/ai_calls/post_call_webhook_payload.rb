@@ -47,6 +47,13 @@ module AiCalls
       data.dig('analysis', 'data_collection_results')
     end
 
+    # ElevenLabs' documented call-summary text (ASSUMED SHAPE, see the class
+    # comment above -- 'transcript_summary' per their documented analysis
+    # object).
+    def summary
+      data.dig('analysis', 'transcript_summary').presence
+    end
+
     def transcript_text
       turns = data['transcript']
       return nil unless turns.is_a?(Array)

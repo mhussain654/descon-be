@@ -40,9 +40,15 @@ module Api
                          .find_by!(public_id: params.expect(:candidate_id))
         end
 
+        # Scoped to the 4 admin-triggered scenarios only -- workflow-stage-
+        # triggered calls also have `direction == 'outbound'` but are a
+        # separate flow with their own call_reason ('workflow_stage_
+        # notification'), documented as appearing only in the cross-channel
+        # Communications log, not here (see the frontend's AdminAiCallReason
+        # type, which only declares these 4 values).
         def candidate_calls
           policy_scope(::CandidateAiCall, policy_scope_class: ::Admin::CandidateAiCallPolicy::Scope)
-            .outbound.where(candidate:).order(created_at: :desc)
+            .outbound.where(candidate:, call_reason: CALL_REASONS).order(created_at: :desc)
         end
 
         def call_reason_param

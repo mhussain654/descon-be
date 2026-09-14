@@ -109,9 +109,16 @@ module AiCalls
     def initiate_provider_call!(call_record)
       prompt = @plan.prompt_source.build(candidate: call_record.candidate, language_code: call_record.language_code)
       result = @adapter.initiate_outbound_call(outbound_call_request(call_record:, prompt:))
+      # A 2xx response missing a conversation_id is otherwise indistinguishable
+      # from a real one -- without this check the call would be marked
+      # 'queued' with no way to ever look it up again (reconciliation's
+      # Twilio/ElevenLabs cross-check both key off these ids), leaving it
+      # stuck in 'queued' forever, past every reconciliation threshold.
+      raise AiCallProviderRequestError if result.conversation_id.blank?
 
       call_record.update!(elevenlabs_conversation_id: result.conversation_id, twilio_call_sid: result.twilio_call_sid,
                           status: 'queued')
+      SyncCommunicationStatusService.call(call_record)
       record_trigger_event!(call_record)
     end
 
