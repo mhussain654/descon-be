@@ -3,6 +3,14 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
+  around do |example|
+    original_env = ENV.to_h
+    ENV['FRONTEND_PAYMENT_RETURN_URL'] = 'https://app.example.test/payment/pending'
+    example.run
+  ensure
+    ENV.replace(original_env)
+  end
+
   before do
     ensure_canonical_workflow_stages!
   end
@@ -57,7 +65,8 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
 
     get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to redirect_to('https://app.example.test/payment/pending')
+    expect(response).to have_http_status(:found)
     expect(PaymentEvent.count).to eq(1)
     expect(AuditEvent.where(action_code: 'candidate_payment_paid').count).to eq(1)
     expect(fee_paid_transitions.count).to eq(1)

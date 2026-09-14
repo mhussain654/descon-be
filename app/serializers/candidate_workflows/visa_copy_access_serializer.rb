@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
-module Admin
-  class VisaDecisionAccessSerializer
+module CandidateWorkflows
+  # Shared by both the staff and candidate visa-copy-access endpoints --
+  # mirrors FlightTicketAccessSerializer exactly.
+  class VisaCopyAccessSerializer
     def initialize(result)
       @result = result
     end

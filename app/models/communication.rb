@@ -7,8 +7,10 @@ class Communication < ApplicationRecord
   DIRECTION_CODES = %w[inbound outbound].freeze
   LOCALES = %w[en ur].freeze
 
-  belongs_to :candidate_assignment
+  belongs_to :candidate_assignment, optional: true
   belongs_to :initiated_by, class_name: 'User', optional: true
+
+  has_one :candidate_ai_call, dependent: :restrict_with_exception
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_codes

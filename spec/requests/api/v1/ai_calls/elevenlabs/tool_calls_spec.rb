@@ -1,0 +1,188 @@
+# frozen_string_literal: true
+
+require 'rails_helper'
+
+RSpec.describe 'API V1 AI Calls ElevenLabs Tool Calls', type: :request do
+  around do |example|
+    original_env = ENV.to_h
+    ENV['AI_CALLS_TOOL_SHARED_SECRET'] = 'tool-secret'
+    ENV['AI_VOICE_INBOUND_ENABLED'] = 'true'
+    ENV['AI_VOICE_OUTBOUND_ENABLED'] = 'true'
+    example.run
+  ensure
+    ENV.replace(original_env)
+  end
+
+  let(:call_record) { create(:candidate_ai_call, :inbound, elevenlabs_conversation_id: 'conversation-1') }
+  let(:valid_headers) { { 'X-AI-Calls-Tool-Secret' => 'tool-secret' } }
+
+  def call_tool(tool_name, conversation_id: 'conversation-1', params: {}, headers: valid_headers)
+    post "/api/v1/ai_calls/elevenlabs/tools/#{tool_name}",
+         params: params.merge(conversation_id:), headers: headers
+  end
+
+  describe 'shared-secret authentication' do
+    it 'rejects a request with a missing secret header' do
+      call_tool('create_callback_request', headers: {})
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'rejects a request with an invalid secret' do
+      call_tool('create_callback_request', headers: { 'X-AI-Calls-Tool-Secret' => 'wrong-secret' })
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'rejects a request when no secret is configured' do
+      ENV.delete('AI_CALLS_TOOL_SHARED_SECRET')
+
+      call_tool('create_callback_request')
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  # Regression: a global shared secret plus a historical conversation_id
+  # must not grant indefinite access to *current* candidate data.
+  describe 'terminal calls and disabled directions' do
+    it 'refuses a tool call for a call that has already ended' do
+      terminal_call = create(:candidate_ai_call, :inbound, :completed, elevenlabs_conversation_id: 'conversation-1')
+
+      call_tool('create_callback_request')
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('ai_call_tool_call_not_allowed')
+      expect(terminal_call.reload.callback_requested_at).to be_nil
+    end
+
+    it 'refuses an inbound tool call once AI_VOICE_INBOUND_ENABLED is off' do
+      call_record
+      ENV['AI_VOICE_INBOUND_ENABLED'] = 'false'
+
+      call_tool('create_callback_request')
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('ai_call_inbound_disabled')
+    end
+
+    it 'refuses an outbound tool call once AI_VOICE_OUTBOUND_ENABLED is off' do
+      create(:candidate_ai_call, elevenlabs_conversation_id: 'conversation-1')
+      ENV['AI_VOICE_OUTBOUND_ENABLED'] = 'false'
+
+      call_tool('get_application_status')
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('ai_call_outbound_disabled')
+    end
+  end
+
+  describe 'unknown tool_name' do
+    it 'returns 404' do
+      call_tool('not_a_real_tool')
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe 'routing' do
+    it 'does not allow GET' do
+      call_record
+      get '/api/v1/ai_calls/elevenlabs/tools/create_callback_request',
+          params: { conversation_id: 'conversation-1' }, headers: valid_headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe 'dispatching to a registered tool' do
+    it 'dispatches create_callback_request and returns its result' do
+      call_record
+      call_tool('create_callback_request', params: { reason: 'ring me tonight' })
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body['data']).to eq('callback_requested' => true, 'reason' => 'ring me tonight')
+      expect(call_record.reload.callback_requested_at).to be_present
+    end
+
+    it 'dispatches transfer_to_human and returns its result' do
+      call_record
+      call_tool('transfer_to_human', params: { reason: 'wants a human' })
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body['data']).to eq(
+        'transfer_available' => false, 'callback_requested' => true, 'reason' => 'wants a human'
+      )
+    end
+
+    it 'refuses to reveal data for an unverified inbound call' do
+      call_record
+      call_tool('get_payment_status')
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body['data']).to eq('error' => 'not_verified')
+    end
+  end
+
+  describe 'CandidateAiCallEvent recording' do
+    it 'records one event for a genuinely new tool call' do
+      call_record
+      call_tool('create_callback_request', params: { reason: 'first' })
+
+      events = call_record.candidate_ai_call_events.where(event_type: 'create_callback_request')
+      expect(events.count).to eq(1)
+    end
+
+    it 'is idempotent -- a replayed delivery with identical arguments does not re-run the handler' do
+      call_record
+
+      expect do
+        call_tool('create_callback_request', params: { reason: 'first' })
+        call_tool('create_callback_request', params: { reason: 'first' })
+      end.to change { call_record.candidate_ai_call_events.count }.by(1)
+
+      first_requested_at = call_record.reload.callback_requested_at
+      call_tool('create_callback_request', params: { reason: 'first' })
+      expect(call_record.reload.callback_requested_at).to eq(first_requested_at)
+    end
+
+    it 'records a distinct event when the same tool is called with different arguments' do
+      call_record
+
+      expect do
+        call_tool('create_callback_request', params: { reason: 'first' })
+        call_tool('create_callback_request', params: { reason: 'second' })
+      end.to change { call_record.candidate_ai_call_events.count }.by(2)
+    end
+
+    it 'returns the first invocation result on a replayed delivery' do
+      call_record
+      call_tool('create_callback_request', params: { reason: 'first' })
+      first_body = response.parsed_body
+
+      call_tool('create_callback_request', params: { reason: 'first' })
+
+      expect(response.parsed_body['data']).to eq(first_body['data'])
+    end
+
+    it 'does not re-increment verification_attempts when an identical verify_caller_identity call is replayed' do
+      call_record
+
+      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
+      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
+
+      expect(call_record.reload.verification_attempts).to eq(1)
+    end
+
+    it 'still counts a genuinely new verify_caller_identity attempt with different arguments' do
+      call_record
+
+      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
+      call_tool('verify_caller_identity', params: { reference_number: 'another-ref' })
+
+      expect(call_record.reload.verification_attempts).to eq(2)
+    end
+  end
+end

@@ -3,14 +3,24 @@
 require 'rails_helper'
 
 RSpec.describe Candidates::Documents::UploadService do
+  # db:seed creates a real DocumentType row for 'passport' (requires_expiry:
+  # true) against a freshly prepared test database (see
+  # spec/tasks/db_seed_spec.rb's comment on db:prepare running seeds outside
+  # any rolled-back RSpec transaction) -- find_or_create_by!'s block only
+  # applies on creation, so it silently no-ops once that row already exists,
+  # leaving requires_expiry: true and breaking this file's uploaded-without-
+  # issued_on fixtures. Forcing the flags via #update! (rolled back with the
+  # rest of the example, same as everything else here) keeps this spec's
+  # assumptions true regardless of whether the row pre-existed.
   def existing_or_create_document_type(code, name_en:, name_ur:)
-    DocumentType.find_or_create_by!(code:) do |document_type|
-      document_type.name_en = name_en
-      document_type.name_ur = name_ur
-      document_type.active = true
-      document_type.requires_number = false
-      document_type.requires_expiry = false
+    document_type = DocumentType.find_or_create_by!(code:) do |new_document_type|
+      new_document_type.name_en = name_en
+      new_document_type.name_ur = name_ur
+      new_document_type.active = true
+      new_document_type.requires_number = false
+      new_document_type.requires_expiry = false
     end
+    document_type.tap { |type| type.update!(active: true, requires_number: false, requires_expiry: false) }
   end
 
   let(:candidate) { create(:candidate) }
@@ -42,11 +52,22 @@ RSpec.describe Candidates::Documents::UploadService do
         document_type: requirement.document_type,
         status_code:,
         **default_status_attributes_for(status_code),
+        **pcc_default_attributes_for(requirement.document_type),
         **override_attributes
       )
     end
   end
   # rubocop:enable Metrics/MethodLength
+
+  # police_character is globally required (like passport/cnic_front), and its
+  # model-level PoliceCharacterCompliance concern unconditionally requires
+  # issued_on regardless of status -- give it a valid default so generic
+  # fixtures here don't need to know about that PCC-specific rule.
+  def pcc_default_attributes_for(document_type)
+    return {} unless document_type.code == pcc_code
+
+    { issued_on: Time.zone.today }
+  end
 
   def default_status_attributes_for(status_code)
     case status_code
