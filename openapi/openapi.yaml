@@ -8405,11 +8405,25 @@ paths:
         `document_review_queue`'s pending-review count, since no daily-event proxy for a
         review backlog exists. `upcoming_activities` covers the next 7 days and does not yet
         include protection appearances (no forward-scheduled date field exists for those).
+        `filter[country_code]`/`filter[project_code]`/`filter[craft_code]` scope every section
+        (including `candidate_workload` and `document_review_queue`) to candidates whose
+        current assignment matches; an unrecognized code returns `invalid_query_parameter` and
+        an unsupported filter name returns `unsupported_filter`, matching
+        `GET /api/v1/admin/candidates`'s existing filter contract.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: filter[country_code]
+          in: query
+          schema: { type: string }
+        - name: filter[project_code]
+          in: query
+          schema: { type: string }
+        - name: filter[craft_code]
+          in: query
+          schema: { type: string }
       responses:
         '200':
           description: Admin dashboard summary
@@ -8508,6 +8522,8 @@ paths:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
                       timestamp: '2026-09-04T10:00:01Z'
                     errors: []
+        '400':
+          description: Unknown filter[country_code]/project_code/craft_code value, or an unrecognized filter name
         '401':
           description: Missing, invalid, expired, or revoked staff access token
         '403':

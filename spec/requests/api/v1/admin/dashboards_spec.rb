@@ -38,6 +38,43 @@ RSpec.describe 'API V1 Admin Dashboard', type: :request do
       expect(data.fetch('kpi_trends').keys).to contain_exactly('active_candidates', 'paid_payments', 'mobilized')
     end
 
+    it 'scopes the dashboard to filter[country_code]/project_code/craft_code' do
+      admin = create(:user, role: 'admin')
+      country = create(:country)
+      project = create(:project)
+      craft = create(:craft)
+      create(:candidate_assignment, country:, project:, craft:)
+      create(:candidate_assignment)
+
+      get '/api/v1/admin/dashboard',
+          params: { filter: { country_code: country.code, project_code: project.code, craft_code: craft.code } },
+          headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'candidate_workload', 'total_active_candidates')).to eq(1)
+    end
+
+    it 'returns invalid_query_parameter for an unknown filter code' do
+      admin = create(:user, role: 'admin')
+
+      get '/api/v1/admin/dashboard', params: { filter: { country_code: 'not_a_real_country' } },
+                                     headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:bad_request)
+      error = response.parsed_body.dig('errors', 0)
+      expect(error.fetch('code')).to eq('invalid_query_parameter')
+      expect(error.fetch('field')).to eq('filter.country_code')
+    end
+
+    it 'returns unsupported_filter for an unrecognized filter name' do
+      admin = create(:user, role: 'admin')
+
+      get '/api/v1/admin/dashboard', params: { filter: { status: 'verified' } }, headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unsupported_filter')
+    end
+
     it 'forbids a staff member without view_admin_dashboard (e.g. hr)' do
       hr = create(:user, role: 'hr')
 

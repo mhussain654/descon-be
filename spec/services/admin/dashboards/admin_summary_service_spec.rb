@@ -10,6 +10,13 @@ RSpec.describe Admin::Dashboards::AdminSummaryService do
     end
   end
 
+  def build_pending_review_submission(assignment)
+    submission = create(:candidate_document_submission, candidate_assignment: assignment)
+    document = create(:candidate_document, candidate_assignment: assignment, status_code: 'under_verification')
+    create(:candidate_document_submission_item, candidate_document_submission: submission, candidate_document: document,
+                                                requirement_code: 'req_1', required: true)
+  end
+
   it 'assembles candidate workload, workflow-stage queue, document-review queue and payment sections' do
     registered_stage = stage('registered', 1)
     create(:candidate_assignment, current_workflow_stage: registered_stage, candidate: create(:candidate, active: true))
@@ -70,5 +77,30 @@ RSpec.describe Admin::Dashboards::AdminSummaryService do
     expect(result.fetch(:recently_updated_candidates)).to be_an(Array)
     expect(result.fetch(:recently_updated_candidates).first).to include(:candidate_full_name, :workflow_stage_code)
     expect(result.fetch(:kpi_trends).keys).to contain_exactly(:active_candidates, :paid_payments, :mobilized)
+  end
+
+  it 'scopes every section (including document_review_queue) to the requested country/project/craft filters' do
+    country = create(:country)
+    project = create(:project)
+    craft = create(:craft)
+    matching_assignment = create(:candidate_assignment, country:, project:, craft:)
+    build_pending_review_submission(matching_assignment)
+    other_assignment = create(:candidate_assignment)
+    build_pending_review_submission(other_assignment)
+
+    result = described_class.call(
+      params: ActionController::Parameters.new(
+        filter: { country_code: country.code, project_code: project.code, craft_code: craft.code }
+      )
+    )
+
+    expect(result.fetch(:candidate_workload)).to eq(total_active_candidates: 1)
+    expect(result.fetch(:document_review_queue).fetch('pending_review')).to eq(1)
+  end
+
+  it 'propagates an unknown filter code as InvalidQueryParameterError' do
+    expect do
+      described_class.call(params: ActionController::Parameters.new(filter: { country_code: 'not_a_real_country' }))
+    end.to raise_error(InvalidQueryParameterError)
   end
 end
