@@ -8533,10 +8533,17 @@ paths:
       summary: MPS dashboard summary (MPS-802)
       description: >-
         Pipeline/status queues, delayed and critical case counts, craft-wise and
-        country/project-wise mobilization summaries, and the mobilization trend. Requires the
-        active `view_mps_dashboard` permission. "Delayed" (>= 7 days in the current stage) and
-        "critical" (>= 14 days) are documented implementation defaults, not a stakeholder-set
-        threshold; `critical` cases are also included in `delayed`.
+        country/project-wise mobilization summaries, the mobilization trend, the conversion
+        funnel (the same data `GET /api/v1/admin/dashboard` returns), and the single most
+        recently mobilized candidate. Requires the active `view_mps_dashboard` permission.
+        "Delayed" (>= 7 days in the current stage) and "critical" (>= 14 days) are documented
+        implementation defaults, not a stakeholder-set threshold; `critical` cases are also
+        included in `delayed`. `latest_mobilization` is `null` when no assignment in scope has
+        reached the mobilized stage yet.
+        `filter[country_code]`/`filter[project_code]`/`filter[craft_code]` scope every section to
+        candidates whose current assignment matches; an unrecognized code returns
+        `invalid_query_parameter` and an unsupported filter name returns `unsupported_filter`,
+        matching `GET /api/v1/admin/candidates`'s existing filter contract.
       security:
         - bearerAuth: []
       parameters:
@@ -8546,6 +8553,15 @@ paths:
           in: query
           description: Bucketing for `mobilization_trend`. Defaults to `monthly`.
           schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+        - name: filter[country_code]
+          in: query
+          schema: { type: string }
+        - name: filter[project_code]
+          in: query
+          schema: { type: string }
+        - name: filter[craft_code]
+          in: query
+          schema: { type: string }
       responses:
         '200':
           description: MPS dashboard summary
@@ -8588,12 +8604,33 @@ paths:
                       mobilization_trend:
                         - period: '2026-06-01'
                           count: 15
+                      conversion_funnel:
+                        - code: documents_uploaded
+                          count: 96
+                          percentage: 75.0
+                        - code: verified
+                          count: 90
+                          percentage: 70.3
+                        - code: mobilized
+                          count: 15
+                          percentage: 11.7
+                      latest_mobilization:
+                        candidate_full_name: Ahmed Khan
+                        candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
+                        candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
+                        reference_number: REF-000123
+                        country_name: Qatar
+                        project_name: Project One
+                        craft_name: Electrician
+                        mobilized_at: '2026-09-01T09:48:00Z'
                     meta:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
                       timestamp: '2026-09-04T10:00:01Z'
                     errors: []
         '400':
-          description: Unsupported granularity value
+          description: >-
+            Unsupported granularity value, an unknown filter[country_code]/project_code/craft_code
+            value, or an unrecognized filter name
         '401':
           description: Missing, invalid, expired, or revoked staff access token
         '403':
