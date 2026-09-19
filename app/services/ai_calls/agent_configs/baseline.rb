@@ -13,6 +13,13 @@ module AiCalls
     # client-approved guardrail content (see config/locales/api.en.yml).
     # AiCalls::AgentConfigSync hard-refuses to sync a placeholder baseline
     # into production, confirmation flag notwithstanding.
+    #
+    # The transfer_to_number built-in tool (ElevenLabs' own live human-
+    # handoff mechanism, confirmed 2026-09-15 to work exactly this way for
+    # a natively-imported Twilio number, which is how this app's calls are
+    # already originated) is included only once an admin has actually set
+    # AiCallOperationalSetting#human_transfer_phone_number and
+    # AI_VOICE_HUMAN_TRANSFER_ENABLED is on -- see #with_built_in_tools.
     class Baseline
       PLACEHOLDER_MARKER = '[PLACEHOLDER'
       ROLES = %w[outbound inbound].freeze
@@ -40,15 +47,15 @@ module AiCalls
         configuration.public_send(:"elevenlabs_#{role}_agent_id")
       end
 
-      def config
+      def config(configuration: AiCalls::Configuration.new)
         {
           'name' => "Descon #{role.capitalize} AI Call Agent",
-          'conversation_config' => { 'agent' => agent_config }
+          'conversation_config' => { 'agent' => agent_config(configuration:) }
         }
       end
 
-      def digest
-        Digest::SHA256.hexdigest(normalized_json(config))
+      def digest(configuration: AiCalls::Configuration.new)
+        Digest::SHA256.hexdigest(normalized_json(config(configuration:)))
       end
 
       def digest_for_remote(remote_config)
@@ -63,11 +70,41 @@ module AiCalls
       # override onto (unlike outbound, whose ScenarioPrompt/
       # WorkflowStageAnnouncementPrompt set it per call) -- the greeting
       # that answers every inbound call has to live on the baseline itself.
-      def agent_config
+      def agent_config(configuration:)
         base = { 'language' => 'en', 'prompt' => { 'prompt' => prompt_text } }
-        return base unless role == 'inbound'
+        base = base.merge('first_message' => opening_line_text) if role == 'inbound'
+        with_built_in_tools(base, configuration:)
+      end
 
-        base.merge('first_message' => opening_line_text)
+      # Omits the transfer_to_number system tool entirely -- rather than
+      # including it with a blank/placeholder destination -- until an admin
+      # has actually set AiCallOperationalSetting#human_transfer_phone_number
+      # and the human_transfer_enabled? flag is on. This is the only way to
+      # guarantee a freshly-provisioned environment can never push a fake or
+      # missing destination into a live agent that would really dial it.
+      def with_built_in_tools(base, configuration:)
+        return base unless configuration.human_transfer_enabled? && configuration.human_transfer_phone_number.present?
+
+        prompt = base.fetch('prompt').merge('built_in_tools' => transfer_to_number_tool(configuration))
+        base.merge('prompt' => prompt)
+      end
+
+      def transfer_to_number_tool(configuration)
+        {
+          'transfer_to_number' => {
+            'type' => 'system',
+            'name' => 'transfer_to_number',
+            'params' => { 'system_tool_type' => 'transfer_to_number', 'transfers' => [transfer_rule(configuration)] }
+          }
+        }
+      end
+
+      def transfer_rule(configuration)
+        {
+          'transfer_destination' => { 'type' => 'phone', 'phone_number' => configuration.human_transfer_phone_number },
+          'condition' => 'The candidate explicitly asks to speak with a human agent.',
+          'transfer_type' => 'conference'
+        }
       end
 
       def prompt_text

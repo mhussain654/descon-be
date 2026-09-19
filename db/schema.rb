@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_14_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,6 +48,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_090000) do
     t.integer "calling_hours_start"
     t.datetime "created_at", null: false
     t.integer "daily_outbound_call_limit"
+    t.string "human_transfer_phone_number"
     t.integer "max_call_duration_minutes"
     t.integer "outbound_trigger_cooldown_minutes"
     t.boolean "singleton_guard", default: true, null: false
@@ -59,6 +60,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_090000) do
     t.check_constraint "calling_hours_end IS NULL OR calling_hours_end >= 0 AND calling_hours_end <= 23", name: "ai_call_operational_settings_calling_hours_end_range"
     t.check_constraint "calling_hours_start IS NULL OR calling_hours_start >= 0 AND calling_hours_start <= 23", name: "ai_call_operational_settings_calling_hours_start_range"
     t.check_constraint "daily_outbound_call_limit >= 0", name: "ai_call_operational_settings_daily_outbound_call_limit_non_nega"
+    t.check_constraint "human_transfer_phone_number IS NULL OR human_transfer_phone_number::text ~ '^\\+?\\d{10,15}$'::text", name: "ai_call_operational_settings_human_transfer_phone_number_format"
     t.check_constraint "max_call_duration_minutes >= 0", name: "ai_call_operational_settings_max_call_duration_minutes_non_nega"
     t.check_constraint "outbound_trigger_cooldown_minutes >= 0", name: "ai_call_operational_settings_outbound_trigger_cooldown_minutes_"
   end

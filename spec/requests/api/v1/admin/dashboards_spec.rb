@@ -25,11 +25,17 @@ RSpec.describe 'API V1 Admin Dashboard', type: :request do
       expect(response).to have_http_status(:ok)
       data = response.parsed_body['data']
       expect(data.keys).to contain_exactly(
-        'candidate_workload', 'workflow_stage_queue', 'document_review_queue', 'payment_summary'
+        'candidate_workload', 'workflow_stage_queue', 'document_review_queue', 'payment_summary',
+        'conversion_funnel', 'average_stage_duration_days', 'requires_attention', 'upcoming_activities',
+        'recently_updated_candidates', 'kpi_trends'
       )
       expect(data.fetch('document_review_queue').keys).to contain_exactly(
         'pending_review', 'verified', 'rejected', 'expired_pcc', 'near_expiry_pcc'
       )
+      expect(data.fetch('requires_attention').pluck('code')).to contain_exactly(
+        'rejected_documents', 'failed_payment', 'overdue_qvc', 'callback_required'
+      )
+      expect(data.fetch('kpi_trends').keys).to contain_exactly('active_candidates', 'paid_payments', 'mobilized')
     end
 
     it 'forbids a staff member without view_admin_dashboard (e.g. hr)' do

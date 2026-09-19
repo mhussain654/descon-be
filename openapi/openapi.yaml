@@ -1411,6 +1411,14 @@ components:
               type: integer
               minimum: 0
               nullable: true
+            human_transfer_phone_number:
+              type: string
+              nullable: true
+              description: >-
+                E.164 phone number ElevenLabs' transfer_to_number system tool connects a
+                candidate to when they ask for a human. Omitted from the synced agent
+                config entirely (see AiCalls::AgentConfigs::Baseline) until this is set
+                and AI_VOICE_HUMAN_TRANSFER_ENABLED is on.
           additionalProperties: false
       required: [ai_call_operational_setting]
     AdminTrainingSettingRequest:
@@ -2538,6 +2546,34 @@ paths:
                     errors:
                       - code: inactive_account
                         message: یہ اکاؤنٹ غیر فعال ہے۔
+                    request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
+                    timestamp: '2026-08-23T09:00:04Z'
+        '423':
+          description: Account locked (too many failed login attempts)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                accountLockedEn:
+                  value:
+                    errors:
+                      - code: account_locked
+                        message: This account is locked due to too many failed login attempts. Contact an
+                          administrator for help.
+                    request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
+                    timestamp: '2026-08-23T09:00:04Z'
+                accountLockedUr:
+                  value:
+                    errors:
+                      - code: account_locked
+                        message: بہت زیادہ ناکام لاگ ان کوششوں کی وجہ سے یہ اکاؤنٹ مقفل ہے۔ مدد کے لیے منتظم سے
+                          رابطہ کریں۔
                     request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
                     timestamp: '2026-08-23T09:00:04Z'
         '429':
@@ -6866,7 +6902,10 @@ paths:
         '200':
           description: >-
             CandidateAiCall created or found (uniformly shaped whether or not a
-            candidate was matched -- the response never signals match/no-match directly)
+            candidate was matched -- the response never signals match/no-match directly).
+            The body is ElevenLabs' own required `conversation_initiation_client_data`
+            contract, not this app's usual {data, meta, errors} envelope -- a malformed
+            or non-2xx response here prevents the call from connecting at all.
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -6877,7 +6916,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
+                type: object
+                required: [type]
+                properties:
+                  type:
+                    type: string
+                    enum: [conversation_initiation_client_data]
+                  dynamic_variables:
+                    type: object
+                    description: Always empty today -- nothing here needs a per-call prompt/variable override.
+              example:
+                type: conversation_initiation_client_data
+                dynamic_variables: {}
         '401':
           description: Missing, invalid, expired, or malformed ElevenLabs-Signature header
         '503':
@@ -6887,22 +6937,24 @@ paths:
       summary: Dispatch an ElevenLabs in-call tool invocation
       description: >-
         Single dispatcher for every ElevenLabs conversational tool (verify_caller_identity,
-        the 7 data-retrieval tools, create_callback_request, transfer_to_human), routed by
-        `AiCalls::Tools::Registry`. Authenticated by a shared secret
-        (`X-AI-Calls-Tool-Secret`, constant-time compared) rather than a staff session --
+        the 7 data-retrieval tools, create_callback_request), routed by
+        `AiCalls::Tools::Registry`. Live transfer to a human is not dispatched here -- it is
+        handled entirely by ElevenLabs' own transfer_to_number system tool, configured on the
+        agent baseline (see AiCalls::AgentConfigs::Baseline), which runs inside ElevenLabs'
+        own conversational engine and never calls this endpoint. Authenticated by a shared
+        secret (`X-AI-Calls-Tool-Secret`, constant-time compared) rather than a staff session --
         there is no candidate/staff login on an in-progress voice call. Every invocation is
         recorded as its own CandidateAiCallEvent (event_source: tool_call). A repeated,
-        identical invocation of verify_caller_identity, create_callback_request, or
-        transfer_to_human replays its first result rather than re-running (idempotent
-        replay protection for their side effects); the 7 data-retrieval tools are pure
-        reads and always re-run, so repeated identical questions in one conversation get
-        current data, not a cached first answer. Every data-revealing tool independently
-        re-checks candidate_ai_call.verification_status server-side before returning
-        anything -- it never trusts the agent's own claim that verification already
-        succeeded. Refuses a call that has already ended (terminal status), or whose
-        direction is currently disabled by the outbound/inbound feature flag, regardless
-        of how old or new the conversation_id is -- a valid shared secret plus a
-        historical conversation_id does not grant indefinite access to current data.
+        identical invocation of verify_caller_identity or create_callback_request replays its
+        first result rather than re-running (idempotent replay protection for their side
+        effects); the 7 data-retrieval tools are pure reads and always re-run, so repeated
+        identical questions in one conversation get current data, not a cached first answer.
+        Every data-revealing tool independently re-checks candidate_ai_call.verification_status
+        server-side before returning anything -- it never trusts the agent's own claim that
+        verification already succeeded. Refuses a call that has already ended (terminal
+        status), or whose direction is currently disabled by the outbound/inbound feature
+        flag, regardless of how old or new the conversation_id is -- a valid shared secret
+        plus a historical conversation_id does not grant indefinite access to current data.
       parameters:
         - name: tool_name
           in: path
@@ -6919,7 +6971,6 @@ paths:
               - get_protection_status
               - get_flight_information
               - create_callback_request
-              - transfer_to_human
         - name: X-AI-Calls-Tool-Secret
           in: header
           required: true
@@ -6936,7 +6987,7 @@ paths:
               description: >-
                 conversation_id (required, identifies the CandidateAiCall) plus whatever
                 arguments the named tool expects (e.g. reference_number/cnic for
-                verify_caller_identity, reason for create_callback_request/transfer_to_human).
+                verify_caller_identity, reason for create_callback_request).
       responses:
         '200':
           description: Tool result, shaped per the dispatched tool
@@ -8028,9 +8079,11 @@ paths:
         Returns the single admin-editable AiCallOperationalSetting row -- the DB-driven
         overrides for AiCalls::Configuration's 5 otherwise ENV-only knobs (outbound trigger
         cooldown, daily outbound call limit, admin trigger rate limit, calling hours,
-        max call duration). A column reading null means that knob still falls back to its
-        ENV var/default. Requires the `manage_ai_call_settings` permission -- admin-only by
-        default, independent from `trigger_ai_calls`/`manage_ai_call_scripts`.
+        max call duration), plus the live human-transfer destination number. A knob column
+        reading null means that knob still falls back to its ENV var/default;
+        human_transfer_phone_number has no ENV fallback and simply stays null (no transfer
+        capability) until set. Requires the `manage_ai_call_settings` permission -- admin-only
+        by default, independent from `trigger_ai_calls`/`manage_ai_call_scripts`.
       security:
         - bearerAuth: []
       parameters:
@@ -8060,6 +8113,7 @@ paths:
                       calling_hours_start: null
                       calling_hours_end: null
                       max_call_duration_minutes: null
+                      human_transfer_phone_number: null
                       updated_by: null
                       updated_at: '2026-09-11T09:00:00Z'
                     meta:
@@ -8073,9 +8127,10 @@ paths:
     patch:
       summary: Edit the AI call rate-limit / calling-hours singleton
       description: >-
-        Updates any subset of the 5 DB-editable operational knobs. Requires the
-        `manage_ai_call_settings` permission; every update that actually changes a value is
-        recorded as an AuditEvent carrying the actor and the before/after values changed.
+        Updates any subset of the DB-editable operational knobs, including the human-transfer
+        destination number. Requires the `manage_ai_call_settings` permission; every update
+        that actually changes a value is recorded as an AuditEvent carrying the actor and the
+        before/after values changed.
       security:
         - bearerAuth: []
       parameters:
@@ -8111,6 +8166,7 @@ paths:
                       calling_hours_start: 8
                       calling_hours_end: 19
                       max_call_duration_minutes: 15
+                      human_transfer_phone_number: null
                       updated_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                         role: admin
@@ -8338,8 +8394,17 @@ paths:
     get:
       summary: Admin dashboard summary (MPS-801)
       description: >-
-        Candidate workload, document-review queue depth, workflow-stage queues and payment
-        visibility. Requires the active `view_admin_dashboard` permission.
+        Candidate workload, document-review queue depth, workflow-stage queues, payment
+        visibility, conversion/cycle-time metrics, a cross-source "requires attention" list,
+        upcoming QVC/flight activity, recently-updated candidates, and per-KPI trend
+        sparklines. Requires the active `view_admin_dashboard` permission.
+        `average_stage_duration_days` is `null` when no assignment in scope has more than one
+        recorded workflow-stage transition yet. `kpi_trends` entries cover a fixed 14-day
+        window and are event-based activity counts (registrations/payments/mobilizations per
+        day), not a point-in-time backlog size -- there is deliberately no trend for
+        `document_review_queue`'s pending-review count, since no daily-event proxy for a
+        review backlog exists. `upcoming_activities` covers the next 7 days and does not yet
+        include protection appearances (no forward-scheduled date field exists for those).
       security:
         - bearerAuth: []
       parameters:
@@ -8387,6 +8452,58 @@ paths:
                           count: 1
                         - code: cancelled
                           count: 0
+                      conversion_funnel:
+                        - code: documents_uploaded
+                          count: 96
+                          percentage: 75.0
+                        - code: verified
+                          count: 90
+                          percentage: 70.3
+                        - code: mobilized
+                          count: 15
+                          percentage: 11.7
+                      average_stage_duration_days: 4.2
+                      requires_attention:
+                        - code: rejected_documents
+                          count: 3
+                        - code: failed_payment
+                          count: 1
+                        - code: overdue_qvc
+                          count: 2
+                        - code: callback_required
+                          count: 1
+                      upcoming_activities:
+                        - type: qvc_appointment
+                          occurs_on: '2026-09-10'
+                          candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
+                          reference_number: REF-000123
+                        - type: flight_departure
+                          occurs_on: '2026-09-12'
+                          candidate_assignment_public_id: 1c2d3e4f-5a6b-4c7d-8e9f-1c2d3e4f5a6b
+                          reference_number: REF-000456
+                      recently_updated_candidates:
+                        - candidate_full_name: Ahmed Khan
+                          candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
+                          candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
+                          reference_number: REF-000123
+                          workflow_stage_code: under_verification
+                          last_updated_at: '2026-09-04T09:48:00Z'
+                      kpi_trends:
+                        active_candidates:
+                          - date: '2026-08-22'
+                            count: 3
+                          - date: '2026-09-04'
+                            count: 5
+                        paid_payments:
+                          - date: '2026-08-22'
+                            count: 1
+                          - date: '2026-09-04'
+                            count: 4
+                        mobilized:
+                          - date: '2026-08-22'
+                            count: 0
+                          - date: '2026-09-04'
+                            count: 2
                     meta:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
                       timestamp: '2026-09-04T10:00:01Z'

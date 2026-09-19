@@ -65,4 +65,12 @@ RSpec.describe AiCallOperationalSetting do
 
     expect(setting).to be_valid
   end
+
+  it 'validates human_transfer_phone_number format, allowing nil' do
+    setting = described_class.current
+
+    expect(setting.update(human_transfer_phone_number: 'not-a-number')).to be(false)
+    expect(setting.update(human_transfer_phone_number: '+923001234567')).to be(true)
+    expect(setting.update(human_transfer_phone_number: nil)).to be(true)
+  end
 end

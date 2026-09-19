@@ -54,6 +54,16 @@ RSpec.describe AiCalls::RecordPostCallWebhookService do
     expect(result.candidate_ai_call_transcript.transcript).to eq('Hello.')
   end
 
+  it "maps a conference-transfer exit (end_reason: '') to answered/transferred_to_human" do
+    transferred = raw_payload.deep_dup
+    transferred['data']['end_reason'] = ''
+
+    result = service(params: transferred).call
+
+    expect(result.outcome).to eq('answered')
+    expect(result.outcome_reason).to eq('transferred_to_human')
+  end
+
   it 'persists the summary and structured extraction onto the call' do
     with_summary = raw_payload.deep_dup
     with_summary['data']['analysis']['transcript_summary'] = 'Candidate confirmed receipt of documents.'

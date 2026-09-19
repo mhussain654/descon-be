@@ -27,9 +27,9 @@ module AiCalls
   # handler execution + event write, so two concurrent deliveries of the
   # same call serialize instead of racing.
   #
-  # The replay-cached-payload behavior above only applies to the 3 tools
+  # The replay-cached-payload behavior above only applies to the 2 tools
   # with a genuine side effect to protect (verify_caller_identity,
-  # create_callback_request, transfer_to_human -- AiCalls::Tools::Registry
+  # create_callback_request -- AiCalls::Tools::Registry
   # ::PRE_VERIFICATION_TOOLS). The 7 data-retrieval tools are pure reads:
   # caching their result under an arguments-only key would mean a candidate
   # asking the same question twice in one call (e.g. "what's my status?"

@@ -16,16 +16,23 @@ module AiCalls
         'get_visa_status' => GetVisaStatus,
         'get_protection_status' => GetProtectionStatus,
         'get_flight_information' => GetFlightInformation,
-        'create_callback_request' => CreateCallbackRequest,
-        'transfer_to_human' => TransferToHuman
+        'create_callback_request' => CreateCallbackRequest
       }.freeze
 
       # Tools reachable before verification succeeds -- everything else
       # requires `verification_status` to already reflect success (checked
       # independently by VerifiedDataTool for the 7 data-retrieval tools;
-      # these three don't subclass it because they either perform
+      # these two don't subclass it because they either perform
       # verification itself or never disclose candidate-specific data).
-      PRE_VERIFICATION_TOOLS = %w[verify_caller_identity create_callback_request transfer_to_human].freeze
+      #
+      # Live transfer to a human is handled entirely by ElevenLabs' own
+      # transfer_to_number system tool (see AiCalls::AgentConfigs::Baseline)
+      # once configured -- it runs inside ElevenLabs' own conversational
+      # engine and never calls this dispatcher, so there is no
+      # `transfer_to_human` custom tool here to route to (removed 2026-09-16;
+      # it was a deliberate callback-only placeholder for exactly this
+      # capability, blocked on Trello MPS-709).
+      PRE_VERIFICATION_TOOLS = %w[verify_caller_identity create_callback_request].freeze
 
       # The 7 data-retrieval tools -- pure reads with no side effect to
       # protect via replay-cached idempotency (see

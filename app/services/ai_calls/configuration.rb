@@ -127,6 +127,13 @@ module AiCalls
       operational_setting.max_call_duration_minutes || ENV.fetch('AI_VOICE_MAX_CALL_DURATION_MINUTES', 15).to_i
     end
 
+    # The phone number ElevenLabs' `transfer_to_number` system tool connects
+    # a candidate to when they ask for a human (see
+    # AiCalls::AgentConfigs::Baseline) -- no ENV fallback, since there is no
+    # sensible generic default for a real phone number; blank until an
+    # admin sets one (previously blocked entirely on Trello MPS-709).
+    delegate :human_transfer_phone_number, to: :operational_setting
+
     # How long a call transcript (which may contain CNIC/passport/medical/
     # financial details discussed on the call) is retained before
     # AiCalls::PurgeExpiredTranscriptsJob clears its content. Stamped as

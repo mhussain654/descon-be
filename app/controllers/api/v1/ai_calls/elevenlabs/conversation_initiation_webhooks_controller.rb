@@ -11,6 +11,18 @@ module Api
         # match/no-match. Unauthenticated by session; authenticity comes
         # from the ElevenLabs-Signature HMAC.
         class ConversationInitiationWebhooksController < ApplicationController
+          # ElevenLabs requires this exact response contract for a
+          # conversation-initiation webhook -- NOT this app's usual
+          # {data, meta, errors} envelope (render_success). A malformed or
+          # non-2xx response here doesn't just look wrong: per ElevenLabs'
+          # docs, it prevents the call from connecting at all. `type` must
+          # be exactly this literal string; `dynamic_variables` may be `{}`
+          # since nothing here needs per-call prompt/variable overrides
+          # today (unlike TriggerOutboundCallService's outbound flow, which
+          # sets dynamic_variables directly on the initiate-call request,
+          # not via this webhook).
+          CLIENT_DATA_RESPONSE = { type: 'conversation_initiation_client_data', dynamic_variables: {} }.freeze
+
           def create
             ::AiCalls::HandleConversationInitiationService.call(
               header: request.headers['ElevenLabs-Signature'],
@@ -19,7 +31,8 @@ module Api
               request_id: request.request_id
             )
 
-            render_success(data: {})
+            set_standard_response_headers
+            render json: CLIENT_DATA_RESPONSE
           end
         end
       end

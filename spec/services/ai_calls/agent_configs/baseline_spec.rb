@@ -57,6 +57,57 @@ RSpec.describe AiCalls::AgentConfigs::Baseline do
     end
   end
 
+  describe 'transfer_to_number built-in tool' do
+    def configuration_double(enabled:, number:)
+      instance_double(AiCalls::Configuration, human_transfer_enabled?: enabled, human_transfer_phone_number: number)
+    end
+
+    it 'is omitted when human transfer is disabled, even with a number configured' do
+      configuration = configuration_double(enabled: false, number: '+923001234567')
+
+      config = described_class.for(:outbound).config(configuration:)
+
+      expect(config.dig('conversation_config', 'agent', 'prompt')).not_to have_key('built_in_tools')
+    end
+
+    it 'is omitted when enabled but no destination number is configured' do
+      configuration = configuration_double(enabled: true, number: nil)
+
+      config = described_class.for(:outbound).config(configuration:)
+
+      expect(config.dig('conversation_config', 'agent', 'prompt')).not_to have_key('built_in_tools')
+    end
+
+    it 'is included, targeting the configured number, once enabled with a number set' do
+      configuration = configuration_double(enabled: true, number: '+923001234567')
+
+      config = described_class.for(:outbound).config(configuration:)
+
+      tool = config.dig('conversation_config', 'agent', 'prompt', 'built_in_tools', 'transfer_to_number')
+      expect(tool.dig('params', 'system_tool_type')).to eq('transfer_to_number')
+      transfer = tool.dig('params', 'transfers', 0)
+      expect(transfer.dig('transfer_destination', 'phone_number')).to eq('+923001234567')
+      expect(transfer['transfer_type']).to eq('conference')
+    end
+
+    it 'is included on both outbound and inbound baselines' do
+      configuration = configuration_double(enabled: true, number: '+923001234567')
+
+      %i[outbound inbound].each do |role|
+        config = described_class.for(role).config(configuration:)
+        expect(config.dig('conversation_config', 'agent', 'prompt', 'built_in_tools')).to have_key('transfer_to_number')
+      end
+    end
+
+    it 'changes the digest once it becomes included' do
+      baseline = described_class.for(:outbound)
+      without_transfer = configuration_double(enabled: false, number: nil)
+      with_transfer = configuration_double(enabled: true, number: '+923001234567')
+
+      expect(baseline.digest(configuration: without_transfer)).not_to eq(baseline.digest(configuration: with_transfer))
+    end
+  end
+
   describe '#digest_for_remote' do
     it 'ignores unmanaged fields the provider echoes back' do
       baseline = described_class.for(:outbound)

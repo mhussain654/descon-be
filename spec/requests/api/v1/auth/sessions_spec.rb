@@ -90,6 +90,51 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'message')).to eq(I18n.t('api.errors.inactive_account', locale: :ur))
     end
 
+    it 'returns a distinct locked-account error for a locked account, even with the correct password' do
+      admin_user.lock_access!
+
+      login(email: admin_user.email, password: 'Password123!')
+
+      expect(response).to have_http_status(:locked)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('account_locked')
+      expect(response.parsed_body.dig('errors', 0, 'message')).to eq(I18n.t('api.errors.account_locked'))
+    end
+
+    it 'does not reveal the lockout reset window in the locked-account message' do
+      admin_user.lock_access!
+
+      login(email: admin_user.email, password: 'Password123!')
+
+      message = response.parsed_body.dig('errors', 0, 'message')
+      expect(message).not_to match(/\d+\s*(minute|hour)/i)
+    end
+
+    it 'still returns the generic unauthorized error for a nonexistent email, not a lock-state hint' do
+      login(email: 'never-existed@example.com', password: 'Password123!')
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unauthorized')
+    end
+
+    it 'localizes the locked-account response to Urdu' do
+      admin_user.lock_access!
+
+      login(email: admin_user.email, password: 'Password123!', headers: { 'X-Locale' => 'ur' })
+
+      expect(response).to have_http_status(:locked)
+      expect(response.parsed_body.dig('errors', 0, 'message')).to eq(I18n.t('api.errors.account_locked', locale: :ur))
+    end
+
+    it 'records a locked-account audit event' do
+      admin_user.lock_access!
+
+      login(email: admin_user.email, password: 'Password123!')
+
+      event = AuthenticationEvent.order(:created_at).last
+      expect(event.event_code).to eq('account_locked_login_rejected')
+      expect(event.user).to eq(admin_user)
+    end
+
     it 'records a successful login audit event' do
       login(email: admin_user.email, password: 'Password123!')
 

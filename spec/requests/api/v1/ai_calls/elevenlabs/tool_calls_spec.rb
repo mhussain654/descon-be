@@ -106,17 +106,6 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Tool Calls', type: :request do
       expect(call_record.reload.callback_requested_at).to be_present
     end
 
-    it 'dispatches transfer_to_human and returns its result' do
-      call_record
-      call_tool('transfer_to_human', params: { reason: 'wants a human' })
-
-      expect(response).to have_http_status(:ok)
-      body = response.parsed_body
-      expect(body['data']).to eq(
-        'transfer_available' => false, 'callback_requested' => true, 'reason' => 'wants a human'
-      )
-    end
-
     it 'refuses to reveal data for an unverified inbound call' do
       call_record
       call_tool('get_payment_status')

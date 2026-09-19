@@ -105,5 +105,27 @@ RSpec.describe 'API V1 Admin AI Call Operational Settings', type: :request do
 
       expect(AiCalls::Configuration.new.daily_outbound_call_limit).to eq(7)
     end
+
+    it 'sets the human transfer destination number, reflected immediately in AiCalls::Configuration' do
+      admin = create(:user, role: 'admin')
+
+      patch '/api/v1/admin/ai_call_operational_settings',
+            params: { ai_call_operational_setting: { human_transfer_phone_number: '+923001234567' } }.to_json,
+            headers: auth_headers(admin).merge('Content-Type' => 'application/json')
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'human_transfer_phone_number')).to eq('+923001234567')
+      expect(AiCalls::Configuration.new.human_transfer_phone_number).to eq('+923001234567')
+    end
+
+    it 'rejects a malformed human transfer phone number' do
+      admin = create(:user, role: 'admin')
+
+      patch '/api/v1/admin/ai_call_operational_settings',
+            params: { ai_call_operational_setting: { human_transfer_phone_number: 'not-a-number' } }.to_json,
+            headers: auth_headers(admin).merge('Content-Type' => 'application/json')
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
   end
 end

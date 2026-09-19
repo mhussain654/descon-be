@@ -8,6 +8,12 @@ module Admin
       end
 
       def as_json(*)
+        knob_attributes.merge(updated_by: serialized_updated_by, updated_at: @setting.updated_at.utc.iso8601)
+      end
+
+      private
+
+      def knob_attributes
         {
           outbound_trigger_cooldown_minutes: @setting.outbound_trigger_cooldown_minutes,
           daily_outbound_call_limit: @setting.daily_outbound_call_limit,
@@ -15,12 +21,9 @@ module Admin
           calling_hours_start: @setting.calling_hours_start,
           calling_hours_end: @setting.calling_hours_end,
           max_call_duration_minutes: @setting.max_call_duration_minutes,
-          updated_by: serialized_updated_by,
-          updated_at: @setting.updated_at.utc.iso8601
+          human_transfer_phone_number: @setting.human_transfer_phone_number
         }
       end
-
-      private
 
       def serialized_updated_by
         actor = @setting.updated_by

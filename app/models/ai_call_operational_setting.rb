@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
 # The single admin-editable row of AI-call operational limits (cooldown,
-# daily/hourly caps, calling hours, max duration) -- see AiCalls::Configuration,
-# which checks this row before falling back to its ENV-driven defaults.
-# `singleton_guard` is always true; its unique index makes a second row
-# impossible at the database level (see the migration), not just by
-# convention -- #current is the only supported way to obtain the row.
+# daily/hourly caps, calling hours, max duration) plus the live human-
+# transfer destination -- see AiCalls::Configuration, which checks this row
+# before falling back to its ENV-driven defaults (`human_transfer_phone_number`
+# has no ENV fallback: there is no sensible generic default for a real
+# phone number). `singleton_guard` is always true; its unique index makes a
+# second row impossible at the database level (see the migration), not just
+# by convention -- #current is the only supported way to obtain the row.
 class AiCallOperationalSetting < ApplicationRecord
   belongs_to :updated_by, class_name: 'User', optional: true
 
@@ -16,6 +18,7 @@ class AiCallOperationalSetting < ApplicationRecord
   validates :calling_hours_start, :calling_hours_end,
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 23 },
             allow_nil: true
+  validates :human_transfer_phone_number, format: { with: /\A\+?\d{10,15}\z/ }, allow_nil: true
 
   before_destroy :raise_readonly_record
 

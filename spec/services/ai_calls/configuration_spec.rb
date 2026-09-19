@@ -186,4 +186,20 @@ RSpec.describe AiCalls::Configuration do
       expect(AiCallOperationalSetting.count).to eq(1)
     end
   end
+
+  describe '#human_transfer_phone_number' do
+    before { AiCallOperationalSetting.delete_all }
+
+    it 'is nil when unset, with no ENV fallback' do
+      AiCallOperationalSetting.current
+
+      expect(described_class.new.human_transfer_phone_number).to be_nil
+    end
+
+    it 'reads the admin-configured destination number' do
+      AiCallOperationalSetting.current.update!(human_transfer_phone_number: '+923001234567')
+
+      expect(described_class.new.human_transfer_phone_number).to eq('+923001234567')
+    end
+  end
 end

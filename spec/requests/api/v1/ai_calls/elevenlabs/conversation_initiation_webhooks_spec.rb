@@ -28,6 +28,21 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Conversation Initiation Webhooks', ty
     expect(CandidateAiCall.find_by(elevenlabs_conversation_id: 'conversation-1')).to be_present
   end
 
+  # Regression: ElevenLabs requires the response body to be its own
+  # conversation_initiation_client_data contract, not this app's usual
+  # {data, meta, errors} envelope -- per ElevenLabs' docs, a response in the
+  # wrong shape (or a non-2xx status) prevents the call from ever
+  # connecting, even though the CandidateAiCall row above is created fine.
+  it "responds with ElevenLabs' required conversation_initiation_client_data shape, not the app's standard envelope" do
+    body = { data: { conversation_id: 'conversation-4', caller_id: '+920000000000' } }.to_json
+
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation',
+         params: body,
+         headers: { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => signed_header(body:) }
+
+    expect(response.parsed_body).to eq('type' => 'conversation_initiation_client_data', 'dynamic_variables' => {})
+  end
+
   it 'rejects a request with an invalid signature' do
     body = { data: { conversation_id: 'conversation-1', caller_id: '+920000000000' } }.to_json
 

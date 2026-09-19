@@ -66,6 +66,18 @@ RSpec.describe AiCalls::ReconcileCallService do
       expect(result.candidate_ai_call_transcript.transcript).to eq('Hello.')
     end
 
+    it "maps a conference-transfer exit (end_reason: '') recovered through reconciliation" do
+      call_record = create(:candidate_ai_call, status: 'ringing', elevenlabs_conversation_id: 'conversation-1')
+      allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(
+        'data' => { 'conversation_id' => 'conversation-1', 'status' => 'done', 'end_reason' => '' }
+      )
+
+      result = service_for(call_record).call
+
+      expect(result.outcome).to eq('answered')
+      expect(result.outcome_reason).to eq('transferred_to_human')
+    end
+
     it 'stamps an expiry on a transcript recovered through reconciliation' do
       call_record = create(:candidate_ai_call, status: 'ringing', elevenlabs_conversation_id: 'conversation-1')
       allow(elevenlabs_adapter).to receive(:fetch_conversation).and_return(

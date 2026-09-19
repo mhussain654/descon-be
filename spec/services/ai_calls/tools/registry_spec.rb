@@ -13,8 +13,7 @@ RSpec.describe AiCalls::Tools::Registry do
       'get_visa_status' => AiCalls::Tools::GetVisaStatus,
       'get_protection_status' => AiCalls::Tools::GetProtectionStatus,
       'get_flight_information' => AiCalls::Tools::GetFlightInformation,
-      'create_callback_request' => AiCalls::Tools::CreateCallbackRequest,
-      'transfer_to_human' => AiCalls::Tools::TransferToHuman
+      'create_callback_request' => AiCalls::Tools::CreateCallbackRequest
     }.each do |tool_name, handler_class|
       it "resolves #{tool_name} to #{handler_class}" do
         expect(described_class.fetch(tool_name)).to eq(handler_class)
@@ -28,12 +27,19 @@ RSpec.describe AiCalls::Tools::Registry do
     it 'raises for an unknown tool name' do
       expect { described_class.fetch('not_a_real_tool') }.to raise_error(ArgumentError, /not_a_real_tool/)
     end
+
+    # Regression: live human transfer is handled entirely by ElevenLabs'
+    # own transfer_to_number system tool (see AiCalls::AgentConfigs::Baseline),
+    # not by a custom tool this dispatcher routes to.
+    it 'no longer resolves transfer_to_human' do
+      expect { described_class.fetch('transfer_to_human') }.to raise_error(ArgumentError, /transfer_to_human/)
+    end
   end
 
   describe 'PRE_VERIFICATION_TOOLS' do
     it 'lists exactly the tools reachable before verification succeeds' do
-      expect(described_class::PRE_VERIFICATION_TOOLS)
-        .to contain_exactly('verify_caller_identity', 'create_callback_request', 'transfer_to_human')
+      expect(described_class::PRE_VERIFICATION_TOOLS).to contain_exactly('verify_caller_identity',
+                                                                         'create_callback_request')
     end
   end
 

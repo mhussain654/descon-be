@@ -28,7 +28,8 @@ RSpec.describe AiCalls::Tools::GetMissingDocuments do
 
     expect(result[:missing_count]).to be >= 1
     requirement = result[:blocking_requirements].find { |r| r[:requirement_code] == document_type.code }
-    expect(requirement).to include(:requirement_code, :name, :reason)
+    expect(requirement).to include(:requirement_code, :name, :reason, :reason_label)
     expect(requirement[:reason]).to eq('missing')
+    expect(requirement[:reason_label]).to eq(I18n.t('api.ai_calls.labels.document_blocking_reasons.missing'))
   end
 end

@@ -89,6 +89,30 @@ RSpec.describe AiCalls::OutcomeMapper do
     expect(result.outcome_reason).to eq('needs_manual_review')
   end
 
+  # Confirmed with ElevenLabs support 2026-09-15: end_reason is exactly the
+  # empty string specifically when the agent exits via a conference
+  # transfer.
+  it "maps end_reason '' to answered/transferred_to_human, ahead of extraction" do
+    result = described_class.call(telephony_outcome: 'answered', extraction: nil, end_reason: '')
+
+    expect(result.outcome).to eq('answered')
+    expect(result.outcome_reason).to eq('transferred_to_human')
+  end
+
+  it 'prefers the transfer signal even when extraction would otherwise say something else' do
+    result = described_class.call(
+      telephony_outcome: 'answered', extraction: extraction(human_answered: false), end_reason: ''
+    )
+
+    expect(result.outcome_reason).to eq('transferred_to_human')
+  end
+
+  it 'does not treat a missing (nil) end_reason as a transfer' do
+    result = described_class.call(telephony_outcome: 'answered', extraction: extraction, end_reason: nil)
+
+    expect(result.outcome_reason).to eq('resolved')
+  end
+
   it 'accepts string-keyed extraction hashes' do
     result = described_class.call(
       telephony_outcome: 'answered',

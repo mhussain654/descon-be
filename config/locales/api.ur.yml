@@ -15,6 +15,7 @@ ur:
       invalid_query_parameter: "ایک یا زیادہ کوئری پیرامیٹرز درست نہیں ہیں۔"
       unauthorized: "درست اسناد فراہم نہیں کی گئیں۔"
       inactive_account: "یہ اکاؤنٹ غیر فعال ہے۔"
+      account_locked: "بہت زیادہ ناکام لاگ ان کوششوں کی وجہ سے یہ اکاؤنٹ مقفل ہے۔ مدد کے لیے منتظم سے رابطہ کریں۔"
       forbidden: "آپ کو یہ کارروائی کرنے کی اجازت نہیں ہے۔"
       not_found: "ریکارڈ نہیں ملا۔"
       service_unavailable: "سروس عارضی طور پر دستیاب نہیں ہے۔"
@@ -216,3 +217,43 @@ ur:
         flight_information:
           opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
             یہ ڈسکون مین پاور کی جانب سے آپ کی پرواز کی معلومات کے بارے میں کال ہے۔"
+      # See config/locales/api.en.yml for what these labels are for.
+      labels:
+        payment_blocking_reasons:
+          no_current_assignment: "اس وقت ادائیگی کے لیے کوئی فعال درخواست موجود نہیں ہے۔"
+          payment_already_completed: "اس درخواست کی ادائیگی پہلے ہی مکمل ہو چکی ہے۔"
+          payment_stage_not_reached: "آپ کی درخواست ابھی ادائیگی کے مرحلے تک نہیں پہنچی۔"
+          payment_provider_unavailable: "ادائیگی کا نظام عارضی طور پر دستیاب نہیں ہے۔"
+          expired_pcc: "آپ کا پولیس کریکٹر سرٹیفکیٹ میعاد ختم ہو چکا ہے، ادائیگی سے پہلے اسے دوبارہ جمع کروانا ہوگا۔"
+          required_documents_not_verified: "ادائیگی سے پہلے کچھ ضروری دستاویزات کی تصدیق باقی ہے۔"
+        document_blocking_reasons:
+          missing: "ابھی جمع نہیں کروائی گئی"
+          rejected: "مسترد ہو چکی ہے، دوبارہ جمع کروانی ہوگی"
+          expired: "میعاد ختم ہو چکی ہے، دوبارہ جمع کروانی ہوگی"
+        qvc_statuses:
+          approved: "منظور شدہ"
+          re_medical: "دوبارہ طبی معائنہ درکار ہے"
+          rejected: "مسترد شدہ"
+          scheduled: "طے شدہ، نتیجہ ابھی موصول نہیں ہوا"
+          no_show: "حاضر نہیں ہوئے"
+          not_scheduled: "ابھی طے نہیں ہوئی"
+        visa_outcomes:
+          issued: "جاری کر دیا گیا"
+          rejected: "مسترد کر دیا گیا"
+          pending: "ابھی فیصلہ باقی ہے"
+        visa_rejection_reasons:
+          document_discrepancy: "جمع کروائی گئی دستاویزات میں تضاد پایا گیا"
+          medical_issue: "کارروائی کے دوران طبی مسئلہ سامنے آیا"
+          security_clearance: "سیکیورٹی کلیئرنس کا مسئلہ"
+          embassy_rejection: "سفارت خانے نے درخواست مسترد کر دی"
+          incomplete_application: "درخواست نامکمل تھی"
+          other: "معیاری وجوہات میں شامل نہ ہونے والی وجہ"
+        protection_statuses:
+          not_yet_scheduled: "ابھی طے نہیں ہوئی"
+          appeared_awaiting_outcome: "پروٹیکشن پیشی ہو چکی، نتیجے کا انتظار ہے"
+          protected_awaiting_flight: "پروٹیکشن سے کلیئر، پرواز کی بکنگ کا انتظار ہے"
+          ready_to_fly: "کلیئر اور پرواز کے لیے تیار"
+        flight_statuses:
+          not_yet_available: "ابھی دستیاب نہیں"
+          flight_scheduled: "پرواز طے کر دی گئی ہے"
+          mobilized: "پہلے ہی روانہ ہو چکے ہیں"

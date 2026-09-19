@@ -19,13 +19,27 @@ module AiCalls
   # outcome: nil, outcome_reason: 'needs_manual_review' -- reserved for
   # genuinely bad/missing data, never used merely because an issue went
   # unresolved (that's outcome: 'answered', outcome_reason: 'unresolved').
+  #
+  # `end_reason` (AiCalls::PostCallWebhookPayload#end_reason), when it is
+  # exactly the empty string, means the AI agent left the call via
+  # ElevenLabs' transfer_to_number conference transfer (confirmed with
+  # ElevenLabs support 2026-09-15) -- checked before extraction, since it's
+  # a structural signal independent of what our own data-collection fields
+  # say (the agent may not have had a chance to set them before handing
+  # off). This is 'answered'/'transferred_to_human', not 'callback_required'
+  # (which means the AI itself judged a human should call back *later*) and
+  # not 'needs_manual_review' (reserved for bad/missing data) -- the
+  # candidate's need was addressed, just by a person instead of the AI.
   module OutcomeMapper
     Result = Struct.new(:outcome, :outcome_reason, keyword_init: true)
 
     NOT_ANSWERED_REASONS = %w[busy no_answer voicemail provider_failure].freeze
     MANUAL_REVIEW = Result.new(outcome: nil, outcome_reason: 'needs_manual_review').freeze
+    TRANSFERRED_TO_HUMAN = Result.new(outcome: 'answered', outcome_reason: 'transferred_to_human').freeze
 
-    def self.call(telephony_outcome:, extraction: nil)
+    def self.call(telephony_outcome:, extraction: nil, end_reason: nil)
+      return TRANSFERRED_TO_HUMAN if end_reason == ''
+
       return Result.new(outcome: 'not_answered', outcome_reason: telephony_outcome) if
         NOT_ANSWERED_REASONS.include?(telephony_outcome)
 

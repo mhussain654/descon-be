@@ -14,7 +14,7 @@ module AiCalls
     # only brake on repeated guesses within one call, since (unlike OTP) there
     # is no separate SMS-side cooldown/attempt system to inherit.
     class VerifyCallerIdentity
-      MAX_ATTEMPTS = 3
+      MAX_ATTEMPTS = 5
 
       Result = Struct.new(:verified, :additional_verification_required, :locked, keyword_init: true)
 

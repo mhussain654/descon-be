@@ -35,6 +35,18 @@ module AiCalls
       data.dig('metadata', 'call_duration_secs')
     end
 
+    # Confirmed directly with ElevenLabs support (2026-09-15): this field is
+    # an empty string specifically when the agent exits via a
+    # transfer_to_number conference transfer, as opposed to a normal user-
+    # or agent-initiated end (which carry a real reason string). Checked
+    # for exact equality with '', not blank? -- a missing/nil value (e.g.
+    # an older payload shape, or a call that never used this field) is a
+    # distinct, unknown case that must fall through to the normal
+    # extraction-based outcome mapping, not be read as a transfer.
+    def end_reason
+      data['end_reason']
+    end
+
     def recording_reference
       data.dig('metadata', 'phone_call', 'recording_url') || data.dig('metadata', 'recording_url')
     end

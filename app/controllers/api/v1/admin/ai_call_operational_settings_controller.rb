@@ -4,14 +4,16 @@ module Api
   module V1
     module Admin
       # Lets staff view and edit the singleton AiCallOperationalSetting row
-      # -- the 5 DB-editable overrides for AiCalls::Configuration's
-      # otherwise ENV-only rate-limit/calling-hours knobs. Singleton show+
+      # -- the DB-editable overrides for AiCalls::Configuration's otherwise
+      # ENV-only rate-limit/calling-hours knobs, plus the live human-transfer
+      # destination number (no ENV fallback for that one -- see
+      # AiCalls::Configuration#human_transfer_phone_number). Singleton show+
       # update only: no create/destroy route, since the row is never
       # manually created (AiCallOperationalSetting.current seeds it lazily).
       class AiCallOperationalSettingsController < ProtectedStaffController
         UPDATE_PARAMS = %i[
           outbound_trigger_cooldown_minutes daily_outbound_call_limit admin_trigger_rate_limit_per_hour
-          calling_hours_start calling_hours_end max_call_duration_minutes
+          calling_hours_start calling_hours_end max_call_duration_minutes human_transfer_phone_number
         ].freeze
 
         def show

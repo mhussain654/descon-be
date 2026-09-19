@@ -110,7 +110,8 @@ module AiCalls
     end
 
     def apply_elevenlabs_outcome!(payload)
-      mapping = OutcomeMapper.call(telephony_outcome: 'answered', extraction: payload.extraction)
+      mapping = OutcomeMapper.call(telephony_outcome: 'answered', extraction: payload.extraction,
+                                   end_reason: payload.end_reason)
 
       record_event!(observed_status: 'elevenlabs_conversation_found') do |call_record|
         call_record.update!(status: 'completed', outcome: mapping.outcome, outcome_reason: mapping.outcome_reason,

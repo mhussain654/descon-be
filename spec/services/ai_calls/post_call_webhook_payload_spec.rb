@@ -70,6 +70,22 @@ RSpec.describe AiCalls::PostCallWebhookPayload do
     expect(empty.recording_reference).to be_nil
   end
 
+  it 'returns nil for end_reason when absent' do
+    expect(payload.end_reason).to be_nil
+  end
+
+  it 'reads an empty-string end_reason (the transfer_to_number signal) exactly as delivered' do
+    with_end_reason = described_class.new(raw.deep_merge('data' => { 'end_reason' => '' }))
+
+    expect(with_end_reason.end_reason).to eq('')
+  end
+
+  it 'reads a normal, non-empty end_reason' do
+    with_end_reason = described_class.new(raw.deep_merge('data' => { 'end_reason' => 'user_initiated_termination' }))
+
+    expect(with_end_reason.end_reason).to eq('user_initiated_termination')
+  end
+
   it 'accepts string-keyed hashes without a nested data wrapper' do
     flat = described_class.new('conversation_id' => 'conversation-2')
 

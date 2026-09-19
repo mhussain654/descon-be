@@ -25,7 +25,8 @@ module AiCalls
       @adapter.verify_webhook_signature!(header: @header, raw_body: @raw_body)
       payload = PostCallWebhookPayload.new(@params)
       call_record = CandidateAiCall.find_by!(elevenlabs_conversation_id: payload.conversation_id)
-      mapping = OutcomeMapper.call(telephony_outcome: 'answered', extraction: payload.extraction)
+      mapping = OutcomeMapper.call(telephony_outcome: 'answered', extraction: payload.extraction,
+                                   end_reason: payload.end_reason)
 
       recorder = WebhookEventRecorder.new(candidate_ai_call: call_record, event: event_for(payload:, mapping:))
       result = recorder.call { |record| apply_outcome!(record, payload:, mapping:) }
