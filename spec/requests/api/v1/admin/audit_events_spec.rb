@@ -37,6 +37,18 @@ RSpec.describe 'API V1 Admin Audit Events', type: :request do
       expect(ids).to eq([newer.id, older.id])
     end
 
+    it 'includes the top observed entity types (descending, not zero-filled) in meta' do
+      admin = create(:user, role: 'admin')
+      2.times { audit_event_for(entity_type: 'CandidateDocument') }
+      audit_event_for(entity_type: 'Payment', action_code: 'payment_corrected')
+
+      get '/api/v1/admin/audit_events', headers: auth_headers(admin)
+
+      expect(response.parsed_body.dig('meta', 'summary')).to eq(
+        [{ 'code' => 'CandidateDocument', 'count' => 2 }, { 'code' => 'Payment', 'count' => 1 }]
+      )
+    end
+
     it 'serializes actor, action, entity, candidate and metadata without exposing raw sensitive values' do
       actor = create(:user, role: 'admin', email: 'reviewer@descon.com')
       event = audit_event_for(actor:)

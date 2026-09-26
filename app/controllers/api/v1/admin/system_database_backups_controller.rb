@@ -16,7 +16,8 @@ module Api
 
           render_collection(
             data: backups.map { |backup| ::Admin::SystemDatabaseBackupSerializer.new(backup).as_json },
-            pagination: query.pagination
+            pagination: query.pagination,
+            meta: { summary: query.summary }
           )
         end
 

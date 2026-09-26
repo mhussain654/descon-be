@@ -48,6 +48,22 @@ RSpec.describe 'API V1 Admin System Database Backups', type: :request do
       expect(response.body).not_to include('rails/active_storage')
     end
 
+    it 'includes a zero-filled status summary in meta' do
+      admin = create(:user, role: 'admin')
+      create(:system_database_backup, status_code: 'succeeded')
+      create(:system_database_backup, status_code: 'failed')
+
+      get '/api/v1/admin/system_database_backups', headers: auth_headers(admin)
+
+      expect(response.parsed_body.dig('meta', 'summary')).to eq(
+        [
+          { 'code' => 'in_progress', 'count' => 0 },
+          { 'code' => 'succeeded', 'count' => 1 },
+          { 'code' => 'failed', 'count' => 1 }
+        ]
+      )
+    end
+
     it 'forbids every non-admin role, since backups are infra-sensitive' do
       %w[hr mps finance management].each do |role|
         user = create(:user, role:)

@@ -29,7 +29,22 @@ module Admin
         paginate(apply_sort(apply_filters(preloaded_scope)))
       end
 
+      # Zero-filled counts per direction, scoped by every active filter
+      # except `direction` -- same convention as DocumentReviewQueueQuery#summary.
+      # `channel`/`status` are deliberately not summarized here: neither has
+      # a canonical enum yet (both are free-text columns), so a zero-filled
+      # breakdown for them isn't honestly buildable without inventing a
+      # category list.
+      def summary
+        counts = scope_without_direction.group(:direction_code).count
+        Communication::DIRECTION_CODES.map { |code| { code:, count: counts.fetch(code, 0) } }
+      end
+
       private
+
+      def scope_without_direction
+        filter_values.except('direction').reduce(preloaded_scope) { |s, (name, value)| apply_filter(s, name:, value:) }
+      end
 
       # eager_load (not includes/joins) so the LEFT OUTER JOIN needed to
       # filter by candidate also hydrates candidate_assignment.candidate for

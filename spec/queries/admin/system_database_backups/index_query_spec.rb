@@ -29,4 +29,33 @@ RSpec.describe Admin::SystemDatabaseBackups::IndexQuery do
 
     expect { query.call }.to raise_error(InvalidQueryParameterError)
   end
+
+  describe '#summary' do
+    it 'returns zero-filled counts per status code' do
+      create_list(:system_database_backup, 2, status_code: 'succeeded')
+      create(:system_database_backup, status_code: 'failed')
+
+      query = described_class.new(scope: SystemDatabaseBackup.all, params: {})
+
+      expect(query.summary).to eq(
+        [
+          { code: 'in_progress', count: 0 },
+          { code: 'succeeded', count: 2 },
+          { code: 'failed', count: 1 }
+        ]
+      )
+    end
+
+    it 'zero-fills every status when the table is empty' do
+      query = described_class.new(scope: SystemDatabaseBackup.none, params: {})
+
+      expect(query.summary).to eq(
+        [
+          { code: 'in_progress', count: 0 },
+          { code: 'succeeded', count: 0 },
+          { code: 'failed', count: 0 }
+        ]
+      )
+    end
+  end
 end

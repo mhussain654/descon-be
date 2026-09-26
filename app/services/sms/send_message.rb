@@ -7,7 +7,7 @@ module Sms
   # behind provider adapters. Application code must not directly depend on
   # SendPK... or other vendor-specific APIs"). Providers::TestProvider (no
   # network call) and Providers::SendpkProvider (the real vendor) both
-  # satisfy the same #deliver(to:, body:) interface, selected below by
+  # satisfy the same #deliver(to:, body:, variables:) interface, selected below by
   # SMS_PROVIDER.
   #
   # Deliberately called synchronously (not via ActiveJob) from the request
@@ -22,13 +22,19 @@ module Sms
   # is an acceptable synchronous wait during an OTP request the candidate is
   # already expecting to take a moment.
   class SendMessage < ApplicationService
-    def initialize(to:, body:)
+    # `body` is the full human-readable text (used by the test provider);
+    # `variables` are the values for the vendor's pre-approved template (send.pk
+    # only accepts approved templates -- free text is rejected); `locale` picks
+    # which approved template (English or Urdu) is used.
+    def initialize(to:, body:, variables:, locale: 'en')
       @to = to
       @body = body
+      @variables = variables
+      @locale = locale
     end
 
     def call
-      provider.deliver(to: @to, body: @body)
+      provider.deliver(to: @to, body: @body, variables: @variables, locale: @locale)
     end
 
     private

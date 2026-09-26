@@ -168,7 +168,20 @@ components:
         pagination:
           $ref: '#/components/schemas/PaginationMeta'
         summary:
-          $ref: '#/components/schemas/AdminDocumentReviewQueueSummary'
+          description: >-
+            Present only on list endpoints that document one of these
+            variants below. Shape depends on the endpoint -- the
+            admin document-submissions queue returns a keyed object
+            (AdminDocumentReviewQueueSummary); every other list endpoint that
+            adds a `summary` returns the `[{code, count}]` array shape.
+          oneOf:
+            - $ref: '#/components/schemas/AdminDocumentReviewQueueSummary'
+            - $ref: '#/components/schemas/AdminSystemBackupStatusSummary'
+            - $ref: '#/components/schemas/AdminCandidateImportStatusSummary'
+            - $ref: '#/components/schemas/AdminCommunicationDirectionSummary'
+            - $ref: '#/components/schemas/AdminPaymentStatusSummary'
+            - $ref: '#/components/schemas/AdminCandidateStatusSummary'
+            - $ref: '#/components/schemas/AdminAuditEventEntityTypeSummary'
       required: [request_id, timestamp]
     AdminDocumentReviewQueueSummary:
       type: object
@@ -189,6 +202,65 @@ components:
         near_expiry_pcc:
           type: integer
       required: [pending_review, verified, rejected, expired_pcc, near_expiry_pcc]
+    AdminSummaryCount:
+      type: object
+      description: One zero-filled category/count pair, used by every `[{code, count}]`-shaped list summary.
+      properties:
+        code:
+          type: string
+        count:
+          type: integer
+      required: [code, count]
+    AdminSystemBackupStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per backup status (in_progress/succeeded/failed),
+        present only on the admin system-database-backups index. Not scoped
+        by any filter -- that endpoint has none.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminCandidateImportStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per import-batch status (queued/processing/
+        completed/partial/failed/invalidated), present only on the admin
+        candidate-imports index. Scoped by every active filter except
+        `filter[status]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminCommunicationDirectionSummary:
+      type: array
+      description: >-
+        Zero-filled counts per direction (inbound/outbound), present only
+        on the admin communications index. Scoped by every active filter
+        except `filter[direction]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminPaymentStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per payment status (checkout_pending/paid/
+        failed/cancelled), present only on the admin payments index.
+        Scoped by every active filter except `filter[status]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminCandidateStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per canonical workflow stage (all 15), present
+        only on the admin candidates index. Scoped by every active filter
+        except `filter[status]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminAuditEventEntityTypeSummary:
+      type: array
+      description: >-
+        Top 8 observed `entity_type` values by count, descending, present
+        only on the admin audit-events index. Scoped by every active
+        filter except `filter[entity_type]`. Not zero-filled -- entity_type
+        has no fixed enum, so only observed values are returned.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
     PaginationMeta:
       type: object
       properties:
@@ -4196,6 +4268,10 @@ paths:
   /api/v1/admin/candidate_imports:
     get:
       summary: List the authenticated staff actor's candidate import history
+      description: >-
+        `meta.summary` returns a zero-filled count per batch status
+        (queued/processing/completed/partial/failed/invalidated), scoped by
+        every active filter except `filter[status]`.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: filter[status]
@@ -4225,6 +4301,33 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+              examples:
+                history:
+                  value:
+                    data: []
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-06T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 0
+                        total_pages: 0
+                      applied_filters: {}
+                      summary:
+                        - code: queued
+                          count: 0
+                        - code: processing
+                          count: 0
+                        - code: completed
+                          count: 1
+                        - code: partial
+                          count: 0
+                        - code: failed
+                          count: 1
+                        - code: invalidated
+                          count: 0
+                    errors: []
         '403': { description: Missing candidate-management permission }
         '422': { description: Invalid filter or pagination parameter }
     post:
@@ -4419,7 +4522,10 @@ paths:
   /api/v1/admin/candidates:
     get:
       summary: List candidates for authorized staff
-      description: Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports partial matching.
+      description: >-
+        Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports
+        partial matching. `meta.summary` returns a zero-filled count per canonical workflow stage
+        (the same 15 stages as `filter[status]`), scoped by every active filter except `filter[status]`.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: search
@@ -7332,7 +7438,8 @@ paths:
         `view_payments` or `manage_payments` permission. `reconciliation_state` reflects this
         payment's own reconciliation findings (see Payments::ReconciliationService): `clean`
         (never flagged), `open` (at least one unresolved finding), or `resolved` (every
-        finding on this payment has been resolved).
+        finding on this payment has been resolved). `meta.summary` returns a zero-filled
+        count per payment status, scoped by every active filter except `filter[status]`.
       security:
         - bearerAuth: []
       parameters:
@@ -7413,6 +7520,15 @@ paths:
                         total_pages: 1
                       applied_filters:
                         status: paid
+                      summary:
+                        - code: checkout_pending
+                          count: 0
+                        - code: paid
+                          count: 1
+                        - code: failed
+                          count: 0
+                        - code: cancelled
+                          count: 0
                     errors: []
         '400':
           description: Unsupported filter or sort parameter
@@ -7752,7 +7868,10 @@ paths:
         the active `view_audit_events` permission. `metadata` contains only public ids, codes
         and non-sensitive field names -- no raw CNIC, passport, bank, or payment identifier is
         ever written into it. There is no show, create, update, or destroy route: audit
-        records can never be edited or deleted through the API.
+        records can never be edited or deleted through the API. `meta.summary` returns the
+        top 8 observed `entity_type` values by count, descending, scoped by every active
+        filter except `filter[entity_type]` -- not zero-filled (entity_type has no fixed
+        enum, so only observed values are returned).
       security:
         - bearerAuth: []
       parameters:
@@ -7831,6 +7950,9 @@ paths:
                         total_pages: 1
                       applied_filters:
                         entity_type: CandidateDocument
+                      summary:
+                        - code: CandidateDocument
+                          count: 1
                     errors: []
         '400':
           description: Unsupported or malformed filter, sorting, or pagination parameter
@@ -7858,7 +7980,10 @@ paths:
         notification, AI voice call) sent or received about a candidate assignment. Requires
         either the `view_communications` or `manage_communications` permission. There is no
         show, create, update, or destroy route: every channel writes Communication rows through
-        its own provider-specific service, never directly through this API.
+        its own provider-specific service, never directly through this API. `meta.summary`
+        returns a zero-filled count per direction (inbound/outbound), scoped by every active
+        filter except `filter[direction]`. `channel`/`status` are not summarized -- neither
+        has a fixed enum yet.
       security:
         - bearerAuth: []
       parameters:
@@ -7943,6 +8068,11 @@ paths:
                         total_pages: 1
                       applied_filters:
                         channel: sms
+                      summary:
+                        - code: inbound
+                          count: 0
+                        - code: outbound
+                          count: 1
                     errors: []
         '400':
           description: Unsupported or malformed filter, sorting, or pagination parameter
@@ -8283,6 +8413,8 @@ paths:
         permission -- backups are infra-sensitive, so unlike most admin resources this is
         admin-only (not even mps/management). There is no show, create, update, or destroy
         route: a backup's outcome is written only by the owning job, never through the API.
+        `meta.summary` returns a zero-filled count per status
+        (in_progress/succeeded/failed) across the whole table.
       security:
         - bearerAuth: []
       parameters:
@@ -8323,6 +8455,13 @@ paths:
                         per_page: 20
                         total_count: 1
                         total_pages: 1
+                      summary:
+                        - code: in_progress
+                          count: 0
+                        - code: succeeded
+                          count: 1
+                        - code: failed
+                          count: 0
                     errors: []
         '401':
           description: Missing, invalid, expired, or revoked staff access token

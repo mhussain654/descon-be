@@ -29,6 +29,18 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
       expect(ids).to eq([newer.public_id, older.public_id])
     end
 
+    it 'includes a zero-filled direction summary in meta' do
+      admin = create(:user, role: 'admin')
+      create(:communication, direction_code: 'outbound')
+      create(:communication, direction_code: 'inbound')
+
+      get '/api/v1/admin/communications', headers: auth_headers(admin)
+
+      expect(response.parsed_body.dig('meta', 'summary')).to eq(
+        [{ 'code' => 'inbound', 'count' => 1 }, { 'code' => 'outbound', 'count' => 1 }]
+      )
+    end
+
     it 'serializes channel, assignment, initiated_by and delivery state' do
       actor = create(:user, role: 'admin')
       assignment = create(:candidate_assignment)

@@ -18,7 +18,7 @@ module Api
           render_collection(
             data: communications.map { |communication| serialized(communication) },
             pagination: query.pagination,
-            meta: { applied_filters: query.applied_filters }
+            meta: { applied_filters: query.applied_filters, summary: query.summary }
           )
         end
 

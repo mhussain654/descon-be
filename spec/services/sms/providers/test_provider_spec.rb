@@ -5,7 +5,7 @@ require 'rails_helper'
 RSpec.describe Sms::Providers::TestProvider do
   describe '#deliver' do
     it 'succeeds for an ordinary mobile number, returning a provider reference' do
-      result = described_class.new.deliver(to: '+923001234567', body: 'test message')
+      result = described_class.new.deliver(to: '+923001234567', body: 'test message', variables: {})
 
       expect(result).to be_success
       expect(result.provider_reference).to be_present
@@ -13,7 +13,7 @@ RSpec.describe Sms::Providers::TestProvider do
     end
 
     it 'fails for the reserved undeliverable number pattern' do
-      result = described_class.new.deliver(to: '+920000000000', body: 'test message')
+      result = described_class.new.deliver(to: '+920000000000', body: 'test message', variables: {})
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('undeliverable')
@@ -23,7 +23,7 @@ RSpec.describe Sms::Providers::TestProvider do
     it 'never logs the message body' do
       allow(Rails.logger).to receive(:info)
 
-      described_class.new.deliver(to: '+923001234567', body: 'secret-otp-body-123456')
+      described_class.new.deliver(to: '+923001234567', body: 'secret-otp-body-123456', variables: {})
 
       expect(Rails.logger).to have_received(:info) do |message|
         expect(message).not_to include('secret-otp-body-123456')

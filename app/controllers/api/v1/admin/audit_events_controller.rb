@@ -19,7 +19,7 @@ module Api
           render_collection(
             data: events.map { |event| ::Admin::AuditEventSerializer.new(event).as_json },
             pagination: query.pagination,
-            meta: { applied_filters: query.applied_filters }
+            meta: { applied_filters: query.applied_filters, summary: query.summary }
           )
         end
 

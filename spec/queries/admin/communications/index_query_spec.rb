@@ -114,6 +114,25 @@ RSpec.describe Admin::Communications::IndexQuery do
       .to raise_error(InvalidQueryParameterError) { |error| expect(error.field).to eq('page.size') }
   end
 
+  describe '#summary' do
+    it 'returns zero-filled counts per direction' do
+      create_list(:communication, 2, direction_code: 'outbound')
+      create(:communication, direction_code: 'inbound')
+
+      expect(query.summary).to eq([{ code: 'inbound', count: 1 }, { code: 'outbound', count: 2 }])
+    end
+
+    it 'excludes the direction filter itself, scoped by every other active filter' do
+      create(:communication, channel_code: 'sms', direction_code: 'inbound')
+      create(:communication, channel_code: 'sms', direction_code: 'outbound')
+      create(:communication, channel_code: 'email', direction_code: 'outbound')
+
+      summary = query(filter: { channel: 'sms', direction: 'inbound' }).summary
+
+      expect(summary).to eq([{ code: 'inbound', count: 1 }, { code: 'outbound', count: 1 }])
+    end
+  end
+
   it 'does not N+1 when serializing candidate_assignment.candidate and initiated_by across many rows' do
     create(:communication)
     single_row_count = count_queries { load_and_touch_associations }

@@ -19,6 +19,14 @@ module Admin
         paginate(@scope.order(taken_at: :desc, id: :desc))
       end
 
+      # Zero-filled counts per backup status -- no filters on this query to
+      # exclude (unlike DocumentReviewQueueQuery#summary), so this simply
+      # groups the whole scope.
+      def summary
+        counts = @scope.group(:status_code).count
+        SystemDatabaseBackup::STATUS_CODES.map { |code| { code:, count: counts.fetch(code, 0) } }
+      end
+
       private
 
       def paginate(scope)

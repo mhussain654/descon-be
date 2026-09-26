@@ -8,6 +8,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
       Sms::Configuration,
       sendpk_api_key: 'api-key-1',
       sendpk_sender_id: 'DESCON',
+      sendpk_template_id: '10743',
       sendpk_base_url: 'https://sendpk.com',
       sendpk_open_timeout: 5,
       sendpk_read_timeout: 10
@@ -16,13 +17,17 @@ RSpec.describe Sms::Providers::SendpkProvider do
 
   let(:provider) { described_class.new(configuration:) }
 
+  def query_params(request)
+    URI.decode_www_form(request.path.split('?', 2).last.to_s).to_h
+  end
+
   def stub_response(body)
     response = Net::HTTPOK.new('1.1', '200', 'OK')
     allow(response).to receive(:body).and_return(body)
     allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
   end
 
-  it 'sends api_key as a POST body field, never in the URL query string' do
+  it 'sends a GET request with the credentials as query parameters over https' do
     captured_request = nil
     response = Net::HTTPOK.new('1.1', '200', 'OK')
     allow(response).to receive(:body).and_return('OK ID:1')
@@ -34,18 +39,72 @@ RSpec.describe Sms::Providers::SendpkProvider do
       block.call(http)
     end
 
-    provider.deliver(to: '+923001234567', body: 'your code is 123456')
+    provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
-    expect(captured_request.uri.query).to be_nil
-    expect(captured_request.body).to include('api_key=api-key-1')
-    expect(captured_request.body).to include('sender=DESCON')
-    expect(captured_request.body).to include('mobile=%2B923001234567')
+    expect(captured_request).to be_a(Net::HTTP::Get)
+    query = captured_request.path
+    expect(query).to include('api_key=api-key-1', 'sender=DESCON', 'mobile=%2B923001234567')
+  end
+
+  it 'sends the approved template id and the variables as a JSON message, never free text' do
+    captured_request = nil
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    allow(response).to receive(:body).and_return('OK ID:1')
+    allow(Net::HTTP).to receive(:start) do |*, &block|
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request) { |request| captured_request = request }.and_return(response)
+      block.call(http)
+    end
+
+    provider.deliver(to: '923001234567', body: 'ignored free text', variables: { code: '482731', minutes: 5 })
+
+    form = query_params(captured_request)
+    expect(form['template_id']).to eq('10743')
+    expect(JSON.parse(form['message'])).to eq('code' => '482731', 'minutes' => '5')
+    expect(captured_request.path).not_to include('ignored')
+  end
+
+  it 'marks Urdu sends as unicode and leaves English sends untyped' do
+    types = []
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    allow(response).to receive(:body).and_return('OK ID:1')
+    allow(Net::HTTP).to receive(:start) do |*, &block|
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request) { |request|
+        types << query_params(request)['type']
+      }.and_return(response)
+      block.call(http)
+    end
+
+    provider.deliver(to: '923001234567', variables: { code: '1', minutes: 5 }, locale: 'ur')
+    provider.deliver(to: '923001234567', variables: { code: '1', minutes: 5 }, locale: 'en')
+
+    expect(types).to eq(['unicode', nil])
+  end
+
+  it 'sends the Urdu template id for an Urdu locale and the default one otherwise' do
+    seen = []
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    allow(response).to receive(:body).and_return('OK ID:1')
+    allow(Net::HTTP).to receive(:start) do |*, &block|
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request) { |request|
+        seen << query_params(request)['template_id']
+      }.and_return(response)
+      block.call(http)
+    end
+    allow(configuration).to receive(:sendpk_template_id) { |locale| locale == 'ur' ? '10791' : '10790' }
+
+    provider.deliver(to: '923001234567', variables: { code: '1', minutes: 5 }, locale: 'ur')
+    provider.deliver(to: '923001234567', variables: { code: '1', minutes: 5 }, locale: 'en')
+
+    expect(seen).to eq(%w[10791 10790])
   end
 
   it 'reports success and the provider message id for an "OK ID:<id>" response' do
     stub_response('OK ID:29346')
 
-    result = provider.deliver(to: '+923001234567', body: 'your code is 123456')
+    result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
     expect(result).to be_success
     expect(result.provider_reference).to eq('29346')
@@ -54,7 +113,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'maps a documented failure code to a descriptive error_code' do
     stub_response('4')
 
-    result = provider.deliver(to: '+923001234567', body: 'your code is 123456')
+    result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('missing_sender_id')
@@ -63,28 +122,50 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports an unknown_error for a response that matches neither shape' do
     stub_response('<html>unexpected</html>')
 
-    result = provider.deliver(to: '+923001234567', body: 'your code is 123456')
+    result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('unknown_error')
   end
 
   it 'never calls the network when the sender id is not configured' do
-    unconfigured = instance_double(Sms::Configuration, sendpk_api_key: 'api-key-1', sendpk_sender_id: nil)
+    unconfigured = instance_double(Sms::Configuration, sendpk_api_key: 'api-key-1', sendpk_sender_id: nil,
+                                                       sendpk_template_id: '10743')
     allow(Net::HTTP).to receive(:start)
 
-    result = described_class.new(configuration: unconfigured).deliver(to: '+923001234567', body: 'code')
+    result = described_class.new(configuration: unconfigured).deliver(to: '+923001234567',
+                                                                      variables: {
+                                                                        code: '123456', minutes: 5
+                                                                      })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('not_configured')
     expect(Net::HTTP).not_to have_received(:start)
   end
 
-  it 'never calls the network when the api key is not configured' do
-    unconfigured = instance_double(Sms::Configuration, sendpk_api_key: nil, sendpk_sender_id: 'DESCON')
+  it 'never calls the network when the template id is not configured' do
+    unconfigured = instance_double(
+      Sms::Configuration, sendpk_api_key: 'api-key-1', sendpk_sender_id: 'DESCON', sendpk_template_id: nil
+    )
     allow(Net::HTTP).to receive(:start)
 
-    result = described_class.new(configuration: unconfigured).deliver(to: '+923001234567', body: 'code')
+    result = described_class.new(configuration: unconfigured).deliver(
+      to: '+923001234567', variables: { code: '123456', minutes: 5 }
+    )
+
+    expect(result.error_code).to eq('not_configured')
+    expect(Net::HTTP).not_to have_received(:start)
+  end
+
+  it 'never calls the network when the api key is not configured' do
+    unconfigured = instance_double(Sms::Configuration, sendpk_api_key: nil, sendpk_sender_id: 'DESCON',
+                                                       sendpk_template_id: '10743')
+    allow(Net::HTTP).to receive(:start)
+
+    result = described_class.new(configuration: unconfigured).deliver(to: '+923001234567',
+                                                                      variables: {
+                                                                        code: '123456', minutes: 5
+                                                                      })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('not_configured')
@@ -94,7 +175,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports a timeout distinctly from a general network error' do
     allow(Net::HTTP).to receive(:start).and_raise(Net::ReadTimeout)
 
-    result = provider.deliver(to: '+923001234567', body: 'code')
+    result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('timeout')
@@ -103,7 +184,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports a network_error for a connection failure' do
     allow(Net::HTTP).to receive(:start).and_raise(SocketError)
 
-    result = provider.deliver(to: '+923001234567', body: 'code')
+    result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('network_error')
@@ -114,12 +195,15 @@ RSpec.describe Sms::Providers::SendpkProvider do
       allow(Rails.env).to receive(:test?).and_return(false)
       insecure_configuration = instance_double(
         Sms::Configuration,
-        sendpk_api_key: 'api-key-1', sendpk_sender_id: 'DESCON', sendpk_base_url: 'http://sendpk.com',
+        sendpk_api_key: 'api-key-1', sendpk_sender_id: 'DESCON', sendpk_template_id: '10743', sendpk_base_url: 'http://sendpk.com',
         sendpk_open_timeout: 5, sendpk_read_timeout: 10
       )
       allow(Net::HTTP).to receive(:start)
 
-      result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567', body: 'code')
+      result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567',
+                                                                                  variables: {
+                                                                                    code: '123456', minutes: 5
+                                                                                  })
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('insecure_endpoint_rejected')
@@ -129,12 +213,15 @@ RSpec.describe Sms::Providers::SendpkProvider do
     it 'allows an HTTP base URL in test (a local stub has no real certificate to present)' do
       insecure_configuration = instance_double(
         Sms::Configuration,
-        sendpk_api_key: 'api-key-1', sendpk_sender_id: 'DESCON', sendpk_base_url: 'http://sendpk.com',
+        sendpk_api_key: 'api-key-1', sendpk_sender_id: 'DESCON', sendpk_template_id: '10743', sendpk_base_url: 'http://sendpk.com',
         sendpk_open_timeout: 5, sendpk_read_timeout: 10
       )
       stub_response('OK ID:1')
 
-      result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567', body: 'code')
+      result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567',
+                                                                                  variables: {
+                                                                                    code: '123456', minutes: 5
+                                                                                  })
 
       expect(result).to be_success
     end
@@ -146,7 +233,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
       allow(response).to receive(:body).and_return('OK ID:1')
       allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
 
-      result = provider.deliver(to: '+923001234567', body: 'code')
+      result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('http_error')
@@ -157,7 +244,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
       allow(response).to receive(:body).and_return('')
       allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
 
-      result = provider.deliver(to: '+923001234567', body: 'code')
+      result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('unexpected_redirect')
@@ -166,7 +253,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
     it 'still parses a documented failure code normally on a 200 response' do
       stub_response('4')
 
-      result = provider.deliver(to: '+923001234567', body: 'code')
+      result = provider.deliver(to: '+923001234567', variables: { code: '123456', minutes: 5 })
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('missing_sender_id')

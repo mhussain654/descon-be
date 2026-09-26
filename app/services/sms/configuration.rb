@@ -13,6 +13,13 @@ module Sms
       ENV['SENDPK_SENDER_ID'].to_s.strip.presence
     end
 
+    # The Urdu template (OTP_TEMPLATE_ID_UR) is used for Urdu locales when it
+    # is set; every other locale, or an unset Urdu id, uses the English one.
+    def sendpk_template_id(locale = nil)
+      urdu = ENV['OTP_TEMPLATE_ID_UR'].to_s.strip.presence if locale.to_s == 'ur'
+      urdu || ENV['OTP_TEMPLATE_ID'].to_s.strip.presence
+    end
+
     def sendpk_base_url
       ENV.fetch('SENDPK_BASE_URL', 'https://sendpk.com').strip
     end
