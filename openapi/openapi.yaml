@@ -458,6 +458,16 @@ components:
               type: string
               example: '123456'
       required: [candidate]
+    CandidateRefreshRequest:
+      type: object
+      properties:
+        candidate:
+          type: object
+          required: [refresh_token]
+          properties:
+            refresh_token:
+              type: string
+      required: [candidate]
     CandidateProfile:
       type: object
       properties:
@@ -2931,6 +2941,97 @@ paths:
                     timestamp: '2026-08-23T09:00:08Z'
         '429':
           description: Rate limited (per IP or per CNIC)
+  /api/v1/candidate/auth/refresh:
+    post:
+      summary: Rotate a candidate refresh token
+      description: Exchanges a refresh token for a new access/refresh pair without a new SMS OTP. The presented token is single-use; presenting an already-rotated token revokes the whole session. Sessions stay valid while the refresh token is used at least once every CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS (default 30).
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateRefreshRequest'
+      responses:
+        '200':
+          description: Token rotated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                refreshed:
+                  value:
+                    data:
+                      access_token: token
+                      refresh_token: rotated_refresh
+                      token_type: Bearer
+                      expires_in: 900
+                      session:
+                        id: 6b1a6f2e-4c8e-4b2a-8b3e-1e9a2c4d5e6f
+                      candidate:
+                        id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        full_name: Ahmed Ali
+                        masked_cnic: 42101-*******-1
+                        reference_number: DES-001001
+                        preferred_locale: en
+                        candidate_status: registered
+                        current_workflow_stage:
+                          code: registered
+                          name: Registered
+                        active: true
+                    meta:
+                      request_id: 3c4d5e6f-7a8b-4c9d-9e0f-1a2b3c4d5e6f
+                      timestamp: '2026-08-23T09:00:09Z'
+                    errors: []
+        '401':
+          description: Unknown, expired, revoked or already-used refresh token (invalid_refresh_token, session_revoked)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidRefreshToken:
+                  value:
+                    errors:
+                      - code: invalid_refresh_token
+                        message: Invalid or expired refresh token.
+                    request_id: 3c4d5e6f-7a8b-4c9d-9e0f-1a2b3c4d5e6f
+                    timestamp: '2026-08-23T09:00:09Z'
+        '403':
+          description: The candidate account is inactive
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Rate limited
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/candidate/auth/otp/verify:
     post:
       summary: Verify a candidate OTP and obtain an access/refresh token pair

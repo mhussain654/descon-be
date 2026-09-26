@@ -149,7 +149,20 @@ module Sms
         match = SUCCESS_PATTERN.match(text)
         return DeliveryResult.new(success: true, provider_reference: match[:message_id]) if match
 
-        DeliveryResult.new(success: false, error_code: ERROR_CODES.fetch(text, 'unknown_error'))
+        failure_result(text)
+      end
+
+      # send.pk replies to a rejected request with "<status code>: <reason>"
+      # (or a bare code). The reply carries no secret, so its first line is
+      # logged (truncated) to make a rejection diagnosable; the recipient,
+      # api key and variables are never part of it.
+      def failure_result(text)
+        code = text[/\A\d+/]
+        Rails.logger.warn("send.pk rejected the request: #{text.lines.first.to_s.truncate(200)}")
+        return DeliveryResult.new(success: false, error_code: 'ip_not_whitelisted') if text.match?(/whitelist/i)
+
+        error_code = ERROR_CODES[code] || (code ? "sendpk_status_#{code}" : 'unknown_error')
+        DeliveryResult.new(success: false, error_code:)
       end
     end
   end

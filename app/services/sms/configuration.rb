@@ -1,35 +1,42 @@
 # frozen_string_literal: true
 
 module Sms
-  # Reads every SMS-provider-related setting from ENV, mirroring
-  # Payments::Configuration's exact pattern -- one place that knows the env
-  # var names, so providers themselves never touch ENV directly.
+  # Reads every SMS-provider-related setting from config/sendpk.yml (secrets
+  # from encrypted credentials, the rest from ENV), so providers themselves
+  # never touch ENV or credentials directly.
   class Configuration
     def sendpk_api_key
-      ENV['SENDPK_API_KEY'].to_s.strip.presence
+      setting(:api_key)
     end
 
     def sendpk_sender_id
-      ENV['SENDPK_SENDER_ID'].to_s.strip.presence
+      setting(:sender_id)
     end
 
-    # The Urdu template (OTP_TEMPLATE_ID_UR) is used for Urdu locales when it
-    # is set; every other locale, or an unset Urdu id, uses the English one.
+    # The Urdu template (template_id_ur) is used for Urdu locales when it is
+    # set; every other locale, or an unset Urdu id, uses the English one.
     def sendpk_template_id(locale = nil)
-      urdu = ENV['OTP_TEMPLATE_ID_UR'].to_s.strip.presence if locale.to_s == 'ur'
-      urdu || ENV['OTP_TEMPLATE_ID'].to_s.strip.presence
+      urdu = setting(:template_id_ur) if locale.to_s == 'ur'
+      urdu || setting(:template_id)
     end
 
     def sendpk_base_url
-      ENV.fetch('SENDPK_BASE_URL', 'https://sendpk.com').strip
+      setting(:base_url) || 'https://sendpk.com'
     end
 
     def sendpk_open_timeout
-      ENV.fetch('SENDPK_OPEN_TIMEOUT_SECONDS', 5).to_i
+      setting(:open_timeout).to_i
     end
 
     def sendpk_read_timeout
-      ENV.fetch('SENDPK_READ_TIMEOUT_SECONDS', 10).to_i
+      setting(:read_timeout).to_i
+    end
+
+    private
+
+    def setting(key)
+      @settings ||= Rails.application.config_for(:sendpk)
+      @settings[key].to_s.strip.presence
     end
   end
 end

@@ -1,0 +1,26 @@
+# send.pk SMS settings. Secrets come from config/credentials.yml.enc
+# (sendpk -> <environment> -> api_key); everything else is a plain setting
+# read from ENV. Read only through Sms::Configuration.
+default: &default
+  base_url: <%= ENV.fetch('SENDPK_BASE_URL', 'https://sendpk.com') %>
+  sender_id: <%= ENV.fetch('SENDPK_SENDER_ID', '') %>
+  template_id: <%= ENV.fetch('OTP_TEMPLATE_ID', '') %>
+  template_id_ur: <%= ENV.fetch('OTP_TEMPLATE_ID_UR', '') %>
+  open_timeout: <%= ENV.fetch('SENDPK_OPEN_TIMEOUT_SECONDS', 5) %>
+  read_timeout: <%= ENV.fetch('SENDPK_READ_TIMEOUT_SECONDS', 10) %>
+
+development:
+  <<: *default
+  api_key: <%= Rails.application.credentials.dig(:sendpk, :development, :api_key) %>
+
+# Fake value: tests never reach send.pk.
+test:
+  <<: *default
+  api_key: test-sendpk-api-key
+
+# Evaluated only in production: fetch raises a KeyError naming the missing
+# key, whereas the other environments must be able to render this file
+# without production secrets.
+production:
+  <<: *default
+  api_key: <%= Rails.env.production? ? Rails.application.credentials.fetch(:sendpk).fetch(:production).fetch(:api_key) : '' %>

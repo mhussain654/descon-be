@@ -122,7 +122,8 @@ Commonly adjusted per machine or environment:
 - `STAFF_INVITATION_ACCEPT_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_JWT_AUDIENCE`
 - `CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`
-- `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS`
+- `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS` -- sliding window: each refresh issues a new token valid for this many days
+- `CANDIDATE_REFRESH_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_DOCUMENT_MAX_BYTES`
 - `SEED_DEMO_DATA` -- set to `true` only in development when you want demo candidates and the demo administrator created by `db:seed`
 - `OTP_CODE_LENGTH`
@@ -728,6 +729,7 @@ Database-backed translated content should stay out of static locale files. Store
 - `DELETE /api/v1/auth/logout`
 - `POST /api/v1/candidate/auth/otp/request`
 - `POST /api/v1/candidate/auth/otp/verify`
+- `POST /api/v1/candidate/auth/refresh`
 - `GET /api/v1/candidate/documents`
 - `POST /api/v1/candidate/documents`
 - `GET /api/v1/candidate/application_progress`
@@ -762,6 +764,7 @@ Database-backed translated content should stay out of static locale files. Store
 - `PATCH /api/v1/user_invitation` activates an invited staff account, reads the invitation token from the filtered request body, stores only the token digest, and never returns the plaintext invitation token
 - `POST /api/v1/candidate/auth/otp/request` always returns the identical response shape and content regardless of whether the CNIC is unknown, resolves to a candidate whose mobile is currently undeliverable, or resolves to a candidate a code was actually sent to -- never use this endpoint's response to infer whether a CNIC exists
 - `POST /api/v1/candidate/auth/otp/verify` collapses unknown CNIC, no requested challenge, an already-used challenge, and an incorrect code into the identical `otp_invalid` error; `otp_expired` and `otp_max_attempts` are intentionally reachable for both real and decoy challenges, so they do not function as an existence oracle
+- `POST /api/v1/candidate/auth/refresh` (body `{ "candidate": { "refresh_token": "..." } }`) renews a candidate session without a new SMS OTP: it returns a new access token (`CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`, default 15) and a rotated refresh token. Each refresh token is single-use, and presenting an already-rotated token revokes the whole session (reuse detection). An inactive candidate or a revoked session cannot refresh. A refresh token lasts `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS` (default 30) from its last rotation, so a candidate who opens the app at least once in that window stays signed in, while 30 days idle requires a new OTP. Throttled per IP (`CANDIDATE_REFRESH_RATE_LIMIT_PER_MINUTE`, default 30) and per refresh-token digest (`AUTH_REFRESH_TOKEN_RATE_LIMIT_PER_MINUTE`); errors are `invalid_refresh_token` (401), `session_revoked` (401) and `inactive_account` (403)
 - Both candidate OTP endpoints are rate-limited per IP and per (normalized) CNIC, independently of the per-challenge attempt limit enforced by `otp_max_attempts`
 - Candidate access/refresh tokens use a distinct JWT audience (`CANDIDATE_JWT_AUDIENCE`) from staff tokens and are backed by separate `candidate_sessions`/`candidate_refresh_tokens` tables, so a candidate token can never be accepted as a staff one or vice versa
 - `POST /api/v1/candidate/documents` accepts multipart uploads with `candidate_document[requirement_code]` and `candidate_document[file]`, validates actual content type, and stores files privately
