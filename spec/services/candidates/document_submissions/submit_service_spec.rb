@@ -78,13 +78,25 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     return if override_attributes.delete(:skip_create)
 
     status_code = override_attributes.fetch(:status_code, default_status)
-    attributes = {
-      candidate_assignment: assignment,
-      document_type: requirement.document_type,
-      status_code:
-    }.merge(default_status_attributes_for(status_code)).merge(override_attributes)
+    create(:candidate_document, **document_attributes(assignment:, requirement:, status_code:, override_attributes:))
+  end
 
-    create(:candidate_document, **attributes)
+  def document_attributes(assignment:, requirement:, status_code:, override_attributes:)
+    {
+      candidate_assignment: assignment, document_type: requirement.document_type, status_code:
+    }.merge(default_status_attributes_for(status_code))
+      .merge(pcc_attributes_for(requirement.document_type))
+      .merge(override_attributes)
+  end
+
+  # The globally-required `police_character` document type (see
+  # db/seeds.rb) additionally requires `issued_on` regardless of status --
+  # supply a default so every requirement this suite iterates over,
+  # including that one, produces a valid document unless a test overrides it.
+  def pcc_attributes_for(document_type)
+    return {} unless document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE
+
+    { issued_on: Time.zone.today }
   end
 
   def default_status_attributes_for(status_code)

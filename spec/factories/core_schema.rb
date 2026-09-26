@@ -453,6 +453,74 @@ FactoryBot.define do
     error_code { nil }
   end
 
+  factory :candidate_ai_call do
+    association :communication, factory: %i[communication], channel_code: 'ai_voice_call'
+    candidate { communication.candidate_assignment&.candidate }
+    candidate_assignment { communication.candidate_assignment }
+    direction { 'outbound' }
+    call_reason { 'missing_documents' }
+    language_code { 'en' }
+    status { 'requested' }
+
+    trait :inbound do
+      direction { 'inbound' }
+      call_reason { 'general_helpline' }
+      candidate { nil }
+      candidate_assignment { nil }
+      verification_status { 'pending' }
+      status { 'in_progress' }
+      association :communication, factory: %i[communication], channel_code: 'ai_voice_call', candidate_assignment: nil,
+                                  direction_code: 'inbound'
+    end
+
+    trait :completed do
+      status { 'completed' }
+      started_at { 5.minutes.ago }
+      answered_at { 4.minutes.ago }
+      completed_at { 1.minute.ago }
+    end
+
+    trait :answered do
+      completed
+      outcome { 'answered' }
+      outcome_reason { 'resolved' }
+    end
+
+    trait :needs_manual_review do
+      completed
+      outcome { nil }
+      outcome_reason { 'needs_manual_review' }
+    end
+  end
+
+  factory :candidate_ai_call_event do
+    candidate_ai_call
+    actor { nil }
+    provider_code { 'elevenlabs' }
+    event_source { 'webhook' }
+    event_type { 'post_call_transcription' }
+    event_key { SecureRandom.hex(16) }
+    occurred_at { Time.current }
+    payload { {} }
+    request_id { SecureRandom.uuid }
+  end
+
+  factory :candidate_ai_call_transcript do
+    candidate_ai_call
+    transcript { 'Agent: Hello. Candidate: Hi there.' }
+    recording_reference { nil }
+    recorded_at { Time.current }
+    expires_at { 90.days.from_now }
+  end
+
+  factory :workflow_stage_call_script do
+    workflow_stage_code { 'verified' }
+    announcement_en { 'Hello, this is Descon Manpower calling about your application.' }
+    announcement_ur { 'السلام علیکم، یہ ڈیسکون مین پاور کی کال ہے آپ کی درخواست کے بارے میں۔' }
+    active { true }
+    updated_by { nil }
+  end
+
   factory :audit_event do
     candidate_assignment
     candidate { candidate_assignment.candidate }

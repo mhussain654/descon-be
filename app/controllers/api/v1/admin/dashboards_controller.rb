@@ -11,7 +11,7 @@ module Api
         def show
           authorize :admin_dashboard, policy_class: ::Admin::AdminDashboardPolicy
 
-          render_success(data: ::Admin::Dashboards::AdminSummaryService.call)
+          render_success(data: ::Admin::Dashboards::AdminSummaryService.call(params:))
         end
       end
     end

@@ -80,7 +80,7 @@ module Api
             updated_at: batches.maximum(:updated_at), etag_key: "candidate-imports:#{current_user.public_id}"
           )
           render_collection(data: batches.map { |batch| serialized_batch(batch) }, pagination: query.pagination,
-                            meta: { applied_filters: query.applied_filters })
+                            meta: { applied_filters: query.applied_filters, summary: query.summary })
         end
 
         # Runs the import service on the uploaded file and builds the response body, using 201 when

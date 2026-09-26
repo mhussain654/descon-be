@@ -13,16 +13,18 @@ module Api
           authorize candidate, :access?, policy_class: ::Admin::CandidateWorkflowPolicy
 
           response.set_header('Cache-Control', 'no-store, private')
-          render_success(data: ::Admin::VisaDecisionAccessSerializer.new(access_result).as_json)
+          render_success(data: ::CandidateWorkflows::VisaCopyAccessSerializer.new(access_result).as_json)
         end
 
         private
 
-        # Requests and memoizes the signed access result from the visa-copy
-        # access service, which also logs the access for audit purposes.
+        # Requests and memoizes the signed access result from the shared
+        # visa-copy access service (also used by the candidate's own access
+        # endpoint), which also logs the access for audit purposes.
         def access_result
-          @access_result ||= ::Admin::CandidateVisaDecisions::VisaCopyAccessService.call(
+          @access_result ||= ::CandidateWorkflows::VisaCopyAccessService.call(
             actor: current_user,
+            candidate: candidate,
             decision: visa_decision,
             request_id: request.request_id
           )

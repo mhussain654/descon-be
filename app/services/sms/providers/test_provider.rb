@@ -10,7 +10,7 @@ module Sms
     class TestProvider
       UNDELIVERABLE_NUMBER_PATTERN = /0{10,}\z/
 
-      def deliver(to:, body:)
+      def deliver(to:, body:, **)
         # Logs the body's length only, as a sanity check that a non-empty
         # message was actually passed -- never the content itself, which
         # may contain an OTP.

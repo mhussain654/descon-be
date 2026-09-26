@@ -52,6 +52,13 @@ module Payments
       ENV['KUICKPAY_RETURN_URL'].to_s.strip.presence
     end
 
+    # Where the candidate's browser is redirected after HostedCheckoutReturnsController
+    # processes the signed provider return -- the frontend's dedicated, unauthenticated
+    # payment-pending page (never a JSON error/success body -- see that controller).
+    def frontend_payment_return_url
+      ENV['FRONTEND_PAYMENT_RETURN_URL'].to_s.strip.presence
+    end
+
     def kuickpay_open_timeout
       ENV.fetch('KUICKPAY_OPEN_TIMEOUT_SECONDS', 5).to_i
     end

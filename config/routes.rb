@@ -38,6 +38,10 @@ Rails.application.routes.draw do
         resource :flight_detail, only: :show, controller: :flight_details do
           resource :ticket_access, only: :create, controller: :flight_detail_ticket_accesses
         end
+        resources :visa_decisions, only: :index do
+          resource :visa_copy_access, only: :create, controller: :visa_decision_visa_copy_accesses
+        end
+        resource :training_setting, only: :show
       end
 
       namespace :admin do
@@ -79,6 +83,7 @@ Rails.application.routes.draw do
           resource :flight_detail, only: %i[show create update], controller: :candidate_flight_details do
             resource :ticket_access, only: :create, controller: :candidate_flight_detail_ticket_accesses
           end
+          resources :ai_calls, only: %i[index create], controller: :candidate_ai_calls
         end
         resources :candidate_documents, only: [] do
           resource :access, only: :create, controller: :document_accesses
@@ -87,6 +92,13 @@ Rails.application.routes.draw do
           resource :extraction, only: :show, controller: :candidate_document_extractions
         end
         resources :audit_events, only: :index
+        resources :communications, only: :index
+        resources :ai_calls, only: %i[index show] do
+          resource :review, only: :create, controller: :ai_call_reviews
+        end
+        resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
+        resource :ai_call_operational_settings, only: %i[show update]
+        resource :training_setting, only: %i[show update]
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses
         end
@@ -108,8 +120,15 @@ Rails.application.routes.draw do
       namespace :payments do
         scope 'hosted_checkout/:provider_code' do
           get :return, to: 'hosted_checkout_returns#show'
+          post :return, to: 'hosted_checkout_returns#create'
           post :callback, to: 'hosted_checkout_callbacks#create'
         end
+      end
+
+      namespace :ai_calls do
+        post 'elevenlabs/webhooks/post_call', to: 'elevenlabs/post_call_webhooks#create'
+        post 'elevenlabs/webhooks/conversation_initiation', to: 'elevenlabs/conversation_initiation_webhooks#create'
+        post 'elevenlabs/tools/:tool_name', to: 'elevenlabs/tool_calls#create'
       end
 
       get 'health/live', to: 'health#live'

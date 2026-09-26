@@ -148,4 +148,36 @@ RSpec.describe Admin::Payments::IndexQuery do
                           params: params_for(page: { size: described_class::MAX_PAGE_SIZE + 1 })).call
     end.to raise_error(InvalidQueryParameterError)
   end
+
+  describe '#summary' do
+    it 'returns zero-filled counts per payment status' do
+      payment_for(status_code: 'paid')
+      payment_for(status_code: 'paid')
+      payment_for(status_code: 'failed')
+
+      query = described_class.new(scope: Payment.all, params: params_for({}))
+
+      expect(query.summary).to eq(
+        [
+          { code: 'checkout_pending', count: 0 },
+          { code: 'paid', count: 2 },
+          { code: 'failed', count: 1 },
+          { code: 'cancelled', count: 0 }
+        ]
+      )
+    end
+
+    it 'excludes the status filter itself, scoped by every other active filter' do
+      payment_for(provider_code: 'kuickpay', status_code: 'paid')
+      payment_for(provider_code: 'kuickpay', status_code: 'failed')
+      payment_for(provider_code: 'mock', status_code: 'failed')
+
+      summary = described_class.new(
+        scope: Payment.all, params: params_for(filter: { provider_code: 'kuickpay', status: 'paid' })
+      ).summary
+
+      expect(summary.find { |row| row[:code] == 'paid' }).to eq(code: 'paid', count: 1)
+      expect(summary.find { |row| row[:code] == 'failed' }).to eq(code: 'failed', count: 1)
+    end
+  end
 end

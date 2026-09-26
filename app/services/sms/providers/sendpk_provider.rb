@@ -10,10 +10,15 @@ module Sms
     # AGENTS.md's "application code must not directly depend on SendPK ...
     # or other vendor-specific APIs."
     #
-    # send.pk's "Send Single Message" endpoint (confirmed against send.pk's
-    # own published Postman collection, not guessed) is a single plain HTTP
+    # This account uses send.pk's Fixed/OTP SMS (short-code, transactional):
+    # the wording lives in a template approved in send.pk's dashboard, and
+    # each request sends `template_id` plus `message` as a JSON object of the
+    # template's variables (e.g. {"code":"123456","minutes":"5"}) -- free text
+    # in `message` is rejected. The endpoint is a single plain HTTP
     # endpoint -- no SDK, no signature/HMAC scheme, `api_key`/`sender`/
-    # `mobile`/`message` all as POST form fields -- replying with a bare
+    # `mobile`/`template_id`/`message` all as GET query parameters (the only
+    # method send.pk documents; the URL therefore carries the API key, so it
+    # must never be logged, and only https is accepted outside test) -- replying with a bare
     # "OK ID:<message id>" on success or a single-digit error code on
     # failure. It also supports a `format=json`/`format=xml` response mode,
     # but its exact field names aren't published anywhere, so this adapter
@@ -43,11 +48,13 @@ module Sms
         @configuration = configuration
       end
 
-      def deliver(to:, body:)
+      # The full text is fixed in the approved template, so the caller's
+      # `body:` is intentionally ignored here -- only `variables` are sent.
+      def deliver(to:, variables:, locale: 'en', **)
         return DeliveryResult.new(success: false, error_code: 'not_configured') unless configured?
         return DeliveryResult.new(success: false, error_code: 'insecure_endpoint_rejected') unless secure_endpoint?
 
-        response = perform_request(to:, body:)
+        response = perform_request(to:, variables:, locale:)
         parse_http_response(response)
       rescue Net::OpenTimeout, Net::ReadTimeout
         DeliveryResult.new(success: false, error_code: 'timeout')
@@ -57,12 +64,13 @@ module Sms
 
       private
 
-      # Both must be set for send.pk to accept a request at all -- the
-      # sender id specifically has to be pre-approved in send.pk's own
-      # dashboard, so a blank value here means setup isn't finished yet
+      # All three must be set for send.pk to accept a request at all -- the
+      # sender and template id both have to be set up/approved in send.pk's
+      # own dashboard, so a blank value here means setup isn't finished yet
       # rather than a delivery problem worth a network round-trip to learn.
       def configured?
-        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id.present?
+        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id.present? &&
+          @configuration.sendpk_template_id.present?
       end
 
       # SENDPK_BASE_URL is env-configurable (Sms::Configuration), which
@@ -78,16 +86,17 @@ module Sms
         false
       end
 
-      def perform_request(to:, body:)
+      def perform_request(to:, variables:, locale:)
         uri = URI.join(@configuration.sendpk_base_url, ENDPOINT_PATH)
-        request = build_request(uri, to:, body:)
+        request = build_request(uri, to:, variables:, locale:)
         http_response_for(uri, request)
       end
 
-      def build_request(uri, to:, body:)
-        request = Net::HTTP::Post.new(uri)
+      def build_request(uri, to:, variables:, locale:)
+        uri = uri.dup
+        uri.query = URI.encode_www_form(request_params(to:, variables:, locale:))
+        request = Net::HTTP::Get.new(uri)
         request['User-Agent'] = USER_AGENT
-        request.set_form_data(request_params(to:, body:))
         request
       end
 
@@ -101,12 +110,21 @@ module Sms
         ) { |http| http.request(request) }
       end
 
-      def request_params(to:, body:)
+      # send.pk's collection documents `type=unicode` as required for any
+      # non-Latin script, which the Urdu template is.
+      def request_params(to:, variables:, locale:)
+        params = base_params(to:, variables:, locale:)
+        params['type'] = 'unicode' if locale.to_s == 'ur'
+        params
+      end
+
+      def base_params(to:, variables:, locale:)
         {
           'api_key' => @configuration.sendpk_api_key,
           'sender' => @configuration.sendpk_sender_id,
           'mobile' => to,
-          'message' => body
+          'template_id' => @configuration.sendpk_template_id(locale),
+          'message' => variables.transform_values(&:to_s).to_json
         }
       end
 

@@ -168,7 +168,20 @@ components:
         pagination:
           $ref: '#/components/schemas/PaginationMeta'
         summary:
-          $ref: '#/components/schemas/AdminDocumentReviewQueueSummary'
+          description: >-
+            Present only on list endpoints that document one of these
+            variants below. Shape depends on the endpoint -- the
+            admin document-submissions queue returns a keyed object
+            (AdminDocumentReviewQueueSummary); every other list endpoint that
+            adds a `summary` returns the `[{code, count}]` array shape.
+          oneOf:
+            - $ref: '#/components/schemas/AdminDocumentReviewQueueSummary'
+            - $ref: '#/components/schemas/AdminSystemBackupStatusSummary'
+            - $ref: '#/components/schemas/AdminCandidateImportStatusSummary'
+            - $ref: '#/components/schemas/AdminCommunicationDirectionSummary'
+            - $ref: '#/components/schemas/AdminPaymentStatusSummary'
+            - $ref: '#/components/schemas/AdminCandidateStatusSummary'
+            - $ref: '#/components/schemas/AdminAuditEventEntityTypeSummary'
       required: [request_id, timestamp]
     AdminDocumentReviewQueueSummary:
       type: object
@@ -189,6 +202,65 @@ components:
         near_expiry_pcc:
           type: integer
       required: [pending_review, verified, rejected, expired_pcc, near_expiry_pcc]
+    AdminSummaryCount:
+      type: object
+      description: One zero-filled category/count pair, used by every `[{code, count}]`-shaped list summary.
+      properties:
+        code:
+          type: string
+        count:
+          type: integer
+      required: [code, count]
+    AdminSystemBackupStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per backup status (in_progress/succeeded/failed),
+        present only on the admin system-database-backups index. Not scoped
+        by any filter -- that endpoint has none.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminCandidateImportStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per import-batch status (queued/processing/
+        completed/partial/failed/invalidated), present only on the admin
+        candidate-imports index. Scoped by every active filter except
+        `filter[status]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminCommunicationDirectionSummary:
+      type: array
+      description: >-
+        Zero-filled counts per direction (inbound/outbound), present only
+        on the admin communications index. Scoped by every active filter
+        except `filter[direction]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminPaymentStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per payment status (checkout_pending/paid/
+        failed/cancelled), present only on the admin payments index.
+        Scoped by every active filter except `filter[status]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminCandidateStatusSummary:
+      type: array
+      description: >-
+        Zero-filled counts per canonical workflow stage (all 15), present
+        only on the admin candidates index. Scoped by every active filter
+        except `filter[status]`.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
+    AdminAuditEventEntityTypeSummary:
+      type: array
+      description: >-
+        Top 8 observed `entity_type` values by count, descending, present
+        only on the admin audit-events index. Scoped by every active
+        filter except `filter[entity_type]`. Not zero-filled -- entity_type
+        has no fixed enum, so only observed values are returned.
+      items:
+        $ref: '#/components/schemas/AdminSummaryCount'
     PaginationMeta:
       type: object
       properties:
@@ -1352,6 +1424,87 @@ components:
               format: date-time
             - type: 'null'
       required: [candidate_id, assignment_id, qvc_attempts, updated_at]
+    AdminCandidateAiCallRequest:
+      type: object
+      properties:
+        candidate_ai_call:
+          type: object
+          required: [call_reason]
+          properties:
+            call_reason:
+              type: string
+              enum: [missing_documents, protection_appearance_reminder, urgent_compliance_action, flight_information]
+          additionalProperties: false
+      required: [candidate_ai_call]
+    AdminWorkflowStageCallScriptRequest:
+      type: object
+      properties:
+        workflow_stage_call_script:
+          type: object
+          properties:
+            announcement_en:
+              type: string
+            announcement_ur:
+              type: string
+              nullable: true
+            active:
+              type: boolean
+          additionalProperties: false
+      required: [workflow_stage_call_script]
+    AdminAiCallOperationalSettingRequest:
+      type: object
+      properties:
+        ai_call_operational_setting:
+          type: object
+          properties:
+            outbound_trigger_cooldown_minutes:
+              type: integer
+              minimum: 0
+              nullable: true
+            daily_outbound_call_limit:
+              type: integer
+              minimum: 0
+              nullable: true
+            admin_trigger_rate_limit_per_hour:
+              type: integer
+              minimum: 0
+              nullable: true
+            calling_hours_start:
+              type: integer
+              minimum: 0
+              maximum: 23
+              nullable: true
+            calling_hours_end:
+              type: integer
+              minimum: 0
+              maximum: 23
+              nullable: true
+            max_call_duration_minutes:
+              type: integer
+              minimum: 0
+              nullable: true
+            human_transfer_phone_number:
+              type: string
+              nullable: true
+              description: >-
+                E.164 phone number ElevenLabs' transfer_to_number system tool connects a
+                candidate to when they ask for a human. Omitted from the synced agent
+                config entirely (see AiCalls::AgentConfigs::Baseline) until this is set
+                and AI_VOICE_HUMAN_TRANSFER_ENABLED is on.
+          additionalProperties: false
+      required: [ai_call_operational_setting]
+    AdminTrainingSettingRequest:
+      type: object
+      properties:
+        training_setting:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+          additionalProperties: false
+          required: [url]
+      required: [training_setting]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -1517,8 +1670,9 @@ components:
         visa_decision:
           $ref: '#/components/schemas/AdminVisaDecision'
       required: [workflow, visa_decision]
-    AdminVisaDecisionAccess:
+    VisaCopyAccess:
       type: object
+      description: Shared by both the admin and candidate visa-copy-access endpoints (CandidateWorkflows::VisaCopyAccessService).
       properties:
         visa_decision_id:
           type: string
@@ -1529,6 +1683,19 @@ components:
           type: string
           format: date-time
       required: [visa_decision_id, url, expires_at]
+    CandidateVisaDecisionsCollection:
+      type: object
+      properties:
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        visa_decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateVisaDecision'
+      required: [assignment_id, visa_decisions]
     CandidateFlightDetail:
       type: object
       properties:
@@ -2451,6 +2618,34 @@ paths:
                     errors:
                       - code: inactive_account
                         message: یہ اکاؤنٹ غیر فعال ہے۔
+                    request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
+                    timestamp: '2026-08-23T09:00:04Z'
+        '423':
+          description: Account locked (too many failed login attempts)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                accountLockedEn:
+                  value:
+                    errors:
+                      - code: account_locked
+                        message: This account is locked due to too many failed login attempts. Contact an
+                          administrator for help.
+                    request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
+                    timestamp: '2026-08-23T09:00:04Z'
+                accountLockedUr:
+                  value:
+                    errors:
+                      - code: account_locked
+                        message: بہت زیادہ ناکام لاگ ان کوششوں کی وجہ سے یہ اکاؤنٹ مقفل ہے۔ مدد کے لیے منتظم سے
+                          رابطہ کریں۔
                     request_id: 7cc9f1f9-53e4-4e64-98f6-d7e2f4b89d39
                     timestamp: '2026-08-23T09:00:04Z'
         '429':
@@ -4073,6 +4268,10 @@ paths:
   /api/v1/admin/candidate_imports:
     get:
       summary: List the authenticated staff actor's candidate import history
+      description: >-
+        `meta.summary` returns a zero-filled count per batch status
+        (queued/processing/completed/partial/failed/invalidated), scoped by
+        every active filter except `filter[status]`.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: filter[status]
@@ -4102,6 +4301,33 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+              examples:
+                history:
+                  value:
+                    data: []
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-06T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 0
+                        total_pages: 0
+                      applied_filters: {}
+                      summary:
+                        - code: queued
+                          count: 0
+                        - code: processing
+                          count: 0
+                        - code: completed
+                          count: 1
+                        - code: partial
+                          count: 0
+                        - code: failed
+                          count: 1
+                        - code: invalidated
+                          count: 0
+                    errors: []
         '403': { description: Missing candidate-management permission }
         '422': { description: Invalid filter or pagination parameter }
     post:
@@ -4296,7 +4522,10 @@ paths:
   /api/v1/admin/candidates:
     get:
       summary: List candidates for authorized staff
-      description: Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports partial matching.
+      description: >-
+        Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports
+        partial matching. `meta.summary` returns a zero-filled count per canonical workflow stage
+        (the same 15 stages as `filter[status]`), scoped by every active filter except `filter[status]`.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: search
@@ -5167,6 +5396,351 @@ paths:
                             - expired_pcc
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                     timestamp: '2026-08-30T12:00:00Z'
+  /api/v1/admin/candidates/{candidate_id}/ai_calls:
+    get:
+      summary: List a candidate's admin-triggered AI voice call history
+      description: >-
+        Read-only, most-recent-first list of admin-triggered outbound AI voice calls for
+        this candidate. Requires the `trigger_ai_calls` permission. Inbound helpline calls
+        and workflow-stage-triggered calls are not included here -- see
+        GET /api/v1/admin/communications for the full cross-channel log.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Admin-triggered AI call history
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                calls:
+                  value:
+                    data:
+                      - id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
+                        direction: outbound
+                        call_reason: missing_documents
+                        language_code: en
+                        status: queued
+                        candidate:
+                          id: 1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+                          full_name: Ayesha Khan
+                        triggered_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: admin
+                        outcome: null
+                        outcome_reason: null
+                        verification_status: not_applicable
+                        summary: null
+                        reviewed_by: null
+                        reviewed_at: null
+                        review_resolution: null
+                        review_notes: null
+                        started_at: null
+                        answered_at: null
+                        completed_at: null
+                        created_at: '2026-09-10T10:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-10T10:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+    post:
+      summary: Trigger an admin-initiated outbound AI voice call
+      description: >-
+        Places a real two-way ElevenLabs conversational AI call to the candidate for one
+        of 4 reasons. Subject to the outbound feature flag, allowed calling hours, a
+        per-admin hourly rate limit, a daily account-wide cap, and a per-candidate+reason
+        cooldown (see AiCalls::OutboundCallGuard). Requires the `trigger_ai_calls`
+        permission and an Idempotency-Key header.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCandidateAiCallRequest'
+      responses:
+        '201':
+          description: Call triggered or replayed idempotently
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                triggered:
+                  value:
+                    data:
+                      id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
+                      direction: outbound
+                      call_reason: missing_documents
+                      language_code: en
+                      status: queued
+                      candidate:
+                        id: 1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+                        full_name: Ayesha Khan
+                      triggered_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      outcome: null
+                      outcome_reason: null
+                      verification_status: not_applicable
+                      summary: null
+                      reviewed_by: null
+                      reviewed_at: null
+                      review_resolution: null
+                      review_notes: null
+                      started_at: null
+                      answered_at: null
+                      completed_at: null
+                      created_at: '2026-09-10T10:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-10T10:00:01Z'
+                    errors: []
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: >-
+            Unknown call_reason, candidate has no current assignment, candidate is
+            inactive, or the call is outside allowed calling hours
+        '429':
+          description: Admin rate limit, daily account limit, or per-candidate+reason cooldown exceeded
+        '502':
+          description: The ElevenLabs provider request failed
+        '503':
+          description: Outbound AI calling is disabled, or the provider is not configured
+  /api/v1/admin/ai_calls:
+    get:
+      summary: List AI voice calls across every candidate, primarily the manual-review queue
+      description: >-
+        Cross-candidate, paginated, newest-first view over every CandidateAiCall (inbound,
+        admin-triggered outbound, and workflow-stage-triggered outbound) -- distinct from
+        GET /api/v1/admin/candidates/{candidate_id}/ai_calls, which is scoped to one
+        candidate's admin-triggered history only. Defaults to the manual-review queue
+        (outcome_reason == needs_manual_review, not yet reviewed); pass
+        filter[awaiting_review]=false to browse every call instead. Requires the
+        `trigger_ai_calls` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: filter[awaiting_review]
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: page[number]
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: page[size]
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Paginated AI call listing
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                awaiting_review:
+                  value:
+                    data:
+                      - id: 9f8e7d6c-5b4a-3c2d-1e0f-9a8b7c6d5e4f
+                        direction: inbound
+                        call_reason: general_helpline
+                        language_code: en
+                        status: completed
+                        candidate: null
+                        triggered_by: null
+                        outcome: null
+                        outcome_reason: needs_manual_review
+                        verification_status: pending
+                        summary: null
+                        reviewed_by: null
+                        reviewed_at: null
+                        review_resolution: null
+                        review_notes: null
+                        started_at: '2026-09-14T09:00:00Z'
+                        answered_at: '2026-09-14T09:00:05Z'
+                        completed_at: '2026-09-14T09:04:00Z'
+                        created_at: '2026-09-14T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba6
+                      timestamp: '2026-09-14T09:05:00Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                      applied_filters:
+                        awaiting_review: true
+                    errors: []
+        '400':
+          description: Invalid page or filter parameter
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+  /api/v1/admin/ai_calls/{id}:
+    get:
+      summary: Show one AI voice call's full detail
+      description: >-
+        Single-call detail, including summary and review-resolution state -- never the
+        transcript or raw extracted_data. Requires the `trigger_ai_calls` permission.
+        Scoped the same way the index is, before authorization: an unauthorized or
+        non-existent id both return 404, never 403, so a forbidden lookup can't confirm
+        whether the call exists.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The AI call's detail
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '404':
+          description: Call not found, or the authenticated staff user lacks trigger_ai_calls
+  /api/v1/admin/ai_calls/{ai_call_id}/review:
+    post:
+      summary: Resolve a needs_manual_review AI voice call
+      description: >-
+        Records an admin's decision of what a call's outcome actually was (having
+        listened to the recording/read the transcript), stamping the reviewer and
+        recording an immutable CandidateAiCallEvent (event_type: manual_outcome_resolved)
+        alongside the mutable header update -- see AiCalls::ResolveManualReviewService.
+        Create-only and single-use: a resolution, once made, stands, and a second attempt
+        is rejected with ai_call_not_awaiting_review. Requires the `trigger_ai_calls`
+        permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ai_call_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                outcome:
+                  type: string
+                  enum: [answered, not_answered, callback_required]
+                outcome_reason:
+                  type: string
+                  nullable: true
+                notes:
+                  type: string
+                  nullable: true
+              required: [outcome]
+      responses:
+        '201':
+          description: The call, updated with the resolved outcome and review state
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '404':
+          description: Call not found, or the authenticated staff user lacks trigger_ai_calls
+        '422':
+          description: Unrecognized outcome, or the call is not currently awaiting manual review
   /api/v1/admin/candidates/{candidate_id}/qvc_attempts:
     get:
       summary: List structured QVC attempts for a candidate
@@ -6079,14 +6653,236 @@ paths:
           description: Flight detail not found
         '422':
           description: Flight detail exists but has no attached ticket
-  /api/v1/payments/hosted_checkout/{provider_code}/return:
+  /api/v1/candidate/visa_decisions:
+    get:
+      summary: List the authenticated candidate's own visa decisions
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Visa decisions retrieved (empty list before any have been recorded)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                visaDecisions:
+                  value:
+                    data:
+                      assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
+                      visa_decisions:
+                        - id: 9b8a5883-70d5-4040-8823-424f4b4b669b
+                          outcome_code: issued
+                          decision_date: '2026-09-05'
+                          rejection_reason_code: null
+                          visa_copy_attached: true
+                          created_at: '2026-09-05T10:00:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-05T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/candidate/visa_decisions/{visa_decision_id}/visa_copy_access:
     post:
-      summary: Process a signed hosted-checkout browser return
+      summary: Generate a short-lived private access path for the candidate's own visa copy
       description: >-
-        Processes a signed hosted-checkout return after server-side signature verification.
-        The signed payload must match the stored payment order, amount, and currency when
-        currency is present. Safe duplicates replay without creating duplicate payment or
-        workflow history records.
+        Returns a private Active Storage proxy path for the visa copy
+        attached to one of the authenticated candidate's own visa decisions.
+        The path is time-limited, does not expose storage keys, and every
+        successful access is audited. Scoped to the candidate's current
+        assignment -- a `visa_decision_id` belonging to another candidate
+        resolves to `404`, never another candidate's file.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - name: visa_decision_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      visa_decision_id: 9b8a5883-70d5-4040-8823-424f4b4b669b
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/visa.pdf?disposition=inline
+                      expires_at: '2026-09-05T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-05T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '404':
+          description: Visa decision not found (including one belonging to another candidate)
+        '422':
+          description: Visa decision exists but has no attached visa copy (a rejected decision)
+  /api/v1/candidate/training_setting:
+    get:
+      summary: Read the one shared training link
+      description: >-
+        Returns the single link (e.g. a YouTube channel/playlist) where all
+        training documents and videos live -- not per-candidate content, so
+        any authenticated, active candidate can read it.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current training link
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      url: https://www.youtube.com/@DesconManpower
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-12T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+  /api/v1/payments/hosted_checkout/{provider_code}/return:
+    get:
+      summary: Process a signed hosted-checkout browser return (GET redirect)
+      description: >-
+        Handles the candidate's browser being redirected back from the hosted checkout
+        page. Every outcome -- success or any error -- redirects the browser to the
+        frontend's payment-pending page (see the `302`/`303` responses below); this
+        endpoint never renders payment/workflow data or error detail as JSON, since it
+        is an unauthenticated response reachable by anyone who lands on the URL. The
+        candidate's own client polls `GET /api/v1/candidate/payment` separately for the
+        authoritative outcome. Safe duplicate returns are processed without creating
+        duplicate payment or workflow history records.
+      parameters:
+        - name: provider_code
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [mock_hosted_checkout, kuickpay]
+        - name: orderid
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: transactionid
+          in: query
+          schema:
+            type: string
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: currency
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [SUCCESS, FAILED, CANCELLED]
+        - name: responsecode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: signature
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '302':
+          description: >-
+            Signed return processed (or safely replayed) for this success/error outcome.
+            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
+            workflow data is included in this response.
+          headers:
+            Location:
+              description: The configured FRONTEND_PAYMENT_RETURN_URL.
+              schema:
+                type: string
+                format: uri
+        '401':
+          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
+        '404':
+          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
+        '409':
+          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
+        '422':
+          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
+        '503':
+          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
+    post:
+      summary: Process a signed hosted-checkout browser return (POST redirect)
+      description: >-
+        Same processing and redirect-only behavior as the GET operation above, for a
+        provider that returns the candidate's browser via a POST instead of a query
+        string. Uses `303 See Other` rather than `302` so the browser follows the
+        redirect with GET instead of re-submitting the provider's payload.
       parameters:
         - name: provider_code
           in: path
@@ -6106,8 +6902,55 @@ paths:
             schema:
               $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
       responses:
+        '303':
+          description: >-
+            Signed return processed (or safely replayed) for this success/error outcome.
+            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
+            workflow data is included in this response.
+          headers:
+            Location:
+              description: The configured FRONTEND_PAYMENT_RETURN_URL.
+              schema:
+                type: string
+                format: uri
+        '401':
+          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
+        '404':
+          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
+        '409':
+          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
+        '422':
+          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
+        '503':
+          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
+  /api/v1/ai_calls/elevenlabs/webhooks/post_call:
+    post:
+      summary: Receive an ElevenLabs post-call webhook delivery
+      description: >-
+        Applies a finished conversation's outcome to the matching CandidateAiCall.
+        Authenticity comes entirely from the `ElevenLabs-Signature` HMAC-SHA256 header
+        (verified against the raw request body before anything else happens, with a
+        30-minute replay-tolerance window) -- there is no staff session involved.
+        Idempotent: a redelivered event with the same conversation_id is a no-op.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: ElevenLabs-Signature
+          in: header
+          required: true
+          description: 't=<unix_timestamp>,v0=<hex_hmac_sha256>'
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: ElevenLabs' post_call_transcription webhook payload (see AiCalls::PostCallWebhookPayload).
+      responses:
         '200':
-          description: Signed return processed or safely replayed
+          description: Webhook applied or safely replayed
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -6120,51 +6963,159 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
               examples:
-                paid:
+                applied:
                   value:
                     data:
-                      payment:
-                        id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
-                        payment_type_code: onboarding_fee
-                        status: paid
-                        amount: '1500.0'
-                        currency_code: PKR
-                        provider: mock_hosted_checkout
-                        checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
-                        checkout_expires_at: '2026-08-31T09:30:00Z'
-                        paid_at: '2026-08-31T09:05:00Z'
-                        updated_at: '2026-08-31T09:05:00Z'
-                      workflow:
-                        candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
-                        assignment_id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
-                        candidate_status: fee_paid
-                        current_stage:
-                          code: fee_paid
-                          name: Fee Paid
-                          position: 7
-                          status: current
-                          started_at: '2026-08-31T09:05:00Z'
-                        timeline: []
-                        qvc_attempts: []
-                        protection: null
-                        completed_count: 6
-                        total_count: 15
-                        progress_percentage: 40
-                        updated_at: '2026-08-31T09:05:00Z'
+                      id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
+                      status: completed
                     meta:
-                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
-                      timestamp: '2026-08-31T09:05:00Z'
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-10T10:05:00Z'
                     errors: []
         '401':
-          description: Signature missing or invalid
+          description: Missing, invalid, expired, or malformed ElevenLabs-Signature header
         '404':
-          description: Stored payment order not found
-        '409':
-          description: Signed payload conflicts with an already-finalized payment
-        '422':
-          description: Signed payload does not match the stored payment state
+          description: No CandidateAiCall matches the delivered conversation_id
+  /api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation:
+    post:
+      summary: Receive an ElevenLabs inbound-call conversation-initiation webhook
+      description: >-
+        Fired when a candidate calls the inbound helpline number, before the
+        conversation begins. Creates (or, on redelivery, finds) one CandidateAiCall
+        and its Communication envelope, keyed idempotently on elevenlabs_conversation_id.
+        The candidate is linked automatically if the caller's normalized number matches
+        an active Candidate's registered mobile_number; otherwise the call proceeds
+        unidentified until AiCalls::Tools::VerifyCallerIdentity links it mid-call.
+        Authenticity comes from the `ElevenLabs-Signature` HMAC-SHA256 header, verified
+        the same way as the post_call webhook -- there is no staff session involved.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: ElevenLabs-Signature
+          in: header
+          required: true
+          description: 't=<unix_timestamp>,v0=<hex_hmac_sha256>'
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: ElevenLabs' conversation-initiation webhook payload (see AiCalls::ConversationInitiationPayload).
+      responses:
+        '200':
+          description: >-
+            CandidateAiCall created or found (uniformly shaped whether or not a
+            candidate was matched -- the response never signals match/no-match directly).
+            The body is ElevenLabs' own required `conversation_initiation_client_data`
+            contract, not this app's usual {data, meta, errors} envelope -- a malformed
+            or non-2xx response here prevents the call from connecting at all.
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [type]
+                properties:
+                  type:
+                    type: string
+                    enum: [conversation_initiation_client_data]
+                  dynamic_variables:
+                    type: object
+                    description: Always empty today -- nothing here needs a per-call prompt/variable override.
+              example:
+                type: conversation_initiation_client_data
+                dynamic_variables: {}
+        '401':
+          description: Missing, invalid, expired, or malformed ElevenLabs-Signature header
         '503':
-          description: Provider is unavailable or not configured
+          description: Inbound AI calling is disabled (AI_VOICE_INBOUND_ENABLED)
+  /api/v1/ai_calls/elevenlabs/tools/{tool_name}:
+    post:
+      summary: Dispatch an ElevenLabs in-call tool invocation
+      description: >-
+        Single dispatcher for every ElevenLabs conversational tool (verify_caller_identity,
+        the 7 data-retrieval tools, create_callback_request), routed by
+        `AiCalls::Tools::Registry`. Live transfer to a human is not dispatched here -- it is
+        handled entirely by ElevenLabs' own transfer_to_number system tool, configured on the
+        agent baseline (see AiCalls::AgentConfigs::Baseline), which runs inside ElevenLabs'
+        own conversational engine and never calls this endpoint. Authenticated by a shared
+        secret (`X-AI-Calls-Tool-Secret`, constant-time compared) rather than a staff session --
+        there is no candidate/staff login on an in-progress voice call. Every invocation is
+        recorded as its own CandidateAiCallEvent (event_source: tool_call). A repeated,
+        identical invocation of verify_caller_identity or create_callback_request replays its
+        first result rather than re-running (idempotent replay protection for their side
+        effects); the 7 data-retrieval tools are pure reads and always re-run, so repeated
+        identical questions in one conversation get current data, not a cached first answer.
+        Every data-revealing tool independently re-checks candidate_ai_call.verification_status
+        server-side before returning anything -- it never trusts the agent's own claim that
+        verification already succeeded. Refuses a call that has already ended (terminal
+        status), or whose direction is currently disabled by the outbound/inbound feature
+        flag, regardless of how old or new the conversation_id is -- a valid shared secret
+        plus a historical conversation_id does not grant indefinite access to current data.
+      parameters:
+        - name: tool_name
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - verify_caller_identity
+              - get_application_status
+              - get_missing_documents
+              - get_payment_status
+              - get_qvc_status
+              - get_visa_status
+              - get_protection_status
+              - get_flight_information
+              - create_callback_request
+        - name: X-AI-Calls-Tool-Secret
+          in: header
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: >-
+                conversation_id (required, identifies the CandidateAiCall) plus whatever
+                arguments the named tool expects (e.g. reference_number/cnic for
+                verify_caller_identity, reason for create_callback_request).
+      responses:
+        '200':
+          description: Tool result, shaped per the dispatched tool
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing or invalid X-AI-Calls-Tool-Secret header
+        '403':
+          description: The call has already ended (terminal status) and no longer accepts tool calls
+        '404':
+          description: Unknown tool_name, or no CandidateAiCall matches the given conversation_id
+        '503':
+          description: The feature flag for this call's direction (inbound/outbound) is currently disabled
   /api/v1/payments/hosted_checkout/{provider_code}/callback:
     post:
       summary: Process a signed hosted-checkout provider callback
@@ -6487,7 +7438,8 @@ paths:
         `view_payments` or `manage_payments` permission. `reconciliation_state` reflects this
         payment's own reconciliation findings (see Payments::ReconciliationService): `clean`
         (never flagged), `open` (at least one unresolved finding), or `resolved` (every
-        finding on this payment has been resolved).
+        finding on this payment has been resolved). `meta.summary` returns a zero-filled
+        count per payment status, scoped by every active filter except `filter[status]`.
       security:
         - bearerAuth: []
       parameters:
@@ -6568,6 +7520,15 @@ paths:
                         total_pages: 1
                       applied_filters:
                         status: paid
+                      summary:
+                        - code: checkout_pending
+                          count: 0
+                        - code: paid
+                          count: 1
+                        - code: failed
+                          count: 0
+                        - code: cancelled
+                          count: 0
                     errors: []
         '400':
           description: Unsupported filter or sort parameter
@@ -6907,7 +7868,10 @@ paths:
         the active `view_audit_events` permission. `metadata` contains only public ids, codes
         and non-sensitive field names -- no raw CNIC, passport, bank, or payment identifier is
         ever written into it. There is no show, create, update, or destroy route: audit
-        records can never be edited or deleted through the API.
+        records can never be edited or deleted through the API. `meta.summary` returns the
+        top 8 observed `entity_type` values by count, descending, scoped by every active
+        filter except `filter[entity_type]` -- not zero-filled (entity_type has no fixed
+        enum, so only observed values are returned).
       security:
         - bearerAuth: []
       parameters:
@@ -6986,6 +7950,9 @@ paths:
                         total_pages: 1
                       applied_filters:
                         entity_type: CandidateDocument
+                      summary:
+                        - code: CandidateDocument
+                          count: 1
                     errors: []
         '400':
           description: Unsupported or malformed filter, sorting, or pagination parameter
@@ -7005,6 +7972,438 @@ paths:
           description: Missing, invalid, expired, or revoked staff access token
         '403':
           description: Authenticated staff user lacks view_audit_events, or is inactive
+  /api/v1/admin/communications:
+    get:
+      summary: Browse the central cross-channel communications log
+      description: >-
+        Read-only, paginated, filterable view over every Communication record (SMS, email,
+        notification, AI voice call) sent or received about a candidate assignment. Requires
+        either the `view_communications` or `manage_communications` permission. There is no
+        show, create, update, or destroy route: every channel writes Communication rows through
+        its own provider-specific service, never directly through this API. `meta.summary`
+        returns a zero-filled count per direction (inbound/outbound), scoped by every active
+        filter except `filter[direction]`. `channel`/`status` are not summarized -- neither
+        has a fixed enum yet.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+        - name: filter[channel]
+          in: query
+          description: Channel code, e.g. sms, email, ai_voice_call.
+          schema: { type: string, example: sms }
+        - name: filter[direction]
+          in: query
+          schema: { type: string, enum: [inbound, outbound] }
+        - name: filter[status]
+          in: query
+          description: Delivery status code, e.g. sent, delivered, failed.
+          schema: { type: string, example: sent }
+        - name: filter[candidate_assignment]
+          in: query
+          description: Candidate assignment's public id.
+          schema: { type: string, format: uuid }
+        - name: filter[candidate]
+          in: query
+          description: Candidate's public id.
+          schema: { type: string, format: uuid }
+        - name: filter[occurred_from]
+          in: query
+          schema: { type: string, format: date }
+        - name: filter[occurred_to]
+          in: query
+          schema: { type: string, format: date }
+        - name: sort
+          in: query
+          description: 'Prefix with `-` for descending. Defaults to `-created_at`.'
+          schema: { type: string, enum: [created_at, -created_at] }
+      responses:
+        '200':
+          description: Paginated communication collection
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                communications:
+                  value:
+                    data:
+                      - id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
+                        channel_code: sms
+                        direction_code: outbound
+                        status_code: sent
+                        template_code: welcome_message
+                        locale: en
+                        candidate_assignment:
+                          id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                          reference_number: REF-1001
+                          candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
+                        initiated_by:
+                          id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                          role: admin
+                        recipient_masked: '+92300*****12'
+                        provider_reference: null
+                        error_code: null
+                        sent_at: '2026-09-01T10:05:00Z'
+                        delivered_at: null
+                        failed_at: null
+                        created_at: '2026-09-01T10:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-04T10:00:01Z'
+                      pagination:
+                        page: 1
+                        per_page: 20
+                        total_count: 1
+                        total_pages: 1
+                      applied_filters:
+                        channel: sms
+                      summary:
+                        - code: inbound
+                          count: 0
+                        - code: outbound
+                          count: 1
+                    errors: []
+        '400':
+          description: Unsupported or malformed filter, sorting, or pagination parameter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+              examples:
+                invalidFilter:
+                  value:
+                    errors:
+                      - code: unsupported_filter
+                        field: filter.bogus
+                        message: One or more filters are not supported.
+                    request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                    timestamp: '2026-09-04T10:00:01Z'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks view_communications/manage_communications, or is inactive
+  /api/v1/admin/workflow_stage_call_scripts:
+    get:
+      summary: List the per-workflow-stage AI call scripts
+      description: >-
+        Read-only list of every WorkflowStageCallScript row (one per canonical workflow stage
+        that can trigger an automatic AI call, seeded up front -- see MPS-708). Requires the
+        `manage_ai_call_scripts` permission. There is no create/destroy route: the row set is
+        fixed to WorkflowStage::CANONICAL_STAGES.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The full list of workflow-stage call scripts
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                scripts:
+                  value:
+                    data:
+                      - workflow_stage_code: verified
+                        announcement_en: "Hello {{candidate_name}}, this is Descon Manpower calling -- your documents have been verified."
+                        announcement_ur: "السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے -- آپ کی دستاویزات کی تصدیق ہو گئی ہے۔"
+                        active: false
+                        updated_by: null
+                        updated_at: '2026-09-11T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_scripts, or is inactive
+  /api/v1/admin/workflow_stage_call_scripts/{workflow_stage_code}:
+    patch:
+      summary: Edit one workflow stage's AI call script
+      description: >-
+        Updates the English/Urdu opening-announcement text and/or active flag for one canonical
+        workflow stage's automated call script. The actual call always speaks in the candidate's
+        own preferred language, selecting between announcement_en/announcement_ur at call time
+        (falling back to announcement_en if the Urdu wording isn't ready yet) -- only the
+        announcement text is admin-editable content, the underlying call guardrails/tool-use
+        rules stay repo-committed and are never exposed here. Requires the
+        `manage_ai_call_scripts` permission; every update is recorded as an AuditEvent.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workflow_stage_code
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminWorkflowStageCallScriptRequest'
+      responses:
+        '200':
+          description: Script updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      workflow_stage_code: verified
+                      announcement_en: Approved wording.
+                      announcement_ur: منظور شدہ عبارت۔
+                      active: true
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-09-11T09:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_scripts, or is inactive
+        '404':
+          description: No script row for this workflow_stage_code
+        '422':
+          description: Invalid announcement or language_code
+  /api/v1/admin/ai_call_operational_settings:
+    get:
+      summary: Read the AI call rate-limit / calling-hours singleton
+      description: >-
+        Returns the single admin-editable AiCallOperationalSetting row -- the DB-driven
+        overrides for AiCalls::Configuration's 5 otherwise ENV-only knobs (outbound trigger
+        cooldown, daily outbound call limit, admin trigger rate limit, calling hours,
+        max call duration), plus the live human-transfer destination number. A knob column
+        reading null means that knob still falls back to its ENV var/default;
+        human_transfer_phone_number has no ENV fallback and simply stays null (no transfer
+        capability) until set. Requires the `manage_ai_call_settings` permission -- admin-only
+        by default, independent from `trigger_ai_calls`/`manage_ai_call_scripts`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current operational settings
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                settings:
+                  value:
+                    data:
+                      outbound_trigger_cooldown_minutes: null
+                      daily_outbound_call_limit: null
+                      admin_trigger_rate_limit_per_hour: null
+                      calling_hours_start: null
+                      calling_hours_end: null
+                      max_call_duration_minutes: null
+                      human_transfer_phone_number: null
+                      updated_by: null
+                      updated_at: '2026-09-11T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
+    patch:
+      summary: Edit the AI call rate-limit / calling-hours singleton
+      description: >-
+        Updates any subset of the DB-editable operational knobs, including the human-transfer
+        destination number. Requires the `manage_ai_call_settings` permission; every update
+        that actually changes a value is recorded as an AuditEvent carrying the actor and the
+        before/after values changed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAiCallOperationalSettingRequest'
+      responses:
+        '200':
+          description: Settings updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      outbound_trigger_cooldown_minutes: 60
+                      daily_outbound_call_limit: 50
+                      admin_trigger_rate_limit_per_hour: 50
+                      calling_hours_start: 8
+                      calling_hours_end: 19
+                      max_call_duration_minutes: 15
+                      human_transfer_phone_number: null
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-09-11T09:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-11T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
+        '422':
+          description: A knob is out of its valid range (e.g. calling_hours_start > 23)
+  /api/v1/admin/training_setting:
+    get:
+      summary: Read the training-link singleton
+      description: >-
+        Returns the single admin-editable TrainingSetting row -- the one
+        external link (e.g. a YouTube channel/playlist) candidates are sent
+        to for all training documents and videos; the content itself is
+        managed entirely off-platform. Requires the
+        `manage_training_settings` permission -- admin-only by default.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current training link
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      url: https://www.youtube.com/@DesconManpower
+                      updated_by: null
+                      updated_at: '2026-09-12T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-12T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_training_settings, or is inactive
+    patch:
+      summary: Edit the training-link singleton
+      description: >-
+        Updates the training link. Requires the `manage_training_settings`
+        permission; a change is recorded as an AuditEvent carrying the actor
+        and the before/after value.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminTrainingSettingRequest'
+      responses:
+        '200':
+          description: Training link updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      url: https://www.youtube.com/@DesconManpowerTraining
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-09-12T09:05:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-09-12T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_training_settings, or is inactive
+        '422':
+          description: url is missing, blank, or not a valid http(s) URL
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)
@@ -7014,6 +8413,8 @@ paths:
         permission -- backups are infra-sensitive, so unlike most admin resources this is
         admin-only (not even mps/management). There is no show, create, update, or destroy
         route: a backup's outcome is written only by the owning job, never through the API.
+        `meta.summary` returns a zero-filled count per status
+        (in_progress/succeeded/failed) across the whole table.
       security:
         - bearerAuth: []
       parameters:
@@ -7054,6 +8455,13 @@ paths:
                         per_page: 20
                         total_count: 1
                         total_pages: 1
+                      summary:
+                        - code: in_progress
+                          count: 0
+                        - code: succeeded
+                          count: 1
+                        - code: failed
+                          count: 0
                     errors: []
         '401':
           description: Missing, invalid, expired, or revoked staff access token
@@ -7125,13 +8533,36 @@ paths:
     get:
       summary: Admin dashboard summary (MPS-801)
       description: >-
-        Candidate workload, document-review queue depth, workflow-stage queues and payment
-        visibility. Requires the active `view_admin_dashboard` permission.
+        Candidate workload, document-review queue depth, workflow-stage queues, payment
+        visibility, conversion/cycle-time metrics, a cross-source "requires attention" list,
+        upcoming QVC/flight activity, recently-updated candidates, and per-KPI trend
+        sparklines. Requires the active `view_admin_dashboard` permission.
+        `average_stage_duration_days` is `null` when no assignment in scope has more than one
+        recorded workflow-stage transition yet. `kpi_trends` entries cover a fixed 14-day
+        window and are event-based activity counts (registrations/payments/mobilizations per
+        day), not a point-in-time backlog size -- there is deliberately no trend for
+        `document_review_queue`'s pending-review count, since no daily-event proxy for a
+        review backlog exists. `upcoming_activities` covers the next 7 days and does not yet
+        include protection appearances (no forward-scheduled date field exists for those).
+        `filter[country_code]`/`filter[project_code]`/`filter[craft_code]` scope every section
+        (including `candidate_workload` and `document_review_queue`) to candidates whose
+        current assignment matches; an unrecognized code returns `invalid_query_parameter` and
+        an unsupported filter name returns `unsupported_filter`, matching
+        `GET /api/v1/admin/candidates`'s existing filter contract.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: filter[country_code]
+          in: query
+          schema: { type: string }
+        - name: filter[project_code]
+          in: query
+          schema: { type: string }
+        - name: filter[craft_code]
+          in: query
+          schema: { type: string }
       responses:
         '200':
           description: Admin dashboard summary
@@ -7174,10 +8605,64 @@ paths:
                           count: 1
                         - code: cancelled
                           count: 0
+                      conversion_funnel:
+                        - code: documents_uploaded
+                          count: 96
+                          percentage: 75.0
+                        - code: verified
+                          count: 90
+                          percentage: 70.3
+                        - code: mobilized
+                          count: 15
+                          percentage: 11.7
+                      average_stage_duration_days: 4.2
+                      requires_attention:
+                        - code: rejected_documents
+                          count: 3
+                        - code: failed_payment
+                          count: 1
+                        - code: overdue_qvc
+                          count: 2
+                        - code: callback_required
+                          count: 1
+                      upcoming_activities:
+                        - type: qvc_appointment
+                          occurs_on: '2026-09-10'
+                          candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
+                          reference_number: REF-000123
+                        - type: flight_departure
+                          occurs_on: '2026-09-12'
+                          candidate_assignment_public_id: 1c2d3e4f-5a6b-4c7d-8e9f-1c2d3e4f5a6b
+                          reference_number: REF-000456
+                      recently_updated_candidates:
+                        - candidate_full_name: Ahmed Khan
+                          candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
+                          candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
+                          reference_number: REF-000123
+                          workflow_stage_code: under_verification
+                          last_updated_at: '2026-09-04T09:48:00Z'
+                      kpi_trends:
+                        active_candidates:
+                          - date: '2026-08-22'
+                            count: 3
+                          - date: '2026-09-04'
+                            count: 5
+                        paid_payments:
+                          - date: '2026-08-22'
+                            count: 1
+                          - date: '2026-09-04'
+                            count: 4
+                        mobilized:
+                          - date: '2026-08-22'
+                            count: 0
+                          - date: '2026-09-04'
+                            count: 2
                     meta:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
                       timestamp: '2026-09-04T10:00:01Z'
                     errors: []
+        '400':
+          description: Unknown filter[country_code]/project_code/craft_code value, or an unrecognized filter name
         '401':
           description: Missing, invalid, expired, or revoked staff access token
         '403':
@@ -7187,10 +8672,17 @@ paths:
       summary: MPS dashboard summary (MPS-802)
       description: >-
         Pipeline/status queues, delayed and critical case counts, craft-wise and
-        country/project-wise mobilization summaries, and the mobilization trend. Requires the
-        active `view_mps_dashboard` permission. "Delayed" (>= 7 days in the current stage) and
-        "critical" (>= 14 days) are documented implementation defaults, not a stakeholder-set
-        threshold; `critical` cases are also included in `delayed`.
+        country/project-wise mobilization summaries, the mobilization trend, the conversion
+        funnel (the same data `GET /api/v1/admin/dashboard` returns), and the single most
+        recently mobilized candidate. Requires the active `view_mps_dashboard` permission.
+        "Delayed" (>= 7 days in the current stage) and "critical" (>= 14 days) are documented
+        implementation defaults, not a stakeholder-set threshold; `critical` cases are also
+        included in `delayed`. `latest_mobilization` is `null` when no assignment in scope has
+        reached the mobilized stage yet.
+        `filter[country_code]`/`filter[project_code]`/`filter[craft_code]` scope every section to
+        candidates whose current assignment matches; an unrecognized code returns
+        `invalid_query_parameter` and an unsupported filter name returns `unsupported_filter`,
+        matching `GET /api/v1/admin/candidates`'s existing filter contract.
       security:
         - bearerAuth: []
       parameters:
@@ -7200,6 +8692,15 @@ paths:
           in: query
           description: Bucketing for `mobilization_trend`. Defaults to `monthly`.
           schema: { type: string, enum: [daily, weekly, monthly], default: monthly }
+        - name: filter[country_code]
+          in: query
+          schema: { type: string }
+        - name: filter[project_code]
+          in: query
+          schema: { type: string }
+        - name: filter[craft_code]
+          in: query
+          schema: { type: string }
       responses:
         '200':
           description: MPS dashboard summary
@@ -7242,12 +8743,33 @@ paths:
                       mobilization_trend:
                         - period: '2026-06-01'
                           count: 15
+                      conversion_funnel:
+                        - code: documents_uploaded
+                          count: 96
+                          percentage: 75.0
+                        - code: verified
+                          count: 90
+                          percentage: 70.3
+                        - code: mobilized
+                          count: 15
+                          percentage: 11.7
+                      latest_mobilization:
+                        candidate_full_name: Ahmed Khan
+                        candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
+                        candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
+                        reference_number: REF-000123
+                        country_name: Qatar
+                        project_name: Project One
+                        craft_name: Electrician
+                        mobilized_at: '2026-09-01T09:48:00Z'
                     meta:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
                       timestamp: '2026-09-04T10:00:01Z'
                     errors: []
         '400':
-          description: Unsupported granularity value
+          description: >-
+            Unsupported granularity value, an unknown filter[country_code]/project_code/craft_code
+            value, or an unrecognized filter name
         '401':
           description: Missing, invalid, expired, or revoked staff access token
         '403':

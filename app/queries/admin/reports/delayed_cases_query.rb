@@ -43,27 +43,16 @@ module Admin
       # then has multiple rows matching (candidate_assignment_id,
       # to_workflow_stage_id), and a plain LEFT JOIN on that pair fans out,
       # counting the same assignment once per matching history row. The
-      # LATERAL subquery picks only the single *latest* entry into the
-      # current stage per assignment, so the join (and the distinct count
-      # above, as a second line of defense) can never multiply a candidate.
+      # LATERAL subquery (LatestStageEntryJoin, shared with
+      # RecentlyUpdatedCandidatesQuery) picks only the single *latest* entry
+      # into the current stage per assignment, so the join (and the distinct
+      # count above, as a second line of defense) can never multiply a
+      # candidate.
       def non_terminal_scope
         @non_terminal_scope ||= begin
-          joined = CurrentAssignmentJoin.call(scope: @scope).joins(latest_stage_entry_join_sql)
+          joined = CurrentAssignmentJoin.call(scope: @scope).joins(LatestStageEntryJoin::SQL)
           joined.where.not(current_assignments: { current_workflow_stage_id: terminal_stage_id })
         end
-      end
-
-      def latest_stage_entry_join_sql
-        <<~SQL.squish
-          LEFT JOIN LATERAL (
-            SELECT csh.occurred_at
-            FROM candidate_stage_histories csh
-            WHERE csh.candidate_assignment_id = current_assignments.id
-              AND csh.to_workflow_stage_id = current_assignments.current_workflow_stage_id
-            ORDER BY csh.occurred_at DESC
-            LIMIT 1
-          ) latest_stage_entry ON true
-        SQL
       end
 
       def terminal_stage_id

@@ -14,6 +14,7 @@ module Authentication
 
     def call
       user = User.find_for_authentication(email: @email)
+      return locked_account!(user) if user&.access_locked?
       return failed_login! unless authenticated?(user)
       return inactive_account!(user) unless user.active_staff_account?
 
@@ -47,6 +48,15 @@ module Authentication
     def failed_login!
       log_event('login_failed', identifier: @email)
       raise UnauthorizedError
+    end
+
+    # Checked before `authenticated?` -- an already-locked account should tell the caller it's
+    # locked (distinct from a wrong password), unlike a nonexistent email, which still falls
+    # through to the generic `failed_login!` path so account existence isn't leaked. The reset
+    # window is deliberately not included in the message.
+    def locked_account!(user)
+      log_event('account_locked_login_rejected', user:, identifier: @email)
+      raise AccountLockedError
     end
 
     # `valid_for_authentication?` (not a bare `valid_password?`) is required

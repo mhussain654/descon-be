@@ -15,6 +15,7 @@ ur:
       invalid_query_parameter: "ایک یا زیادہ کوئری پیرامیٹرز درست نہیں ہیں۔"
       unauthorized: "درست اسناد فراہم نہیں کی گئیں۔"
       inactive_account: "یہ اکاؤنٹ غیر فعال ہے۔"
+      account_locked: "بہت زیادہ ناکام لاگ ان کوششوں کی وجہ سے یہ اکاؤنٹ مقفل ہے۔ مدد کے لیے منتظم سے رابطہ کریں۔"
       forbidden: "آپ کو یہ کارروائی کرنے کی اجازت نہیں ہے۔"
       not_found: "ریکارڈ نہیں ملا۔"
       service_unavailable: "سروس عارضی طور پر دستیاب نہیں ہے۔"
@@ -93,6 +94,18 @@ ur:
       payment_signature_invalid: "ادائیگی کے دستخط درست نہیں ہیں۔"
       payment_notification_mismatch: "ادائیگی کی اطلاع محفوظ شدہ ادائیگی سے مطابقت نہیں رکھتی۔"
       payment_notification_conflict: "ادائیگی پہلے ہی مختلف فراہم کنندہ معلومات کے ساتھ حتمی ہو چکی ہے۔"
+      ai_call_provider_unavailable: "وائس کالنگ سروس اس وقت دستیاب نہیں ہے۔"
+      ai_call_provider_request_failed: "وائس کالنگ فراہم کنندہ کی درخواست ناکام ہو گئی۔"
+      ai_call_signature_invalid: "ویب ہک دستخط درست نہیں ہیں۔"
+      ai_call_tool_secret_invalid: "ٹول کی درخواست کی توثیق نہیں ہو سکی۔"
+      ai_call_outbound_disabled: "آؤٹ باؤنڈ AI وائس کالنگ اس وقت غیر فعال ہے۔"
+      ai_call_inbound_disabled: "AI وائس ہیلپ لائن اس وقت غیر فعال ہے۔"
+      ai_call_tool_call_not_allowed: "یہ کال اب امیدوار کی معلومات تلاش کرنے کے لیے استعمال نہیں ہو سکتی۔"
+      ai_call_not_awaiting_review: "یہ کال دستی جائزے کی منتظر نہیں ہے۔"
+      ai_call_trigger_cooldown: "اس امیدوار اور وجہ کے لیے کال حال ہی میں کی جا چکی ہے۔ براہ کرم دوبارہ کوشش کرنے سے پہلے انتظار کریں۔"
+      ai_call_daily_limit_reached: "روزانہ کی آؤٹ باؤنڈ AI کال کی حد مکمل ہو چکی ہے۔"
+      ai_call_admin_rate_limited: "آپ نے حال ہی میں بہت زیادہ AI کالز شروع کی ہیں۔ براہ کرم دوبارہ کوشش کرنے سے پہلے انتظار کریں۔"
+      ai_call_outside_calling_hours: "AI کالز صرف مقررہ کالنگ اوقات کے دوران کی جا سکتی ہیں۔"
       candidate_full_name_required: "امیدوار کا پورا نام درج کریں۔"
       candidate_mobile_number_invalid: "ایک درست موبائل نمبر درج کریں۔"
       candidate_passport_number_invalid: "ایک درست پاسپورٹ نمبر درج کریں۔"
@@ -186,3 +199,61 @@ ur:
       total_pages: "کل صفحات"
       next: "اگلا صفحہ"
       previous: "پچھلا صفحہ"
+    ai_calls:
+      # Per-scenario opening lines only -- the baseline agent prompt is
+      # intentionally English-only (see config/locales/api.en.yml). PLACEHOLDER
+      # TEXT, not client-approved.
+      prompts:
+        missing_documents:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے کال ہے۔ آپ کی درخواست میں کچھ دستاویزات ابھی باقی ہیں
+            -- میں آپ کو بتا سکتا ہوں کہ کیا درکار ہے اور آپ کے سوالات کا جواب دے سکتا ہوں۔"
+        protection_appearance_reminder:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے آپ کی آئندہ پروٹیکشن پیشی کی یاد دہانی کے لیے کال ہے۔"
+        urgent_compliance_action:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے کال ہے، آپ کی درخواست پر فوری کارروائی درکار ہے۔"
+        flight_information:
+          opening_line: "[PLACEHOLDER -- کلائنٹ کی منظوری نہیں] السلام علیکم {{candidate_name}}،
+            یہ ڈسکون مین پاور کی جانب سے آپ کی پرواز کی معلومات کے بارے میں کال ہے۔"
+      # See config/locales/api.en.yml for what these labels are for.
+      labels:
+        payment_blocking_reasons:
+          no_current_assignment: "اس وقت ادائیگی کے لیے کوئی فعال درخواست موجود نہیں ہے۔"
+          payment_already_completed: "اس درخواست کی ادائیگی پہلے ہی مکمل ہو چکی ہے۔"
+          payment_stage_not_reached: "آپ کی درخواست ابھی ادائیگی کے مرحلے تک نہیں پہنچی۔"
+          payment_provider_unavailable: "ادائیگی کا نظام عارضی طور پر دستیاب نہیں ہے۔"
+          expired_pcc: "آپ کا پولیس کریکٹر سرٹیفکیٹ میعاد ختم ہو چکا ہے، ادائیگی سے پہلے اسے دوبارہ جمع کروانا ہوگا۔"
+          required_documents_not_verified: "ادائیگی سے پہلے کچھ ضروری دستاویزات کی تصدیق باقی ہے۔"
+        document_blocking_reasons:
+          missing: "ابھی جمع نہیں کروائی گئی"
+          rejected: "مسترد ہو چکی ہے، دوبارہ جمع کروانی ہوگی"
+          expired: "میعاد ختم ہو چکی ہے، دوبارہ جمع کروانی ہوگی"
+        qvc_statuses:
+          approved: "منظور شدہ"
+          re_medical: "دوبارہ طبی معائنہ درکار ہے"
+          rejected: "مسترد شدہ"
+          scheduled: "طے شدہ، نتیجہ ابھی موصول نہیں ہوا"
+          no_show: "حاضر نہیں ہوئے"
+          not_scheduled: "ابھی طے نہیں ہوئی"
+        visa_outcomes:
+          issued: "جاری کر دیا گیا"
+          rejected: "مسترد کر دیا گیا"
+          pending: "ابھی فیصلہ باقی ہے"
+        visa_rejection_reasons:
+          document_discrepancy: "جمع کروائی گئی دستاویزات میں تضاد پایا گیا"
+          medical_issue: "کارروائی کے دوران طبی مسئلہ سامنے آیا"
+          security_clearance: "سیکیورٹی کلیئرنس کا مسئلہ"
+          embassy_rejection: "سفارت خانے نے درخواست مسترد کر دی"
+          incomplete_application: "درخواست نامکمل تھی"
+          other: "معیاری وجوہات میں شامل نہ ہونے والی وجہ"
+        protection_statuses:
+          not_yet_scheduled: "ابھی طے نہیں ہوئی"
+          appeared_awaiting_outcome: "پروٹیکشن پیشی ہو چکی، نتیجے کا انتظار ہے"
+          protected_awaiting_flight: "پروٹیکشن سے کلیئر، پرواز کی بکنگ کا انتظار ہے"
+          ready_to_fly: "کلیئر اور پرواز کے لیے تیار"
+        flight_statuses:
+          not_yet_available: "ابھی دستیاب نہیں"
+          flight_scheduled: "پرواز طے کر دی گئی ہے"
+          mobilized: "پہلے ہی روانہ ہو چکے ہیں"

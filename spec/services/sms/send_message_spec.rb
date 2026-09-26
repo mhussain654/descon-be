@@ -8,7 +8,7 @@ RSpec.describe Sms::SendMessage do
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('test')
 
-      result = described_class.call(to: '+923001234567', body: 'hello')
+      result = described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 })
       expect(result).to be_a(Sms::DeliveryResult)
       expect(result).to be_success
     end
@@ -23,9 +23,10 @@ RSpec.describe Sms::SendMessage do
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('sendpk')
       allow(ENV).to receive(:[]).with('SENDPK_API_KEY').and_return(nil)
       allow(ENV).to receive(:[]).with('SENDPK_SENDER_ID').and_return(nil)
+      allow(ENV).to receive(:[]).with('OTP_TEMPLATE_ID').and_return(nil)
       allow(Net::HTTP).to receive(:start)
 
-      result = described_class.call(to: '+923001234567', body: 'hello')
+      result = described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 })
 
       expect(result).to be_a(Sms::DeliveryResult)
       expect(result).not_to be_success
@@ -37,7 +38,7 @@ RSpec.describe Sms::SendMessage do
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('unknown_vendor')
 
-      expect { described_class.call(to: '+923001234567', body: 'hello') }
+      expect { described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 }) }
         .to raise_error(Sms::ProviderNotConfiguredError, /unknown_vendor/i)
     end
   end

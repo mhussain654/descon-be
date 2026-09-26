@@ -386,6 +386,106 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     expect(AuditEvent.where(action_code: 'candidate_visa_decision_accessed').count).to eq(1)
   end
 
+  it 'provides short-lived authorized access to the visa copy for both staff and the candidate themselves' do
+    actor = create(:user, role: 'mps')
+    candidate, = candidate_at_qvc_approved
+    token = access_token_for(actor)
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
+         params: {
+           candidate_visa_decision: {
+             outcome_code: 'issued',
+             decision_date: '2026-09-05',
+             visa_copy: fixture_upload('test.pdf', 'application/pdf'),
+             expected_current_stage_code: 'qvc_completed_outcome_received'
+           }
+         },
+         headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'visa-for-shared-access' }
+    decision_id = response.parsed_body.dig('data', 'visa_decision', 'id')
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions/#{decision_id}/visa_copy_access",
+         headers: { 'Authorization' => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    staff_url = response.parsed_body.dig('data', 'url')
+    expect(staff_url).to be_present
+
+    post "/api/v1/candidate/visa_decisions/#{decision_id}/visa_copy_access",
+         headers: { 'Authorization' => "Bearer #{candidate_token_for(candidate)}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers['Cache-Control']).to eq('private, no-store')
+    candidate_url = response.parsed_body.dig('data', 'url')
+    expect(candidate_url).to be_present
+    expect(AuditEvent.where(action_code: 'candidate_visa_decision_accessed').count).to eq(2)
+    expect(AuditEvent.where(action_code: 'candidate_visa_decision_accessed', actor: nil).count).to eq(1)
+  end
+
+  it 'lets the candidate list their own visa decisions but never the visa copy URL directly' do
+    actor = create(:user, role: 'mps')
+    candidate, assignment = candidate_at_qvc_approved
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
+         params: {
+           candidate_visa_decision: {
+             outcome_code: 'issued',
+             decision_date: '2026-09-05',
+             visa_copy: fixture_upload('test.pdf', 'application/pdf'),
+             expected_current_stage_code: 'qvc_completed_outcome_received'
+           }
+         },
+         headers: {
+           'Authorization' => "Bearer #{access_token_for(actor)}",
+           'Idempotency-Key' => 'visa-for-candidate-list'
+         }
+
+    get '/api/v1/candidate/visa_decisions', headers: { 'Authorization' => "Bearer #{candidate_token_for(candidate)}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers['Cache-Control']).to eq('private, no-store')
+    body = response.parsed_body.fetch('data')
+    expect(body.fetch('assignment_id')).to eq(assignment.public_id)
+    decision = body.fetch('visa_decisions').first
+    expect(decision.fetch('outcome_code')).to eq('issued')
+    expect(decision.fetch('visa_copy_attached')).to be(true)
+    expect(decision.keys).not_to include('url', 'recorded_by')
+  end
+
+  it 'returns an empty visa decision list for a candidate with no current assignment' do
+    candidate = create(:candidate, status_code: 'registered')
+
+    get '/api/v1/candidate/visa_decisions', headers: { 'Authorization' => "Bearer #{candidate_token_for(candidate)}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig('data', 'visa_decisions')).to eq([])
+  end
+
+  it "never lets a candidate access another candidate's visa copy" do
+    actor = create(:user, role: 'mps')
+    candidate, = candidate_at_qvc_approved
+    other_candidate, = candidate_at_qvc_approved
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
+         params: {
+           candidate_visa_decision: {
+             outcome_code: 'issued',
+             decision_date: '2026-09-05',
+             visa_copy: fixture_upload('test.pdf', 'application/pdf'),
+             expected_current_stage_code: 'qvc_completed_outcome_received'
+           }
+         },
+         headers: {
+           'Authorization' => "Bearer #{access_token_for(actor)}",
+           'Idempotency-Key' => 'visa-for-cross-candidate'
+         }
+    decision_id = response.parsed_body.dig('data', 'visa_decision', 'id')
+
+    post "/api/v1/candidate/visa_decisions/#{decision_id}/visa_copy_access",
+         headers: { 'Authorization' => "Bearer #{candidate_token_for(other_candidate)}" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it 'rolls back visa decision creation when audit persistence fails' do
     actor = create(:user, role: 'mps')
     candidate, assignment = candidate_at_qvc_approved

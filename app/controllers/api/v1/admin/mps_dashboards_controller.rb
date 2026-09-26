@@ -9,7 +9,8 @@ module Api
         def show
           authorize :mps_dashboard, policy_class: ::Admin::MpsDashboardPolicy
 
-          render_success(data: ::Admin::Dashboards::MpsSummaryService.call(trend_granularity: requested_granularity))
+          render_success(data: ::Admin::Dashboards::MpsSummaryService.call(trend_granularity: requested_granularity,
+                                                                           params:))
         end
 
         private
