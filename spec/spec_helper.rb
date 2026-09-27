@@ -10,6 +10,21 @@ if defined?(SimpleCov)
       minimum_per_file 90
     end
     skip '/spec/'
+
+    # Documented exception (AGENTS.md: "SimpleCov per-file line coverage
+    # should remain at or above 90% unless an explicitly documented
+    # exception is approved" -- approved by the client, 2026-09-27):
+    # lib/dev_data/** and lib/tasks/dev_data.rake are manual QA-only
+    # tooling (`bin/rails dev_data:seed_qa_data`/`dev_data:clear_qa_data`),
+    # invoked by a developer at the command line, never by request-serving
+    # application code and never exercised by the test suite itself. They
+    # carry no authentication, authorization, payment, document or workflow
+    # logic -- the coverage gate this exception is carving out of is meant
+    # to protect that code, not local seed scripts. Do not extend this
+    # pattern to any file under app/ or to any other file under lib/
+    # without the same explicit approval.
+    add_filter 'lib/dev_data/'
+    add_filter 'lib/tasks/dev_data.rake'
   end
 end
 
