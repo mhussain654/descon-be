@@ -68,6 +68,7 @@ module PaymentWorkflowHelpers
   def create_verified_document(assignment:, requirement:)
     create(
       :candidate_document,
+      **compliance_attributes_for(requirement.document_type),
       candidate_assignment: assignment,
       document_type: requirement.document_type,
       status_code: 'verified',
