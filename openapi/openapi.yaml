@@ -885,7 +885,7 @@ components:
           example: PKR
         provider:
           type: string
-          enum: [mock_hosted_checkout, kuickpay]
+          enum: [kuickpay]
         checkout_url:
           anyOf:
             - type: string
@@ -3286,7 +3286,7 @@ paths:
                         status: checkout_pending
                         amount: '1500.0'
                         currency_code: PKR
-                        provider: mock_hosted_checkout
+                        provider: kuickpay
                         checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                         checkout_expires_at: '2026-08-31T09:30:00Z'
                         paid_at: null
@@ -3349,7 +3349,7 @@ paths:
                           status: checkout_pending
                           amount: '1500.0'
                           currency_code: PKR
-                          provider: mock_hosted_checkout
+                          provider: kuickpay
                           checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                           checkout_expires_at: '2026-08-31T09:30:00Z'
                           paid_at: null
@@ -3360,7 +3360,7 @@ paths:
                         status: checkout_pending
                         amount: '1500.0'
                         currency_code: PKR
-                        provider: mock_hosted_checkout
+                        provider: kuickpay
                         checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                         checkout_expires_at: '2026-08-31T09:30:00Z'
                         paid_at: null
@@ -6918,7 +6918,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [mock_hosted_checkout, kuickpay]
+            enum: [kuickpay]
         - name: orderid
           in: query
           required: true
@@ -6990,7 +6990,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [mock_hosted_checkout, kuickpay]
+            enum: [kuickpay]
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       requestBody:
@@ -7229,7 +7229,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [mock_hosted_checkout, kuickpay]
+            enum: [kuickpay]
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       requestBody:
@@ -7265,7 +7265,7 @@ paths:
                         status: cancelled
                         amount: '1500.0'
                         currency_code: PKR
-                        provider: mock_hosted_checkout
+                        provider: kuickpay
                         checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                         checkout_expires_at: '2026-08-31T09:30:00Z'
                         paid_at: null

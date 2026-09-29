@@ -26,7 +26,7 @@ RSpec.describe Admin::Payments::IndexQuery do
 
   it 'filters by status, provider_code, payment_type_code and currency_code' do
     matching = payment_for(status_code: 'paid', paid_at: Time.current, provider_code: 'kuickpay', currency_code: 'PKR')
-    payment_for(status_code: 'checkout_pending', provider_code: 'mock_hosted_checkout')
+    payment_for(status_code: 'checkout_pending', provider_code: 'kuickpay')
 
     result = described_class.new(
       scope: Payment.all,

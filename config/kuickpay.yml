@@ -1,0 +1,38 @@
+# KuickPay hosted-checkout settings. The secret (SecuredKey) comes from
+# config/credentials.yml.enc (kuickpay -> <environment> -> secured_key);
+# everything else is a plain setting read from ENV. Read only through
+# Payments::Configuration.
+#
+# Every ERB value below is rendered via `.to_json`, not interpolated raw --
+# a bare, unquoted YAML scalar is given its own implicit type (e.g. a
+# leading-zero value like "01234" parses as octal 668, not the string
+# "01234", which is exactly what silently broke KUICKPAY_COMPANY_ID here
+# once). `.to_json` always emits a properly quoted, escaped YAML/JSON string
+# (or the bare number for the two real integer defaults), so this file's
+# values only ever come out however the app actually gave them.
+default: &default
+  base_url: <%= ENV.fetch('KUICKPAY_BASE_URL', 'https://sandbox-api.kuickpay.com').to_json %>
+  # What KuickPay's own dashboard/docs may label "Institution ID" -- same
+  # value, used as the Basic Auth username and as `companyid` in every
+  # request. Not secret on its own, but kept alongside secured_key here
+  # rather than split across ENV and credentials for one integration.
+  company_id: <%= ENV.fetch('KUICKPAY_COMPANY_ID', '').to_json %>
+  return_url: <%= ENV.fetch('KUICKPAY_RETURN_URL', '').to_json %>
+  open_timeout: <%= ENV.fetch('KUICKPAY_OPEN_TIMEOUT_SECONDS', 5).to_i %>
+  read_timeout: <%= ENV.fetch('KUICKPAY_READ_TIMEOUT_SECONDS', 10).to_i %>
+
+development:
+  <<: *default
+  secured_key: <%= Rails.application.credentials.dig(:kuickpay, :development, :secured_key).to_json %>
+
+# Fake value: tests never reach KuickPay.
+test:
+  <<: *default
+  secured_key: test-kuickpay-secured-key
+
+# Evaluated only in production: fetch raises a KeyError naming the missing
+# key, whereas the other environments must be able to render this file
+# without production secrets.
+production:
+  <<: *default
+  secured_key: <%= (Rails.env.production? ? Rails.application.credentials.fetch(:kuickpay).fetch(:production).fetch(:secured_key) : '').to_json %>

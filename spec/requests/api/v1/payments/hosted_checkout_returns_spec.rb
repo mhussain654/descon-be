@@ -25,21 +25,8 @@ RSpec.describe 'API V1 Hosted Checkout Returns', type: :request do
     'https://app.example.test/payment/pending'
   end
 
-  def mock_provider
-    Payments::Providers::MockHostedCheckoutAdapter.new(configuration: Payments::Configuration.new)
-  end
-
   def payment_notification_payload(payment:, status:, transaction_id:, response_code: '00', currency: 'PKR')
-    payload = {
-      'orderid' => payment.provider_order_id,
-      'transactionid' => transaction_id,
-      'amount' => payment.amount.to_s,
-      'currency' => currency,
-      'status' => status,
-      'responsecode' => response_code
-    }
-
-    payload.merge('signature' => mock_provider.sign_notification(payload))
+    kuickpay_signed_notification(payment:, status:, transaction_id:, response_code:, currency:)
   end
 
   def create_pending_payment
@@ -54,7 +41,7 @@ RSpec.describe 'API V1 Hosted Checkout Returns', type: :request do
     payment = create_pending_payment
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-RETURN-OK')
 
-    get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+    get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
 
     expect(response).to have_http_status(:found)
     expect(response.headers['Location']).to eq(frontend_url)
@@ -66,7 +53,7 @@ RSpec.describe 'API V1 Hosted Checkout Returns', type: :request do
     payment = create_pending_payment
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-RETURN-POST')
 
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+    post '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
 
     expect(response).to have_http_status(:see_other)
     expect(response.headers['Location']).to eq(frontend_url)
@@ -79,7 +66,7 @@ RSpec.describe 'API V1 Hosted Checkout Returns', type: :request do
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-BAD-SIG')
               .merge('signature' => 'not-a-real-signature')
 
-    get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+    get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
 
     expect(response).to have_http_status(:found)
     expect(response.headers['Location']).to eq(frontend_url)
@@ -92,9 +79,9 @@ RSpec.describe 'API V1 Hosted Checkout Returns', type: :request do
     payment = create_pending_payment
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-MISMATCH')
     payload['amount'] = '9999.00'
-    payload['signature'] = mock_provider.sign_notification(payload.except('signature'))
+    payload['signature'] = kuickpay_notification_signature(payload.except('signature'))
 
-    get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+    get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
 
     expect(response).to have_http_status(:found)
     expect(response.headers['Location']).to eq(frontend_url)
@@ -117,7 +104,7 @@ RSpec.describe 'API V1 Hosted Checkout Returns', type: :request do
     )
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-CONFLICTING')
 
-    get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+    get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
 
     expect(response).to have_http_status(:found)
     expect(response.headers['Location']).to eq(frontend_url)
@@ -141,7 +128,7 @@ RSpec.describe 'API V1 Hosted Checkout Returns', type: :request do
     payment = create_pending_payment
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-NO-FRONTEND-URL')
 
-    get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+    get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
 
     expect(response).to have_http_status(:no_content)
     expect(response.body).to be_empty

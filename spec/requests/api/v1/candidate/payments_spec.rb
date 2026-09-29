@@ -46,23 +46,27 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
       create_all_verified_required_documents(assignment:)
       headers = candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-payment-1')
 
-      post '/api/v1/candidate/payment', headers: headers
+      with_kuickpay_configured do
+        stub_kuickpay_create_session
 
-      expect(response).to have_http_status(:created)
-      first_payment_id = response.parsed_body.dig('data', 'payment', 'id')
-      expect(response.parsed_body.dig('data', 'payment', 'status')).to eq('checkout_pending')
-      expect(response.parsed_body.dig('data', 'payment', 'provider')).to eq('mock_hosted_checkout')
-      expect(response.parsed_body.dig('data', 'payment', 'checkout_url')).to be_present
-      expect(candidate.reload.status_code).to eq('fee_pending')
-      expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
-      expect(Payment.count).to eq(1)
+        post '/api/v1/candidate/payment', headers: headers
 
-      post '/api/v1/candidate/payment', headers: headers
+        expect(response).to have_http_status(:created)
+        first_payment_id = response.parsed_body.dig('data', 'payment', 'id')
+        expect(response.parsed_body.dig('data', 'payment', 'status')).to eq('checkout_pending')
+        expect(response.parsed_body.dig('data', 'payment', 'provider')).to eq('kuickpay')
+        expect(response.parsed_body.dig('data', 'payment', 'checkout_url')).to be_present
+        expect(candidate.reload.status_code).to eq('fee_pending')
+        expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
+        expect(Payment.count).to eq(1)
 
-      expect(response).to have_http_status(:created)
-      expect(response.parsed_body.dig('data', 'payment', 'id')).to eq(first_payment_id)
-      expect(Payment.count).to eq(1)
-      expect(AuditEvent.where(action_code: 'candidate_payment_checkout_initiated').count).to eq(1)
+        post '/api/v1/candidate/payment', headers: headers
+
+        expect(response).to have_http_status(:created)
+        expect(response.parsed_body.dig('data', 'payment', 'id')).to eq(first_payment_id)
+        expect(Payment.count).to eq(1)
+        expect(AuditEvent.where(action_code: 'candidate_payment_checkout_initiated').count).to eq(1)
+      end
     end
 
     it 'rejects checkout initiation when payment eligibility prerequisites are not met' do
@@ -73,14 +77,16 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
         current_workflow_stage: WorkflowStage.find_by!(code: 'verified')
       )
 
-      post '/api/v1/candidate/payment',
-           headers: candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-payment-2')
+      with_kuickpay_configured do
+        post '/api/v1/candidate/payment',
+             headers: candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-payment-2')
 
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('payment_not_eligible')
-      expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons'))
-        .to eq(['required_documents_not_verified'])
-      expect(Payment.count).to eq(0)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body.dig('errors', 0, 'code')).to eq('payment_not_eligible')
+        expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons'))
+          .to eq(['required_documents_not_verified'])
+        expect(Payment.count).to eq(0)
+      end
     end
 
     it 'fails safely when the configured provider is unavailable' do

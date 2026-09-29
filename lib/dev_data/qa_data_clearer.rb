@@ -11,7 +11,7 @@ module DevData
     def call
       raise 'dev_data:clear_qa_data only runs in the development environment.' unless Rails.env.development?
 
-      candidate_ids = Candidate.where('full_name LIKE ?', "#{QaDataSeeder::SEED_TAG}%").pluck(:id)
+      candidate_ids = Candidate.where(created_by_id: qa_user_ids).pluck(:id)
       return 0 if candidate_ids.empty?
 
       assignment_ids = CandidateAssignment.where(candidate_id: candidate_ids).pluck(:id)
@@ -32,7 +32,18 @@ module DevData
       clear_assignment_children!(assignment_ids)
       CandidateAssignment.where(id: assignment_ids).delete_all
       CandidateConsent.where(candidate_id: candidate_ids).delete_all
+      clear_candidate_auth_artifacts!(candidate_ids)
       Candidate.where(id: candidate_ids).delete_all
+    end
+
+    # Not seeded by QaDataSeeder itself, but real usage of a seeded candidate (signing in
+    # through the app to manually exercise a flow -- exactly what this data exists for) creates
+    # these: an OTP challenge per login attempt, a session and refresh token per successful one.
+    def clear_candidate_auth_artifacts!(candidate_ids)
+      session_ids = CandidateSession.where(candidate_id: candidate_ids).pluck(:id)
+      CandidateRefreshToken.where(candidate_session_id: session_ids).delete_all
+      CandidateSession.where(id: session_ids).delete_all
+      CandidateOtpChallenge.where(candidate_id: candidate_ids).delete_all
     end
 
     # A long, strictly-ordered sequence of one-line deletes is the actual point here -- splitting
@@ -101,7 +112,16 @@ module DevData
       WorkflowStageCallScript.where(workflow_stage_code: %w[verified fee_paid mobilized]).update_all(active: false) # rubocop:disable Rails/SkipsModelValidations
     end
 
+    # `delete_all` bypasses `User has_many :sessions, dependent: :destroy` (that callback only
+    # runs for `destroy`), so a qa- user who has actually logged in (real staff sessions,
+    # refresh tokens, authentication events -- not seeded, created by real usage) leaves rows
+    # that block the delete via plain `add_foreign_key "sessions", "users"` (no cascade).
+    # Cleared here in FK order: authentication_events -> refresh_tokens -> sessions -> users.
     def clear_users
+      session_ids = Session.where(user_id: qa_user_ids).pluck(:id)
+      AuthenticationEvent.where(user_id: qa_user_ids).or(AuthenticationEvent.where(session_id: session_ids)).delete_all
+      RefreshToken.where(session_id: session_ids).delete_all
+      Session.where(id: session_ids).delete_all
       User.where(id: qa_user_ids).delete_all
     end
 

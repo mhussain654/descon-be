@@ -33,18 +33,30 @@ RSpec.describe Payments::Providers::KuickpayHostedCheckoutAdapter do
     expect(described_class.new(configuration: missing_return_url).available?).to be(false)
   end
 
-  it 'builds a checkout session from a successful KuickPay response' do
+  it 'builds a checkout session from a successful response (real sandbox shape), carrying the request snapshot' do
     payment = build_stubbed(:payment, public_id: 'payment-public-id', provider_order_id: 'PAY-ORDER-123')
+    captured_request = nil
     response = Net::HTTPOK.new('1.1', '200', 'OK')
+    # Confirmed 2026-09-28 against a real sandbox call -- unlike the guide's
+    # documented example, there is no top-level `success` boolean; the real
+    # indicator is responseData.status/responseCode (see session_created?).
     allow(response).to receive(:body).and_return({
-      success: true,
       responseData: {
+        responseCode: '00',
+        responseDescription: 'Session started successfully',
+        status: 'success',
         sessionID: 'session-1',
         redirectURL: 'https://checkout.example.test/session-1'
       }
     }.to_json)
 
-    allow(Net::HTTP).to receive(:start).and_return(response)
+    allow(Net::HTTP).to receive(:start) do |host, _port, **kwargs, &block|
+      expect(host).to eq('sandbox-api.kuickpay.com')
+      expect(kwargs[:use_ssl]).to be(true)
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request) { |request| captured_request = request }.and_return(response)
+      block.call(http)
+    end
 
     travel_to(Time.zone.parse('2026-08-31T09:00:00Z')) do
       session = adapter.create_checkout_session(payment:, amount: BigDecimal('1500'), currency_code: 'PKR')
@@ -53,13 +65,34 @@ RSpec.describe Payments::Providers::KuickpayHostedCheckoutAdapter do
       expect(session.session_id).to eq('session-1')
       expect(session.checkout_url).to eq('https://checkout.example.test/session-1')
       expect(session.expires_at).to eq(Time.zone.parse('2026-08-31T09:30:00Z'))
+      expect(session.provider_request_timestamp).to eq('2026-08-31T09:00:00Z')
+      expect(session.provider_amount_payable).to eq('1500.00')
+      expect(session.provider_request_signature).to be_present
     end
+
+    expect(captured_request.path).to eq('/checkout/api/session')
+    body = JSON.parse(captured_request.body)
+    expect(body).not_to have_key('currency')
+  end
+
+  it 'builds a checkout session from the guide-documented top-level success:true shape too' do
+    payment = build_stubbed(:payment, provider_order_id: 'PAY-ORDER-123')
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    allow(response).to receive(:body).and_return({
+      success: true,
+      responseData: { sessionID: 'session-2', redirectURL: 'https://checkout.example.test/session-2' }
+    }.to_json)
+    allow(Net::HTTP).to receive(:start).and_return(response)
+
+    session = adapter.create_checkout_session(payment:, amount: BigDecimal('1500'), currency_code: 'PKR')
+
+    expect(session.session_id).to eq('session-2')
   end
 
   it 'fails safely when KuickPay returns a non-success response or invalid json' do
     payment = build_stubbed(:payment, provider_order_id: 'PAY-ORDER-123')
     unsuccessful = Net::HTTPOK.new('1.1', '200', 'OK')
-    allow(unsuccessful).to receive(:body).and_return({ success: false }.to_json)
+    allow(unsuccessful).to receive(:body).and_return({ responseData: { status: 'failed', responseCode: '05' } }.to_json)
 
     allow(Net::HTTP).to receive(:start).and_return(unsuccessful)
     expect do

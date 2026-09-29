@@ -23,8 +23,8 @@ if defined?(SimpleCov)
     # to protect that code, not local seed scripts. Do not extend this
     # pattern to any file under app/ or to any other file under lib/
     # without the same explicit approval.
-    add_filter 'lib/dev_data/'
-    add_filter 'lib/tasks/dev_data.rake'
+    skip 'lib/dev_data/'
+    skip 'lib/tasks/dev_data.rake'
   end
 end
 

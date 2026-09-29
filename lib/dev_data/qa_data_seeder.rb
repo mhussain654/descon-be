@@ -18,7 +18,6 @@ module DevData
   class QaDataSeeder
     include FactoryBot::Syntax::Methods
 
-    SEED_TAG = 'QA Seed'
     PASSWORD = 'Testing@123'
     STAGE_CODES = CandidateFixtureBuilder::STAGE_CODES
     COMMUNICATION_CHANNELS = %w[sms whatsapp email].freeze
@@ -85,7 +84,7 @@ module DevData
 
       @users_by_role = seed_users
       @reference = load_reference_data
-      builder = CandidateFixtureBuilder.new(document_types: active_required_document_types, seed_tag: SEED_TAG)
+      builder = CandidateFixtureBuilder.new(document_types: active_required_document_types)
 
       candidates = PROFILES.each_with_index.map do |profile, index|
         builder.build(profile:, index:, actor: actor_for(index), reference: @reference)
@@ -99,10 +98,17 @@ module DevData
 
     def guard!
       raise 'dev_data:seed_qa_data only runs in the development environment.' unless Rails.env.development?
-      return unless Candidate.exists?(['full_name LIKE ?', "#{SEED_TAG}%"])
+      return unless Candidate.exists?(created_by_id: qa_user_ids)
 
-      raise "QA seed data already present (candidates named '#{SEED_TAG} ...' exist). " \
+      raise 'QA seed data already present (candidates created by a qa-*@descon.local user exist). ' \
             'Clear it first with `bin/rails dev_data:clear_qa_data` before reseeding.'
+    end
+
+    # Any qa-*@descon.local user already in the database, from a previous seed run -- used only
+    # to detect leftover QA data before this run creates its own (see seed_users_for_role, which
+    # re-creates the same accounts fresh either way).
+    def qa_user_ids
+      User.where('email LIKE ?', 'qa-%@descon.local').pluck(:id)
     end
 
     def seed_cross_cutting_data(candidates)

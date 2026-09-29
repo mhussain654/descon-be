@@ -22,7 +22,12 @@ module Payments
       @payment.update!(
         provider_session_id: @session.session_id,
         checkout_url: @session.checkout_url,
-        checkout_expires_at: @session.expires_at
+        checkout_expires_at: @session.expires_at,
+        # nil unless the provider populates these -- see CheckoutSession's
+        # field comment.
+        provider_request_timestamp: @session.provider_request_timestamp,
+        provider_request_signature: @session.provider_request_signature,
+        provider_amount_payable: @session.provider_amount_payable
       )
     end
 

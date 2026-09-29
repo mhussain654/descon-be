@@ -15,21 +15,8 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
     ensure_canonical_workflow_stages!
   end
 
-  def mock_provider
-    Payments::Providers::MockHostedCheckoutAdapter.new(configuration: Payments::Configuration.new)
-  end
-
   def payment_notification_payload(payment:, status:, transaction_id:, response_code: '00', currency: 'PKR')
-    payload = {
-      'orderid' => payment.provider_order_id,
-      'transactionid' => transaction_id,
-      'amount' => payment.amount.to_s,
-      'currency' => currency,
-      'status' => status,
-      'responsecode' => response_code
-    }
-
-    payload.merge('signature' => mock_provider.sign_notification(payload))
+    kuickpay_signed_notification(payment:, status:, transaction_id:, response_code:, currency:)
   end
 
   it 'marks a payment paid exactly once and advances fee_pending to fee_paid for duplicate callbacks and returns' do
@@ -42,12 +29,12 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
       status_code: 'checkout_pending',
       paid_at: nil,
       external_reference: nil,
-      checkout_url: 'https://mock-payments.example.test/checkout?orderid=1',
+      checkout_url: 'https://gateway.kuickpay.com/pay?session=1',
       checkout_expires_at: 30.minutes.from_now
     )
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-SUCCESS-1')
 
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/callback', params: payload
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback', params: payload
 
     expect(response).to have_http_status(:ok)
     expect(payment.reload.status_code).to eq('paid')
@@ -63,7 +50,7 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
     )
     expect(fee_paid_transitions.count).to eq(1)
 
-    get '/api/v1/payments/hosted_checkout/mock_hosted_checkout/return', params: payload
+    get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
 
     expect(response).to redirect_to('https://app.example.test/payment/pending')
     expect(response).to have_http_status(:found)
@@ -84,9 +71,9 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
       external_reference: nil
     )
 
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/callback',
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback',
          params: payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-SUCCESS-2')
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/callback',
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback',
          params: payment_notification_payload(
            payment:,
            status: 'FAILED',
@@ -112,7 +99,7 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
       external_reference: nil
     )
 
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/callback',
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback',
          params: payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-BAD').merge(
            'signature' => 'bad'
          )
@@ -131,9 +118,9 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
     payment = create(:payment, candidate_assignment: assignment, status_code: 'checkout_pending')
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-AMOUNT-1')
     payload['amount'] = '9999.00'
-    payload['signature'] = mock_provider.sign_notification(payload.except('signature'))
+    payload['signature'] = kuickpay_notification_signature(payload.except('signature'))
 
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/callback', params: payload
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback', params: payload
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('payment_notification_mismatch')
@@ -154,7 +141,7 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
       currency: 'USD'
     )
 
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/callback', params: payload
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback', params: payload
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('payment_notification_mismatch')
@@ -177,7 +164,7 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
     )
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-OTHER-1')
 
-    post '/api/v1/payments/hosted_checkout/mock_hosted_checkout/callback', params: payload
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback', params: payload
 
     expect(response).to have_http_status(:conflict)
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('payment_notification_conflict')

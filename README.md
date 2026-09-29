@@ -418,6 +418,57 @@ Production storage note:
 - The production environment no longer falls back to `local` storage for uploads
 - Leaving `ACTIVE_STORAGE_SERVICE` unset in production now fails fast during boot instead of silently storing candidate documents on local disk
 
+## Candidate payment (KuickPay hosted checkout)
+
+`POST /api/v1/candidate/payment` creates a hosted-checkout session and returns
+a `checkout_url` the candidate's browser is redirected to; no card details
+ever reach this app (`Payments::Providers::KuickpayHostedCheckoutAdapter`).
+
+- **Session creation** follows KuickPay's own "KuickPay Merchant Integration
+  Guide" (hosted checkout -- distinct from their BPS biller/bill-inquiry API,
+  which is a different product with a different endpoint shape and is not
+  used here): `POST {KUICKPAY_BASE_URL}/checkout/api/session`, Basic Auth
+  (`KUICKPAY_COMPANY_ID`:`KUICKPAY_SECURED_KEY`), a body of exactly
+  `companyid`/`orderid`/`amount`/`amountPayable`/`timestamp`/
+  `transactiondescription`/`returnurl`/`signature` (no other fields), an ISO
+  8601 `timestamp`, and `signature` = Base64-encoded HMAC-SHA256 of
+  `companyid|orderid|amount|amountPayable|timestamp` using the SecuredKey.
+  The SecuredKey is a secret, so -- like SendPK's API key -- it comes from
+  encrypted credentials (`kuickpay: <environment>: secured_key`, edited with
+  `bin/rails credentials:edit`), not an env var; `config/kuickpay.yml` reads
+  it and everything else (Company ID, base URL, return URL, timeouts) from
+  `ENV`, all through `Payments::Configuration`.
+- The exact `timestamp`/`amountPayable`/`signature` sent are persisted on the
+  `Payment` row (`provider_request_timestamp`/`provider_amount_payable`/
+  `provider_request_signature`) -- KuickPay's Status API requires resending
+  these byte-for-byte identical, not recomputed, to re-verify a payment.
+- **Real sandbox response shape differs from the guide's documented
+  example**, confirmed 2026-09-28 against a live sandbox call: there is no
+  top-level `success: true` boolean at all -- success is
+  `responseData.status == "success"` / `responseData.responseCode == "00"`.
+  `KuickpayHostedCheckoutAdapter#session_created?` checks both that shape and
+  the documented one, in case production ever sends the latter.
+- **`config/kuickpay.yml`/`config/sendpk.yml` render every ENV value through
+  `.to_json`, not raw ERB interpolation.** A bare, unquoted YAML scalar gets
+  its own implicit type -- a leading-zero value like `KUICKPAY_COMPANY_ID=01234`
+  parsed as YAML octal (668, not the string `"01234"`), which silently broke
+  session creation (KuickPay rejected the corrupted company id) until this was
+  caught. Follow the same `.to_json` pattern for any future ENV value added
+  to either file.
+- **Known gap, not yet implemented**: after KuickPay redirects the candidate's
+  browser back to `returnurl`, the guide is explicit that the redirect
+  (`status`/`orderid`/`sessionid` query params, unsigned) is "not proof of
+  payment" -- the server must independently call `POST
+  {KUICKPAY_BASE_URL}/api/status` with the persisted values above to confirm
+  the outcome. The guide documents that request but shows no example
+  response body, so `KuickpayHostedCheckoutAdapter#parse_notification!`
+  cannot yet map a real KuickPay return into a confirmed payment -- get a
+  sample `/api/status` response from KuickPay's Tech team before wiring this
+  up. `HostedCheckoutCallbacksController`'s server-to-server `/callback`
+  webhook predates this guide and is unconfirmed against it (the guide's
+  4-step flow never mentions an async webhook at all); leave it as-is unless
+  KuickPay confirms their merchant portal can be configured to send one.
+
 ## Candidate bank details
 
 Candidate bank-detail capture is isolated from the candidate-document checklist and future payment workflows.

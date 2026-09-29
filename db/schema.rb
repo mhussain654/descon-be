@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_28_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -800,8 +800,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
     t.text "note"
     t.datetime "paid_at"
     t.string "payment_type_code", null: false
+    t.string "provider_amount_payable"
     t.string "provider_code"
     t.string "provider_order_id"
+    t.string "provider_request_signature"
+    t.string "provider_request_timestamp"
     t.string "provider_response_code"
     t.string "provider_session_id"
     t.string "provider_status_code"

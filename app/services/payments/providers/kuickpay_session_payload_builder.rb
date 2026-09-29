@@ -1,7 +1,21 @@
 # frozen_string_literal: true
 
+require 'openssl'
+require 'base64'
+
 module Payments
   module Providers
+    # Builds the POST /checkout/api/session request body per KuickPay's own
+    # "KuickPay Merchant Integration Guide" (hosted checkout, distinct from
+    # their BPS biller-inquiry API): companyid, orderid, amount,
+    # amountPayable, timestamp, transactiondescription, returnurl, signature
+    # -- no other fields are part of the documented contract, so none are
+    # sent (in particular, no `currency` field -- KuickPay never asks for
+    # one here; Payment's own currency_code is tracked internally only).
+    #
+    # `amountPayable` is currently always equal to `amount` -- there is no
+    # documented Descon-side surcharge to add on top of the onboarding fee,
+    # so inventing a different value would not be backed by real data.
     class KuickpaySessionPayloadBuilder
       def initialize(configuration:, payment:, amount:, currency_code:)
         @configuration = configuration
@@ -14,6 +28,20 @@ module Payments
         base_payload.merge(signature:)
       end
 
+      # The exact values sent for orderid/amount/amountPayable/timestamp and
+      # the signature computed from them -- callers must persist this
+      # verbatim (see the migration comment on
+      # payments.provider_request_timestamp) so the KuickPay Status API can
+      # later be called with byte-for-byte identical values, as their guide
+      # requires.
+      def request_snapshot
+        {
+          provider_request_timestamp: timestamp,
+          provider_request_signature: signature,
+          provider_amount_payable: formatted_amount
+        }
+      end
+
       private
 
       def base_payload
@@ -24,11 +52,14 @@ module Payments
           amountPayable: formatted_amount,
           timestamp:,
           transactiondescription: "Descon onboarding fee #{@payment.public_id}",
-          returnurl: @configuration.kuickpay_return_url,
-          currency: @currency_code
+          returnurl: @configuration.kuickpay_return_url
         }
       end
 
+      # KuickPay's guide: "Construct the canonical string:
+      # companyid|orderid|amount|amountPayable|timestamp. Hash it with your
+      # SecuredKey as the HMAC key," with their own JS example rendering the
+      # HMAC as Base64 (CryptoJS.enc.Base64) -- not hex.
       def signature
         data = [
           @configuration.kuickpay_company_id,
@@ -37,11 +68,13 @@ module Payments
           formatted_amount,
           timestamp
         ].join('|')
-        OpenSSL::HMAC.hexdigest('SHA256', @configuration.kuickpay_secured_key, data)
+        Base64.strict_encode64(OpenSSL::HMAC.digest('SHA256', @configuration.kuickpay_secured_key.to_s, data))
       end
 
+      # KuickPay's guide only specifies "ISO 8601 formatted timestamp" --
+      # Time#iso8601 on a UTC time renders e.g. "2026-09-28T15:30:00Z".
       def timestamp
-        @timestamp ||= Time.current.utc.strftime('%Y%m%d%H%M%S')
+        @timestamp ||= Time.current.utc.iso8601
       end
 
       def formatted_amount
