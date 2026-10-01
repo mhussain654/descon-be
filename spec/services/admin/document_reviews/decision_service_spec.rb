@@ -42,6 +42,16 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
   end
 
+  # The globally-required `police_character` document type (see
+  # db/seeds.rb) additionally requires `issued_on` regardless of status --
+  # every requirement this suite iterates over must supply it when it's
+  # that one type.
+  def pcc_attributes_for(document_type)
+    return {} unless document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE
+
+    { issued_on: Time.zone.today }
+  end
+
   # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
   def reviewable_document
     candidate = create(:candidate)
@@ -76,7 +86,8 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
         document_type: requirement.document_type,
         status_code: 'verified',
         verified_by: create(:user),
-        verified_at: Time.current
+        verified_at: Time.current,
+        **pcc_attributes_for(requirement.document_type)
       )
     end
 
@@ -84,7 +95,8 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
       :candidate_document,
       candidate_assignment: assignment,
       document_type: pending_requirement.document_type,
-      status_code: 'under_verification'
+      status_code: 'under_verification',
+      **pcc_attributes_for(pending_requirement.document_type)
     )
     submission = create(:candidate_document_submission, candidate_assignment: assignment)
     create(:candidate_document_submission_item, candidate_document_submission: submission, candidate_document: document)

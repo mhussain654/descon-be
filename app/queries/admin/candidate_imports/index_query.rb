@@ -24,12 +24,22 @@ module Admin
         paginate(apply_sort(apply_filters(@scope)))
       end
 
+      # Zero-filled counts per batch status, scoped by every active filter
+      # except `status` -- same convention as DocumentReviewQueueQuery#summary.
+      def summary
+        counts = scope_without_status.group(:status).count
+        ALLOWED_STATUSES.map { |code| { code:, count: counts.fetch(code, 0) } }
+      end
+
       private
 
+      def scope_without_status
+        filter_values.except('status').reduce(@scope) { |s, (name, value)| apply_filter(s, name:, value:) }
+      end
+
       def apply_filters(scope)
-        values = filter_values
-        @applied_filters = values
-        values.reduce(scope) { |filtered, (name, value)| apply_filter(filtered, name:, value:) }
+        @applied_filters = filter_values
+        @applied_filters.reduce(scope) { |filtered, (name, value)| apply_filter(filtered, name:, value:) }
       end
 
       def filter_values

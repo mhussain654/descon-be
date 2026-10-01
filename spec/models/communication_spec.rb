@@ -5,8 +5,9 @@ require 'rails_helper'
 RSpec.describe Communication, type: :model do
   subject(:communication) { build(:communication) }
 
-  it { is_expected.to belong_to(:candidate_assignment) }
+  it { is_expected.to belong_to(:candidate_assignment).optional }
   it { is_expected.to belong_to(:initiated_by).class_name('User').optional }
+  it { is_expected.to have_one(:candidate_ai_call) }
 
   it 'normalizes channel and locale codes' do
     communication.channel_code = ' SMS '

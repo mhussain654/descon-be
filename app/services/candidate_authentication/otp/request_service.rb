@@ -71,8 +71,7 @@ module CandidateAuthentication
       end
 
       def deliver(candidate:, code:, locale:)
-        body = sms_body(code:, locale:)
-        result = Sms::SendMessage.call(to: candidate.mobile_number, body:)
+        result = send_sms(to: candidate.mobile_number, code:, locale:)
         return if result.success?
 
         Rails.logger.warn(
@@ -91,7 +90,7 @@ module CandidateAuthentication
       # Result and any error are both discarded -- this call exists purely
       # to pay the same latency as #deliver, never to reach a real recipient.
       def deliver_decoy_challenge(code:, locale:)
-        Sms::SendMessage.call(to: DECOY_MOBILE_NUMBER, body: sms_body(code:, locale:))
+        send_sms(to: DECOY_MOBILE_NUMBER, code:, locale:)
       rescue StandardError
         nil
       end
@@ -129,13 +128,22 @@ module CandidateAuthentication
         Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: @cnic)
       end
 
+      def send_sms(to:, code:, locale:)
+        Sms::SendMessage.call(to:, body: sms_body(code:, locale:), variables: sms_variables(code:), locale:)
+      end
+
       def sms_body(code:, locale:)
-        I18n.t(
-          'api.authentication.otp_sms_body',
-          code:,
-          expiry_minutes: (CandidateOtpChallenge::EXPIRY_WINDOW / 1.minute).round,
-          locale:
-        )
+        I18n.t('api.authentication.otp_sms_body', code:, expiry_minutes:, locale:)
+      end
+
+      # Values for the vendor's approved OTP template (variables #code# and
+      # #minutes#). The template text itself is English-only for now.
+      def sms_variables(code:)
+        { code:, minutes: expiry_minutes }
+      end
+
+      def expiry_minutes
+        (CandidateOtpChallenge::EXPIRY_WINDOW / 1.minute).round
       end
     end
   end

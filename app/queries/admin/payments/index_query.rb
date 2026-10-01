@@ -30,7 +30,26 @@ module Admin
         paginate(apply_sort(apply_filters(apply_search(preloaded_scope))))
       end
 
+      # Zero-filled counts per payment status, scoped by every active filter
+      # except `status` -- same convention as DocumentReviewQueueQuery#summary.
+      # Deliberately its own query, not a reuse of Admin::Reports::
+      # PaymentSummaryQuery: that one is candidate-rooted (current-assignment
+      # -only) and doesn't understand this list's own filters
+      # (provider_code/payment_type_code/currency_code/reconciliation_state/
+      # search/date range) or its broader scope (every payment on an
+      # assignment, not just the current one).
+      def summary
+        counts = scope_without_status.group(:status_code).count
+        Payment::STATUS_CODES.map { |code| { code:, count: counts.fetch(code, 0) } }
+      end
+
       private
+
+      def scope_without_status
+        filter_values.except('status').reduce(apply_search(preloaded_scope)) do |s, (name, value)|
+          apply_filter(s, name:, value:)
+        end
+      end
 
       def preloaded_scope
         # eager_load (not joins) so the same LEFT OUTER JOIN this query

@@ -28,7 +28,10 @@ module Api
           )
           candidates = query.call
           data = candidates.map { |candidate| serialized_candidate(candidate) }
-          render_collection(data:, pagination: query.pagination, meta: { applied_filters: query.applied_filters })
+          render_collection(
+            data:, pagination: query.pagination, meta: { applied_filters: query.applied_filters,
+                                                         summary: query.summary }
+          )
         end
 
         # Returns the details of a single candidate identified by public id.

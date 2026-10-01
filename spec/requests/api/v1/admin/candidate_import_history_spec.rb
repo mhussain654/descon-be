@@ -36,6 +36,25 @@ RSpec.describe 'API V1 Admin Candidate Import History', type: :request do
     expect(response.headers['Cache-Control']).to eq('private, no-store')
   end
 
+  it 'includes a zero-filled batch-status summary in meta' do
+    actor = create(:user, role: 'hr', password: 'Password123!')
+    create(:candidate_import_batch, actor:, status: 'completed')
+    create(:candidate_import_batch, actor:, status: 'failed')
+
+    get '/api/v1/admin/candidate_imports', headers: headers_for(actor)
+
+    expect(response.parsed_body.dig('meta', 'summary')).to eq(
+      [
+        { 'code' => 'queued', 'count' => 0 },
+        { 'code' => 'processing', 'count' => 0 },
+        { 'code' => 'completed', 'count' => 1 },
+        { 'code' => 'partial', 'count' => 0 },
+        { 'code' => 'failed', 'count' => 1 },
+        { 'code' => 'invalidated', 'count' => 0 }
+      ]
+    )
+  end
+
   it 'returns a safe detail, localized error export, and no encrypted payload or token data' do
     actor = create(:user, role: 'hr', password: 'Password123!')
     batch = create(:candidate_import_batch, actor:)

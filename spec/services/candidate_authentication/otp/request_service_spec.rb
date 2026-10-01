@@ -88,7 +88,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
 
       expect(Sms::SendMessage).to have_received(:call).with(
-        to: CandidateAuthentication::Otp::RequestService::DECOY_MOBILE_NUMBER, body: anything
+        to: CandidateAuthentication::Otp::RequestService::DECOY_MOBILE_NUMBER, body: anything,
+        variables: hash_including(:code, :minutes), locale: anything
       )
     end
 
@@ -174,6 +175,19 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       allow(Sms::SendMessage).to receive(:call).and_raise(StandardError, 'provider down')
 
       expect { described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1') }.not_to raise_error
+    end
+
+    it 'sends the OTP code and the real expiry minutes as the SMS template variables' do
+      candidate = create(:candidate, mobile_number: '+923001234567')
+      delivered = nil
+      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
+        delivered = kwargs
+        Sms::DeliveryResult.new(success: true, provider_reference: 'ref')
+      end
+
+      described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      expect(delivered.fetch(:variables)).to match(code: match(/\A\d{6}\z/), minutes: 5)
     end
 
     it 'uses the current request locale for a real candidate SMS body' do

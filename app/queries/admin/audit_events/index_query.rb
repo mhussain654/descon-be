@@ -23,7 +23,23 @@ module Admin
         paginate(apply_sort(apply_filters(preloaded_scope)))
       end
 
+      # Top 8 entity types by observed count, descending, scoped by every
+      # active filter except `entity_type` -- NOT zero-filled like the
+      # other summaries in this codebase: `entity_type`/`action_code` are
+      # free-text columns with no canonical enum anywhere (confirmed by
+      # grep), so there is no fixed list to zero-fill against. Mirrors
+      # Admin::Reports::CraftSummaryQuery's "largest N by count" precedent
+      # instead of DocumentReviewQueueQuery's zero-fill convention.
+      def summary
+        scope_without_entity_type.group(:entity_type).order(Arel.sql('count_all DESC')).limit(8).count
+                                 .map { |code, count| { code:, count: } }
+      end
+
       private
+
+      def scope_without_entity_type
+        filters.except('entity_type').reduce(preloaded_scope) { |s, (name, value)| apply_filter(s, name:, value:) }
+      end
 
       def preloaded_scope
         @scope.includes(:actor, :candidate)

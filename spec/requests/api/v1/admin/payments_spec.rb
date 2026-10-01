@@ -77,6 +77,23 @@ RSpec.describe 'API V1 Admin Payments', type: :request do
       expect(response.parsed_body.dig('meta', 'applied_filters')).to eq('status' => 'paid')
     end
 
+    it 'includes a zero-filled payment-status summary in meta' do
+      finance = create(:user, role: 'finance')
+      payment_for(status_code: 'paid')
+      payment_for(status_code: 'failed')
+
+      get '/api/v1/admin/payments', headers: auth_headers(finance)
+
+      expect(response.parsed_body.dig('meta', 'summary')).to eq(
+        [
+          { 'code' => 'checkout_pending', 'count' => 0 },
+          { 'code' => 'paid', 'count' => 1 },
+          { 'code' => 'failed', 'count' => 1 },
+          { 'code' => 'cancelled', 'count' => 0 }
+        ]
+      )
+    end
+
     it 'searches by candidate name' do
       finance = create(:user, role: 'finance')
       match = payment_for(full_name: 'Distinctive Name')

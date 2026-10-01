@@ -16,6 +16,7 @@ en:
       invalid_query_parameter: "One or more query parameters are invalid."
       unauthorized: "Invalid credentials."
       inactive_account: "This account is inactive."
+      account_locked: "This account is locked due to too many failed login attempts. Contact an administrator for help."
       forbidden: "You are not allowed to perform this action."
       not_found: "Record not found."
       service_unavailable: "Service is temporarily unavailable."
@@ -94,6 +95,18 @@ en:
       payment_signature_invalid: "The payment signature is invalid."
       payment_notification_mismatch: "The payment notification does not match the stored payment."
       payment_notification_conflict: "The payment was already finalized with different provider data."
+      ai_call_provider_unavailable: "The voice calling service is not available right now."
+      ai_call_provider_request_failed: "The voice calling provider request failed."
+      ai_call_signature_invalid: "The webhook signature is invalid."
+      ai_call_tool_secret_invalid: "The tool request could not be authenticated."
+      ai_call_outbound_disabled: "Outbound AI voice calling is currently disabled."
+      ai_call_inbound_disabled: "The AI voice helpline is currently disabled."
+      ai_call_tool_call_not_allowed: "This call can no longer be used to look up candidate information."
+      ai_call_not_awaiting_review: "This call is not awaiting manual review."
+      ai_call_trigger_cooldown: "A call for this candidate and reason was already placed recently. Please wait before trying again."
+      ai_call_daily_limit_reached: "The daily outbound AI call limit has been reached."
+      ai_call_admin_rate_limited: "You have triggered too many AI calls recently. Please wait before trying again."
+      ai_call_outside_calling_hours: "AI calls can only be placed during allowed calling hours."
       candidate_full_name_required: "Enter the candidate's full name."
       candidate_mobile_number_invalid: "Enter a valid mobile number."
       candidate_passport_number_invalid: "Enter a valid passport number."
@@ -187,3 +200,105 @@ en:
       total_pages: "Total pages"
       next: "Next page"
       previous: "Previous page"
+    ai_calls:
+      # Baseline ElevenLabs agent prompts (identity, guardrails, tool-use
+      # rules) pushed by `bin/rails ai_calls:agent_config:sync`. This is
+      # internal platform configuration, not a user-facing API response
+      # message, so it is intentionally not duplicated under api.ur.yml.
+      # PLACEHOLDER TEXT -- not client-approved. AiCalls::AgentConfigSync
+      # refuses to sync this into production while it contains the
+      # "[PLACEHOLDER" marker below; replace it with the approved baseline
+      # once legal/client sign-off lands.
+      prompts:
+        outbound:
+          baseline: "[PLACEHOLDER -- NOT CLIENT-APPROVED] You are a Descon Manpower calling
+            assistant placing an outbound call to a job candidate. Identify yourself as an AI
+            assistant at the start of the call. Only discuss the candidate's own application.
+            Never reveal information about other candidates. If the candidate explicitly asks to
+            speak to a human, use the transfer_to_number tool to connect them; if that tool is not
+            available, or transfer fails, tell the candidate you'll arrange a callback and call the
+            create_callback_request tool to actually log that request -- do not just say it without
+            calling the tool."
+        # Per-scenario opening lines for the 4 admin-triggered outbound calls
+        # (AiCalls::Prompts::ScenarioPrompt) -- spoken content, so (unlike the
+        # baseline above) both locales are required. PLACEHOLDER TEXT, same
+        # not-client-approved caveat as the baseline.
+        missing_documents:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling about your application. We noticed some documents are still
+            missing -- I can tell you exactly what's needed and answer any questions you have."
+        protection_appearance_reminder:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling with a reminder about your upcoming protection appearance."
+        urgent_compliance_action:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling about an urgent action needed on your application."
+        flight_information:
+          opening_line: "[PLACEHOLDER -- NOT CLIENT-APPROVED] Hello {{candidate_name}}, this is
+            Descon Manpower calling with your flight information ahead of your travel."
+        inbound:
+          baseline: "[PLACEHOLDER -- NOT CLIENT-APPROVED] You are a Descon Manpower candidate
+            helpline assistant answering an inbound call. Identify yourself as an AI assistant at
+            the start of the call. Do not disclose any candidate-specific information (application
+            status, documents, payments, visa, protection, or flight details) until the caller's
+            identity has been verified through the verify_caller_identity tool. Ask for their
+            application or reference number first, and call verify_caller_identity with it. If the
+            tool responds with additional_verification_required: 'cnic', briefly explain that you
+            could not confirm their identity from the phone number alone, ask them for their CNIC
+            as well, and call the tool again including it. If the tool responds with locked: true,
+            do not reveal why, tell the caller you'll arrange for someone to call them back, and
+            call the create_callback_request tool to actually log that request -- do not just say
+            it without calling the tool. If the caller explicitly asks to speak to a human, use the
+            transfer_to_number tool to connect them; if that tool is not available, or transfer
+            fails, tell the caller you'll arrange a callback and call create_callback_request the
+            same way."
+          # Client-delegated default (2026-09-11: "set it changeable... which looks
+          # best to you") -- not a placeholder needing approval, this wording stands
+          # unless the client later asks to change it. Change it here, not in code.
+          opening_line: "Hello, thank you for calling Descon Manpower. I'm an AI assistant, and
+            I'm here to help with your application. Could you tell me your application or
+            reference number to get started?"
+      # Human-readable labels for internal status/reason codes returned by the
+      # data-retrieval tools (AiCalls::Tools::*). These are spoken back to the
+      # candidate, so the raw snake_case codes the tools also return (kept
+      # alongside these, for the agent's own conditional logic) are never
+      # enough on their own -- only these labels should be read aloud.
+      labels:
+        payment_blocking_reasons:
+          no_current_assignment: "There is no active application on file to process a payment for."
+          payment_already_completed: "The payment for this application has already been completed."
+          payment_stage_not_reached: "Your application hasn't reached the payment step yet."
+          payment_provider_unavailable: "The payment system is temporarily unavailable."
+          expired_pcc: "Your police character certificate has expired and needs to be re-submitted before payment."
+          required_documents_not_verified: "Some required documents still need to be verified before payment."
+        document_blocking_reasons:
+          missing: "not yet submitted"
+          rejected: "rejected, and needs to be re-submitted"
+          expired: "expired, and needs to be re-submitted"
+        qvc_statuses:
+          approved: "approved"
+          re_medical: "requires a repeat medical examination"
+          rejected: "rejected"
+          scheduled: "scheduled, with the outcome not yet recorded"
+          no_show: "marked as a no-show"
+          not_scheduled: "not yet scheduled"
+        visa_outcomes:
+          issued: "issued"
+          rejected: "rejected"
+          pending: "still pending a decision"
+        visa_rejection_reasons:
+          document_discrepancy: "a discrepancy found in the submitted documents"
+          medical_issue: "a medical issue identified during processing"
+          security_clearance: "a security clearance issue"
+          embassy_rejection: "the embassy rejected the application"
+          incomplete_application: "the application was incomplete"
+          other: "a reason outside the standard categories"
+        protection_statuses:
+          not_yet_scheduled: "not yet scheduled"
+          appeared_awaiting_outcome: "appeared for the protectorate visit, awaiting the outcome"
+          protected_awaiting_flight: "cleared by the protectorate, awaiting flight booking"
+          ready_to_fly: "cleared and ready to fly"
+        flight_statuses:
+          not_yet_available: "not yet available"
+          flight_scheduled: "a flight has been scheduled"
+          mobilized: "already mobilized and travelled"

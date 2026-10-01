@@ -26,6 +26,7 @@ class Candidate < ApplicationRecord
   has_many :candidate_sessions, dependent: :destroy
   has_many :candidate_otp_challenges, dependent: :destroy
   has_many :candidate_consents, dependent: :restrict_with_exception
+  has_many :candidate_ai_calls, dependent: :restrict_with_exception
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_cnic
@@ -41,13 +42,9 @@ class Candidate < ApplicationRecord
   validates :public_id, presence: true, uniqueness: true
   validates :full_name, presence: true
   validates :cnic, presence: true, uniqueness: true, format: { with: CNIC_FORMAT }
-  # No DB-level unique index yet -- the existing dev/test data already has a
-  # collision, so adding one needs a data-cleanup migration step that is a
-  # separate, deliberate decision, not something to bundle into this
-  # duplicate-mobile-number validation. Tracked as a known follow-up.
-  # rubocop:disable Rails/UniqueValidationWithoutIndex
+  # Backed by a DB-level unique index (see
+  # db/migrate/20260914090000_add_unique_index_to_candidates_mobile_number.rb).
   validates :mobile_number, presence: true, uniqueness: true, format: { with: MOBILE_NUMBER_FORMAT }
-  # rubocop:enable Rails/UniqueValidationWithoutIndex
   validates :next_of_kin_mobile_number, format: { with: MOBILE_NUMBER_FORMAT }, allow_blank: true
   validates :next_of_kin_cnic, format: { with: CNIC_FORMAT }, allow_blank: true
   validates :passport_number,
@@ -87,11 +84,8 @@ class Candidate < ApplicationRecord
 
   # Strips whitespace and keeps only digits (plus a leading '+' if present) in the mobile number.
   def normalize_mobile_number
-    raw_value = mobile_number.to_s.strip
-    digits = raw_value.gsub(/\D/, '')
-    return if digits.blank?
-
-    self.mobile_number = raw_value.start_with?('+') ? "+#{digits}" : digits
+    normalized = PhoneNumbers::Normalizer.call(mobile_number)
+    self.mobile_number = normalized.presence || mobile_number
   end
 
   # Uppercases the passport number and removes internal whitespace, blanking it out if empty.

@@ -2,6 +2,8 @@
 
 module Admin
   module Candidates
+    # rubocop:disable Metrics/ClassLength -- #summary's addition pushed this over;
+    # same precedent as Admin::Payments::IndexQuery.
     class IndexQuery < ApplicationQuery
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
@@ -24,6 +26,17 @@ module Admin
 
       def call
         paginate(apply_sort(apply_filters(apply_search(preloaded_scope))))
+      end
+
+      # Zero-filled counts per `candidates.status_code`, scoped by every
+      # active filter except `status` (DocumentReviewQueueQuery#summary's
+      # convention). Not Admin::Reports::StatusSummaryQuery -- that INNER
+      # JOINs the same current_assignments alias this scope already LEFT
+      # JOINs (double-join error) and groups by a different column.
+      def summary
+        scope = filters.except('status').reduce(preloaded_scope) { |s, (name, value)| filter_scope(s, name, value) }
+        counts = scope.group(:status_code).count
+        WorkflowStage::CANONICAL_STAGES.map { |stage| { code: stage.fetch(:code), count: counts.fetch(stage.fetch(:code), 0) } }
       end
 
       private
@@ -134,5 +147,6 @@ module Admin
         result
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

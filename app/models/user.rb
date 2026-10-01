@@ -29,6 +29,13 @@ class User < ApplicationRecord
                                dependent: :nullify
   has_many :initiated_communications, class_name: 'Communication', foreign_key: :initiated_by_id,
                                       inverse_of: :initiated_by, dependent: :nullify
+  # :nullify, not :restrict_with_exception -- CandidateAiCall is a mutable
+  # header row, not itself an audit trail (that's CandidateAiCallEvent,
+  # which has its own immutable, separately-attributed `actor` reference).
+  has_many :triggered_ai_calls, class_name: 'CandidateAiCall', foreign_key: :triggered_by_id,
+                                inverse_of: :triggered_by, dependent: :nullify
+  has_many :reviewed_ai_calls, class_name: 'CandidateAiCall', foreign_key: :reviewed_by_id,
+                               inverse_of: :reviewed_by, dependent: :nullify
   # :restrict_with_exception, not :nullify -- both associations are
   # ImmutableRecord (append-only). :nullify is a bulk UPDATE that never
   # instantiates the child records, so it would silently bypass
@@ -36,6 +43,9 @@ class User < ApplicationRecord
   has_many :acted_stage_histories, class_name: 'CandidateStageHistory', foreign_key: :actor_id, inverse_of: :actor,
                                    dependent: :restrict_with_exception
   has_many :audit_events, foreign_key: :actor_id, inverse_of: :actor, dependent: :restrict_with_exception
+  has_many :candidate_ai_call_events, foreign_key: :actor_id, inverse_of: :actor, dependent: :restrict_with_exception
+  has_many :updated_workflow_stage_call_scripts, class_name: 'WorkflowStageCallScript', foreign_key: :updated_by_id,
+                                                 inverse_of: :updated_by, dependent: :nullify
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_email

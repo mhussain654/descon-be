@@ -118,4 +118,30 @@ RSpec.describe Admin::AuditEvents::IndexQuery do
     expect { query(page: { size: 101 }).call }
       .to raise_error(InvalidQueryParameterError) { |error| expect(error.field).to eq('page.size') }
   end
+
+  describe '#summary' do
+    it 'returns observed entity types sorted by count descending, not zero-filled' do
+      2.times { event_for(entity_type: 'CandidateDocument') }
+      event_for(entity_type: 'Payment', action_code: 'payment_corrected')
+
+      expect(query.summary).to eq([{ code: 'CandidateDocument', count: 2 }, { code: 'Payment', count: 1 }])
+    end
+
+    it 'caps the result at the top 8 entity types' do
+      9.times { |n| event_for(entity_type: "Type#{n}", action_code: 'candidate_document_verified') }
+
+      expect(query.summary.size).to eq(8)
+    end
+
+    it 'excludes the entity_type filter itself, scoped by every other active filter' do
+      actor = create(:user)
+      event_for(actor:, entity_type: 'CandidateDocument')
+      event_for(actor:, entity_type: 'Payment', action_code: 'payment_corrected')
+      event_for(entity_type: 'CandidateDocument')
+
+      summary = query(filter: { actor: actor.public_id, entity_type: 'CandidateDocument' }).summary
+
+      expect(summary).to contain_exactly({ code: 'CandidateDocument', count: 1 }, { code: 'Payment', count: 1 })
+    end
+  end
 end

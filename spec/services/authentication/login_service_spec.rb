@@ -78,7 +78,7 @@ RSpec.describe Authentication::LoginService do
       expect(user.reload.access_locked?).to be(true)
     end
 
-    it 'rejects even the correct password once the account is locked' do
+    it 'raises a distinct locked-account error for the correct password once the account is locked' do
       user = create(:user, password: 'Password123!')
       user.lock_access!
 
@@ -90,7 +90,28 @@ RSpec.describe Authentication::LoginService do
           ip_address: '10.0.0.1',
           request_id:
         )
-      end.to raise_error(UnauthorizedError)
+      end.to raise_error(AccountLockedError)
+    end
+
+    it 'records a locked-account event without incrementing failed_attempts further' do
+      user = create(:user, password: 'Password123!')
+      user.lock_access!
+      failed_attempts_before = user.reload.failed_attempts
+
+      expect do
+        described_class.call(
+          email: user.email,
+          password: 'Password123!',
+          user_agent: 'RSpec',
+          ip_address: '10.0.0.1',
+          request_id:
+        )
+      end.to raise_error(AccountLockedError)
+
+      event = AuthenticationEvent.order(:created_at).last
+      expect(event.event_code).to eq('account_locked_login_rejected')
+      expect(event.user).to eq(user)
+      expect(user.reload.failed_attempts).to eq(failed_attempts_before)
     end
 
     it 'sanitizes malformed and oversized user-agent input before persistence' do

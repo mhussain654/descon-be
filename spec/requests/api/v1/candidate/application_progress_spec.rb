@@ -53,9 +53,20 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
         :candidate_document,
         candidate_assignment: assignment,
         document_type: requirement.document_type,
-        status_code: default_status
+        status_code: default_status,
+        **pcc_attributes_for(requirement.document_type)
       )
     end
+  end
+
+  # The globally-required `police_character` document type (see
+  # db/seeds.rb) additionally requires `issued_on` regardless of status --
+  # every helper here that creates one document per resolved requirement
+  # must supply it for that one type.
+  def pcc_attributes_for(document_type)
+    return {} unless document_type.code == pcc_code
+
+    { issued_on: Time.zone.today }
   end
 
   describe 'GET /api/v1/candidate/application_progress' do

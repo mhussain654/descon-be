@@ -66,4 +66,16 @@ RSpec.describe Admin::Reports::TrendQuery do
     expect { described_class.call(granularity: 'yearly') }
       .to raise_error(InvalidQueryParameterError) { |error| expect(error.field).to eq('granularity') }
   end
+
+  it 'scopes to the given candidate scope' do
+    country = create(:country)
+    matching_assignment = create(:candidate_assignment, country:)
+    create(:candidate_stage_history, candidate_assignment: matching_assignment, to_workflow_stage: mobilized_stage,
+                                     occurred_at: Time.zone.parse('2026-06-01 09:00:00'))
+    mobilization_event(occurred_at: Time.zone.parse('2026-06-01 09:00:00'))
+
+    result = described_class.call(granularity: 'daily', scope: Candidate.where(id: matching_assignment.candidate_id))
+
+    expect(result).to eq([{ period: '2026-06-01', count: 1 }])
+  end
 end

@@ -19,3 +19,11 @@ production:
     # "End of day" = the start of the next day, UTC -- stated explicitly since
     # the phrase is otherwise timezone-ambiguous.
     schedule: at midnight every day
+  reconcile_stuck_ai_calls:
+    class: AiCalls::ReconcileStuckCallsJob
+    queue: default
+    schedule: every minute
+  purge_expired_ai_call_transcripts:
+    class: AiCalls::PurgeExpiredTranscriptsJob
+    queue: default
+    schedule: at 1am every day

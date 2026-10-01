@@ -83,6 +83,34 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     }.merge(overrides)
   end
 
+  describe 'GET /api/v1/admin/candidates' do
+    it 'includes a zero-filled per-status summary in meta, scoped by every filter except status' do
+      admin = create(:user, role: 'admin')
+      country = create(:country)
+      matching = create(:candidate, status_code: 'fee_paid')
+      create(:candidate_assignment, candidate: matching, country:)
+      other_country = create(:candidate, status_code: 'fee_paid')
+      create(:candidate_assignment, candidate: other_country)
+
+      get '/api/v1/admin/candidates', params: { filter: { country_code: country.code } },
+                                      headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+
+      expect(response).to have_http_status(:ok)
+      summary = response.parsed_body.dig('meta', 'summary')
+      expect(summary.size).to eq(WorkflowStage::CANONICAL_STAGES.size)
+      expect(summary.find { |row| row['code'] == 'fee_paid' }).to eq('code' => 'fee_paid', 'count' => 1)
+    end
+
+    it 'forbids a staff member without view_candidates/manage_candidates' do
+      finance = create(:user, role: 'finance')
+      strip_permission!('finance', 'view_candidates')
+
+      get '/api/v1/admin/candidates', headers: { 'Authorization' => "Bearer #{access_token_for(finance)}" }
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   describe 'POST /api/v1/admin/candidates' do
     it 'creates a candidate and its initial assignment, auto-advancing to documents_pending' do
       actor = create(:user, role: 'hr')

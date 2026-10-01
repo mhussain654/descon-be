@@ -1,0 +1,78 @@
+# frozen_string_literal: true
+
+require 'rails_helper'
+
+RSpec.describe 'API V1 AI Calls ElevenLabs Conversation Initiation Webhooks', type: :request do
+  around do |example|
+    original_env = ENV.to_h
+    ENV['ELEVENLABS_WEBHOOK_SIGNING_SECRET'] = 'webhook-secret'
+    ENV['AI_VOICE_INBOUND_ENABLED'] = 'true'
+    example.run
+  ensure
+    ENV.replace(original_env)
+  end
+
+  def signed_header(body:, timestamp: Time.current.to_i, secret: 'webhook-secret')
+    signature = OpenSSL::HMAC.hexdigest('SHA256', secret, "#{timestamp}.#{body}")
+    "t=#{timestamp},v0=#{signature}"
+  end
+
+  it 'creates a CandidateAiCall for a validly signed inbound call' do
+    body = { data: { conversation_id: 'conversation-1', caller_id: '+920000000000' } }.to_json
+
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation',
+         params: body,
+         headers: { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => signed_header(body:) }
+
+    expect(response).to have_http_status(:ok)
+    expect(CandidateAiCall.find_by(elevenlabs_conversation_id: 'conversation-1')).to be_present
+  end
+
+  # Regression: ElevenLabs requires the response body to be its own
+  # conversation_initiation_client_data contract, not this app's usual
+  # {data, meta, errors} envelope -- per ElevenLabs' docs, a response in the
+  # wrong shape (or a non-2xx status) prevents the call from ever
+  # connecting, even though the CandidateAiCall row above is created fine.
+  it "responds with ElevenLabs' required conversation_initiation_client_data shape, not the app's standard envelope" do
+    body = { data: { conversation_id: 'conversation-4', caller_id: '+920000000000' } }.to_json
+
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation',
+         params: body,
+         headers: { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => signed_header(body:) }
+
+    expect(response.parsed_body).to eq('type' => 'conversation_initiation_client_data', 'dynamic_variables' => {})
+  end
+
+  it 'rejects a request with an invalid signature' do
+    body = { data: { conversation_id: 'conversation-1', caller_id: '+920000000000' } }.to_json
+
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation',
+         params: body,
+         headers: { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => "t=1,v0=#{'0' * 64}" }
+
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it 'refuses the call and creates no row once AI_VOICE_INBOUND_ENABLED is off' do
+    ENV['AI_VOICE_INBOUND_ENABLED'] = 'false'
+    body = { data: { conversation_id: 'conversation-3', caller_id: '+920000000000' } }.to_json
+
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation',
+         params: body,
+         headers: { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => signed_header(body:) }
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(CandidateAiCall.where(elevenlabs_conversation_id: 'conversation-3')).not_to exist
+  end
+
+  it 'is idempotent across a redelivered webhook' do
+    body = { data: { conversation_id: 'conversation-2', caller_id: '+920000000000' } }.to_json
+    headers = { 'Content-Type' => 'application/json', 'ElevenLabs-Signature' => signed_header(body:) }
+
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation', params: body, headers: headers
+    post '/api/v1/ai_calls/elevenlabs/webhooks/conversation_initiation', params: body, headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(CandidateAiCall.where(elevenlabs_conversation_id: 'conversation-2').count).to eq(1)
+  end
+end
