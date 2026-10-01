@@ -2,6 +2,8 @@
 
 require 'openssl'
 require 'base64'
+require 'uri'
+require 'cgi'
 
 module Payments
   module Providers
@@ -52,8 +54,23 @@ module Payments
           amountPayable: formatted_amount,
           timestamp:,
           transactiondescription: "Descon onboarding fee #{@payment.public_id}",
-          returnurl: @configuration.kuickpay_return_url
+          returnurl: return_url
         }
+      end
+
+      # Confirmed against a real sandbox return (2026-10-01): KuickPay's
+      # actual return redirect carries no query params at all -- not
+      # `orderid`, `status`, nor `sessionid`, despite their guide documenting
+      # all three. So this app cannot rely on anything KuickPay adds to the
+      # return request; it must be able to identify which payment a return
+      # belongs to from the returnurl it itself sent, which is the one part
+      # of this flow fully under our control regardless of what KuickPay
+      # does or doesn't append on top. HostedCheckoutReturnsController reads
+      # this same `orderid` query param back out.
+      def return_url
+        uri = URI.parse(@configuration.kuickpay_return_url)
+        uri.query = [uri.query, "orderid=#{CGI.escape(@payment.provider_order_id)}"].compact.join('&')
+        uri.to_s
       end
 
       # KuickPay's guide: "Construct the canonical string:

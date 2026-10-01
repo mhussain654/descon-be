@@ -560,4 +560,118 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('replacement_not_allowed')
     end
   end
+
+  describe 'POST /api/v1/candidate/documents/:document_id/access' do
+    it "returns a short-lived signed URL for the candidate's own document, defaulting to an inline disposition" do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      document = create(:candidate_document, candidate_assignment: candidate.current_assignment, document_type:)
+
+      post "/api/v1/candidate/documents/#{document.public_id}/access", headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body.dig('data', 'document_id')).to eq(document.public_id)
+      expect(body.dig('data', 'url')).to include('/rails/active_storage/blobs/proxy/')
+      expect(body.dig('data', 'url')).to include('disposition=inline')
+      expect(body.dig('data', 'url')).not_to include('/storage/')
+      expect(Time.iso8601(body.dig('data', 'expires_at'))).to be > Time.current
+    end
+
+    it 'returns an attachment-disposition URL when the candidate requests a download' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      document = create(:candidate_document, candidate_assignment: candidate.current_assignment, document_type:)
+
+      post "/api/v1/candidate/documents/#{document.public_id}/access",
+           params: { disposition: 'attachment' }, headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'url')).to include('disposition=attachment')
+    end
+
+    it 'rejects an unsupported disposition value' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      document = create(:candidate_document, candidate_assignment: candidate.current_assignment, document_type:)
+
+      post "/api/v1/candidate/documents/#{document.public_id}/access",
+           params: { disposition: 'delete' }, headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_query_parameter')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('disposition')
+    end
+
+    it "never lets a candidate reach another candidate's document" do
+      candidate = create(:candidate)
+      create_requirement(candidate:, code: 'passport')
+      other_candidate = create(:candidate)
+      other_type = create_requirement(candidate: other_candidate, code: 'passport')
+      other_document = create(
+        :candidate_document, candidate_assignment: other_candidate.current_assignment, document_type: other_type
+      )
+
+      post "/api/v1/candidate/documents/#{other_document.public_id}/access", headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns 404 for an unknown document id' do
+      candidate = create(:candidate)
+      create_requirement(candidate:, code: 'passport')
+
+      post '/api/v1/candidate/documents/unknown-id/access', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns 404 for a superseded (replaced) document version' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      superseded = create(
+        :candidate_document,
+        candidate_assignment: candidate.current_assignment,
+        document_type:,
+        superseded_at: 1.day.ago
+      )
+
+      post "/api/v1/candidate/documents/#{superseded.public_id}/access", headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns document_attachment_missing when the file is unexpectedly absent' do
+      candidate = create(:candidate)
+      document_type = create_requirement(candidate:, code: 'passport')
+      document = create(:candidate_document, candidate_assignment: candidate.current_assignment, document_type:)
+      document.file.purge
+
+      post "/api/v1/candidate/documents/#{document.public_id}/access", headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('document_attachment_missing')
+    end
+
+    it 'rejects inactive candidates and staff tokens' do
+      inactive_candidate = create(:candidate, active: false)
+      document_type = create_requirement(candidate: inactive_candidate, code: 'passport')
+      document = create(
+        :candidate_document, candidate_assignment: inactive_candidate.current_assignment, document_type:
+      )
+
+      post "/api/v1/candidate/documents/#{document.public_id}/access",
+           headers: { 'Authorization' => "Bearer #{candidate_access_token_for(inactive_candidate)}" }
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('inactive_account')
+
+      ensure_staff_authorization_reference_data!
+      user = create(:user, role: 'admin', password: 'Password123!')
+      post '/api/v1/auth/login', params: { auth: { email: user.email, password: 'Password123!' } }
+
+      post "/api/v1/candidate/documents/#{document.public_id}/access",
+           headers: { 'Authorization' => "Bearer #{response.parsed_body.dig('data', 'access_token')}" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end

@@ -38,11 +38,22 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
 
     # Client-approved, deliberate exception to the usual non-enumerating
     # response -- see CandidateCnicNotFoundError's own doc comment.
-    it 'returns a 404 candidate_cnic_not_found error for an unknown CNIC' do
+    it 'returns a 404 candidate_cnic_not_found error for an unknown CNIC, with the submitted CNIC in the message' do
       request_otp('99999-9999999-9')
 
       expect(response).to have_http_status(:not_found)
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('candidate_cnic_not_found')
+      expect(response.parsed_body.dig('errors', 0, 'message')).to include('99999-9999999-9')
+    end
+
+    # The frontend no longer reconstructs this message from its own (live,
+    # still-changing-as-the-candidate-types) CNIC input state -- the backend
+    # freezes the actual submitted value into the message instead, so the
+    # value shown can never drift to whatever is currently typed.
+    it 'normalizes a dashless CNIC before interpolating it into the not-found message' do
+      request_otp('9999999999999')
+
+      expect(response.parsed_body.dig('errors', 0, 'message')).to include('99999-9999999-9')
     end
 
     it 'returns the identical response shape for a candidate whose mobile is undeliverable' do
@@ -114,8 +125,9 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
            headers: { 'X-Locale' => 'ur' }
 
       expect(response).to have_http_status(:not_found)
-      expect(response.parsed_body.dig('errors', 0,
-                                      'message')).to eq(I18n.t('api.errors.candidate_cnic_not_found', locale: :ur))
+      expect(response.parsed_body.dig('errors', 0, 'message')).to eq(
+        I18n.t('api.errors.candidate_cnic_not_found', cnic: '99999-9999999-9', locale: :ur)
+      )
     end
 
     it 'treats an inactive candidate the same as an unknown CNIC, never delivering an SMS' do

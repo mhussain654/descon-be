@@ -19,6 +19,21 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
     kuickpay_signed_notification(payment:, status:, transaction_id:, response_code:, currency:)
   end
 
+  it 'logs exactly what the callback carried, before any signature verification or processing' do
+    candidate = create(:candidate, status_code: 'fee_pending')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_pending'))
+    create_all_verified_required_documents(assignment:)
+    payment = create(:payment, candidate_assignment: assignment, status_code: 'checkout_pending')
+    payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-LOGGED-1')
+    allow(Rails.logger).to receive(:info).and_call_original
+
+    post '/api/v1/payments/hosted_checkout/kuickpay/callback', params: payload
+
+    expect(Rails.logger).to have_received(:info).with(
+      a_string_matching(/\[Payments\]\[kuickpay\]\[callback\] params=.*TXN-LOGGED-1/)
+    )
+  end
+
   it 'marks a payment paid exactly once and advances fee_pending to fee_paid for duplicate callbacks and returns' do
     candidate = create(:candidate, status_code: 'fee_pending')
     assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_pending'))
@@ -30,7 +45,14 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
       paid_at: nil,
       external_reference: nil,
       checkout_url: 'https://gateway.kuickpay.com/pay?session=1',
-      checkout_expires_at: 30.minutes.from_now
+      checkout_expires_at: 30.minutes.from_now,
+      # As if this payment really went through checkout-session creation --
+      # needed for the later /return call below, which verifies status via
+      # these exact persisted values (see KuickpayStatusCheckPayloadBuilder).
+      provider_session_id: 'session-success-1',
+      provider_amount_payable: '1500.00',
+      provider_request_timestamp: '2026-08-31T09:00:00Z',
+      provider_request_signature: 'persisted-signature=='
     )
     payload = payment_notification_payload(payment:, status: 'SUCCESS', transaction_id: 'TXN-SUCCESS-1')
 
@@ -50,11 +72,22 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
     )
     expect(fee_paid_transitions.count).to eq(1)
 
-    get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
+    # The browser return no longer trusts this payload directly (KuickPay's
+    # guide: it's unsigned, not proof of payment) -- it looks up the payment
+    # by orderid and calls the Status API server-side instead, so that call
+    # needs stubbing here too, same as the dedicated hosted_checkout_returns_spec.rb.
+    with_kuickpay_configured do
+      stub_kuickpay_verify_status(payment_id: 'TXN-SUCCESS-1')
+
+      get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
+    end
 
     expect(response).to redirect_to('https://app.example.test/payment/pending')
     expect(response).to have_http_status(:found)
-    expect(PaymentEvent.count).to eq(1)
+    # +1 over the callback's single event -- the return always records its
+    # own status_checked PaymentEvent (see Payments::VerifyPaymentStatusService),
+    # but safely no-ops the actual payment/workflow state since it's already paid.
+    expect(PaymentEvent.count).to eq(2)
     expect(AuditEvent.where(action_code: 'candidate_payment_paid').count).to eq(1)
     expect(fee_paid_transitions.count).to eq(1)
   end

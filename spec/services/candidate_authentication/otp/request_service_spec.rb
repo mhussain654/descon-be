@@ -97,11 +97,13 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       end
     end
 
-    it "raises the not-found error in the request's current locale" do
+    it "raises the not-found error in the request's current locale, with the submitted CNIC interpolated in" do
       I18n.with_locale(:ur) do
         expect { described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1') }
           .to raise_error(CandidateCnicNotFoundError) { |error|
-                expect(error.message).to eq(I18n.t('api.errors.candidate_cnic_not_found', locale: :ur))
+                expect(error.message).to eq(
+                  I18n.t('api.errors.candidate_cnic_not_found', cnic: '99999-9999999-9', locale: :ur)
+                )
               }
       end
     end

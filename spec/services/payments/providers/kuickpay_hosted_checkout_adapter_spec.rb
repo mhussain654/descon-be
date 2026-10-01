@@ -68,6 +68,15 @@ RSpec.describe Payments::Providers::KuickpayHostedCheckoutAdapter do
       expect(session.provider_request_timestamp).to eq('2026-08-31T09:00:00Z')
       expect(session.provider_amount_payable).to eq('1500.00')
       expect(session.provider_request_signature).to be_present
+      expect(session.raw_response).to eq(
+        'responseData' => {
+          'responseCode' => '00',
+          'responseDescription' => 'Session started successfully',
+          'status' => 'success',
+          'sessionID' => 'session-1',
+          'redirectURL' => 'https://checkout.example.test/session-1'
+        }
+      )
     end
 
     expect(captured_request.path).to eq('/checkout/api/session')
@@ -103,6 +112,84 @@ RSpec.describe Payments::Providers::KuickpayHostedCheckoutAdapter do
     expect do
       adapter.create_checkout_session(payment:, amount: BigDecimal('1500'), currency_code: 'PKR')
     end.to raise_error(PaymentCheckoutUnavailableError)
+  end
+
+  describe '#verify_status' do
+    let(:payment) do
+      build_stubbed(
+        :payment,
+        provider_order_id: 'PAY-ORDER-123',
+        provider_session_id: 'session-123',
+        provider_amount_payable: '1500.00',
+        provider_request_timestamp: '2026-08-31T09:00:00Z',
+        provider_request_signature: 'persisted-signature=='
+      )
+    end
+
+    it 'resends the persisted session-creation values to POST /checkout/api/status, logging the request/response' do
+      captured_request = nil
+      response = Net::HTTPOK.new('1.1', '200', 'OK')
+      allow(response).to receive(:body).and_return({ responseData: { status: 'success', responseCode: '00' } }.to_json)
+      allow(Net::HTTP).to receive(:start) do |host, _port, **kwargs, &block|
+        expect(host).to eq('sandbox-api.kuickpay.com')
+        expect(kwargs[:use_ssl]).to be(true)
+        http = instance_double(Net::HTTP)
+        allow(http).to receive(:request) { |request| captured_request = request }.and_return(response)
+        block.call(http)
+      end
+      allow(Rails.logger).to receive(:info)
+
+      result = adapter.verify_status(payment:)
+
+      expect(captured_request.path).to eq('/checkout/api/status')
+      body = JSON.parse(captured_request.body)
+      expect(body).to eq(
+        'companyid' => 'merchant-1',
+        'orderid' => 'PAY-ORDER-123',
+        'sessionid' => 'session-123',
+        'amount' => '1500.00',
+        'amountPayable' => '1500.00',
+        'timestamp' => '2026-08-31T09:00:00Z',
+        'signature' => 'persisted-signature=='
+      )
+      expect(result.http_status).to eq(200)
+      expect(result.body).to eq({ 'responseData' => { 'status' => 'success', 'responseCode' => '00' } })
+      expect(Rails.logger).to have_received(:info).with(
+        a_string_matching(%r{\[KuickPay\]\[verify_status\] request url=.*/checkout/api/status.*response status=200})
+      )
+    end
+
+    it 'returns the raw response body when it is not valid JSON, without raising' do
+      response = Net::HTTPOK.new('1.1', '200', 'OK')
+      allow(response).to receive(:body).and_return('not-json')
+      allow(Net::HTTP).to receive(:start).and_return(response)
+
+      result = adapter.verify_status(payment:)
+
+      expect(result.body).to eq('not-json')
+    end
+
+    it 'raises when the session-creation snapshot was never persisted for this payment' do
+      incomplete_payment = build_stubbed(:payment, provider_order_id: 'PAY-ORDER-123', provider_request_timestamp: nil)
+
+      expect { adapter.verify_status(payment: incomplete_payment) }.to raise_error(PaymentCheckoutUnavailableError)
+    end
+
+    it 'raises when KuickPay is not configured for requests' do
+      unconfigured = instance_double(Payments::Configuration, kuickpay_enabled?: false)
+
+      expect do
+        described_class.new(configuration: unconfigured).verify_status(payment:)
+      end.to raise_error(PaymentCheckoutUnavailableError)
+    end
+
+    it 'raises on a transport failure, logging a warning' do
+      allow(Net::HTTP).to receive(:start).and_raise(SocketError, 'getaddrinfo failed')
+      allow(Rails.logger).to receive(:warn)
+
+      expect { adapter.verify_status(payment:) }.to raise_error(PaymentCheckoutUnavailableError)
+      expect(Rails.logger).to have_received(:warn).with(a_string_matching(/verify_status request failed/))
+    end
   end
 
   it 'parses a signed notification and rejects an invalid signature' do

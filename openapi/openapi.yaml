@@ -2373,6 +2373,20 @@ components:
         signature:
           type: string
       required: [orderid, amount, status, responsecode, signature]
+    HostedCheckoutReturnRequest:
+      type: object
+      description: >-
+        The browser-return payload (GET query params or POST body) -- unsigned and not
+        proof of payment on its own, per the provider's integration guide. `orderid` is
+        used only to look up which payment to verify server-side; `status`/`sessionid`
+        are informational only.
+      properties:
+        orderid:
+          type: string
+        status:
+          type: string
+        sessionid:
+          type: string
     HostedCheckoutNotificationResult:
       type: object
       properties:
@@ -3963,6 +3977,116 @@ paths:
                     timestamp: '2026-08-28T12:00:00Z'
         '429':
           description: Rate limited
+  /api/v1/candidate/documents/{document_id}/access:
+    post:
+      summary: Generate a short-lived private access path for the candidate's own document
+      description: >-
+        Returns a private Active Storage proxy path for a document the authenticated
+        candidate previously uploaded, so they can view or download it at any time. Scoped
+        to the candidate's own current assignment and current document versions only; a
+        foreign, unrelated, or superseded document id returns `404`. The path is
+        time-limited, does not expose storage keys, and every successful access is audited.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: document_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                disposition:
+                  type: string
+                  enum: [inline, attachment]
+                  default: inline
+                  description: >-
+                    `inline` opens the document for viewing in the browser; `attachment`
+                    prompts the device to download and save it. Defaults to `inline` when
+                    omitted.
+              additionalProperties: false
+            examples:
+              viewRequest:
+                summary: Request a URL to view the document inline (also the default with no body)
+                value:
+                  disposition: inline
+              downloadRequest:
+                summary: Request a URL that prompts a device download
+                value:
+                  disposition: attachment
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      document_id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/police-character-certificate.pdf?disposition=inline
+                      expires_at: '2026-09-15T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '400':
+          description: Unsupported `disposition` value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidDisposition:
+                  value:
+                    errors:
+                      - code: invalid_query_parameter
+                        field: disposition
+                        message: One or more query parameters are invalid.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:00:00Z'
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '404':
+          description: Document not found, not owned by the candidate, or superseded by a newer version
+        '422':
+          description: Document exists but its attachment is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                attachmentMissing:
+                  value:
+                    errors:
+                      - code: document_attachment_missing
+                        message: The requested document file is unavailable.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:00:00Z'
   /api/v1/candidate/application_progress:
     get:
       summary: Fetch the authenticated candidate application progress
@@ -6921,16 +7045,21 @@ paths:
           description: Candidate account inactive
   /api/v1/payments/hosted_checkout/{provider_code}/return:
     get:
-      summary: Process a signed hosted-checkout browser return (GET redirect)
+      summary: Handle a hosted-checkout browser return (GET redirect)
       description: >-
         Handles the candidate's browser being redirected back from the hosted checkout
-        page. Every outcome -- success or any error -- redirects the browser to the
-        frontend's payment-pending page (see the `302`/`303` responses below); this
-        endpoint never renders payment/workflow data or error detail as JSON, since it
-        is an unauthenticated response reachable by anyone who lands on the URL. The
-        candidate's own client polls `GET /api/v1/candidate/payment` separately for the
-        authoritative outcome. Safe duplicate returns are processed without creating
-        duplicate payment or workflow history records.
+        page. Per KuickPay's integration guide this redirect is unsigned and carries no
+        proof of payment on its own, so these query params are never trusted directly:
+        `orderid` (when present) is used only to look up which payment to check, then
+        the backend calls the provider's Verify Status API server-side for the
+        authoritative outcome (see `POST /checkout/api/session`'s sibling Status call --
+        not a separate documented endpoint here, since it's an outbound call this
+        backend makes, not one it receives). Every outcome -- a confirmed status, an
+        unknown orderid, a missing orderid, or any internal error -- redirects the
+        browser to the frontend's payment-pending page and never renders payment/
+        workflow data or error detail as JSON, since this is an unauthenticated
+        response reachable by anyone who lands on the URL. The candidate's own client
+        polls `GET /api/v1/candidate/payment` separately for the authoritative outcome.
       parameters:
         - name: provider_code
           in: path
@@ -6940,36 +7069,20 @@ paths:
             enum: [kuickpay]
         - name: orderid
           in: query
-          required: true
-          schema:
-            type: string
-        - name: transactionid
-          in: query
-          schema:
-            type: string
-        - name: amount
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: currency
-          in: query
+          description: >-
+            The payment's provider_order_id, if the provider includes it. Used only to
+            look up which payment to verify server-side -- never trusted as proof of an
+            outcome by itself.
           schema:
             type: string
         - name: status
           in: query
-          required: true
+          description: Informational only -- not trusted; the authoritative outcome comes from the server-side Verify Status call.
           schema:
             type: string
-            enum: [SUCCESS, FAILED, CANCELLED]
-        - name: responsecode
+        - name: sessionid
           in: query
-          required: true
-          schema:
-            type: string
-        - name: signature
-          in: query
-          required: true
+          description: Informational only -- not currently used by this endpoint.
           schema:
             type: string
         - $ref: '#/components/parameters/XLocaleHeader'
@@ -6977,27 +7090,19 @@ paths:
       responses:
         '302':
           description: >-
-            Signed return processed (or safely replayed) for this success/error outcome.
-            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
-            workflow data is included in this response.
+            Always returned for this outcome (payment found and verified, orderid
+            missing/unknown, or any internal error) -- the browser is redirected to
+            FRONTEND_PAYMENT_RETURN_URL; no payment or workflow data is included.
           headers:
             Location:
               description: The configured FRONTEND_PAYMENT_RETURN_URL.
               schema:
                 type: string
                 format: uri
-        '401':
-          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
-        '404':
-          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
-        '409':
-          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
-        '422':
-          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
-        '503':
-          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
+        '204':
+          description: FRONTEND_PAYMENT_RETURN_URL is not configured -- empty body instead of a redirect, so this never crashes.
     post:
-      summary: Process a signed hosted-checkout browser return (POST redirect)
+      summary: Handle a hosted-checkout browser return (POST redirect)
       description: >-
         Same processing and redirect-only behavior as the GET operation above, for a
         provider that returns the candidate's browser via a POST instead of a query
@@ -7013,36 +7118,28 @@ paths:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       requestBody:
-        required: true
+        required: false
         content:
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+              $ref: '#/components/schemas/HostedCheckoutReturnRequest'
           application/json:
             schema:
-              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+              $ref: '#/components/schemas/HostedCheckoutReturnRequest'
       responses:
         '303':
           description: >-
-            Signed return processed (or safely replayed) for this success/error outcome.
-            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
-            workflow data is included in this response.
+            Always returned for this outcome (payment found and verified, orderid
+            missing/unknown, or any internal error) -- the browser is redirected to
+            FRONTEND_PAYMENT_RETURN_URL; no payment or workflow data is included.
           headers:
             Location:
               description: The configured FRONTEND_PAYMENT_RETURN_URL.
               schema:
                 type: string
                 format: uri
-        '401':
-          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
-        '404':
-          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
-        '409':
-          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
-        '422':
-          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
-        '503':
-          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
+        '204':
+          description: FRONTEND_PAYMENT_RETURN_URL is not configured -- empty body instead of a redirect, so this never crashes.
   /api/v1/ai_calls/elevenlabs/webhooks/post_call:
     post:
       summary: Receive an ElevenLabs post-call webhook delivery

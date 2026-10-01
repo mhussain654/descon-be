@@ -28,14 +28,39 @@ module Api
 
         private
 
+        # KuickPay's guide: the return redirect carries only `status`,
+        # `orderid` and `sessionid` -- unsigned, "do not treat this redirect
+        # as proof of payment on its own." So this never trusts those query
+        # params directly; it only uses `orderid` to find which payment to
+        # verify, then calls the Status API server-side (the guide's 4th
+        # step) for the authoritative outcome. A missing orderid or unknown
+        # payment is a silent no-op here -- the candidate's original tab
+        # keeps polling GET /candidate/payment regardless.
         def process_return
-          ::Payments::NotificationProcessor.call(
-            provider_code: params.expect(:provider_code),
-            event_source: 'return',
-            params: notification_params.to_h,
-            request_id: request.request_id
-          )
+          log_return_received
+          payment = payment_for_return
+          ::Payments::VerifyPaymentStatusService.call(payment:, request_id: request.request_id) if payment
           redirect_to_frontend_pending
+        end
+
+        # Logs exactly what the browser return carried -- method, every
+        # query/body param as received -- unconditionally and before any
+        # processing, so a real sandbox return's exact payload is captured
+        # even if lookup/verification below fails or finds nothing. This is
+        # the definitive answer to "what does your hosted checkout return
+        # redirect send back to us:" grep the log for this line.
+        def log_return_received
+          Rails.logger.info(
+            "[Payments][#{params[:provider_code]}][return] method=#{request.method} " \
+            "params=#{params.to_unsafe_h.except('controller', 'action').to_json}"
+          )
+        end
+
+        def payment_for_return
+          order_id = params[:orderid].to_s.presence
+          return nil if order_id.blank?
+
+          Payment.find_by(provider_code: params.expect(:provider_code), provider_order_id: order_id)
         end
 
         # Mirrors ApplicationController#render_unexpected_error's Pundit-verification safety
@@ -70,11 +95,6 @@ module Api
         # payload on redirect; :found is the standard code for a GET-to-GET redirect.
         def redirect_status
           request.post? ? :see_other : :found
-        end
-
-        # Allowlists the provider notification fields (order/transaction ids, amount, status, signature, etc.).
-        def notification_params
-          params.permit(:orderid, :transactionid, :amount, :currency, :status, :responsecode, :signature)
         end
       end
     end

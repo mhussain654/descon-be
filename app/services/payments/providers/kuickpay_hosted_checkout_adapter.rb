@@ -5,24 +5,61 @@ require 'net/http'
 module Payments
   module Providers
     class KuickpayHostedCheckoutAdapter
-      include Payments::Providers::SignedNotificationSupport
-
       # Per KuickPay's own "KuickPay Merchant Integration Guide" (hosted
       # checkout) -- distinct from their BPS biller-inquiry API, which uses
       # a different base path (/api/v1/BillInquiry, /api/v1/BillPayment)
       # and is not what this adapter integrates with.
       CREATE_SESSION_PATH = '/checkout/api/session'
 
+      # Per the guide's 4-step flow (Create Session -> Redirect -> Handle
+      # Return -> Verify Status) and the adapter's own request-shape
+      # understanding -- KuickPay's guide documents the request shape for
+      # this call but never shows a sample response, so every call through
+      # KuickpayHttpClient logs its full request/response verbatim rather
+      # than assuming a response shape, until a real sandbox call confirms one.
+      #
+      # UNCONFIRMED PATH -- flagged, not silently assumed correct: the
+      # guide's literal text says `/api/status`, but a real sandbox call to
+      # exactly that path (2026-10-01) returned a plain IIS 404 ("File or
+      # directory not found"), not a KuickPay API response -- meaning that
+      # path does not exist on their server. Changed to `/checkout/api/status`
+      # to mirror Create Session's confirmed-correct `/checkout/api/session`
+      # prefix, on the hypothesis both endpoints share it -- this is our own
+      # best guess, not confirmed by KuickPay. If a real call still 404s
+      # here, this is the next thing to ask KuickPay directly: "what is the
+      # exact Status API path?"
+      VERIFY_STATUS_PATH = '/checkout/api/status'
+
       def initialize(configuration:)
         @configuration = configuration
+        @http_client = Payments::Providers::KuickpayHttpClient.new(configuration:)
       end
 
       def create_checkout_session(payment:, amount:, currency_code:, **)
         raise PaymentCheckoutUnavailableError unless configured_for_requests?
 
         builder = payload_builder(payment:, amount:, currency_code:)
-        response_data = perform_create_session_request(builder.call).fetch('responseData')
-        build_checkout_session(response_data:, builder:)
+        body = perform_create_session_request(builder.call)
+        build_checkout_session(response_data: body.fetch('responseData'), raw_response: body, builder:)
+      end
+
+      # Calls KuickPay's Status API with the exact orderid/amount/
+      # amountPayable/timestamp/signature persisted verbatim at session
+      # creation (KuickPay's guide: re-send the identical signed request
+      # values, do not recompute them -- see
+      # payments.provider_request_timestamp's migration comment). Every
+      # request and response is logged in full (see #log_kuickpay_call) so a
+      # real sandbox call's exact payload/response can be captured and
+      # shared with KuickPay while their Status API response shape is still
+      # unconfirmed. Returns the raw StatusCheckResponse -- callers decide
+      # whether/how to interpret `body`, never this adapter.
+      def verify_status(payment:)
+        raise PaymentCheckoutUnavailableError unless configured_for_requests?
+
+        builder = status_check_payload_builder(payment)
+        raise PaymentCheckoutUnavailableError unless builder.snapshot_present?
+
+        perform_verify_status_request(builder.call)
       end
 
       # KNOWN GAP -- flagged, not silently assumed away: KuickPay's own
@@ -36,18 +73,11 @@ module Payments
       # amount/responsecode/signature (the shape `event_source: 'callback'`
       # would need for a real async webhook, if KuickPay's merchant portal
       # can be configured to send one -- unconfirmed), so calling it from a
-      # real 'return' redirect raises a KeyError today rather than
-      # confirming payment. Completing this requires calling
-      # POST /api/status (request shape documented; response shape is NOT
-      # shown anywhere in the guide) with the exact orderid/amount/
-      # amountPayable/timestamp/signature persisted at session creation
-      # (see payments.provider_request_timestamp) and mapping its response
-      # into a Notification -- not implemented pending a real Status API
-      # response sample from KuickPay's Tech team.
+      # real 'return' redirect raises a KeyError -- the return flow calls
+      # #verify_status instead (see Payments::VerifyPaymentStatusService),
+      # never this method, for event_source: 'return'.
       def parse_notification!(event_source:, params:)
-        payload = canonical_notification_payload(params)
-        verify_signature!(provided: params.fetch('signature').to_s, expected: notification_signature(payload))
-        build_notification(event_source:, payload:)
+        webhook_notification_parser.call(event_source:, params:)
       end
 
       def available? = configured_for_requests?
@@ -56,12 +86,13 @@ module Payments
 
       private
 
-      def build_checkout_session(response_data:, builder:)
+      def build_checkout_session(response_data:, raw_response:, builder:)
         Payments::Providers::CheckoutSession.new(
           provider_code: provider_code,
           session_id: response_data.fetch('sessionID'),
           checkout_url: response_data.fetch('redirectURL'),
           expires_at: Time.current + @configuration.checkout_expires_in_minutes.minutes,
+          raw_response:,
           **builder.request_snapshot
         )
       end
@@ -82,20 +113,12 @@ module Payments
           @configuration.kuickpay_return_url.present?
       end
 
-      def canonical_notification_payload(params)
-        {
-          'orderid' => params.fetch('orderid').to_s,
-          'transactionid' => params['transactionid'].to_s.presence,
-          'amount' => params.fetch('amount').to_s,
-          'currency' => params['currency'].to_s.upcase.presence,
-          'status' => params.fetch('status').to_s.upcase,
-          'responsecode' => params.fetch('responsecode').to_s
-        }
+      def webhook_notification_parser
+        Payments::Providers::KuickpayWebhookNotificationParser.new(configuration: @configuration)
       end
 
       def perform_create_session_request(request_payload)
-        uri = URI.join(@configuration.kuickpay_base_url, CREATE_SESSION_PATH)
-        response = http_response_for(uri, build_request(uri, request_payload))
+        response = @http_client.post(path: CREATE_SESSION_PATH, payload: request_payload, step: 'create_session')
         body = JSON.parse(response.body)
         return body if response.is_a?(Net::HTTPSuccess) && session_created?(body)
 
@@ -107,6 +130,27 @@ module Payments
       def reject_session!(detail)
         Rails.logger.warn("KuickPay rejected session creation: #{detail.to_json.truncate(500)}")
         raise PaymentCheckoutUnavailableError
+      end
+
+      def status_check_payload_builder(payment)
+        Payments::Providers::KuickpayStatusCheckPayloadBuilder.new(configuration: @configuration, payment:)
+      end
+
+      def perform_verify_status_request(request_payload)
+        response = @http_client.post(path: VERIFY_STATUS_PATH, payload: request_payload, step: 'verify_status')
+        Payments::Providers::StatusCheckResponse.new(
+          http_status: response.code.to_i,
+          body: parsed_or_raw_body(response.body)
+        )
+      rescue SocketError, SystemCallError, Timeout::Error => e
+        Rails.logger.warn("KuickPay verify_status request failed: #{e.class}: #{e.message}")
+        raise PaymentCheckoutUnavailableError
+      end
+
+      def parsed_or_raw_body(raw_body)
+        JSON.parse(raw_body)
+      rescue JSON::ParserError
+        raw_body
       end
 
       # KuickPay's own guide documents a top-level `success: true` boolean,
@@ -121,35 +165,6 @@ module Payments
         return false unless response_data.is_a?(Hash)
 
         response_data['status'].to_s.casecmp('success').zero? || response_data['responseCode'] == '00'
-      end
-
-      def build_request(uri, request_payload)
-        request = Net::HTTP::Post.new(uri)
-        request.basic_auth(@configuration.kuickpay_company_id, @configuration.kuickpay_secured_key)
-        request.content_type = 'application/json'
-        request.body = request_payload.to_json
-        request
-      end
-
-      def http_response_for(uri, request)
-        Net::HTTP.start(
-          uri.host,
-          uri.port,
-          use_ssl: uri.scheme == 'https',
-          open_timeout: @configuration.kuickpay_open_timeout,
-          read_timeout: @configuration.kuickpay_read_timeout
-        ) { |http| http.request(request) }
-      end
-
-      def notification_signature(payload)
-        data = [
-          payload.fetch('orderid'),
-          payload['transactionid'].to_s,
-          payload.fetch('amount'),
-          payload.fetch('status'),
-          payload.fetch('responsecode')
-        ].join
-        OpenSSL::HMAC.hexdigest('SHA256', @configuration.kuickpay_secured_key.to_s, data)
       end
     end
   end

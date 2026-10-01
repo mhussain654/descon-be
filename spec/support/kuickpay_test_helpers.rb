@@ -51,6 +51,43 @@ module KuickpayTestHelpers
     response
   end
 
+  # Stubs Net::HTTP so a real POST {KUICKPAY_BASE_URL}/checkout/api/status
+  # call returns one of the two response shapes confirmed against the real
+  # sandbox (2026-10-01) -- see Payments::VerifyPaymentStatusService's own
+  # class comment for the full reasoning. `found: true` (the default) is the
+  # only shape VerifyPaymentStatusService currently applies as a payment
+  # outcome, and only when `payment_status: '00'` -- any other
+  # gatewayResponse value is deliberately left unrecognized, since no real
+  # failed-payment response has been observed yet to confirm that shape.
+  # `found: false` is the real "Session not found" response.
+  def stub_kuickpay_verify_status(found: true, payment_status: '00', payment_id: 'TXN-STATUS-1')
+    allow(Net::HTTP).to receive(:start) do |*, &block|
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request).and_return(kuickpay_verify_status_response(found:, payment_status:, payment_id:))
+      block.call(http)
+    end
+  end
+
+  def kuickpay_verify_status_response(found:, payment_status:, payment_id:)
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    body = found ? kuickpay_session_found_body(payment_status:, payment_id:) : kuickpay_session_not_found_body
+    allow(response).to receive(:body).and_return(body.to_json)
+    response
+  end
+
+  def kuickpay_session_found_body(payment_status:, payment_id:)
+    {
+      responseCode: '00',
+      responseDescription: 'Session found',
+      status: true,
+      gatewayResponse: { paymentStatus: payment_status, paymentID: payment_id }
+    }
+  end
+
+  def kuickpay_session_not_found_body
+    { responseCode: '01', responseDescription: 'Session not found', status: 'failure' }
+  end
+
   # Builds a payload signed the same way
   # KuickpayHostedCheckoutAdapter#notification_signature verifies it
   # (orderid+transactionid+amount+status+responsecode, no separator, hex

@@ -60,12 +60,17 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
         expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
         expect(Payment.count).to eq(1)
 
+        session_created_event = PaymentEvent.find_by!(event_type: 'session_created')
+        expect(session_created_event.provider_code).to eq('kuickpay')
+        expect(session_created_event.payload.dig('body', 'responseData', 'sessionID')).to eq('session-1')
+
         post '/api/v1/candidate/payment', headers: headers
 
         expect(response).to have_http_status(:created)
         expect(response.parsed_body.dig('data', 'payment', 'id')).to eq(first_payment_id)
         expect(Payment.count).to eq(1)
         expect(AuditEvent.where(action_code: 'candidate_payment_checkout_initiated').count).to eq(1)
+        expect(PaymentEvent.where(event_type: 'session_created').count).to eq(1)
       end
     end
 

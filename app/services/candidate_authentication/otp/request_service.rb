@@ -83,7 +83,7 @@ module CandidateAuthentication
           lock_cnic!
 
           candidate = Candidate.active.find_by(cnic: @cnic)
-          raise CandidateCnicNotFoundError unless candidate
+          raise CandidateCnicNotFoundError.new(cnic: @cnic) unless candidate
 
           next if within_resend_cooldown?
 
