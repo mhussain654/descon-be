@@ -16,14 +16,12 @@ RSpec.describe Sms::SendMessage do
     it 'routes to the real send.pk provider when SMS_PROVIDER=sendpk, never touching the network without credentials' do
       # Stubbed explicitly rather than relying on these being unset in the
       # ambient environment -- .env is loaded for this test process too, and
-      # a real SENDPK_API_KEY/SENDPK_SENDER_ID may legitimately be present
+      # a real sender id/template id may legitimately be present
       # there once send.pk is actually configured for manual testing.
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:[]).and_call_original
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('sendpk')
-      allow(ENV).to receive(:[]).with('SENDPK_API_KEY').and_return(nil)
-      allow(ENV).to receive(:[]).with('SENDPK_SENDER_ID').and_return(nil)
-      allow(ENV).to receive(:[]).with('OTP_TEMPLATE_ID').and_return(nil)
+      allow(Rails.application).to receive(:config_for).with(:sendpk).and_return({})
       allow(Net::HTTP).to receive(:start)
 
       result = described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 })

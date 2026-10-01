@@ -64,6 +64,14 @@ RSpec.describe Sms::Providers::SendpkProvider do
     expect(captured_request.path).not_to include('ignored')
   end
 
+  it 'reports a distinct error code when send.pk rejects the caller IP' do
+    stub_response('1: API Disabled! Please Whitelist Your IP: 203.0.113.9')
+
+    result = provider.deliver(to: '923001234567', variables: { code: '1', minutes: 5 })
+
+    expect(result.error_code).to eq('ip_not_whitelisted')
+  end
+
   it 'marks Urdu sends as unicode and leaves English sends untyped' do
     types = []
     response = Net::HTTPOK.new('1.1', '200', 'OK')

@@ -77,6 +77,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
 
     status_code = override_attributes.fetch(:status_code, default_status)
     attributes = {
+      **compliance_attributes_for(requirement.document_type),
       candidate_assignment: assignment,
       document_type: requirement.document_type,
       status_code:

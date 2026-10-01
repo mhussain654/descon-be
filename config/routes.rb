@@ -20,6 +20,7 @@ Rails.application.routes.draw do
 
       namespace :candidate do
         namespace :auth do
+          post :refresh, to: 'sessions#refresh'
           namespace :otp do
             post :request, to: 'requests#create'
             post :verify, to: 'verifications#create'

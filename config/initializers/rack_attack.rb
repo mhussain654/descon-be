@@ -69,6 +69,25 @@ module Rack
       request.params.dig('candidate', 'cnic').to_s.gsub(/\D/, '').presence
     end
 
+    throttle(
+      'candidate_refresh/ip',
+      limit: ENV.fetch('CANDIDATE_REFRESH_RATE_LIMIT_PER_MINUTE', 30).to_i,
+      period: 1.minute
+    ) do |request|
+      request.ip if request.post? && request.path == '/api/v1/candidate/auth/refresh'
+    end
+
+    throttle(
+      'candidate_refresh/token',
+      limit: ENV.fetch('AUTH_REFRESH_TOKEN_RATE_LIMIT_PER_MINUTE', 10).to_i,
+      period: 1.minute
+    ) do |request|
+      next unless request.post? && request.path == '/api/v1/candidate/auth/refresh'
+
+      refresh_token = request.params.dig('candidate', 'refresh_token').to_s
+      Digest::SHA256.hexdigest(refresh_token) if refresh_token.present?
+    end
+
     self.throttled_responder = lambda do |request|
       retry_after = (request.env['rack.attack.match_data'] || {})[:period]
       locale = Localization::LocaleResolver.call(

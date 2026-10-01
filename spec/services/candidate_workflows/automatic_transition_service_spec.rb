@@ -19,6 +19,7 @@ RSpec.describe CandidateWorkflows::AutomaticTransitionService do
   def create_required_documents(candidate:, assignment:, status_code:)
     resolved_required_requirements(candidate:, assignment:).each do |requirement|
       attributes = {
+        **compliance_attributes_for(requirement.document_type),
         candidate_assignment: assignment,
         document_type: requirement.document_type,
         status_code:

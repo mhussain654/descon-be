@@ -41,7 +41,11 @@ RSpec.describe Candidates::Documents::RequirementResolver do
     it 'prefers the most specific applicable requirement for the same document type' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      document_type = existing_or_create_document_type('passport')
+      # Not 'passport' -- that code already has a permanent global
+      # requirement from
+      # db/migrate/20260912100000_activate_missing_global_document_requirements.rb,
+      # which would collide with the one this test creates itself.
+      document_type = existing_or_create_document_type('cv')
       global_requirement = create(:document_requirement, document_type:, required: true)
       scoped_requirement = create(:document_requirement, document_type:, country: assignment.country, required: false)
 
