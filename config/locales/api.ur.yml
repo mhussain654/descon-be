@@ -58,6 +58,7 @@ ur:
       already_submitted: "موجودہ دستاویزات پہلے ہی جانچ کے لیے جمع کرائی جا چکی ہیں۔"
       document_submission_not_found: "دستاویز جمع کرانے کا ریکارڈ نہیں ملا۔"
       candidate_document_not_found: "امیدوار کی دستاویز نہیں ملی۔"
+      candidate_cnic_not_found: "ہمیں اس شناختی کارڈ نمبر سے آپ کا ریکارڈ نہیں ملا۔"
       document_not_pending_review: "یہ دستاویز جانچ کے انتظار میں نہیں ہے۔"
       document_already_reviewed: "اس دستاویز کا جائزہ پہلے ہی لیا جا چکا ہے۔"
       rejection_reason_required: "مسترد کرنے کی وجہ درج کریں۔"

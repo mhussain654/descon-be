@@ -16,11 +16,15 @@ class CandidateOtpChallenge < ApplicationRecord
   RESEND_COOLDOWN = ENV.fetch('OTP_RESEND_COOLDOWN_SECONDS', 60).to_i.seconds
   MAX_ATTEMPTS = ENV.fetch('OTP_MAX_ATTEMPTS', 5).to_i
 
-  # Optional: a challenge with no candidate is a decoy, created for a CNIC
-  # that does not resolve to a real candidate (see
-  # CandidateAuthentication::Otp::RequestService) so /verify always has a
-  # real row to evaluate either way, closing the otp_expired/otp_max_attempts
-  # identity-enumeration oracle.
+  # Optional for historical data only: earlier versions of
+  # CandidateAuthentication::Otp::RequestService created a "decoy" challenge
+  # (no candidate) for an unknown CNIC, so /verify always had a real row to
+  # evaluate either way. RequestService now raises CandidateCnicNotFoundError
+  # immediately instead (a client-approved, deliberate disclosure -- see that
+  # error class's own doc comment), so no new row here is ever created
+  # without a candidate; the column stays nullable only so VerifyService
+  # keeps handling any decoy rows a database migrated from before that
+  # change may still contain.
   belongs_to :candidate, optional: true
 
   validates :cnic, presence: true
@@ -44,13 +48,6 @@ class CandidateOtpChallenge < ApplicationRecord
       requested_ip:
     )
     { challenge:, code: }
-  end
-
-  # Creates a decoy challenge for an unknown or inactive CNIC. The generated
-  # code is never deliverable to a real user; it exists only so request and
-  # verify keep the same observable behavior as the real-candidate path.
-  def self.generate_decoy_for(cnic:, requested_ip: nil)
-    generate_for(cnic:, requested_ip:)
   end
 
   # Whether the given plaintext code matches this challenge's bcrypt digest.

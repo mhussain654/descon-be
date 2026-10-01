@@ -26,14 +26,29 @@ module DevData
 
     Profile = Struct.new(
       :stage, :documents, :qvc, :visa, :protection, :flight, :payment, :ai_call, :verification,
+      :consent_accepted,
       keyword_init: true
     )
 
     PROFILES = [
-      Profile.new(stage: 'registered', documents: :none,
+      # `registered` is deliberately never used as a target stage here: every
+      # real candidate is created together with its first assignment
+      # (Admin::Candidates::CreateService / Imports::RowPersister), and both
+      # call CandidateWorkflows::AutomaticTransitionService right after with
+      # event: :assignment_created -- which immediately advances a real
+      # candidate to `documents_pending`. A candidate whose *current* stage
+      # is `registered` is therefore not a state any real candidate is ever
+      # observed in; seeding one here would show a demo candidate stuck in a
+      # workflow/UI state production never produces.
+      Profile.new(stage: 'documents_pending', documents: :none,
                   ai_call: { direction: 'inbound', verification: 'failed' }),
-      Profile.new(stage: 'registered', documents: :none),
       Profile.new(stage: 'documents_pending', documents: :none),
+      # Consent is a gate orthogonal to workflow stage (Api::V1::Candidate::ProtectedController
+      # blocks every candidate endpoint except /consents until the current policy version is
+      # accepted) -- a candidate who hasn't accepted it yet is otherwise a completely ordinary
+      # freshly-created candidate, so this profile is identical to the plain documents_pending
+      # one above except for consent_accepted: false.
+      Profile.new(stage: 'documents_pending', documents: :none, consent_accepted: false),
       Profile.new(stage: 'documents_pending', documents: :partial),
       Profile.new(stage: 'documents_uploaded', documents: :all_uploaded),
       Profile.new(stage: 'documents_uploaded', documents: :one_rejected,
@@ -59,20 +74,31 @@ module DevData
                   ai_call: { direction: 'outbound', call_reason: 'urgent_compliance_action',
                              outcome: 'callback_required', outcome_reason: 'agent_escalation' }),
       Profile.new(stage: 'qvc_completed_outcome_received', documents: :all_verified, payment: :paid, qvc: :no_show),
-      Profile.new(stage: 'visa_issued_or_rejected', qvc: :approved, visa: :issued,
+      # Every profile from here on reaches a stage a real candidate can only reach after
+      # documents were verified and the fee was paid (both are workflow prerequisites of
+      # these later stages) -- `documents: :all_verified, payment: :paid` is carried
+      # forward on all of them so their checklist/payment data matches that reality,
+      # instead of showing 0 documents and no payment for a candidate this far along.
+      Profile.new(stage: 'visa_issued_or_rejected', documents: :all_verified, payment: :paid,
+                  qvc: :approved, visa: :issued,
                   ai_call: { direction: 'inbound', verification: 'verified', outcome: 'answered',
                              outcome_reason: 'resolved', call_reason: 'general_helpline' }),
-      Profile.new(stage: 'visa_issued_or_rejected', qvc: :approved, visa: :rejected,
+      Profile.new(stage: 'visa_issued_or_rejected', documents: :all_verified, payment: :paid,
+                  qvc: :approved, visa: :rejected,
                   ai_call: { direction: 'outbound', call_reason: 'urgent_compliance_action',
                              needs_manual_review: true }),
-      Profile.new(stage: 'appeared_for_protection', visa: :issued, protection: :appeared_only,
+      Profile.new(stage: 'appeared_for_protection', documents: :all_verified, payment: :paid,
+                  visa: :issued, protection: :appeared_only,
                   ai_call: { direction: 'outbound', call_reason: 'protection_appearance_reminder',
                              outcome: 'answered', outcome_reason: 'resolved' }),
-      Profile.new(stage: 'protected_ready_to_fly', visa: :issued, protection: :ready_to_fly),
-      Profile.new(stage: 'flight_details_uploaded', protection: :ready_to_fly, flight: :scheduled,
+      Profile.new(stage: 'protected_ready_to_fly', documents: :all_verified, payment: :paid,
+                  visa: :issued, protection: :ready_to_fly),
+      Profile.new(stage: 'flight_details_uploaded', documents: :all_verified, payment: :paid,
+                  protection: :ready_to_fly, flight: :scheduled,
                   ai_call: { direction: 'outbound', call_reason: 'flight_information', outcome: 'answered',
                              outcome_reason: 'resolved' }),
-      Profile.new(stage: 'mobilized', protection: :ready_to_fly, flight: :mobilized,
+      Profile.new(stage: 'mobilized', documents: :all_verified, payment: :paid,
+                  protection: :ready_to_fly, flight: :mobilized,
                   ai_call: { direction: 'outbound', call_reason: 'workflow_stage_notification',
                              needs_manual_review: true, resolve: true })
     ].freeze

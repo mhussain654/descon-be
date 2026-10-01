@@ -59,6 +59,7 @@ en:
       already_submitted: "The current documents have already been submitted for review."
       document_submission_not_found: "Document submission not found."
       candidate_document_not_found: "Candidate document not found."
+      candidate_cnic_not_found: "We couldn't find your record with this CNIC."
       document_not_pending_review: "This document is not pending review."
       document_already_reviewed: "This document has already been reviewed."
       rejection_reason_required: "Enter a rejection reason."

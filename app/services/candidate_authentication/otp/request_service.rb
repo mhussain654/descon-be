@@ -2,29 +2,23 @@
 
 module CandidateAuthentication
   module Otp
-    # Always returns the same generic result shape regardless of whether the
-    # CNIC resolves to a real candidate -- callers must not be able to tell
-    # unknown-CNIC, missing/invalid mobile, and success apart (ticket:
-    # "Responses do not reveal whether a CNIC exists or whether its stored
-    # mobile is missing/invalid"). A real candidate's mobile is always
-    # present (a NOT NULL, format-checked column -- see Candidate); what
-    # this class treats as "invalid mobile" is an SMS-provider-level
-    # delivery failure for an otherwise well-formed number, which never
-    # changes the response either.
+    # Client-approved, deliberate exception to the usual "never disclose
+    # whether an identifier exists" rule: a CNIC that matches no active
+    # candidate raises CandidateCnicNotFoundError (404) immediately, rather
+    # than the generic, non-enumerating response this endpoint used to
+    # return for every CNIC alike. See CandidateCnicNotFoundError's own doc
+    # comment and AGENTS.md's "Security requirements" section for why --
+    # this app is reachable only by the client's own already-registered
+    # candidates, not the public, and the client asked for this specifically
+    # so a candidate who mistyped their own CNIC can tell.
     #
-    # An unknown CNIC also gets a decoy challenge row and a decoy call
-    # through the SMS adapter (see #deliver_decoy_challenge) -- both at the
-    # same cost as a real candidate's path -- so neither this endpoint's
-    # response body nor its latency can be used to distinguish a known CNIC
-    # from an unknown one.
+    # A real candidate's mobile is always present (a NOT NULL, format-checked
+    # column -- see Candidate); what this class treats as "invalid mobile" is
+    # an SMS-provider-level delivery failure for an otherwise well-formed
+    # number, which never changes the response (delivery failures are still
+    # never disclosed -- only non-existence is, per the client's decision).
     class RequestService < ApplicationService
       LOCK_SCOPE = 'candidate_otp'
-
-      # A well-formed-looking, never-real number used only so a decoy
-      # delivery attempt exercises the same SMS-adapter code path, at the
-      # same cost, as a real candidate's delivery. Mirrors VerifyService's
-      # DUMMY_DIGEST, which gives the same guarantee to /verify.
-      DECOY_MOBILE_NUMBER = '+920000000001'
 
       def initialize(cnic:, ip_address:)
         @cnic = Candidates::CnicNormalizer.call(cnic)
@@ -48,17 +42,12 @@ module CandidateAuthentication
         @cnic.match?(Candidate::CNIC_FORMAT)
       end
 
-      # Always creates a real or decoy challenge row and always calls through
-      # the SMS adapter, for a real candidate or a decoy alike, so an unknown
-      # CNIC is handled by the identical code path as a real one (see
-      # CandidateOtpChallenge#belongs_to :candidate, optional: true). This is
-      # what lets VerifyService return otp_expired/otp_max_attempts
-      # symmetrically for both, instead of only ever for a real candidate.
       def request_verification_challenge
         challenge_payload = build_verification_challenge_payload
         return unless challenge_payload
 
-        deliver_real_or_decoy_challenge(challenge_payload)
+        deliver(candidate: challenge_payload.fetch(:candidate), code: challenge_payload.fetch(:code),
+                locale: I18n.locale.to_s)
       end
 
       def within_resend_cooldown?
@@ -87,41 +76,22 @@ module CandidateAuthentication
         )
       end
 
-      # Result and any error are both discarded -- this call exists purely
-      # to pay the same latency as #deliver, never to reach a real recipient.
-      def deliver_decoy_challenge(code:, locale:)
-        send_sms(to: DECOY_MOBILE_NUMBER, code:, locale:)
-      rescue StandardError
-        nil
-      end
-
       def build_verification_challenge_payload
         challenge_payload = nil
 
         ActiveRecord::Base.transaction do
           lock_cnic!
-          next if within_resend_cooldown?
 
           candidate = Candidate.active.find_by(cnic: @cnic)
-          challenge_payload = candidate_challenge_payload(candidate)
+          raise CandidateCnicNotFoundError unless candidate
+
+          next if within_resend_cooldown?
+
+          challenge_payload = CandidateOtpChallenge.generate_for(candidate:, requested_ip: @ip_address)
           challenge_payload[:candidate] = candidate
         end
 
         challenge_payload
-      end
-
-      def candidate_challenge_payload(candidate)
-        return CandidateOtpChallenge.generate_for(candidate:, requested_ip: @ip_address) if candidate
-
-        CandidateOtpChallenge.generate_decoy_for(cnic: @cnic, requested_ip: @ip_address)
-      end
-
-      def deliver_real_or_decoy_challenge(challenge_payload)
-        candidate = challenge_payload.fetch(:candidate)
-        code = challenge_payload.fetch(:code)
-        locale = I18n.locale.to_s
-
-        candidate ? deliver(candidate:, code:, locale:) : deliver_decoy_challenge(code:, locale:)
       end
 
       def lock_cnic!

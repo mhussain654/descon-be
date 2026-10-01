@@ -118,7 +118,21 @@ are required parts of every change, not optional follow-up work.
 - Prevent insecure direct object references.
 - Use strong parameter allowlists.
 - Normalize and validate CNIC and phone input at the boundary.
-- Never reveal whether a CNIC or phone number exists through OTP responses.
+- Never reveal whether a CNIC or phone number exists through OTP responses,
+  with one narrow, client-approved exception: `POST /api/v1/candidate/auth/otp/request`
+  returns an explicit `candidate_cnic_not_found` (404) for a CNIC that
+  matches no active candidate, instead of the generic non-enumerating
+  response every other identifier check in this app still uses. The client
+  asked for this specifically -- this app is reachable only by the client's
+  own already-registered candidates, not the public, and many are
+  first-time smartphone users who mistype a digit of their own CNIC, so a
+  clear "we don't have this CNIC on file" beats a silent retry loop with no
+  way to tell a typo from a real problem. See `CandidateCnicNotFoundError`'s
+  own doc comment and `descon-be/README.md`'s "Security: CNIC existence is
+  intentionally disclosed" section for the full reasoning. Do not extend
+  this exception to any other endpoint or identifier (phone number, OTP
+  verification, staff auth, etc.) without the same explicit product
+  decision -- it is not a general license to disclose existence elsewhere.
 - Rate-limit authentication, OTP, password, upload, search and sensitive
   endpoints as appropriate.
 - OTP values must be random, short-lived, single-use and stored as a digest.

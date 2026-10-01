@@ -60,8 +60,9 @@ module DevData
       end
     end
 
-    def build_candidate(_profile, index, actor)
-      create(:candidate, full_name: CANDIDATE_NAMES.fetch(index), created_by: actor)
+    def build_candidate(profile, index, actor)
+      create(:candidate, full_name: CANDIDATE_NAMES.fetch(index), created_by: actor,
+                         skip_consent: profile.consent_accepted == false)
     end
 
     def build_assignment(candidate, actor, reference)
@@ -206,8 +207,18 @@ module DevData
     end
 
     def build_visa_issued!(assignment, actor, history)
-      create(:candidate_visa_decision, candidate_assignment: assignment, candidate_stage_history: history,
-                                       recorded_by: actor, outcome_code: 'issued', decision_date: 1.day.ago.to_date)
+      decision = create(:candidate_visa_decision, candidate_assignment: assignment, candidate_stage_history: history,
+                                                  recorded_by: actor, outcome_code: 'issued',
+                                                  decision_date: 1.day.ago.to_date)
+      # Without a real attached file, the candidate app's visa-copy download action has
+      # nothing to serve -- an issued-visa demo candidate would show "Verified"/"Issued"
+      # everywhere but the actual download button/link would never appear.
+      decision.visa_copy.attach(
+        io: Rails.root.join('spec/fixtures/files/test.pdf').open,
+        filename: 'visa_copy.pdf',
+        content_type: 'application/pdf'
+      )
+      decision
     end
 
     def build_visa_rejected!(assignment, actor, history)

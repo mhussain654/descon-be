@@ -21,8 +21,13 @@ RSpec.describe CandidateOtpChallenge, type: :model do
       expect(result.fetch(:challenge).cnic).to eq(candidate.cnic)
     end
 
-    it 'creates a decoy challenge with no candidate for a CNIC that does not resolve to one' do
-      result = described_class.generate_decoy_for(cnic: '99999-9999999-9')
+    # `candidate` stays optional at the model level purely for compatibility
+    # with any candidate-less "decoy" row a database migrated from before
+    # CandidateAuthentication::Otp::RequestService started raising
+    # CandidateCnicNotFoundError may still contain -- RequestService itself
+    # never creates a new row this way anymore.
+    it 'allows creating a challenge with no candidate, for historical decoy-row compatibility' do
+      result = described_class.generate_for(cnic: '99999-9999999-9')
 
       expect(result.fetch(:challenge)).to be_persisted
       expect(result.fetch(:challenge).candidate).to be_nil

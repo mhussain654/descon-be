@@ -2876,7 +2876,7 @@ paths:
   /api/v1/candidate/auth/otp/request:
     post:
       summary: Request a candidate OTP challenge
-      description: Always returns the same generic response, whether the CNIC is unknown, resolves to a candidate whose mobile is currently undeliverable, or resolves to a candidate a code was actually sent to -- the response never reveals which case occurred. Rate-limited per IP and per (normalized) CNIC.
+      description: Returns a 404 `candidate_cnic_not_found` for a CNIC that matches no active candidate -- a deliberate, client-approved disclosure (this app is reachable only by the client's own already-registered candidates, not the public). A resolvable CNIC always returns the identical generic success response, whether its mobile is currently undeliverable or a code was actually sent -- delivery failures alone stay undisclosed. Rate-limited per IP and per (normalized) CNIC.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
@@ -2937,6 +2937,25 @@ paths:
                       - code: validation_failed
                         field: cnic
                         message: Enter a valid CNIC in the format 00000-0000000-0.
+                    request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
+                    timestamp: '2026-08-23T09:00:08Z'
+        '404':
+          description: No active candidate matches this CNIC -- a deliberate, client-approved disclosure (see this operation's own description)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                cnicNotFound:
+                  value:
+                    errors:
+                      - code: candidate_cnic_not_found
+                        message: We couldn't find your record with this CNIC.
                     request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                     timestamp: '2026-08-23T09:00:08Z'
         '429':
