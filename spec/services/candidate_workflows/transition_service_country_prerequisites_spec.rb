@@ -110,9 +110,11 @@ RSpec.describe CandidateWorkflows::TransitionService do
     candidate, assignment = candidate_at('fee_paid')
     Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required).each do |requirement|
       create(
-        :candidate_document, candidate_assignment: assignment, document_type: requirement.document_type,
-                             status_code: 'verified', verified_by: actor, verified_at: Time.current,
-                             issued_on: requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE ? Date.current : nil
+        :candidate_document,
+        candidate_assignment: assignment,
+        document_type: requirement.document_type,
+        status_code: 'verified', verified_by: actor, verified_at: Time.current,
+        issued_on: requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE ? Date.current : nil
       )
     end
     pay!(assignment)

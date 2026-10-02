@@ -62,12 +62,11 @@ module Candidates
 
       def load_current_documents!
         @current_documents_by_type = @current_assignment
-                                    .candidate_documents
-                                    .current_version
-                                    .includes(:document_type)
-                                    .where(document_type_id: @requirements.map(&:document_type_id))
-                                    .lock
-                                    .index_by(&:document_type_id)
+                                     .candidate_documents
+                                     .current_version
+                                     .where(document_type_id: @requirements.map(&:document_type_id))
+                                     .lock
+                                     .index_by(&:document_type_id)
       end
 
       def lock_current_assignment!
