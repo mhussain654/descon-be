@@ -7,7 +7,7 @@ module Candidates
     end
 
     def call
-      ::Candidate.find(@candidate.id)
+      ::Candidate.includes(profile_photo_attachment: :blob).find(@candidate.id)
     end
   end
 end

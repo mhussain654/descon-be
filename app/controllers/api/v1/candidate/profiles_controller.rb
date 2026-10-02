@@ -13,7 +13,7 @@ module Api
           authorize profile, policy_class: ::Candidates::ProfilePolicy
           set_private_state_headers(
             updated_at: profile.current_assignment&.updated_at,
-            etag_key: "#{profile.public_id}:profile"
+            etag_key: "#{profile.public_id}:profile:#{profile.profile_photo.attachment&.blob_id}"
           )
           render_success(data: ::Candidates::ProfileSerializer.new(profile).as_json)
         end

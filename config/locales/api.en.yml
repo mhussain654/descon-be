@@ -25,6 +25,7 @@ en:
       missing_file: "Attach a file to continue."
       invalid_requirement: "Select a valid document requirement."
       unsupported_file_type: "Upload a PDF, JPEG, or PNG file."
+      unsupported_photo_type: "Upload a JPEG, PNG, or WebP image."
       file_too_large: "The uploaded file exceeds the maximum allowed size."
       empty_file: "The uploaded file is empty."
       replacement_not_allowed: "This document cannot be replaced in its current status."

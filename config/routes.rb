@@ -30,7 +30,9 @@ Rails.application.routes.draw do
         resources :document_submissions, only: :create
         resource :payment, only: %i[show create], controller: :payments
         resource :application_progress, only: :show, controller: :application_progress
-        resource :profile, only: :show
+        resource :profile, only: :show do
+          resource :photo, only: %i[update destroy], controller: :profile_photos
+        end
         resource :workflow_state, only: :show
         resource :workflow_history, only: :show
         resource :flight_detail, only: :show, controller: :flight_details do
@@ -40,6 +42,7 @@ Rails.application.routes.draw do
           resource :visa_copy_access, only: :create, controller: :visa_decision_visa_copy_accesses
         end
         resource :training_setting, only: :show
+        resource :support_setting, only: :show
       end
 
       namespace :admin do
@@ -97,6 +100,7 @@ Rails.application.routes.draw do
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resource :ai_call_operational_settings, only: %i[show update]
         resource :training_setting, only: %i[show update]
+        resource :support_setting, only: %i[show update]
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses
         end

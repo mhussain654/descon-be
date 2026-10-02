@@ -36,6 +36,28 @@ RSpec.describe 'API V1 Candidate Profile', type: :request do
       expect(response.body).not_to include(candidate.mobile_number)
     end
 
+    it 'returns the assignment country (the Business Unit) with a localized name, and no photo by default' do
+      candidate = create(:candidate)
+      country = create(:country, name_en: 'Qatar', name_ur: 'قطر')
+      create(:candidate_assignment, candidate:, country:)
+
+      get '/api/v1/candidate/profile',
+          headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}", 'X-Locale' => 'ur' }
+
+      expect(response.parsed_body.dig('data', 'country')).to eq('code' => country.code, 'name' => 'قطر')
+      expect(response.parsed_body.dig('data', 'photo_url')).to be_nil
+    end
+
+    it 'returns a short-lived signed link once the candidate has a photo' do
+      candidate = create(:candidate)
+      candidate.profile_photo.attach(io: Rails.root.join('spec/fixtures/files/test.jpg').open,
+                                     filename: 'profile-photo.jpg', content_type: 'image/jpeg')
+
+      get '/api/v1/candidate/profile', headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
+
+      expect(response.parsed_body.dig('data', 'photo_url')).to start_with('/rails/active_storage/blobs/proxy/')
+    end
+
     it 'blocks a candidate who has not accepted the current policy version' do
       candidate = create(:candidate, :without_consent)
 

@@ -34,6 +34,7 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       body = response.parsed_body
       expect(body.dig('data', 'expires_in_seconds')).to eq(CandidateOtpChallenge::EXPIRY_WINDOW.to_i)
       expect(body.dig('data', 'resend_after_seconds')).to eq(CandidateOtpChallenge::RESEND_COOLDOWN.to_i)
+      expect(body.dig('data', 'mobile_last_four')).to eq('4567')
     end
 
     # Client-approved, deliberate exception to the usual non-enumerating

@@ -443,7 +443,12 @@ components:
         resend_after_seconds:
           type: integer
           description: Minimum time before another code may be requested for the same CNIC.
-      required: [expires_in_seconds, resend_after_seconds]
+        mobile_last_four:
+          type: string
+          pattern: '^[0-9]{4}$'
+          description: Last four digits of the candidate's registered mobile number, so the client can show a "code sent to •••• 4821" hint. Never more of the number than this.
+          example: '4821'
+      required: [expires_in_seconds, resend_after_seconds, mobile_last_four]
     CandidateOtpVerifyRequest:
       type: object
       properties:
@@ -501,6 +506,29 @@ components:
           $ref: '#/components/schemas/CandidateConsentState'
         active:
           type: boolean
+        country:
+          type: object
+          nullable: true
+          description: >-
+            Destination country of the current assignment -- the Business Unit
+            (Qatar, Oman, KSA, UAE...) the candidate is being mobilized for.
+            Null when there is no current assignment. `name` follows X-Locale.
+          properties:
+            code:
+              type: string
+              example: qatar
+            name:
+              type: string
+              example: Qatar
+          required: [code, name]
+        photo_url:
+          type: string
+          nullable: true
+          description: >-
+            Short-lived, signed relative path to the candidate's own profile
+            photo (null when none is set). Valid for about an hour; the profile
+            is served no-store, so clients simply refetch for a fresh link.
+          example: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnt9fQ--abc/profile-photo.jpg
       required:
         - id
         - full_name
@@ -1515,6 +1543,22 @@ components:
           additionalProperties: false
           required: [url]
       required: [training_setting]
+    AdminSupportSettingRequest:
+      type: object
+      properties:
+        support_setting:
+          type: object
+          properties:
+            phone_number:
+              type: string
+              nullable: true
+              description: >-
+                Support/helpline number candidates call from "Help & support".
+                Spaces, dashes and brackets are stripped; an empty value clears it.
+              example: '+92 300 1234567'
+          additionalProperties: false
+          required: [phone_number]
+      required: [support_setting]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -2890,7 +2934,7 @@ paths:
   /api/v1/candidate/auth/otp/request:
     post:
       summary: Request a candidate OTP challenge
-      description: Returns a 404 `candidate_cnic_not_found` for a CNIC that matches no active candidate -- a deliberate, client-approved disclosure (this app is reachable only by the client's own already-registered candidates, not the public). A resolvable CNIC always returns the identical generic success response, whether its mobile is currently undeliverable or a code was actually sent -- delivery failures alone stay undisclosed. Rate-limited per IP and per (normalized) CNIC.
+      description: Returns a 404 `candidate_cnic_not_found` for a CNIC that matches no active candidate -- a deliberate, client-approved disclosure (this app is reachable only by the client's own already-registered candidates, not the public). A resolvable CNIC always returns the identical success response (including the last four digits of the registered mobile as a delivery hint), whether its mobile is currently undeliverable or a code was actually sent -- delivery failures alone stay undisclosed. Rate-limited per IP and per (normalized) CNIC.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
@@ -2921,6 +2965,7 @@ paths:
                     data:
                       expires_in_seconds: 300
                       resend_after_seconds: 60
+                      mobile_last_four: '4821'
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                       timestamp: '2026-08-23T09:00:08Z'
@@ -2930,6 +2975,7 @@ paths:
                     data:
                       expires_in_seconds: 300
                       resend_after_seconds: 60
+                      mobile_last_four: '4821'
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                       timestamp: '2026-08-23T09:00:08Z'
@@ -3257,6 +3303,83 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/profile/photo:
+    put:
+      summary: Set or replace the candidate's own profile photo
+      description: >-
+        Uploads a JPEG, PNG or WebP image (detected from the file's content,
+        not the declared type), up to 5 MiB by default
+        (CANDIDATE_PROFILE_PHOTO_MAX_BYTES). Always acts on the authenticated
+        candidate -- there is no candidate id in the path. Replaces any existing
+        photo and records an audit event. Returns a fresh short-lived link.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                profile_photo[photo]:
+                  type: string
+                  format: binary
+              required: ['profile_photo[photo]']
+      responses:
+        '200':
+          description: Photo saved
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                saved:
+                  value:
+                    data:
+                      photo_url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnt9fQ--abc/profile-photo.jpg
+                    meta:
+                      request_id: 6a3e1d2c-0b8f-4e57-9a61-2f4c8d0b1e77
+                      timestamp: '2026-10-02T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive, or the current policy has not been accepted
+        '422':
+          description: >-
+            `missing_file`, `empty_file`, `file_too_large`, or
+            `unsupported_file_type` (not a JPEG/PNG/WebP image), each with
+            field `profile_photo.photo`
+    delete:
+      summary: Remove the candidate's own profile photo
+      description: Removes the photo if one is set (a harmless no-op otherwise) and records an audit event when one was removed.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Photo removed (`photo_url` is null)
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive, or the current policy has not been accepted
   /api/v1/candidate/payment:
     get:
       summary: Fetch payment eligibility and latest candidate payment
@@ -7043,6 +7166,46 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/support_setting:
+    get:
+      summary: Read the shared support/helpline number
+      description: >-
+        Returns the one support number the app's "Help & support" action
+        dials -- not per-candidate, so any authenticated, active candidate can
+        read it. `phone_number` is null until staff configure it, and the
+        action should then be shown as unavailable.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current support number (or null)
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      phone_number: '+923001234567'
+                    meta:
+                      request_id: 0d6f6c1a-55b2-4b6d-9a5c-2c7fbd2a9e10
+                      timestamp: '2026-10-02T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
   /api/v1/payments/hosted_checkout/{provider_code}/return:
     get:
       summary: Handle a hosted-checkout browser return (GET redirect)
@@ -8621,6 +8784,86 @@ paths:
           description: Authenticated staff user lacks manage_training_settings, or is inactive
         '422':
           description: url is missing, blank, or not a valid http(s) URL
+  /api/v1/admin/support_setting:
+    get:
+      summary: Read the support-number singleton
+      description: >-
+        Returns the single admin-editable SupportSetting row -- the helpline
+        number candidates call from "Help & support". Requires the
+        `manage_support_settings` permission -- admin-only by default.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current support number (null until set)
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      phone_number: null
+                      updated_by: null
+                      updated_at: '2026-10-02T09:00:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-02T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_support_settings, or is inactive
+    patch:
+      summary: Edit the support-number singleton
+      description: >-
+        Sets or clears the support number. Requires `manage_support_settings`;
+        a change is recorded as an AuditEvent carrying the actor and the
+        before/after value.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSupportSettingRequest'
+      responses:
+        '200':
+          description: Support number updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      phone_number: '+923001234567'
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-10-02T09:05:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-02T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_support_settings, or is inactive
+        '422':
+          description: phone_number is not a valid phone number
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)

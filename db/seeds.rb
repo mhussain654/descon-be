@@ -133,6 +133,12 @@ AiCallOperationalSetting.current
 # real training link.
 TrainingSetting.current
 
+# --- Support number setting --------------------------------------------------
+# Seeds the (blank) singleton row so the admin settings screen always has a
+# record to edit; the candidate "Help & support" action stays unavailable
+# until staff enter the real helpline number.
+SupportSetting.current
+
 # --- Reference catalogs (MPS-106) -------------------------------------------
 
 [

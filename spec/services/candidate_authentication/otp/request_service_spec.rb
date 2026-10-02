@@ -40,8 +40,26 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
 
       expect(result).to eq(
         expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
-        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i
+        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
+        mobile_last_four: '4567'
       )
+    end
+
+    it 'never exposes more than the last four digits of the registered mobile' do
+      candidate = create(:candidate, mobile_number: '+923001234567')
+
+      result = described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      expect(result.values.map(&:to_s)).not_to include(a_string_including('300123'))
+    end
+
+    it 'still returns the mobile hint for a repeat request inside the resend cooldown' do
+      candidate = create(:candidate, mobile_number: '+923001234567')
+      described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      result = described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      expect(result).to include(mobile_last_four: '4567')
     end
 
     # Client-approved, deliberate exception to the usual non-enumerating
@@ -58,7 +76,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
 
       expect(result).to eq(
         expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
-        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i
+        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
+        mobile_last_four: '0000'
       )
     end
 

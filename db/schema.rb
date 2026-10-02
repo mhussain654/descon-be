@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_28_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -901,6 +901,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_090000) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "support_settings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "phone_number"
+    t.boolean "singleton_guard", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.index ["singleton_guard"], name: "index_support_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_support_settings_on_updated_by_id"
+  end
+
   create_table "system_database_backups", force: :cascade do |t|
     t.bigint "byte_size"
     t.string "checksum_sha256"
@@ -1066,6 +1076,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_090000) do
   add_foreign_key "role_permissions", "permissions", on_delete: :cascade
   add_foreign_key "role_permissions", "roles", on_delete: :cascade
   add_foreign_key "sessions", "users"
+  add_foreign_key "support_settings", "users", column: "updated_by_id"
   add_foreign_key "training_settings", "users", column: "updated_by_id"
   add_foreign_key "users", "roles", column: "role", primary_key: "code"
   add_foreign_key "users", "users", column: "invited_by_id"
