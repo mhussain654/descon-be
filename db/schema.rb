@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -800,8 +800,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
     t.text "note"
     t.datetime "paid_at"
     t.string "payment_type_code", null: false
+    t.string "provider_amount_payable"
     t.string "provider_code"
     t.string "provider_order_id"
+    t.string "provider_request_signature"
+    t.string "provider_request_timestamp"
     t.string "provider_response_code"
     t.string "provider_session_id"
     t.string "provider_status_code"
@@ -896,6 +899,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
     t.index ["public_id"], name: "index_sessions_on_public_id", unique: true
     t.index ["user_id", "revoked_at"], name: "index_sessions_on_user_id_and_revoked_at"
     t.index ["user_id"], name: "index_sessions_on_user_id"
+  end
+
+  create_table "support_settings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "phone_number"
+    t.boolean "singleton_guard", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.index ["singleton_guard"], name: "index_support_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_support_settings_on_updated_by_id"
   end
 
   create_table "system_database_backups", force: :cascade do |t|
@@ -1063,6 +1076,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
   add_foreign_key "role_permissions", "permissions", on_delete: :cascade
   add_foreign_key "role_permissions", "roles", on_delete: :cascade
   add_foreign_key "sessions", "users"
+  add_foreign_key "support_settings", "users", column: "updated_by_id"
   add_foreign_key "training_settings", "users", column: "updated_by_id"
   add_foreign_key "users", "roles", column: "role", primary_key: "code"
   add_foreign_key "users", "users", column: "invited_by_id"

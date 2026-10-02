@@ -34,15 +34,27 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       body = response.parsed_body
       expect(body.dig('data', 'expires_in_seconds')).to eq(CandidateOtpChallenge::EXPIRY_WINDOW.to_i)
       expect(body.dig('data', 'resend_after_seconds')).to eq(CandidateOtpChallenge::RESEND_COOLDOWN.to_i)
+      expect(body.dig('data', 'mobile_last_four')).to eq('4567')
     end
 
-    it 'returns the identical response shape for an unknown CNIC (never reveals existence)' do
+    # Client-approved, deliberate exception to the usual non-enumerating
+    # response -- see CandidateCnicNotFoundError's own doc comment.
+    it 'returns a 404 candidate_cnic_not_found error for an unknown CNIC, with the submitted CNIC in the message' do
       request_otp('99999-9999999-9')
 
-      expect(response).to have_http_status(:ok)
-      body = response.parsed_body
-      expect(body.dig('data', 'expires_in_seconds')).to eq(CandidateOtpChallenge::EXPIRY_WINDOW.to_i)
-      expect(body.dig('data', 'resend_after_seconds')).to eq(CandidateOtpChallenge::RESEND_COOLDOWN.to_i)
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('candidate_cnic_not_found')
+      expect(response.parsed_body.dig('errors', 0, 'message')).to include('99999-9999999-9')
+    end
+
+    # The frontend no longer reconstructs this message from its own (live,
+    # still-changing-as-the-candidate-types) CNIC input state -- the backend
+    # freezes the actual submitted value into the message instead, so the
+    # value shown can never drift to whatever is currently typed.
+    it 'normalizes a dashless CNIC before interpolating it into the not-found message' do
+      request_otp('9999999999999')
+
+      expect(response.parsed_body.dig('errors', 0, 'message')).to include('99999-9999999-9')
     end
 
     it 'returns the identical response shape for a candidate whose mobile is undeliverable' do
@@ -78,12 +90,6 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       expect(response).to have_http_status(:too_many_requests)
     end
 
-    it 'creates a decoy challenge for an unknown CNIC so /verify has a symmetric response for it' do
-      request_otp('99999-9999999-9')
-
-      expect(CandidateOtpChallenge.find_by(cnic: '99999-9999999-9')).to be_present
-    end
-
     it 'uses Urdu for the OTP SMS when X-Locale is ur' do
       delivered_body = nil
       allow(Sms::SendMessage).to receive(:call) do |**kwargs|
@@ -114,33 +120,26 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       expect(delivered_body).to start_with('Your Descon Manpower verification code is ')
     end
 
-    it 'uses the same selected locale path for an unknown-CNIC decoy SMS' do
-      delivered_body = nil
-      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
-        delivered_body = kwargs.fetch(:body)
-        Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
-      end
-
+    it "returns the not-found error in the request's selected locale for an unknown CNIC" do
       post '/api/v1/candidate/auth/otp/request',
            params: { candidate: { cnic: '99999-9999999-9' } },
            headers: { 'X-Locale' => 'ur' }
 
-      expect(response).to have_http_status(:ok)
-      expect(delivered_body).to start_with('آپ کا ڈیسکون مین پاور تصدیقی کوڈ ')
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body.dig('errors', 0, 'message')).to eq(
+        I18n.t('api.errors.candidate_cnic_not_found', cnic: '99999-9999999-9', locale: :ur)
+      )
     end
 
-    it 'does not deliver a real OTP for an inactive candidate, while keeping the response generic' do
+    it 'treats an inactive candidate the same as an unknown CNIC, never delivering an SMS' do
       candidate.update!(active: false)
-      delivered_to = nil
-      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
-        delivered_to = kwargs.fetch(:to)
-        Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
-      end
+      allow(Sms::SendMessage).to receive(:call)
 
       request_otp(candidate.cnic)
 
-      expect(response).to have_http_status(:ok)
-      expect(delivered_to).to eq(CandidateAuthentication::Otp::RequestService::DECOY_MOBILE_NUMBER)
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('candidate_cnic_not_found')
+      expect(Sms::SendMessage).not_to have_received(:call)
     end
   end
 
@@ -226,9 +225,13 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       expect(response).to have_http_status(:too_many_requests)
     end
 
-    it 'returns otp_expired for an unknown CNIC once its decoy challenge has expired, identical to a real candidate' do
+    # Created directly (RequestService no longer creates a candidate-less
+    # challenge for an unknown CNIC -- see CandidateCnicNotFoundError) so
+    # this only exercises VerifyService's own historical-decoy-row
+    # tolerance, not the request endpoint.
+    it 'returns otp_expired for an unknown CNIC with an expired candidate-less challenge, same as a real one' do
       unknown_cnic = '99999-9999999-9'
-      request_otp(unknown_cnic)
+      CandidateOtpChallenge.generate_for(cnic: unknown_cnic)
       CandidateOtpChallenge.find_by(cnic: unknown_cnic).update!(expires_at: 1.minute.ago)
 
       verify_otp(cnic: unknown_cnic, code: '000000')

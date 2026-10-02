@@ -1,12 +1,14 @@
 # frozen_string_literal: true
 
 class MissingFileError < BaseError
-  def initialize
+  # `field` defaults to the candidate-document upload's form field; other
+  # upload endpoints (e.g. the profile photo) pass their own.
+  def initialize(field: 'candidate_document.file')
     super(
       code: 'missing_file',
       message: I18n.t('api.errors.missing_file'),
       status: :unprocessable_content,
-      field: 'candidate_document.file'
+      field:
     )
   end
 end

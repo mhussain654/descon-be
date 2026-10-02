@@ -406,7 +406,7 @@ FactoryBot.define do
     status_code { 'paid' }
     amount { 1500.0 }
     currency_code { 'PKR' }
-    provider_code { 'mock_hosted_checkout' }
+    provider_code { 'kuickpay' }
     provider_order_id { "PAY-#{SecureRandom.hex(6).upcase}" }
     provider_session_id { nil }
     provider_transaction_id { nil }
@@ -424,7 +424,7 @@ FactoryBot.define do
     payment
     candidate_assignment { payment.candidate_assignment }
     actor { nil }
-    provider_code { payment.provider_code || 'mock_hosted_checkout' }
+    provider_code { payment.provider_code || 'kuickpay' }
     event_source { 'callback' }
     event_type { 'payment_succeeded' }
     event_key { SecureRandom.hex(16) }

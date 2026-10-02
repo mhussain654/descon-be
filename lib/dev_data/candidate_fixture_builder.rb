@@ -20,9 +20,24 @@ module DevData
       flight: :build_flight!, payment: :build_payment!
     }.freeze
 
-    def initialize(document_types:, seed_tag:)
+    # Plausible-looking full names for demo/QA candidates -- picked so a client
+    # demo shows a real-looking roster instead of "QA Seed Candidate 01
+    # (documents_pending)". Purely synthetic (no real person), one per
+    # QaDataSeeder::Profile, in order. Which rows are QA-seeded is tracked via
+    # `created_by` (always a qa-*@descon.local user -- see
+    # QaDataSeeder#actor_for), never by name, so this list can read naturally
+    # without doubling as a database marker.
+    CANDIDATE_NAMES = [
+      'Muhammad Usman Sheikh', 'Ahmed Raza Khan', 'Bilal Hussain', 'Imran Ali Qureshi',
+      'Fahad Mehmood', 'Waqas Ahmed', 'Zeeshan Iqbal', 'Kamran Yousaf', 'Adnan Malik',
+      'Shahid Nawaz', 'Rizwan Shahzad', 'Naveed Anjum', 'Tariq Mahmood', 'Faisal Rasheed',
+      'Asif Jameel', 'Junaid Aslam', 'Sajjad Haider', 'Arslan Hameed', 'Noman Saeed',
+      'Irfan Bashir', 'Hamza Farooq', 'Salman Abbas', 'Yasir Latif', 'Danish Aziz',
+      'Umar Farooq Chaudhry', 'Ali Raza Baloch'
+    ].freeze
+
+    def initialize(document_types:)
       @document_types = document_types
-      @seed_tag = seed_tag
     end
 
     def build(profile:, index:, actor:, reference:)
@@ -46,8 +61,8 @@ module DevData
     end
 
     def build_candidate(profile, index, actor)
-      create(:candidate, full_name: "#{@seed_tag} Candidate #{format('%02d', index + 1)} (#{profile.stage})",
-                         created_by: actor)
+      create(:candidate, full_name: CANDIDATE_NAMES.fetch(index), created_by: actor,
+                         skip_consent: profile.consent_accepted == false)
     end
 
     def build_assignment(candidate, actor, reference)
@@ -65,6 +80,10 @@ module DevData
       base_time = 30.days.ago
       (1..target_index).each { |i| create_stage_history_step(assignment, i, actor, base_time) }
       assignment.update!(current_workflow_stage: WorkflowStage.find_by!(code: target_code))
+      # Mirrors CandidateWorkflows::TransitionService#apply_transition!, which real transitions
+      # always update together -- built directly here (not via TransitionService) since a seed
+      # profile jumps straight to its target stage rather than walking prerequisite checks.
+      assignment.candidate.update!(status_code: target_code)
     end
 
     def create_stage_history_step(assignment, index, actor, base_time)
@@ -188,8 +207,18 @@ module DevData
     end
 
     def build_visa_issued!(assignment, actor, history)
-      create(:candidate_visa_decision, candidate_assignment: assignment, candidate_stage_history: history,
-                                       recorded_by: actor, outcome_code: 'issued', decision_date: 1.day.ago.to_date)
+      decision = create(:candidate_visa_decision, candidate_assignment: assignment, candidate_stage_history: history,
+                                                  recorded_by: actor, outcome_code: 'issued',
+                                                  decision_date: 1.day.ago.to_date)
+      # Without a real attached file, the candidate app's visa-copy download action has
+      # nothing to serve -- an issued-visa demo candidate would show "Verified"/"Issued"
+      # everywhere but the actual download button/link would never appear.
+      decision.visa_copy.attach(
+        io: Rails.root.join('spec/fixtures/files/test.pdf').open,
+        filename: 'visa_copy.pdf',
+        content_type: 'application/pdf'
+      )
+      decision
     end
 
     def build_visa_rejected!(assignment, actor, history)
@@ -273,15 +302,22 @@ module DevData
     # ------------------------------------------------------------------------
 
     def build_ai_call!(candidate, assignment, spec, actor)
-      call = create_ai_call(candidate, assignment, spec)
+      call = create_ai_call(candidate, assignment, spec, actor)
       apply_manual_review!(call, spec, actor) if spec[:needs_manual_review]
       attach_transcript(call, spec)
       call
     end
 
-    def create_ai_call(candidate, assignment, spec)
+    # Passes `communication:` explicitly -- :candidate_ai_call's factory default
+    # (`association :communication`) would otherwise build its own throwaway Communication,
+    # which itself defaults a brand-new bare :candidate_assignment (and :candidate) rather than
+    # reusing this one, leaving an orphaned extra candidate behind for every profile with an
+    # ai_call spec.
+    def create_ai_call(candidate, assignment, spec, actor)
       call_reason = spec[:call_reason] || 'general_helpline'
-      create(:candidate_ai_call, :completed, candidate:, candidate_assignment: assignment, call_reason:,
+      communication = create(:communication, candidate_assignment: assignment, initiated_by: actor,
+                                             channel_code: 'ai_voice_call', direction_code: spec.fetch(:direction))
+      create(:candidate_ai_call, :completed, communication:, candidate:, candidate_assignment: assignment, call_reason:,
                                              direction: spec.fetch(:direction),
                                              verification_status: verification_status_for(spec),
                                              outcome: spec[:outcome], outcome_reason: spec[:outcome_reason],

@@ -5,11 +5,6 @@ Rails.application.routes.draw do
   get 'api-docs', to: redirect('/api-docs/index.html')
   get 'openapi/openapi.yaml', to: 'openapi#show'
 
-  # Stand-in for the mock payment provider's own hosted page (see
-  # Payments::Providers::MockHostedCheckoutAdapter) -- not an application
-  # API, so deliberately outside /api/v1.
-  get 'mock_checkout', to: 'mock_checkouts#show'
-
   namespace :api do
     namespace :v1 do
       namespace :auth do
@@ -29,11 +24,15 @@ Rails.application.routes.draw do
 
         resource :consent, only: %i[show create], controller: :consents
         resource :bank_detail, path: 'bank_details', only: %i[show update], controller: :bank_details
-        resources :documents, only: %i[index create]
+        resources :documents, only: %i[index create] do
+          resource :access, only: :create, controller: :document_accesses
+        end
         resources :document_submissions, only: :create
         resource :payment, only: %i[show create], controller: :payments
         resource :application_progress, only: :show, controller: :application_progress
-        resource :profile, only: :show
+        resource :profile, only: :show do
+          resource :photo, only: %i[update destroy], controller: :profile_photos
+        end
         resource :workflow_state, only: :show
         resource :workflow_history, only: :show
         resource :flight_detail, only: :show, controller: :flight_details do
@@ -43,6 +42,7 @@ Rails.application.routes.draw do
           resource :visa_copy_access, only: :create, controller: :visa_decision_visa_copy_accesses
         end
         resource :training_setting, only: :show
+        resource :support_setting, only: :show
       end
 
       namespace :admin do
@@ -100,6 +100,7 @@ Rails.application.routes.draw do
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resource :ai_call_operational_settings, only: %i[show update]
         resource :training_setting, only: %i[show update]
+        resource :support_setting, only: %i[show update]
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses
         end

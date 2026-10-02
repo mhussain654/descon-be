@@ -10,6 +10,10 @@ module Candidates
       index?
     end
 
+    def access?
+      index?
+    end
+
     private
 
     def candidate_authenticated?

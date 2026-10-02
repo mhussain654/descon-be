@@ -6,6 +6,9 @@ module Candidates
       candidate_authenticated? && owns_profile?
     end
 
+    def update_photo? = show?
+    def destroy_photo? = show?
+
     private
 
     def candidate_authenticated?

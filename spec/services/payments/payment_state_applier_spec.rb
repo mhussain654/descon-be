@@ -28,7 +28,7 @@ RSpec.describe Payments::PaymentStateApplier do
 
   def notification_identity
     {
-      provider_code: 'mock_hosted_checkout',
+      provider_code: 'kuickpay',
       event_source: 'callback',
       event_key: SecureRandom.hex(8),
       provider_order_id: 'PAY-ORDER-1',

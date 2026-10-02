@@ -40,17 +40,33 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
 
       expect(result).to eq(
         expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
-        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i
+        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
+        mobile_last_four: '4567'
       )
     end
 
-    it 'returns the identical response shape for an unknown CNIC' do
-      result = described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+    it 'never exposes more than the last four digits of the registered mobile' do
+      candidate = create(:candidate, mobile_number: '+923001234567')
 
-      expect(result).to eq(
-        expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
-        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i
-      )
+      result = described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      expect(result.values.map(&:to_s)).not_to include(a_string_including('300123'))
+    end
+
+    it 'still returns the mobile hint for a repeat request inside the resend cooldown' do
+      candidate = create(:candidate, mobile_number: '+923001234567')
+      described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      result = described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      expect(result).to include(mobile_last_four: '4567')
+    end
+
+    # Client-approved, deliberate exception to the usual non-enumerating
+    # response -- see CandidateCnicNotFoundError's own doc comment.
+    it 'raises CandidateCnicNotFoundError for an unknown CNIC' do
+      expect { described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1') }
+        .to raise_error(CandidateCnicNotFoundError)
     end
 
     it 'returns the identical response shape when the candidate mobile is undeliverable' do
@@ -60,7 +76,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
 
       expect(result).to eq(
         expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
-        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i
+        resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
+        mobile_last_four: '0000'
       )
     end
 
@@ -72,49 +89,42 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       end.to change(CandidateOtpChallenge, :count).by(1)
     end
 
-    it 'creates a decoy challenge for an unknown CNIC, just as it does for a real one' do
+    it 'does not create any challenge for an unknown CNIC' do
       expect do
         described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
-      end.to change(CandidateOtpChallenge, :count).by(1)
-
-      challenge = CandidateOtpChallenge.find_by(cnic: '99999-9999999-9')
-      expect(challenge).to be_present
-      expect(challenge.candidate).to be_nil
-    end
-
-    it 'calls through the same SMS adapter for an unknown CNIC as for a real one, at equivalent cost' do
-      allow(Sms::SendMessage).to receive(:call).and_call_original
-
-      described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
-
-      expect(Sms::SendMessage).to have_received(:call).with(
-        to: CandidateAuthentication::Otp::RequestService::DECOY_MOBILE_NUMBER, body: anything,
-        variables: hash_including(:code, :minutes), locale: anything
-      )
-    end
-
-    it 'does not send another decoy or create a new challenge within the resend cooldown for an unknown CNIC' do
-      described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
-
-      expect do
-        described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+      rescue CandidateCnicNotFoundError
+        nil
       end.not_to change(CandidateOtpChallenge, :count)
     end
 
-    it 'creates a fresh decoy challenge for an unknown CNIC once the resend cooldown has elapsed' do
-      described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+    it 'never calls the SMS adapter for an unknown CNIC' do
+      allow(Sms::SendMessage).to receive(:call)
 
-      travel_to((CandidateOtpChallenge::RESEND_COOLDOWN + 1.second).from_now) do
-        expect do
-          described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
-        end.to change(CandidateOtpChallenge, :count).by(1)
+      begin
+        described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
+      rescue CandidateCnicNotFoundError
+        nil
+      end
+
+      expect(Sms::SendMessage).not_to have_received(:call)
+    end
+
+    it 'raises the same not-found error consistently on repeated attempts for an unknown CNIC' do
+      2.times do
+        expect { described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1') }
+          .to raise_error(CandidateCnicNotFoundError)
       end
     end
 
-    it 'does not raise when the decoy SMS call itself raises' do
-      allow(Sms::SendMessage).to receive(:call).and_raise(StandardError, 'provider down')
-
-      expect { described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1') }.not_to raise_error
+    it "raises the not-found error in the request's current locale, with the submitted CNIC interpolated in" do
+      I18n.with_locale(:ur) do
+        expect { described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1') }
+          .to raise_error(CandidateCnicNotFoundError) { |error|
+                expect(error.message).to eq(
+                  I18n.t('api.errors.candidate_cnic_not_found', cnic: '99999-9999999-9', locale: :ur)
+                )
+              }
+      end
     end
 
     it 'accepts a CNIC without dashes and normalizes it before lookup' do
@@ -204,20 +214,6 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
 
       expect(delivered_body).to start_with('آپ کا ڈیسکون مین پاور تصدیقی کوڈ ')
       expect(delivered_body).not_to start_with('Your Descon Manpower verification code is ')
-    end
-
-    it 'uses the current request locale for a decoy SMS body' do
-      delivered_body = nil
-      allow(Sms::SendMessage).to receive(:call) do |**kwargs|
-        delivered_body = kwargs.fetch(:body)
-        Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
-      end
-
-      I18n.with_locale(:ur) do
-        described_class.call(cnic: '99999-9999999-9', ip_address: '10.0.0.1')
-      end
-
-      expect(delivered_body).to start_with('آپ کا ڈیسکون مین پاور تصدیقی کوڈ ')
     end
 
     it 'serializes concurrent requests for the same CNIC so only one challenge is created during cooldown' do

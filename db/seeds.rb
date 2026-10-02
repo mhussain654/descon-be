@@ -133,6 +133,12 @@ AiCallOperationalSetting.current
 # real training link.
 TrainingSetting.current
 
+# --- Support number setting --------------------------------------------------
+# Seeds the (blank) singleton row so the admin settings screen always has a
+# record to edit; the candidate "Help & support" action stays unavailable
+# until staff enter the real helpline number.
+SupportSetting.current
+
 # --- Reference catalogs (MPS-106) -------------------------------------------
 
 [
@@ -249,9 +255,13 @@ end
 #                                                TestProvider's reserved
 #                                                all-zeros pattern)
 #   99999-9999999-9  deliberately NEVER      -> exercises the "unknown CNIC"
-#                     seeded                    path; always returns the same
-#                                                generic response as the two
-#                                                CNICs above
+#                     seeded                    path; returns a 404
+#                                                candidate_cnic_not_found
+#                                                error instead of a generic
+#                                                response (a deliberate,
+#                                                client-approved disclosure
+#                                                -- see
+#                                                CandidateCnicNotFoundError)
 #
 # All values are synthetic and match no real person.
 #

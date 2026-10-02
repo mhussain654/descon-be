@@ -443,7 +443,12 @@ components:
         resend_after_seconds:
           type: integer
           description: Minimum time before another code may be requested for the same CNIC.
-      required: [expires_in_seconds, resend_after_seconds]
+        mobile_last_four:
+          type: string
+          pattern: '^[0-9]{4}$'
+          description: Last four digits of the candidate's registered mobile number, so the client can show a "code sent to •••• 4821" hint. Never more of the number than this.
+          example: '4821'
+      required: [expires_in_seconds, resend_after_seconds, mobile_last_four]
     CandidateOtpVerifyRequest:
       type: object
       properties:
@@ -501,6 +506,29 @@ components:
           $ref: '#/components/schemas/CandidateConsentState'
         active:
           type: boolean
+        country:
+          type: object
+          nullable: true
+          description: >-
+            Destination country of the current assignment -- the Business Unit
+            (Qatar, Oman, KSA, UAE...) the candidate is being mobilized for.
+            Null when there is no current assignment. `name` follows X-Locale.
+          properties:
+            code:
+              type: string
+              example: qatar
+            name:
+              type: string
+              example: Qatar
+          required: [code, name]
+        photo_url:
+          type: string
+          nullable: true
+          description: >-
+            Short-lived, signed relative path to the candidate's own profile
+            photo (null when none is set). Valid for about an hour; the profile
+            is served no-store, so clients simply refetch for a fresh link.
+          example: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnt9fQ--abc/profile-photo.jpg
       required:
         - id
         - full_name
@@ -885,7 +913,7 @@ components:
           example: PKR
         provider:
           type: string
-          enum: [mock_hosted_checkout, kuickpay]
+          enum: [kuickpay]
         checkout_url:
           anyOf:
             - type: string
@@ -1515,6 +1543,22 @@ components:
           additionalProperties: false
           required: [url]
       required: [training_setting]
+    AdminSupportSettingRequest:
+      type: object
+      properties:
+        support_setting:
+          type: object
+          properties:
+            phone_number:
+              type: string
+              nullable: true
+              description: >-
+                Support/helpline number candidates call from "Help & support".
+                Spaces, dashes and brackets are stripped; an empty value clears it.
+              example: '+92 300 1234567'
+          additionalProperties: false
+          required: [phone_number]
+      required: [support_setting]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -2373,6 +2417,20 @@ components:
         signature:
           type: string
       required: [orderid, amount, status, responsecode, signature]
+    HostedCheckoutReturnRequest:
+      type: object
+      description: >-
+        The browser-return payload (GET query params or POST body) -- unsigned and not
+        proof of payment on its own, per the provider's integration guide. `orderid` is
+        used only to look up which payment to verify server-side; `status`/`sessionid`
+        are informational only.
+      properties:
+        orderid:
+          type: string
+        status:
+          type: string
+        sessionid:
+          type: string
     HostedCheckoutNotificationResult:
       type: object
       properties:
@@ -2876,7 +2934,7 @@ paths:
   /api/v1/candidate/auth/otp/request:
     post:
       summary: Request a candidate OTP challenge
-      description: Always returns the same generic response, whether the CNIC is unknown, resolves to a candidate whose mobile is currently undeliverable, or resolves to a candidate a code was actually sent to -- the response never reveals which case occurred. Rate-limited per IP and per (normalized) CNIC.
+      description: Returns a 404 `candidate_cnic_not_found` for a CNIC that matches no active candidate -- a deliberate, client-approved disclosure (this app is reachable only by the client's own already-registered candidates, not the public). A resolvable CNIC always returns the identical success response (including the last four digits of the registered mobile as a delivery hint), whether its mobile is currently undeliverable or a code was actually sent -- delivery failures alone stay undisclosed. Rate-limited per IP and per (normalized) CNIC.
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
@@ -2907,6 +2965,7 @@ paths:
                     data:
                       expires_in_seconds: 300
                       resend_after_seconds: 60
+                      mobile_last_four: '4821'
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                       timestamp: '2026-08-23T09:00:08Z'
@@ -2916,6 +2975,7 @@ paths:
                     data:
                       expires_in_seconds: 300
                       resend_after_seconds: 60
+                      mobile_last_four: '4821'
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                       timestamp: '2026-08-23T09:00:08Z'
@@ -2937,6 +2997,25 @@ paths:
                       - code: validation_failed
                         field: cnic
                         message: Enter a valid CNIC in the format 00000-0000000-0.
+                    request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
+                    timestamp: '2026-08-23T09:00:08Z'
+        '404':
+          description: No active candidate matches this CNIC -- a deliberate, client-approved disclosure (see this operation's own description)
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                cnicNotFound:
+                  value:
+                    errors:
+                      - code: candidate_cnic_not_found
+                        message: We couldn't find your record with this CNIC.
                     request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                     timestamp: '2026-08-23T09:00:08Z'
         '429':
@@ -3224,6 +3303,83 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/profile/photo:
+    put:
+      summary: Set or replace the candidate's own profile photo
+      description: >-
+        Uploads a JPEG, PNG or WebP image (detected from the file's content,
+        not the declared type), up to 5 MiB by default
+        (CANDIDATE_PROFILE_PHOTO_MAX_BYTES). Always acts on the authenticated
+        candidate -- there is no candidate id in the path. Replaces any existing
+        photo and records an audit event. Returns a fresh short-lived link.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                profile_photo[photo]:
+                  type: string
+                  format: binary
+              required: ['profile_photo[photo]']
+      responses:
+        '200':
+          description: Photo saved
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                saved:
+                  value:
+                    data:
+                      photo_url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnt9fQ--abc/profile-photo.jpg
+                    meta:
+                      request_id: 6a3e1d2c-0b8f-4e57-9a61-2f4c8d0b1e77
+                      timestamp: '2026-10-02T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive, or the current policy has not been accepted
+        '422':
+          description: >-
+            `missing_file`, `empty_file`, `file_too_large`, or
+            `unsupported_file_type` (not a JPEG/PNG/WebP image), each with
+            field `profile_photo.photo`
+    delete:
+      summary: Remove the candidate's own profile photo
+      description: Removes the photo if one is set (a harmless no-op otherwise) and records an audit event when one was removed.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Photo removed (`photo_url` is null)
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive, or the current policy has not been accepted
   /api/v1/candidate/payment:
     get:
       summary: Fetch payment eligibility and latest candidate payment
@@ -3286,7 +3442,7 @@ paths:
                         status: checkout_pending
                         amount: '1500.0'
                         currency_code: PKR
-                        provider: mock_hosted_checkout
+                        provider: kuickpay
                         checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                         checkout_expires_at: '2026-08-31T09:30:00Z'
                         paid_at: null
@@ -3349,7 +3505,7 @@ paths:
                           status: checkout_pending
                           amount: '1500.0'
                           currency_code: PKR
-                          provider: mock_hosted_checkout
+                          provider: kuickpay
                           checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                           checkout_expires_at: '2026-08-31T09:30:00Z'
                           paid_at: null
@@ -3360,7 +3516,7 @@ paths:
                         status: checkout_pending
                         amount: '1500.0'
                         currency_code: PKR
-                        provider: mock_hosted_checkout
+                        provider: kuickpay
                         checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                         checkout_expires_at: '2026-08-31T09:30:00Z'
                         paid_at: null
@@ -3944,6 +4100,116 @@ paths:
                     timestamp: '2026-08-28T12:00:00Z'
         '429':
           description: Rate limited
+  /api/v1/candidate/documents/{document_id}/access:
+    post:
+      summary: Generate a short-lived private access path for the candidate's own document
+      description: >-
+        Returns a private Active Storage proxy path for a document the authenticated
+        candidate previously uploaded, so they can view or download it at any time. Scoped
+        to the candidate's own current assignment and current document versions only; a
+        foreign, unrelated, or superseded document id returns `404`. The path is
+        time-limited, does not expose storage keys, and every successful access is audited.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - in: path
+          name: document_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                disposition:
+                  type: string
+                  enum: [inline, attachment]
+                  default: inline
+                  description: >-
+                    `inline` opens the document for viewing in the browser; `attachment`
+                    prompts the device to download and save it. Defaults to `inline` when
+                    omitted.
+              additionalProperties: false
+            examples:
+              viewRequest:
+                summary: Request a URL to view the document inline (also the default with no body)
+                value:
+                  disposition: inline
+              downloadRequest:
+                summary: Request a URL that prompts a device download
+                value:
+                  disposition: attachment
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      document_id: 30fcedd6-7fe6-4d12-a5ae-f6b5ef3d91dd
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/police-character-certificate.pdf?disposition=inline
+                      expires_at: '2026-09-15T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '400':
+          description: Unsupported `disposition` value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidDisposition:
+                  value:
+                    errors:
+                      - code: invalid_query_parameter
+                        field: disposition
+                        message: One or more query parameters are invalid.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:00:00Z'
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '404':
+          description: Document not found, not owned by the candidate, or superseded by a newer version
+        '422':
+          description: Document exists but its attachment is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                attachmentMissing:
+                  value:
+                    errors:
+                      - code: document_attachment_missing
+                        message: The requested document file is unavailable.
+                    request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-15T10:00:00Z'
   /api/v1/candidate/application_progress:
     get:
       summary: Fetch the authenticated candidate application progress
@@ -6900,57 +7166,86 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/support_setting:
+    get:
+      summary: Read the shared support/helpline number
+      description: >-
+        Returns the one support number the app's "Help & support" action
+        dials -- not per-candidate, so any authenticated, active candidate can
+        read it. `phone_number` is null until staff configure it, and the
+        action should then be shown as unavailable.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current support number (or null)
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      phone_number: '+923001234567'
+                    meta:
+                      request_id: 0d6f6c1a-55b2-4b6d-9a5c-2c7fbd2a9e10
+                      timestamp: '2026-10-02T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
   /api/v1/payments/hosted_checkout/{provider_code}/return:
     get:
-      summary: Process a signed hosted-checkout browser return (GET redirect)
+      summary: Handle a hosted-checkout browser return (GET redirect)
       description: >-
         Handles the candidate's browser being redirected back from the hosted checkout
-        page. Every outcome -- success or any error -- redirects the browser to the
-        frontend's payment-pending page (see the `302`/`303` responses below); this
-        endpoint never renders payment/workflow data or error detail as JSON, since it
-        is an unauthenticated response reachable by anyone who lands on the URL. The
-        candidate's own client polls `GET /api/v1/candidate/payment` separately for the
-        authoritative outcome. Safe duplicate returns are processed without creating
-        duplicate payment or workflow history records.
+        page. Per KuickPay's integration guide this redirect is unsigned and carries no
+        proof of payment on its own, so these query params are never trusted directly:
+        `orderid` (when present) is used only to look up which payment to check, then
+        the backend calls the provider's Verify Status API server-side for the
+        authoritative outcome (see `POST /checkout/api/session`'s sibling Status call --
+        not a separate documented endpoint here, since it's an outbound call this
+        backend makes, not one it receives). Every outcome -- a confirmed status, an
+        unknown orderid, a missing orderid, or any internal error -- redirects the
+        browser to the frontend's payment-pending page and never renders payment/
+        workflow data or error detail as JSON, since this is an unauthenticated
+        response reachable by anyone who lands on the URL. The candidate's own client
+        polls `GET /api/v1/candidate/payment` separately for the authoritative outcome.
       parameters:
         - name: provider_code
           in: path
           required: true
           schema:
             type: string
-            enum: [mock_hosted_checkout, kuickpay]
+            enum: [kuickpay]
         - name: orderid
           in: query
-          required: true
-          schema:
-            type: string
-        - name: transactionid
-          in: query
-          schema:
-            type: string
-        - name: amount
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: currency
-          in: query
+          description: >-
+            The payment's provider_order_id, if the provider includes it. Used only to
+            look up which payment to verify server-side -- never trusted as proof of an
+            outcome by itself.
           schema:
             type: string
         - name: status
           in: query
-          required: true
+          description: Informational only -- not trusted; the authoritative outcome comes from the server-side Verify Status call.
           schema:
             type: string
-            enum: [SUCCESS, FAILED, CANCELLED]
-        - name: responsecode
+        - name: sessionid
           in: query
-          required: true
-          schema:
-            type: string
-        - name: signature
-          in: query
-          required: true
+          description: Informational only -- not currently used by this endpoint.
           schema:
             type: string
         - $ref: '#/components/parameters/XLocaleHeader'
@@ -6958,27 +7253,19 @@ paths:
       responses:
         '302':
           description: >-
-            Signed return processed (or safely replayed) for this success/error outcome.
-            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
-            workflow data is included in this response.
+            Always returned for this outcome (payment found and verified, orderid
+            missing/unknown, or any internal error) -- the browser is redirected to
+            FRONTEND_PAYMENT_RETURN_URL; no payment or workflow data is included.
           headers:
             Location:
               description: The configured FRONTEND_PAYMENT_RETURN_URL.
               schema:
                 type: string
                 format: uri
-        '401':
-          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
-        '404':
-          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
-        '409':
-          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
-        '422':
-          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
-        '503':
-          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
+        '204':
+          description: FRONTEND_PAYMENT_RETURN_URL is not configured -- empty body instead of a redirect, so this never crashes.
     post:
-      summary: Process a signed hosted-checkout browser return (POST redirect)
+      summary: Handle a hosted-checkout browser return (POST redirect)
       description: >-
         Same processing and redirect-only behavior as the GET operation above, for a
         provider that returns the candidate's browser via a POST instead of a query
@@ -6990,40 +7277,32 @@ paths:
           required: true
           schema:
             type: string
-            enum: [mock_hosted_checkout, kuickpay]
+            enum: [kuickpay]
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       requestBody:
-        required: true
+        required: false
         content:
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+              $ref: '#/components/schemas/HostedCheckoutReturnRequest'
           application/json:
             schema:
-              $ref: '#/components/schemas/HostedCheckoutNotificationRequest'
+              $ref: '#/components/schemas/HostedCheckoutReturnRequest'
       responses:
         '303':
           description: >-
-            Signed return processed (or safely replayed) for this success/error outcome.
-            The browser is redirected to FRONTEND_PAYMENT_RETURN_URL; no payment or
-            workflow data is included in this response.
+            Always returned for this outcome (payment found and verified, orderid
+            missing/unknown, or any internal error) -- the browser is redirected to
+            FRONTEND_PAYMENT_RETURN_URL; no payment or workflow data is included.
           headers:
             Location:
               description: The configured FRONTEND_PAYMENT_RETURN_URL.
               schema:
                 type: string
                 format: uri
-        '401':
-          description: Signature missing or invalid -- still redirects to the frontend pending page, not a JSON error body
-        '404':
-          description: Stored payment order not found -- still redirects to the frontend pending page, not a JSON error body
-        '409':
-          description: Signed payload conflicts with an already-finalized payment -- still redirects to the frontend pending page, not a JSON error body
-        '422':
-          description: Signed payload does not match the stored payment state -- still redirects to the frontend pending page, not a JSON error body
-        '503':
-          description: Provider is unavailable or not configured -- still redirects to the frontend pending page, not a JSON error body
+        '204':
+          description: FRONTEND_PAYMENT_RETURN_URL is not configured -- empty body instead of a redirect, so this never crashes.
   /api/v1/ai_calls/elevenlabs/webhooks/post_call:
     post:
       summary: Receive an ElevenLabs post-call webhook delivery
@@ -7229,7 +7508,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [mock_hosted_checkout, kuickpay]
+            enum: [kuickpay]
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       requestBody:
@@ -7265,7 +7544,7 @@ paths:
                         status: cancelled
                         amount: '1500.0'
                         currency_code: PKR
-                        provider: mock_hosted_checkout
+                        provider: kuickpay
                         checkout_url: https://mock-payments.example.test/checkout?orderid=PAY-DES-001001-ABC123
                         checkout_expires_at: '2026-08-31T09:30:00Z'
                         paid_at: null
@@ -8505,6 +8784,86 @@ paths:
           description: Authenticated staff user lacks manage_training_settings, or is inactive
         '422':
           description: url is missing, blank, or not a valid http(s) URL
+  /api/v1/admin/support_setting:
+    get:
+      summary: Read the support-number singleton
+      description: >-
+        Returns the single admin-editable SupportSetting row -- the helpline
+        number candidates call from "Help & support". Requires the
+        `manage_support_settings` permission -- admin-only by default.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current support number (null until set)
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      phone_number: null
+                      updated_by: null
+                      updated_at: '2026-10-02T09:00:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-02T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_support_settings, or is inactive
+    patch:
+      summary: Edit the support-number singleton
+      description: >-
+        Sets or clears the support number. Requires `manage_support_settings`;
+        a change is recorded as an AuditEvent carrying the actor and the
+        before/after value.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSupportSettingRequest'
+      responses:
+        '200':
+          description: Support number updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      phone_number: '+923001234567'
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-10-02T09:05:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-02T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_support_settings, or is inactive
+        '422':
+          description: phone_number is not a valid phone number
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)

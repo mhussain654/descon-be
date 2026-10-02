@@ -62,7 +62,7 @@ SEED_DEMO_DATA=true bundle exec rails db:seed
 | --- | --- | --- |
 | `11111-1111111-1` | `+923001234567` | Full success path -- a request actually creates a challenge and attempts SMS delivery, and the correct code verifies. |
 | `22222-2222222-2` | `+920000000000` | Registered candidate whose mobile matches the test SMS provider's reserved "undeliverable" pattern (10+ trailing zeros) -- a request still returns the identical generic response and still creates a verifiable challenge, but the simulated SMS delivery fails internally. |
-| `99999-9999999-9` | -- | Deliberately **never** seeded, to exercise the "unknown CNIC" path -- returns the identical generic response as the two CNICs above. `/request` still creates a decoy challenge row and calls through the SMS adapter for it, so `/verify` can return `otp_expired`/`otp_max_attempts` for this CNIC exactly as it would for a real one -- see [Security: identity-enumeration resistance](#security-identity-enumeration-resistance). |
+| `99999-9999999-9` | -- | Deliberately **never** seeded, to exercise the "unknown CNIC" path -- `/request` returns a 404 `candidate_cnic_not_found` error instead of creating anything, and delivers no SMS -- see [Security: CNIC existence is intentionally disclosed](#security-cnic-existence-is-intentionally-disclosed). |
 
 Because [`SMS_PROVIDER=test`](#environment-variables) never sends a real message, retrieve the actual code from the database or Rails console during local development, for example:
 
@@ -74,14 +74,14 @@ bundle exec rails runner "
 "
 ```
 
-## Security: identity-enumeration resistance
+## Security: CNIC existence is intentionally disclosed
 
-The candidate OTP endpoints never reveal, through response body or response timing, whether a submitted CNIC belongs to a real candidate:
+`POST /request` is a **deliberate, client-approved exception** to this codebase's usual "never disclose whether an identifier exists" rule (see `AGENTS.md`'s "Security requirements" section, and `CandidateCnicNotFoundError`'s own doc comment for the full reasoning): a CNIC that matches no active candidate gets an explicit 404 `candidate_cnic_not_found`, not a generic success. This app is reachable only by the client's own already-registered candidates, not the public, and the client specifically asked for this so a candidate who mistyped their own CNIC can tell a typo from a real problem, rather than being stuck on a silent retry loop. An inactive candidate is treated identically to an unknown CNIC (also 404s, delivers no SMS) -- being inactive isn't separately disclosed beyond that.
 
-- `POST /request` always creates a challenge row and always calls through the SMS adapter, whether the CNIC resolves to a real candidate or not. For an unknown CNIC this is a **decoy challenge** (`CandidateOtpChallenge` with no `candidate`, a random never-delivered code, and a call to the SMS adapter with a synthetic destination) so both the response body and response latency are identical to the real-candidate path.
-- `POST /verify` looks up the latest challenge by CNIC, not by resolving a candidate first, so `otp_expired` and `otp_max_attempts` are reachable for a decoy challenge exactly as they are for a real one -- these codes do not imply the CNIC exists. A decoy challenge can never actually succeed (there is no candidate to log in as), so a lucky correct-code guess against a decoy still returns `otp_invalid`, not success.
-- The one exception is a CNIC that has never had `/request` called for it at all (no challenge row exists, real or decoy) -- `/verify` returns `otp_invalid` there too, using a fixed-cost dummy bcrypt comparison so this path is not measurably faster than a real comparison.
-- Inactive candidates are handled through the same non-enumerating request path as unknown candidates, so `/request` never delivers a real OTP to an inactive record.
+Historical decoy challenge rows (`CandidateOtpChallenge` with no `candidate`) may still exist in a database migrated from before this change, since `CandidateOtpChallenge#candidate` stays nullable. `POST /verify` still doesn't disclose anything beyond what `/request` already revealed:
+
+- `POST /verify` looks up the latest challenge by CNIC, not by resolving a candidate first, so `otp_expired` and `otp_max_attempts` are reachable for a historical decoy challenge exactly as they are for a real one. A decoy challenge can never actually succeed (there is no candidate to log in as), so a lucky correct-code guess against one still returns `otp_invalid`, not success.
+- A CNIC with no challenge row at all (real or a historical decoy) -- including every unknown CNIC going forward, since `/request` no longer creates one for those -- returns `otp_invalid` too, using a fixed-cost dummy bcrypt comparison so this path is not measurably faster than a real comparison.
 
 ## Environment variables
 
@@ -417,6 +417,57 @@ Production storage note:
 - Production must set `ACTIVE_STORAGE_SERVICE` explicitly to an approved durable private storage backend before deploying candidate uploads
 - The production environment no longer falls back to `local` storage for uploads
 - Leaving `ACTIVE_STORAGE_SERVICE` unset in production now fails fast during boot instead of silently storing candidate documents on local disk
+
+## Candidate payment (KuickPay hosted checkout)
+
+`POST /api/v1/candidate/payment` creates a hosted-checkout session and returns
+a `checkout_url` the candidate's browser is redirected to; no card details
+ever reach this app (`Payments::Providers::KuickpayHostedCheckoutAdapter`).
+
+- **Session creation** follows KuickPay's own "KuickPay Merchant Integration
+  Guide" (hosted checkout -- distinct from their BPS biller/bill-inquiry API,
+  which is a different product with a different endpoint shape and is not
+  used here): `POST {KUICKPAY_BASE_URL}/checkout/api/session`, Basic Auth
+  (`KUICKPAY_COMPANY_ID`:`KUICKPAY_SECURED_KEY`), a body of exactly
+  `companyid`/`orderid`/`amount`/`amountPayable`/`timestamp`/
+  `transactiondescription`/`returnurl`/`signature` (no other fields), an ISO
+  8601 `timestamp`, and `signature` = Base64-encoded HMAC-SHA256 of
+  `companyid|orderid|amount|amountPayable|timestamp` using the SecuredKey.
+  The SecuredKey is a secret, so -- like SendPK's API key -- it comes from
+  encrypted credentials (`kuickpay: <environment>: secured_key`, edited with
+  `bin/rails credentials:edit`), not an env var; `config/kuickpay.yml` reads
+  it and everything else (Company ID, base URL, return URL, timeouts) from
+  `ENV`, all through `Payments::Configuration`.
+- The exact `timestamp`/`amountPayable`/`signature` sent are persisted on the
+  `Payment` row (`provider_request_timestamp`/`provider_amount_payable`/
+  `provider_request_signature`) -- KuickPay's Status API requires resending
+  these byte-for-byte identical, not recomputed, to re-verify a payment.
+- **Real sandbox response shape differs from the guide's documented
+  example**, confirmed 2026-09-28 against a live sandbox call: there is no
+  top-level `success: true` boolean at all -- success is
+  `responseData.status == "success"` / `responseData.responseCode == "00"`.
+  `KuickpayHostedCheckoutAdapter#session_created?` checks both that shape and
+  the documented one, in case production ever sends the latter.
+- **`config/kuickpay.yml`/`config/sendpk.yml` render every ENV value through
+  `.to_json`, not raw ERB interpolation.** A bare, unquoted YAML scalar gets
+  its own implicit type -- a leading-zero value like `KUICKPAY_COMPANY_ID=01234`
+  parsed as YAML octal (668, not the string `"01234"`), which silently broke
+  session creation (KuickPay rejected the corrupted company id) until this was
+  caught. Follow the same `.to_json` pattern for any future ENV value added
+  to either file.
+- **Known gap, not yet implemented**: after KuickPay redirects the candidate's
+  browser back to `returnurl`, the guide is explicit that the redirect
+  (`status`/`orderid`/`sessionid` query params, unsigned) is "not proof of
+  payment" -- the server must independently call `POST
+  {KUICKPAY_BASE_URL}/api/status` with the persisted values above to confirm
+  the outcome. The guide documents that request but shows no example
+  response body, so `KuickpayHostedCheckoutAdapter#parse_notification!`
+  cannot yet map a real KuickPay return into a confirmed payment -- get a
+  sample `/api/status` response from KuickPay's Tech team before wiring this
+  up. `HostedCheckoutCallbacksController`'s server-to-server `/callback`
+  webhook predates this guide and is unconfirmed against it (the guide's
+  4-step flow never mentions an async webhook at all); leave it as-is unless
+  KuickPay confirms their merchant portal can be configured to send one.
 
 ## Candidate bank details
 
@@ -762,8 +813,8 @@ Database-backed translated content should stay out of static locale files. Store
 - `POST /api/v1/users` creates staff users in the `invited` state and returns only safe summary fields plus a localized success message
 - `PATCH /api/v1/users/:id` only accepts allowlisted `role` and `staff_state` changes and revokes the target staff user's sessions immediately after role changes or suspension
 - `PATCH /api/v1/user_invitation` activates an invited staff account, reads the invitation token from the filtered request body, stores only the token digest, and never returns the plaintext invitation token
-- `POST /api/v1/candidate/auth/otp/request` always returns the identical response shape and content regardless of whether the CNIC is unknown, resolves to a candidate whose mobile is currently undeliverable, or resolves to a candidate a code was actually sent to -- never use this endpoint's response to infer whether a CNIC exists
-- `POST /api/v1/candidate/auth/otp/verify` collapses unknown CNIC, no requested challenge, an already-used challenge, and an incorrect code into the identical `otp_invalid` error; `otp_expired` and `otp_max_attempts` are intentionally reachable for both real and decoy challenges, so they do not function as an existence oracle
+- `POST /api/v1/candidate/auth/otp/request` returns a 404 `candidate_cnic_not_found` for a CNIC that matches no active candidate -- a deliberate, client-approved disclosure (see [Security: CNIC existence is intentionally disclosed](#security-cnic-existence-is-intentionally-disclosed)); a resolvable CNIC always returns the identical generic success response regardless of whether its mobile is actually deliverable or a code was actually sent, so delivery failures alone stay undisclosed
+- `POST /api/v1/candidate/auth/otp/verify` collapses no requested challenge, an already-used challenge, and an incorrect code into the identical `otp_invalid` error; `otp_expired` and `otp_max_attempts` are also reachable for a historical decoy challenge (see above), so on their own they don't confirm a CNIC is currently active
 - `POST /api/v1/candidate/auth/refresh` (body `{ "candidate": { "refresh_token": "..." } }`) renews a candidate session without a new SMS OTP: it returns a new access token (`CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`, default 15) and a rotated refresh token. Each refresh token is single-use, and presenting an already-rotated token revokes the whole session (reuse detection). An inactive candidate or a revoked session cannot refresh. A refresh token lasts `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS` (default 30) from its last rotation, so a candidate who opens the app at least once in that window stays signed in, while 30 days idle requires a new OTP. Throttled per IP (`CANDIDATE_REFRESH_RATE_LIMIT_PER_MINUTE`, default 30) and per refresh-token digest (`AUTH_REFRESH_TOKEN_RATE_LIMIT_PER_MINUTE`); errors are `invalid_refresh_token` (401), `session_revoked` (401) and `inactive_account` (403)
 - Both candidate OTP endpoints are rate-limited per IP and per (normalized) CNIC, independently of the per-challenge attempt limit enforced by `otp_max_attempts`
 - Candidate access/refresh tokens use a distinct JWT audience (`CANDIDATE_JWT_AUDIENCE`) from staff tokens and are backed by separate `candidate_sessions`/`candidate_refresh_tokens` tables, so a candidate token can never be accepted as a staff one or vice versa
@@ -794,3 +845,18 @@ curl -X DELETE \
 
 - ERD: `docs/schema/core_relational_schema.mmd`
 - Schema notes: `docs/schema/core_relational_schema.md`
+
+In short:
+Admin = operational "what needs doing now,"
+MPS = ops team's delay/bottleneck view,
+Management = leadership's conversion/exception summary,
+Reports = the raw exportable data behind all of it.
+
+
+#	State	Candidate	CNIC	Login digits (no dashes)
+1	Documents Pending          || uploaded	Muhammad Usman  || 43194-6772018-0
+2	All 9 docs uploaded, not verified ||	Imran Ali Qureshi || 45526-7630741-1
+3	Docs verified, at payment stage || Muhammad Hussain     || 42001-1000001-1
+4	Documents Shared with Qatar BU || Faisal Rasheed        || 48883-9624788-8
+5	Visa issued — download button works	Irfan Bashir        || 47453-1407093-8
+6 (new)	Consent not yet accepted	Bilal Hussain	          || 45013-4256319-1
