@@ -34,10 +34,6 @@ module DevData
       'Umar Farooq Chaudhry', 'Ali Raza Baloch'
     ].freeze
 
-    def initialize(document_types:)
-      @document_types = document_types
-    end
-
     def build(profile:, index:, actor:, reference:)
       candidate = build_candidate(profile, index, actor)
       assignment = build_assignment(candidate, actor, reference, profile)
@@ -108,7 +104,12 @@ module DevData
     # Documents
     # ------------------------------------------------------------------------
 
+    # Documents for the assignment's own checklist (its country, project and craft decide it).
     def build_documents!(assignment, variation, actor)
+      @requirements_by_type = Candidates::Documents::RequirementResolver
+                              .call(candidate: assignment.candidate, assignment:)
+                              .select(&:required).index_by(&:document_type)
+      @document_types = @requirements_by_type.keys
       send("build_documents_#{variation}!", assignment, actor)
     end
 
@@ -154,7 +155,27 @@ module DevData
       attrs = { candidate_assignment: assignment, document_type: type, uploaded_by: actor, status_code: status.to_s }
       attrs.merge!(document_status_attributes(status, actor))
       attrs[:issued_on] = issued_on || default_issued_on(type)
-      create(:candidate_document, **attrs)
+      create(:candidate_document, **attrs, files: document_files(@requirements_by_type.fetch(type)))
+    end
+
+    # A realistic file set for the requirement: front + back images, passport page 1 + page 2,
+    # two certificates, or a single PDF.
+    def document_files(requirement)
+      sides = requirement.allowed_side_codes
+      layout = if sides.include?('front') then [%w[front image/jpeg], %w[back image/jpeg]]
+               elsif sides.include?('page_1') then [%w[page_1 image/jpeg], %w[page_2 image/jpeg]]
+               elsif sides.include?('certificate') then [%w[certificate application/pdf]] * 2
+               else [[nil, requirement.accepted_content_types.first]]
+               end
+      layout.each_with_index.map { |(side_code, content_type), index| fixture_file(side_code, content_type, index + 1) }
+    end
+
+    def fixture_file(side_code, content_type, position)
+      name = content_type == 'application/pdf' ? 'test.pdf' : 'test.jpg'
+      FactoryBot.build(:candidate_document_file, side_code:, position:, content_type:,
+                                                 original_filename: name).tap do |file|
+        file.file.attach(io: Rails.root.join('spec/fixtures/files', name).open, filename: name, content_type:)
+      end
     end
 
     # `police_character` documents require `issued_on` regardless of status (see

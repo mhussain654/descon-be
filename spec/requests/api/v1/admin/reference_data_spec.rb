@@ -105,6 +105,21 @@ RSpec.describe 'API V1 Admin Reference Data', type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.fetch('data').pluck('code')).to include('craft_ref_test')
+      expect(response.parsed_body.fetch('data').find { |craft| craft['code'] == 'craft_ref_test' })
+        .to include('is_driver' => false)
+    end
+
+    it 'lets staff mark a craft as a driver craft' do
+      actor = create(:user, role: 'hr')
+      craft = create(:craft, code: 'craft_ref_test')
+
+      patch '/api/v1/admin/crafts/craft_ref_test',
+            params: { reference_data: { is_driver: true, expected_updated_at: craft.updated_at.utc.iso8601 } },
+            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.fetch('data')).to include('code' => 'craft_ref_test', 'is_driver' => true)
+      expect(craft.reload.is_driver).to be(true)
     end
   end
 

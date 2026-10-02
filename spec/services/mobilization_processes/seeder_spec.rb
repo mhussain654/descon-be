@@ -23,6 +23,16 @@ RSpec.describe MobilizationProcesses::Seeder do
       .to eq([[1, 'registered', 'none'], [2, 'documents_pending', 'document_submission']])
   end
 
+  it 'refuses to accept a published version whose stage settings no longer match its definition' do
+    process = described_class.call(definitions: [definition]).sole
+    # Published stages are read-only to the app; simulate drift made directly in the database.
+    MobilizationProcessStage.where(id: process.stages.last.id).update_all(action_type: 'payment') # rubocop:disable Rails/SkipsModelValidations
+
+    expect { described_class.call(definitions: [definition]) }.to raise_error(described_class::MismatchError)
+    expect { described_class.call(definitions: [definition(provisional: false)]) }
+      .to raise_error(described_class::MismatchError)
+  end
+
   it 'refuses to treat an edited stage list as the same published version' do
     described_class.call(definitions: [definition])
 

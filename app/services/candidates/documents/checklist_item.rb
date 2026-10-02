@@ -2,6 +2,11 @@
 
 module Candidates
   module Documents
-    ChecklistItem = Data.define(:requirement_code, :name, :required, :status, :replacement_allowed, :document)
+    # One checklist entry: the requirement's backend-decided configuration
+    # (order, instructions, upload rules) plus the current document, if any.
+    ChecklistItem = Data.define(
+      :requirement_code, :name, :required, :display_position, :instructions, :upload_rules,
+      :status, :replacement_allowed, :document
+    )
   end
 end

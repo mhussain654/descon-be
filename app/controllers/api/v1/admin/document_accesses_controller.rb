@@ -26,7 +26,8 @@ module Api
           @access_result ||= ::Admin::DocumentReviews::AccessService.call(
             actor: current_user,
             document: candidate_document,
-            request_id: request.request_id
+            request_id: request.request_id,
+            file_id: params[:file_id].presence
           )
         end
 

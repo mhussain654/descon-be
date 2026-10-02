@@ -82,7 +82,7 @@ RSpec.describe 'db:seed rake task' do
     expect(Country.count).to be_positive
     expect(Project.count).to be_positive
     expect(Craft.count).to be_positive
-    expect(DocumentType.pluck(:code)).to include('passport', 'cnic_front', 'cnic_back', 'cv')
+    expect(DocumentType.where(active: true).pluck(:code)).to include('passport', 'cnic', 'next_of_kin_cnic', 'cv')
   end
 
   it 'does not seed the demo candidates (or their supporting user) in the test environment' do

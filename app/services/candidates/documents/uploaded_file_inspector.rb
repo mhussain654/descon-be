@@ -20,14 +20,11 @@ module Candidates
 
       private
 
+      # Decided by the file's own signature (magic bytes) only -- the
+      # browser-declared type and the filename extension are never trusted, so
+      # a renamed or mislabelled file can't pass as a PDF or image.
       def detected_content_type
-        with_tempfile do |tempfile|
-          Marcel::MimeType.for(
-            tempfile,
-            name: @uploaded_file.original_filename.to_s,
-            declared_type: @uploaded_file.content_type.to_s
-          )
-        end
+        with_tempfile { |tempfile| Marcel::Magic.by_magic(tempfile)&.type || 'application/octet-stream' }
       end
 
       def checksum_sha256

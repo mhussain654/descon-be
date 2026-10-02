@@ -24,7 +24,8 @@ module Api
             candidate: current_candidate,
             document: document,
             request_id: request.request_id,
-            disposition: disposition
+            disposition: disposition,
+            file_id: params[:file_id].presence
           )
         end
 

@@ -20,7 +20,10 @@ RSpec.describe Admin::Reports::OutcomeTrackingQuery do
     create(:candidate_qvc_attempt, candidate_assignment: assignment, no_show: true,
                                    outcome_recorded_at: Time.current, outcome_recorded_by: reviewer)
     create(:candidate_visa_decision, :rejected, candidate_assignment: assignment)
-    create(:candidate_visa_decision, candidate_assignment: assignment, outcome_code: 'issued')
+    # A stage is entered at most once per assignment, so the second decision hangs off another history row.
+    other_history = create(:candidate_stage_history, candidate_assignment: assignment)
+    create(:candidate_visa_decision, candidate_assignment: assignment, outcome_code: 'issued',
+                                     candidate_stage_history: other_history)
     create(:candidate_document, candidate_assignment: other_assignment, status_code: 'rejected', verified_by: reviewer,
                                 verified_at: Time.current, rejection_reason: 'Illegible scan')
 

@@ -13,6 +13,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
@@ -27,6 +28,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
     AuditEvent.delete_all
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all

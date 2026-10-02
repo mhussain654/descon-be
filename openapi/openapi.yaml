@@ -696,6 +696,10 @@ components:
           enum: [application/pdf, image/jpeg, image/png]
         file_size:
           type: integer
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateDocumentFile'
         uploaded_at:
           type: string
           format: date-time
@@ -724,9 +728,41 @@ components:
         rejection_reason:
           type: string
           description: Present only when this document's current status is `rejected`.
-      required: [id, file_name, content_type, file_size, uploaded_at]
+      required: [id, file_name, content_type, file_size, uploaded_at, files]
+    CandidateDocumentFile:
+      type: object
+      description: One file of a document's file set. Fetch its content through the document access endpoint with `file_id`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        side_code:
+          anyOf:
+            - $ref: '#/components/schemas/DocumentSideCode'
+            - type: 'null'
+        position:
+          type: integer
+          minimum: 1
+        file_name:
+          type: string
+        content_type:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png]
+        file_size:
+          type: integer
+      required: [id, side_code, position, file_name, content_type, file_size]
+    DocumentSideCode:
+      type: string
+      description: >-
+        Which part of a document a file is: `combined` (one PDF with every part), `front`/`back`,
+        `page_1`/`page_2`, or `certificate` (repeatable). Allowed values per requirement come from
+        its `allowed_side_codes`; null for documents that use no labels.
+      enum: [combined, front, back, page_1, page_2, certificate]
     CandidateDocumentChecklistItem:
       type: object
+      description: >-
+        One backend-decided checklist entry for the candidate's assignment (country, project and
+        craft), in `display_position` order, with the rules an upload must satisfy.
       properties:
         requirement_code:
           type: string
@@ -735,6 +771,33 @@ components:
           type: string
         required:
           type: boolean
+        display_position:
+          type: integer
+        instructions:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Localized to the request locale.
+        minimum_files:
+          type: integer
+          minimum: 1
+        maximum_files:
+          type: integer
+          minimum: 1
+        combined_pdf_allowed:
+          type: boolean
+        allowed_side_codes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSideCode'
+        accepted_content_types:
+          type: array
+          items:
+            type: string
+            enum: [application/pdf, image/jpeg, image/png]
+        maximum_file_size:
+          type: integer
+          description: Per-file limit in bytes.
         status:
           type: string
           enum: [missing, uploaded, pending_review, verified, rejected]
@@ -744,20 +807,43 @@ components:
           anyOf:
             - $ref: '#/components/schemas/CandidateDocumentMetadata'
             - type: 'null'
-      required: [requirement_code, name, required, status, replacement_allowed, document]
+      required: [requirement_code, name, required, display_position, instructions, minimum_files, maximum_files,
+        combined_pdf_allowed, allowed_side_codes, accepted_content_types, maximum_file_size, status,
+        replacement_allowed, document]
     CandidateDocumentUploadRequest:
       type: object
       properties:
         candidate_document:
           type: object
-          required: [requirement_code, file]
+          description: >-
+            Send the document's file set as `files[]` (e.g. `candidate_document[files][][file]` and
+            `candidate_document[files][][side_code]`). The set must satisfy the checklist item's rules:
+            file count, accepted types (detected from file content, not the declared type) and size,
+            and side labels -- both of a front/back or page_1/page_2 pair, labels not repeated
+            (except `certificate`), and `combined` only as a single PDF. A missing label is filled in
+            when only one reading is possible. The single `file` field is still accepted as a one-file
+            upload for older clients.
+          required: [requirement_code]
           properties:
             requirement_code:
               type: string
               example: passport
+            files:
+              type: array
+              items:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: string
+                    format: binary
+                  side_code:
+                    $ref: '#/components/schemas/DocumentSideCode'
             file:
               type: string
               format: binary
+              deprecated: true
+              description: Legacy single-file upload; use `files`.
             issued_on:
               type: string
               format: date
@@ -1923,6 +2009,9 @@ components:
         name:
           type: string
           description: Localized per the request's X-Locale/Accept-Language.
+        is_driver:
+          type: boolean
+          description: Present on crafts only.
       required: [code, name]
     ReferenceDataCreateRequest:
       type: object
@@ -1938,6 +2027,9 @@ components:
               type: string
             name_ur:
               type: string
+            is_driver:
+              type: boolean
+              description: Crafts only -- marks a driver craft, which receives driver-only document requirements (e.g. the Qatar driving licence).
           additionalProperties: false
       required: [reference_data]
     ReferenceDataUpdateRequest:
@@ -1953,6 +2045,9 @@ components:
             expected_updated_at:
               type: string
               format: date-time
+            is_driver:
+              type: boolean
+              description: Crafts only -- marks a driver craft, which receives driver-only document requirements (e.g. the Qatar driving licence).
           additionalProperties: false
       required: [reference_data]
     AdminCandidateAssignmentSummary:
@@ -2233,6 +2328,11 @@ components:
           enum: [application/pdf, image/jpeg, image/png]
         file_size:
           type: integer
+        files:
+          type: array
+          description: The whole file set staff review together; the single-file fields describe its representative file.
+          items:
+            $ref: '#/components/schemas/CandidateDocumentFile'
         uploaded_at:
           type: string
           format: date-time
@@ -2276,6 +2376,7 @@ components:
         - file_name
         - content_type
         - file_size
+        - files
         - uploaded_at
         - status
     AdminDocumentSubmissionDetail:
@@ -2304,12 +2405,16 @@ components:
         document_id:
           type: string
           format: uuid
+        file_id:
+          type: string
+          format: uuid
+          description: The file this URL serves (the requested `file_id`, or the representative file).
         url:
           type: string
         expires_at:
           type: string
           format: date-time
-      required: [document_id, url, expires_at]
+      required: [document_id, file_id, url, expires_at]
     AdminDocumentReviewDecision:
       type: object
       properties:
@@ -4064,7 +4169,12 @@ paths:
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
         '422':
-          description: Validation failure for missing file, invalid requirement, unsupported content type, empty file, oversized file, or forbidden replacement
+          description: >-
+            Validation failure for missing file, invalid requirement, unsupported content type, empty file,
+            oversized file, forbidden replacement, a file set that breaks the requirement's rules
+            (`invalid_document_files` with `details.reason` one of too_few_files, too_many_files,
+            side_code_required, side_code_not_allowed, duplicate_side_code, incomplete_side_pair,
+            combined_must_be_alone, combined_requires_pdf), or a file rejected by scanning (`malware_detected`)
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -4087,6 +4197,17 @@ paths:
                     errors:
                       - code: invalid_requirement
                         message: درست دستاویز کی شرط منتخب کریں۔
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+                incompleteSidePair:
+                  value:
+                    errors:
+                      - code: invalid_document_files
+                        message: Upload both sides (front and back, or page 1 and page 2) of this document.
+                        field: candidate_document.files
+                        details:
+                          reason: incomplete_side_pair
+                          missing_side_code: back
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
                 unsupportedFileType:
@@ -4156,6 +4277,13 @@ paths:
       security:
         - candidateBearerAuth: []
       parameters:
+        - name: file_id
+          in: query
+          required: false
+          description: Which file of a multi-file document to serve; defaults to its representative file. Unknown ids return 404.
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - in: path
@@ -4179,6 +4307,10 @@ paths:
                     `inline` opens the document for viewing in the browser; `attachment`
                     prompts the device to download and save it. Defaults to `inline` when
                     omitted.
+                file_id:
+                  type: string
+                  format: uuid
+                  description: Same as the `file_id` query parameter.
               additionalProperties: false
             examples:
               viewRequest:
@@ -9549,6 +9681,13 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - name: file_id
+          in: query
+          required: false
+          description: Which file of a multi-file document to serve; defaults to its representative file. Unknown ids return 404.
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - in: path

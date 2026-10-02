@@ -49,7 +49,7 @@ module Api
             submission = CandidateDocumentSubmission
                          .preload(
                            candidate_assignment: %i[candidate country craft project],
-                           submission_items: { candidate_document: %i[document_type verified_by] }
+                           submission_items: { candidate_document: %i[document_type verified_by files] }
                          )
                          .find_by(public_id: params.expect(:id))
             raise DocumentSubmissionNotFoundError if submission.blank?

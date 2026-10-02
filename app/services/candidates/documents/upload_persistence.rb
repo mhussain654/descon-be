@@ -2,12 +2,15 @@
 
 module Candidates
   module Documents
+    # Saves an inspected, validated file set as the requirement's new current
+    # document version (superseding the previous one when replacement is
+    # allowed). `files` are `{ side_code:, details: UploadedFileDetails, blob: }`
+    # in upload order.
     class UploadPersistence < ApplicationService
-      def initialize(candidate:, requirement:, file_details:, blob:, context:)
+      def initialize(candidate:, requirement:, files:, context:)
         @candidate = candidate
         @requirement = requirement
-        @file_details = file_details
-        @blob = blob
+        @files = files
         @request_id = context[:request_id]
         @issued_on = context[:issued_on]
       end
@@ -70,19 +73,24 @@ module Candidates
 
       def create_document!
         document = current_assignment.candidate_documents.new(document_attributes)
-        document.file.attach(@blob)
+        @files.each.with_index(1) { |file, position| build_file(document, file, position) }
         document.save!
         document
+      end
+
+      def build_file(document, file, position)
+        details = file.fetch(:details)
+        document_file = document.files.build(
+          side_code: file[:side_code], position:, original_filename: details.filename,
+          content_type: details.content_type, byte_size: details.byte_size, checksum_sha256: details.checksum_sha256
+        )
+        document_file.file.attach(file.fetch(:blob))
       end
 
       def document_attributes
         {
           document_type: @requirement.document_type,
           status_code: 'uploaded',
-          original_filename: @file_details.filename,
-          content_type: @file_details.content_type,
-          byte_size: @file_details.byte_size,
-          checksum_sha256: @file_details.checksum_sha256,
           uploaded_at: Time.current,
           issued_on: @issued_on
         }
@@ -105,7 +113,9 @@ module Candidates
         {
           candidate_public_id: @candidate.public_id,
           document_public_id: uploaded_document.public_id,
-          requirement_code: @requirement.document_type.code
+          requirement_code: @requirement.document_type.code,
+          file_count: @files.size,
+          side_codes: @files.filter_map { |file| file[:side_code] }
         }.merge(pcc_audit_metadata(uploaded_document))
       end
 

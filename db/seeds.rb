@@ -175,82 +175,20 @@ end
   { code: 'plumber', name_en: 'Plumber', name_ur: 'پلمبر' },
   { code: 'welder', name_en: 'Welder', name_ur: 'ویلڈر' },
   { code: 'mason', name_en: 'Mason', name_ur: 'مستری' },
-  { code: 'steel_fixer', name_en: 'Steel Fixer', name_ur: 'اسٹیل فکسر' }
+  { code: 'steel_fixer', name_en: 'Steel Fixer', name_ur: 'اسٹیل فکسر' },
+  { code: 'driver', name_en: 'Driver', name_ur: 'ڈرائیور', is_driver: true },
+  { code: 'heavy_vehicle_driver', name_en: 'Heavy Vehicle Driver', name_ur: 'ہیوی گاڑی ڈرائیور', is_driver: true }
 ].each do |attributes|
   craft = Craft.find_or_initialize_by(code: attributes.fetch(:code))
-  craft.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
+  craft.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true,
+                          is_driver: attributes.fetch(:is_driver, false))
   craft.save!
 end
 
-# Codes match the document types the candidate-admin frontend already
-# renders (web/src/app/admin/candidates/[id]/page.jsx's documentTypeKeys),
-# keeping the two sides of this contract-first build aligned.
-[
-  { code: 'passport', name_en: 'Passport', name_ur: 'پاسپورٹ', requires_number: true, requires_expiry: true },
-  { code: 'cnic_front', name_en: 'CNIC (Front)', name_ur: 'شناختی کارڈ (اگلا رخ)', requires_expiry: true },
-  { code: 'cnic_back', name_en: 'CNIC (Back)', name_ur: 'شناختی کارڈ (پچھلا رخ)', requires_expiry: true },
-  { code: 'next_of_kin_cnic', name_en: 'Next of Kin CNIC', name_ur: 'قریبی رشتہ دار کا شناختی کارڈ',
-    requires_expiry: true },
-  { code: 'police_character', name_en: 'Police Character Certificate', name_ur: 'پولیس کریکٹر سرٹیفکیٹ',
-    requires_expiry: true },
-  { code: 'bank_details', name_en: 'Bank Account Details', name_ur: 'بینک اکاؤنٹ کی تفصیلات' },
-  { code: 'cheque_image', name_en: 'Cancelled Cheque Image', name_ur: 'منسوخ شدہ چیک کی تصویر' },
-  { code: 'cv', name_en: 'CV / Resume', name_ur: 'سی وی / ریزیومے' },
-  { code: 'experience_letter', name_en: 'Experience Letter', name_ur: 'تجربے کا سرٹیفکیٹ' },
-  { code: 'certificates', name_en: 'Certificates', name_ur: 'سرٹیفیکیٹس' },
-  { code: 'polio_certificate', name_en: 'Polio Certificate', name_ur: 'پولیو سرٹیفکیٹ' }
-].each do |attributes|
-  document_type = DocumentType.find_or_initialize_by(code: attributes.fetch(:code))
-  document_type.assign_attributes(
-    name_en: attributes.fetch(:name_en),
-    name_ur: attributes.fetch(:name_ur),
-    requires_number: attributes.fetch(:requires_number, false),
-    requires_expiry: attributes.fetch(:requires_expiry, false),
-    active: true
-  )
-  document_type.save!
-end
-
-# Global document requirements (no country/project/craft scope, so they
-# apply to every candidate via RequirementResolver's `[nil, assignment.xxx]`
-# matching) -- one per document type above so a candidate's checklist always
-# reflects every type this catalog defines, not just the first few seeded.
-# `police_character_certificate` is deliberately excluded: it's a stray
-# duplicate of `police_character` (missing `requires_expiry`) already linked
-# to real candidate_documents rows -- reconciling that duplicate is a
-# separate, consequential data-migration decision, not part of this seed.
-# `bank_details`/`cheque_image` are also excluded from the active set below:
-# candidates now submit bank information through the dedicated, structured
-# CandidateBankDetail resource instead of a generic document upload (see
-# db/migrate/20260904090000_retire_generic_bank_document_requirements.rb) --
-# seeded here as `active: false` so a fresh database matches that migration.
-# `passport`/`cnic_front`/`police_character` were originally left out of
-# this active set with no requirement row at all, so they silently never
-# appeared on a candidate's checklist even though passport and cnic_front
-# are already OCR-extraction-enabled -- see
-# db/migrate/20260912100000_activate_missing_global_document_requirements.rb,
-# which activates them for existing databases; seeded here as active so a
-# fresh database matches that migration.
-%w[
-  passport cnic_front cnic_back next_of_kin_cnic police_character
-  cv experience_letter certificates polio_certificate
-].each do |code|
-  document_type = DocumentType.find_by!(code: code)
-  requirement = DocumentRequirement.find_or_initialize_by(
-    document_type: document_type, country: nil, project: nil, craft: nil
-  )
-  requirement.assign_attributes(required: true, active: true)
-  requirement.save!
-end
-
-%w[bank_details cheque_image].each do |code|
-  document_type = DocumentType.find_by!(code: code)
-  requirement = DocumentRequirement.find_or_initialize_by(
-    document_type: document_type, country: nil, project: nil, craft: nil
-  )
-  requirement.assign_attributes(required: true, active: false)
-  requirement.save!
-end
+# Document catalog plus the common, KSA and Qatar checklists (with upload
+# rules and bilingual instructions) -- see DocumentChecklists::Definitions.
+# Needs the countries above.
+DocumentChecklists::Seeder.call
 
 # --- Demo/reserved data for exercising MPS-201's candidate OTP API ---------
 #

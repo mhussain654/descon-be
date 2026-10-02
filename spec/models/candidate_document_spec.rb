@@ -20,13 +20,32 @@ RSpec.describe CandidateDocument, type: :model do
   it { is_expected.to belong_to(:uploaded_by).class_name('User').optional }
   it { is_expected.to belong_to(:verified_by).class_name('User').optional }
 
-  it 'normalizes the status code and checksum' do
+  it 'normalizes the status code' do
     candidate_document.status_code = ' VERIFIED '
-    candidate_document.checksum_sha256 = ' ABCDEF '
     candidate_document.validate
 
     expect(candidate_document.status_code).to eq('verified')
-    expect(candidate_document.checksum_sha256).to eq('abcdef')
+  end
+
+  it 'requires at least one file for the current version' do
+    candidate_document.files = []
+
+    expect(candidate_document).not_to be_valid
+    expect(candidate_document.errors[:files]).to be_present
+  end
+
+  it 'picks a combined PDF, else page 1 / front, as the representative file' do
+    document = build(:candidate_document)
+    document.files = [build(:candidate_document_file, side_code: 'back', position: 1),
+                      build(:candidate_document_file, side_code: 'front', position: 2)]
+    document.save!
+    back = document.files.find { |file| file.side_code == 'back' }
+
+    expect(document.primary_file.side_code).to eq('front')
+    expect(document.file_for_access(nil).side_code).to eq('front')
+    expect(document.file_for_access(back.public_id)).to eq(back)
+    expect(document.file_for_access(SecureRandom.uuid)).to be_nil
+    expect(document.total_byte_size).to eq(2048)
   end
 
   it 'requires verification user and time together' do

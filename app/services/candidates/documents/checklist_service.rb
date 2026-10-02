@@ -31,6 +31,7 @@ module Candidates
         assignment
           .candidate_documents
           .current_version
+          .includes(:files)
       end
     end
   end

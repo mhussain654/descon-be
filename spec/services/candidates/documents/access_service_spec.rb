@@ -24,7 +24,7 @@ RSpec.describe Candidates::Documents::AccessService do
       'accessed_by' => 'candidate', 'document_public_id' => document.public_id, 'disposition' => 'inline'
     )
     expect(event.metadata).not_to have_key('actor_public_id')
-    expect(event.metadata.to_json).not_to include(document.checksum_sha256.to_s)
+    expect(event.metadata.to_json).not_to include(document.files.first.checksum_sha256.to_s)
   end
 
   it 'generates an attachment-disposition URL that prompts a device download when requested' do
@@ -42,7 +42,7 @@ RSpec.describe Candidates::Documents::AccessService do
   it 'rejects documents whose attachment is missing' do
     document = create(:candidate_document)
     candidate = document.candidate_assignment.candidate
-    document.file.purge
+    document.files.first.file.purge
 
     expect do
       described_class.call(actor: nil, candidate:, document:, request_id: 'cand-doc-access-2')

@@ -20,6 +20,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     DocumentRequirement.delete_all
     DocumentType.delete_all
@@ -41,6 +42,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     DocumentRequirement.delete_all
     DocumentType.delete_all
@@ -450,6 +452,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     token = access_token_for(actor)
 
     candidate_missing_document, _assignment_missing_document = prepare_fee_paid_candidate
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
 
     transition_request(
