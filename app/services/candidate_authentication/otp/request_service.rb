@@ -17,7 +17,13 @@ module CandidateAuthentication
     # an SMS-provider-level delivery failure for an otherwise well-formed
     # number, which never changes the response (delivery failures are still
     # never disclosed -- only non-existence is, per the client's decision).
+    #
+    # Since existence is already disclosed, the success response also carries
+    # the last four digits of the candidate's registered mobile -- the
+    # standard "code sent to •••• 4821" hint -- and nothing more of the number.
     class RequestService < ApplicationService
+      MOBILE_HINT_DIGITS = 4
+
       LOCK_SCOPE = 'candidate_otp'
 
       def initialize(cnic:, ip_address:)
@@ -32,7 +38,8 @@ module CandidateAuthentication
 
         {
           expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
-          resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i
+          resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
+          mobile_last_four: @candidate.mobile_number.delete('^0-9').last(MOBILE_HINT_DIGITS)
         }
       end
 
@@ -82,9 +89,7 @@ module CandidateAuthentication
         ActiveRecord::Base.transaction do
           lock_cnic!
 
-          candidate = Candidate.active.find_by(cnic: @cnic)
-          raise CandidateCnicNotFoundError.new(cnic: @cnic) unless candidate
-
+          candidate = resolve_candidate!
           next if within_resend_cooldown?
 
           challenge_payload = CandidateOtpChallenge.generate_for(candidate:, requested_ip: @ip_address)
@@ -92,6 +97,15 @@ module CandidateAuthentication
         end
 
         challenge_payload
+      end
+
+      # Also kept for the response's mobile hint, which applies even inside the
+      # resend cooldown (no new challenge, same registered number).
+      def resolve_candidate!
+        @candidate = Candidate.active.find_by(cnic: @cnic)
+        raise CandidateCnicNotFoundError.new(cnic: @cnic) unless @candidate
+
+        @candidate
       end
 
       def lock_cnic!

@@ -28,6 +28,11 @@ class Candidate < ApplicationRecord
   has_many :candidate_consents, dependent: :restrict_with_exception
   has_many :candidate_ai_calls, dependent: :restrict_with_exception
 
+  # Optional photo the candidate uploads/changes from their own profile (see
+  # Candidates::ProfilePhotos::UpdateService). Served only through short-lived
+  # signed URLs -- never a public link.
+  has_one_attached :profile_photo
+
   before_validation :assign_public_id, on: :create
   before_validation :normalize_cnic
   before_validation :normalize_mobile_number
