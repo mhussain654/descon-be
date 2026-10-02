@@ -31,7 +31,7 @@ gem 'solid_cache'
 gem 'solid_queue'
 
 group :development, :test do
-  gem 'brakeman', require: false
+  gem 'brakeman', '>= 8.1.0', require: false
   gem 'bullet'
   gem 'bundler-audit', require: false
   gem 'debug', platforms: %i[mri windows], require: 'debug/prelude'

@@ -5988,6 +5988,11 @@ paths:
           description: Not authorized to view workflow transitions
     post:
       summary: Transition a candidate to the next allowed workflow stage
+      description: >-
+        Applies an ordinary JSON workflow transition. Stages with dedicated
+        command resources cannot be entered here. In particular,
+        visa_issued_or_rejected must use the candidate visa-decisions endpoint
+        so issued visas cannot bypass the required private visa-copy upload.
       security:
         - bearerAuth: []
       parameters:

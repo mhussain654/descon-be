@@ -28,7 +28,7 @@ RSpec.describe CandidateDocument, type: :model do
   end
 
   describe '#replacement_allowed?' do
-    let(:pcc_type) { create(:document_type, code: CandidateDocument::PCC_REQUIREMENT_CODE) }
+    let(:pcc_type) { police_character_type }
     let(:reviewer) { create(:user) }
 
     def document_with(status_code, document_type: create(:document_type), issued_on: nil)

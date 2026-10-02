@@ -108,10 +108,13 @@ RSpec.describe CandidateWorkflows::TransitionService do
 
   it 'shares a Qatar candidate with the BU only when verified, paid and medically fit' do
     candidate, assignment = candidate_at('fee_paid')
-    passport = create(:document_type, code: "passport_#{SecureRandom.hex(3)}")
-    create(:document_requirement, document_type: passport, country: assignment.country)
-    create(:candidate_document, candidate_assignment: assignment, document_type: passport, status_code: 'verified',
-                                verified_by: actor, verified_at: Time.current)
+    Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required).each do |requirement|
+      create(
+        :candidate_document, candidate_assignment: assignment, document_type: requirement.document_type,
+                             status_code: 'verified', verified_by: actor, verified_at: Time.current,
+                             issued_on: requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE ? Date.current : nil
+      )
+    end
     pay!(assignment)
     create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'unfit')
 
