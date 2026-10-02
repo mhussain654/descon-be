@@ -125,7 +125,8 @@ Commonly adjusted per machine or environment:
 - `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS` -- sliding window: each refresh issues a new token valid for this many days
 - `CANDIDATE_REFRESH_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_DOCUMENT_MAX_BYTES` -- bank-detail proof uploads (checklist documents use each requirement's `maximum_file_size`)
-- `DOCUMENT_MALWARE_SCAN_PROVIDER` -- see "Malware scanning" below
+- `APP_ENV` -- deployment environment (`development`, `test`, `staging`, `production`); decides whether a deployment is live, since staging may run with `RAILS_ENV=production`
+- `DOCUMENT_MALWARE_SCANNER` -- see "Malware scanning" below
 - `SEED_DEMO_DATA` -- set to `true` only in development when you want demo candidates and the demo administrator created by `db:seed`
 - `OTP_CODE_LENGTH`
 - `OTP_EXPIRY_SECONDS`
@@ -301,10 +302,11 @@ Checklist behavior:
 
 Malware scanning:
 
-- Every candidate document file is scanned before anything is stored, by the provider named in `DOCUMENT_MALWARE_SCAN_PROVIDER`.
-- No real scanning provider is integrated yet; this is an outstanding production security dependency. Until one is, **production fails closed**: document uploads are refused with `503 malware_scan_unavailable` (and logged) rather than accepted unscanned.
-- `mock` (the development/test default) flags the standard EICAR test signature and passes everything else; it is never accepted in production.
-- To integrate a provider, add an adapter responding to `infected?(io:, filename:)` to `MalwareScanning::Configuration::PROVIDERS` and set `DOCUMENT_MALWARE_SCAN_PROVIDER` to its code.
+- Every candidate document file is scanned before anything is stored, by the scanner named in `DOCUMENT_MALWARE_SCANNER`. There is no default: when it is unset, document uploads are refused with `503 malware_scan_unavailable` (fail closed).
+- `mock` flags only the standard EICAR test signature and scans nothing else. It must be enabled explicitly and is allowed only when `APP_ENV` is `development`, `test` or `staging`; every scan logs a warning that the mock is active.
+- A live deployment (`APP_ENV=production`, or `RAILS_ENV=production` with no `APP_ENV`, or any unrecognized `APP_ENV`) refuses to boot with `DOCUMENT_MALWARE_SCANNER=mock`, and refuses uploads if it is somehow active.
+- No real scanning provider is integrated yet -- a required, separately tracked dependency before the production release. Until then production fails closed. To integrate one, add an adapter responding to `infected?(io:, filename:)` to `MalwareScanning::Configuration::PROVIDERS` and set `DOCUMENT_MALWARE_SCANNER` to its code.
+- Local development: set `APP_ENV=development` and `DOCUMENT_MALWARE_SCANNER=mock` in `.env.development` to upload documents locally.
 
 Upload behavior:
 

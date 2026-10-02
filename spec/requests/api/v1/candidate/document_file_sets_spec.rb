@@ -88,7 +88,8 @@ RSpec.describe 'API V1 Candidate Document File Sets', type: :request do
   end
 
   it 'refuses document uploads with 503 when no malware scanner is available (fail closed), storing nothing' do
-    unavailable = instance_double(MalwareScanning::Configuration, provider: nil, provider_code: nil)
+    unavailable = instance_double(MalwareScanning::Configuration, provider: nil, scanner_code: nil,
+                                                                  deployment_environment: 'production')
     allow(MalwareScanning::Configuration).to receive(:new).and_return(unavailable)
 
     expect { upload('cv', [['test.pdf', nil]]) }.not_to change(ActiveStorage::Blob, :count)
