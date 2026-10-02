@@ -10,10 +10,10 @@ module CandidateWorkflows
     def call
       return [] if assignment.blank? || !@candidate.active?
 
-      next_stage = next_stage_for(assignment.current_workflow_stage)
-      return [] if next_stage.blank?
+      next_process_stage = assignment.next_process_stage
+      return [] if next_process_stage.blank?
 
-      [serialize_stage(next_stage)]
+      [serialize_stage(next_process_stage)]
     end
 
     private
@@ -34,33 +34,31 @@ module CandidateWorkflows
       )
     end
 
-    def next_stage_for(current_stage)
-      return if current_stage.blank?
+    def serialize_stage(process_stage)
+      return blocked_for_unauthorized_actor(process_stage) unless workflow_manageable?
 
-      WorkflowStage.find_by(position: current_stage.position + 1)
-    end
-
-    def serialize_stage(stage)
-      return blocked_for_unauthorized_actor(stage) unless workflow_manageable?
-
-      prerequisite_result = next_stage_preview(stage)
-      stage_payload(stage).merge(
+      prerequisite_result = next_stage_preview(process_stage.workflow_stage)
+      stage_payload(process_stage).merge(
         allowed: prerequisite_result.allowed,
         blocking_reasons: prerequisite_result.blocking_reasons
       )
     end
 
-    def stage_payload(stage)
+    # `position` is the stage's place in this candidate's process; clients pick
+    # the form to show from `action_type`, never from the country.
+    def stage_payload(process_stage)
       {
-        code: stage.code,
-        name: stage.name_for,
-        position: stage.position,
-        required_fields: TransitionService.required_fields_for(stage.code)
+        code: process_stage.code,
+        name: process_stage.workflow_stage.name_for,
+        position: process_stage.position,
+        action_type: process_stage.action_type,
+        required: process_stage.required,
+        required_fields: TransitionService.required_fields_for(process_stage.code)
       }
     end
 
-    def blocked_for_unauthorized_actor(stage)
-      stage_payload(stage).merge(
+    def blocked_for_unauthorized_actor(process_stage)
+      stage_payload(process_stage).merge(
         allowed: false,
         blocking_reasons: ['unauthorized_transition']
       )

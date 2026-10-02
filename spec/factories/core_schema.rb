@@ -208,7 +208,10 @@ FactoryBot.define do
 
   factory :candidate_assignment do
     candidate
-    country
+    # Qatar by default: its process is the full legacy pipeline (QVC, flight,
+    # mobilized), which most workflow specs exercise. Pass another country
+    # (a factory one resolves to the common process) to test other flows.
+    country { Country.find_by(code: 'qatar') || association(:country, code: 'qatar') }
     project
     craft
     association :current_workflow_stage, factory: %i[workflow_stage registered]

@@ -4,8 +4,9 @@ module Admin
   module Reports
     # Daily/weekly/monthly mobilization trend (MPS-806), sourced from
     # CandidateStageHistory -- the only place a "when did this candidate
-    # reach mobilized" timestamp actually exists (the assignment's own
-    # current_workflow_stage_id has no date attached).
+    # complete their process" timestamp actually exists (the assignment's own
+    # current stage has no date attached). Completion is entering the
+    # process's terminal stage, which differs per country.
     class TrendQuery < ApplicationQuery
       ALLOWED_GRANULARITIES = %w[daily weekly monthly].freeze
       DATE_TRUNC_UNIT = { 'daily' => 'day', 'weekly' => 'week', 'monthly' => 'month' }.freeze
@@ -32,8 +33,10 @@ module Admin
       end
 
       def stage_history_scope
-        relation = CandidateStageHistory.where(to_workflow_stage_id: mobilized_stage_id,
-                                               candidate_assignment_id: assignment_ids)
+        relation = CandidateStageHistory.where(
+          to_mobilization_process_stage_id: MobilizationProcessStage.terminal.select(:id),
+          candidate_assignment_id: assignment_ids
+        )
         relation = relation.where(occurred_at: @from.beginning_of_day..) if @from
         relation = relation.where(occurred_at: ..@to.end_of_day) if @to
         relation
@@ -41,10 +44,6 @@ module Admin
 
       def assignment_ids
         @assignment_ids ||= CurrentAssignmentJoin.call(scope: @scope).select('current_assignments.id')
-      end
-
-      def mobilized_stage_id
-        @mobilized_stage_id ||= WorkflowStage.find_by!(code: 'mobilized').id
       end
     end
   end

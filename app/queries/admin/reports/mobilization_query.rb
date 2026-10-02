@@ -3,8 +3,8 @@
 module Admin
   module Reports
     # Project-wise and country-wise mobilization counts (MPS-804) --
-    # candidates whose current assignment has reached the terminal
-    # 'mobilized' stage, broken down by country and by project.
+    # candidates whose current assignment has reached its process's terminal
+    # stage, broken down by country and by project.
     class MobilizationQuery < ApplicationQuery
       def initialize(scope: Candidate.all)
         super()
@@ -20,12 +20,9 @@ module Admin
       def mobilized_scope
         @mobilized_scope ||= begin
           joined = CurrentAssignmentJoin.call(scope: @scope)
-          joined.where(current_assignments: { current_workflow_stage_id: mobilized_stage_id })
+          terminal_stage_ids = MobilizationProcessStage.terminal.select(:id)
+          joined.where(current_assignments: { current_mobilization_process_stage_id: terminal_stage_ids })
         end
-      end
-
-      def mobilized_stage_id
-        @mobilized_stage_id ||= WorkflowStage.find_by!(code: 'mobilized').id
       end
 
       def grouped_by_country

@@ -19,7 +19,6 @@ module DevData
     include FactoryBot::Syntax::Methods
 
     PASSWORD = 'Testing@123'
-    STAGE_CODES = CandidateFixtureBuilder::STAGE_CODES
     COMMUNICATION_CHANNELS = %w[sms whatsapp email].freeze
     COMMUNICATION_STATUSES = %w[sent delivered failed].freeze
     AUDIT_ACTIONS = %w[created updated workflow_transitioned].freeze
@@ -91,14 +90,14 @@ module DevData
                   visa: :issued, protection: :appeared_only,
                   ai_call: { direction: 'outbound', call_reason: 'protection_appearance_reminder',
                              outcome: 'answered', outcome_reason: 'resolved' }),
-      Profile.new(stage: 'protected_ready_to_fly', documents: :all_verified, payment: :paid,
-                  visa: :issued, protection: :ready_to_fly),
+      Profile.new(stage: 'ticket_handover', documents: :all_verified, payment: :paid,
+                  visa: :issued, protection: :appeared_only),
       Profile.new(stage: 'flight_details_uploaded', documents: :all_verified, payment: :paid,
-                  protection: :ready_to_fly, flight: :scheduled,
+                  protection: :appeared_only, flight: :scheduled,
                   ai_call: { direction: 'outbound', call_reason: 'flight_information', outcome: 'answered',
                              outcome_reason: 'resolved' }),
       Profile.new(stage: 'mobilized', documents: :all_verified, payment: :paid,
-                  protection: :ready_to_fly, flight: :mobilized,
+                  protection: :appeared_only, flight: :mobilized,
                   ai_call: { direction: 'outbound', call_reason: 'workflow_stage_notification',
                              needs_manual_review: true, resolve: true })
     ].freeze

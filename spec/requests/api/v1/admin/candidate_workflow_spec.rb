@@ -712,10 +712,10 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     dense_assignment = create(
       :candidate_assignment,
       candidate: dense_candidate,
-      current_workflow_stage: workflow_stage('protected_ready_to_fly')
+      current_workflow_stage: workflow_stage('ticket_handover')
     )
     previous_stage = workflow_stage('registered')
-    WorkflowStage.order(:position).limit(13).offset(1).each do |stage|
+    dense_assignment.mobilization_process.stages.map(&:workflow_stage).drop(1).take(16).each do |stage|
       create(
         :candidate_stage_history,
         candidate_assignment: dense_assignment,

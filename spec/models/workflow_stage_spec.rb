@@ -10,13 +10,14 @@ RSpec.describe WorkflowStage, type: :model do
 
   it_behaves_like 'a localized reference model' do
     let(:record) { build(:workflow_stage, code: 'verified') }
-    let(:expected_english_name) { 'Verified' }
-    let(:expected_urdu_name) { 'تصدیق شدہ' }
+    let(:expected_english_name) { 'Documents Verified' }
+    let(:expected_urdu_name) { 'دستاویزات کی تصدیق ہو گئی' }
   end
 
-  it 'defines the canonical 15-stage workflow with under_verification in position 4' do
-    expect(described_class::CANONICAL_STAGES.size).to eq(15)
-    expect(described_class::CANONICAL_STAGES[3]).to include(code: 'under_verification', position: 4)
+  it 'defines the 30-stage catalog that every mobilization process draws from' do
+    expect(described_class::CANONICAL_STAGES.size).to eq(30)
+    expect(described_class::CANONICAL_STAGES.pluck(:position)).to eq((1..30).to_a)
+    expect(described_class::CANONICAL_STAGES.pluck(:code)).not_to include('protected_ready_to_fly')
   end
 
   it 'prevents mutating system-defined stage identifiers' do

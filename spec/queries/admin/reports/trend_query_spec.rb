@@ -68,8 +68,7 @@ RSpec.describe Admin::Reports::TrendQuery do
   end
 
   it 'scopes to the given candidate scope' do
-    country = create(:country)
-    matching_assignment = create(:candidate_assignment, country:)
+    matching_assignment = create(:candidate_assignment)
     create(:candidate_stage_history, candidate_assignment: matching_assignment, to_workflow_stage: mobilized_stage,
                                      occurred_at: Time.zone.parse('2026-06-01 09:00:00'))
     mobilization_event(occurred_at: Time.zone.parse('2026-06-01 09:00:00'))

@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Payments
+  # Payment opens only once the candidate reaches the Fee Pending stage of
+  # their own process (its place differs per country), and closes for good
+  # once they reach Fee Paid.
   class EligibilityService < ApplicationService
     def initialize(candidate:, provider_code: nil)
       @candidate = candidate
@@ -85,15 +88,13 @@ module Payments
     end
 
     def eligible_stage?(assignment)
-      %w[verified fee_pending].include?(assignment.current_workflow_stage.code)
+      assignment.current_workflow_stage.code == 'fee_pending'
     end
 
     def provider
       @provider ||= Payments::ProviderRegistry.fetch(@provider_code)
     end
 
-    def fee_paid_or_later?(assignment)
-      assignment.current_workflow_stage.position >= WorkflowStage.find_by!(code: 'fee_paid').position
-    end
+    def fee_paid_or_later?(assignment) = assignment.reached_stage?('fee_paid')
   end
 end

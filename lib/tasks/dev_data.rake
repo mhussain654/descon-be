@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
+def qa_seed_stage_count(candidates) = candidates.map { |c| c.fetch(:profile).stage }.uniq.size
+
 def print_qa_seed_counts(candidates)
-  puts "  #{candidates.size} candidates across #{DevData::QaDataSeeder::STAGE_CODES.size} workflow stages"
+  puts "  #{candidates.size} candidates across #{qa_seed_stage_count(candidates)} workflow stages"
   puts "  #{candidates.count { |c| c.fetch(:profile).ai_call }} AI calls"
   puts "  #{Payment.count} payments, #{CandidateVisaDecision.count} visa decisions, " \
        "#{CandidateQvcAttempt.count} QVC attempts, #{CandidateProtectionRecord.count} protection records, " \

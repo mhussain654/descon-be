@@ -55,9 +55,36 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       expect(response.parsed_body.dig('data', 'timeline', 3, 'code')).to eq('under_verification')
       expect(response.parsed_body.dig('data', 'timeline', 2, 'started_at')).to be_nil
       expect(response.parsed_body.dig('data', 'timeline', 2, 'completed_at')).to be_nil
+      expect(response.parsed_body.dig('data', 'timeline', 5)).to include('code' => 'campaign_nomination',
+                                                                         'action_type' => 'nomination',
+                                                                         'position' => 6)
+      expect(response.parsed_body.dig('data', 'mobilization_process')).to eq(
+        'code' => 'qatar_mobilization', 'version' => 1, 'provisional' => false, 'country_code' => 'qatar'
+      )
       expect(response.parsed_body.dig('data', 'completed_count')).to eq(1)
-      expect(response.parsed_body.dig('data', 'progress_percentage')).to eq(6)
-      expect(response.parsed_body.dig('data', 'total_count')).to eq(15)
+      expect(response.parsed_body.dig('data', 'progress_percentage')).to eq(5)
+      expect(response.parsed_body.dig('data', 'total_count')).to eq(19)
+    end
+
+    it "lists only the candidate's own process stages, with progress counted against that process" do
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:, country: create(:country),
+                                    current_workflow_stage: WorkflowStage.find_by!(code: 'fee_pending'))
+
+      get '/api/v1/candidate/workflow_state',
+          headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
+
+      expect(response).to have_http_status(:ok)
+      data = response.parsed_body.fetch('data')
+      expect(data.fetch('timeline').pluck('code')).to eq(
+        MobilizationProcesses::Definitions::ALL.find { |d| d[:code] == 'common_mobilization' }[:stages]
+      )
+      expect(data.dig('mobilization_process', 'provisional')).to be(true)
+      expect(data.fetch('current_stage')).to include('code' => 'fee_pending', 'position' => 9,
+                                                     'action_type' => 'payment')
+      expect(data.slice('completed_count', 'total_count', 'progress_percentage')).to eq(
+        'completed_count' => 8, 'total_count' => 14, 'progress_percentage' => 57
+      )
     end
 
     it 'rejects inactive candidates and staff tokens' do
@@ -77,7 +104,7 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it 'treats mobilized as terminal completion with 15 completed stages and 100 percent progress' do
+    it 'treats the last process stage as terminal completion with every stage completed and 100 percent progress' do
       candidate = create(:candidate)
       assignment = create(
         :candidate_assignment,
@@ -88,7 +115,7 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       )
       previous_stage = WorkflowStage.find_by!(code: 'registered')
 
-      WorkflowStage.order(:position).offset(1).limit(14).each_with_index do |stage, index|
+      assignment.mobilization_process.stages.drop(1).map(&:workflow_stage).each_with_index do |stage, index|
         create(
           :candidate_stage_history,
           candidate_assignment: assignment,
@@ -107,8 +134,8 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       expect(response.parsed_body.dig('data', 'current_stage', 'code')).to eq('mobilized')
       expect(response.parsed_body.dig('data', 'current_stage', 'status')).to eq('completed')
       expect(response.parsed_body.dig('data', 'current_stage', 'started_at')).to be_nil
-      expect(response.parsed_body.dig('data', 'current_stage', 'completed_at')).to eq('2026-09-12T08:00:00Z')
-      expect(response.parsed_body.dig('data', 'completed_count')).to eq(15)
+      expect(response.parsed_body.dig('data', 'current_stage', 'completed_at')).to eq('2026-09-16T08:00:00Z')
+      expect(response.parsed_body.dig('data', 'completed_count')).to eq(19)
       expect(response.parsed_body.dig('data', 'progress_percentage')).to eq(100)
     end
 
@@ -117,7 +144,7 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       assignment = create(
         :candidate_assignment,
         candidate:,
-        current_workflow_stage: WorkflowStage.find_by!(code: 'protected_ready_to_fly')
+        current_workflow_stage: WorkflowStage.find_by!(code: 'ticket_handover')
       )
       actor = create(:user, role: 'mps')
       create(

@@ -787,8 +787,37 @@ components:
         name:
           type: string
       required: [code, name]
+    MobilizationProcessActionType:
+      type: string
+      description: >-
+        What kind of action moves a candidate into this stage. Clients choose the form or
+        screen to show from this value alone -- never from the destination country.
+      enum: [none, document_submission, nomination, medical_appointment, medical_outcome, payment, e_number_processing, e_number_request, e_number_received, biometric_completion, visa_case_preparation, visa_case_submission, qvc_appointment, qvc_outcome, visa_processing, visa_decision, protection_call, protection_appearance, ticket_handover, flight_details, mobilization]
+    CandidateMobilizationProcess:
+      type: object
+      description: >-
+        The mobilization process version the candidate's assignment follows, fixed when the
+        assignment was created. `provisional` marks the common process used for countries
+        whose requirements are not yet confirmed.
+      properties:
+        code:
+          type: string
+          example: qatar_mobilization
+        version:
+          type: integer
+          minimum: 1
+        provisional:
+          type: boolean
+        country_code:
+          anyOf:
+            - type: string
+            - type: 'null'
+      required: [code, version, provisional, country_code]
     CandidateWorkflowTimelineStage:
       type: object
+      description: >-
+        One stage of the candidate's own mobilization process. `position` is the stage's place
+        within that process (1-based), not a global order.
       properties:
         code:
           type: string
@@ -796,6 +825,10 @@ components:
           type: string
         position:
           type: integer
+        action_type:
+          $ref: '#/components/schemas/MobilizationProcessActionType'
+        required:
+          type: boolean
         status:
           type: string
           enum: [completed, current, pending]
@@ -809,7 +842,7 @@ components:
             - type: string
               format: date-time
             - type: 'null'
-      required: [code, name, position, status]
+      required: [code, name, position, action_type, required, status]
     WorkflowTransitionEvidence:
       type: object
       additionalProperties: false
@@ -827,9 +860,6 @@ components:
           type: string
           format: date
         appeared_for_protection_on:
-          type: string
-          format: date
-        protected_on:
           type: string
           format: date
         flight_reference:
@@ -1216,6 +1246,10 @@ components:
             - type: 'null'
         candidate_status:
           type: string
+        mobilization_process:
+          anyOf:
+            - $ref: '#/components/schemas/CandidateMobilizationProcess'
+            - type: 'null'
         current_stage:
           anyOf:
             - $ref: '#/components/schemas/CandidateWorkflowTimelineStage'
@@ -1243,8 +1277,8 @@ components:
             - type: string
               format: date-time
             - type: 'null'
-      required: [candidate_id, assignment_id, candidate_status, current_stage, timeline, qvc_attempts, protection,
-        completed_count, total_count, progress_percentage, updated_at]
+      required: [candidate_id, assignment_id, candidate_status, mobilization_process, current_stage, timeline,
+        qvc_attempts, protection, completed_count, total_count, progress_percentage, updated_at]
     CandidateWorkflowHistoryItem:
       type: object
       properties:
@@ -1353,6 +1387,9 @@ components:
       required: [candidate_workflow_transition]
     AdminAllowedWorkflowTransition:
       type: object
+      description: >-
+        The next stage of the candidate's own mobilization process (never a stage from another
+        country's process); `position` is its place within that process.
       properties:
         code:
           type: string
@@ -1360,6 +1397,10 @@ components:
           type: string
         position:
           type: integer
+        action_type:
+          $ref: '#/components/schemas/MobilizationProcessActionType'
+        required:
+          type: boolean
         required_fields:
           type: array
           items:
@@ -1370,7 +1411,7 @@ components:
           type: array
           items:
             type: string
-      required: [code, name, position, required_fields, allowed, blocking_reasons]
+      required: [code, name, position, action_type, required, required_fields, allowed, blocking_reasons]
     CandidateQvcAttempt:
       type: object
       properties:
@@ -3385,7 +3426,10 @@ paths:
       summary: Fetch payment eligibility and latest candidate payment
       description: >-
         Returns the authenticated candidate's authoritative onboarding-fee eligibility,
-        stable blocking reasons, and latest safe hosted-checkout payment state.
+        stable blocking reasons, and latest safe hosted-checkout payment state. Payment opens
+        only once the candidate reaches the `fee_pending` stage of their own mobilization
+        process (its place differs per country); before that the blocking reason is
+        `payment_stage_not_reached`, and after `fee_paid` it is `payment_already_completed`.
       security:
         - candidateBearerAuth: []
       parameters:
@@ -4255,10 +4299,12 @@ paths:
                           - code: registered
                             name: Registered
                             position: 1
+                            action_type: none
+                            required: true
                             status: current
                             started_at: '2026-08-26T12:00:00Z'
                         completed_count: 0
-                        total_count: 15
+                        total_count: 19
                         progress_percentage: 0
                         updated_at: '2026-08-26T12:00:00Z'
                       documents:
@@ -4284,13 +4330,9 @@ paths:
                       candidate_status: registered
                       current_workflow_stage: null
                       workflow:
-                        timeline:
-                          - code: registered
-                            name: رجسٹرڈ
-                            position: 1
-                            status: pending
+                        timeline: []
                         completed_count: 0
-                        total_count: 15
+                        total_count: 0
                         progress_percentage: 0
                         updated_at: null
                       documents:
@@ -4322,16 +4364,20 @@ paths:
                           - code: registered
                             name: Registered
                             position: 1
+                            action_type: none
+                            required: true
                             status: completed
                             completed_at: '2026-08-28T11:00:00Z'
                           - code: documents_pending
                             name: Documents Pending
                             position: 2
+                            action_type: document_submission
+                            required: true
                             status: current
                             started_at: '2026-08-28T11:00:00Z'
                         completed_count: 1
-                        total_count: 15
-                        progress_percentage: 6
+                        total_count: 19
+                        progress_percentage: 5
                         updated_at: '2026-08-28T12:00:00Z'
                       documents:
                         required_total: 1
@@ -4393,24 +4439,30 @@ paths:
                         code: documents_pending
                         name: Documents Pending
                         position: 2
+                        action_type: document_submission
+                        required: true
                         status: current
                         started_at: '2026-08-29T09:00:00Z'
                       timeline:
                         - code: registered
                           name: Registered
                           position: 1
+                          action_type: none
+                          required: true
                           status: completed
                           completed_at: '2026-08-29T09:00:00Z'
                         - code: documents_pending
                           name: Documents Pending
                           position: 2
+                          action_type: document_submission
+                          required: true
                           status: current
                           started_at: '2026-08-29T09:00:00Z'
                       qvc_attempts: []
                       protection: null
                       completed_count: 1
-                      total_count: 15
-                      progress_percentage: 6
+                      total_count: 19
+                      progress_percentage: 5
                       updated_at: '2026-08-29T09:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -4892,7 +4944,7 @@ paths:
       description: >-
         Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports
         partial matching. `meta.summary` returns a zero-filled count per canonical workflow stage
-        (the same 15 stages as `filter[status]`), scoped by every active filter except `filter[status]`.
+        (every catalog stage, the same set as `filter[status]`), scoped by every active filter except `filter[status]`.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: search
@@ -5498,11 +5550,11 @@ paths:
                         - from_stage:
                             code: fee_paid
                             name: Fee Paid
-                            position: 7
+                            position: 10
                           to_stage:
                             code: documents_shared_with_qatar_bu
                             name: Documents Shared with Qatar BU
-                            position: 8
+                            position: 11
                           occurred_at: '2026-08-30T09:00:00Z'
                           reason_code: qatar_bu_shared
                           details: null
@@ -5560,6 +5612,8 @@ paths:
                         - code: documents_uploaded
                           name: Documents Uploaded
                           position: 3
+                          action_type: document_submission
+                          required: true
                           required_fields: []
                           allowed: true
                           blocking_reasons: []
@@ -5571,7 +5625,9 @@ paths:
                       allowed_next_transitions:
                         - code: qvc_appointment_booked
                           name: QVC Appointment Booked
-                          position: 9
+                          position: 12
+                          action_type: qvc_appointment
+                          required: true
                           required_fields:
                             - appointment_date
                           allowed: false
@@ -5589,7 +5645,9 @@ paths:
                       allowed_next_transitions:
                         - code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
+                          action_type: none
+                          required: true
                           required_fields: []
                           allowed: false
                           blocking_reasons:
@@ -5653,40 +5711,48 @@ paths:
                         current_stage:
                           code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
+                          action_type: none
+                          required: true
                           status: current
                           started_at: '2026-08-30T09:00:00Z'
                         timeline:
                           - code: registered
                             name: Registered
                             position: 1
+                            action_type: none
+                            required: true
                             status: completed
                             completed_at: '2026-08-29T09:00:00Z'
                           - code: fee_paid
                             name: Fee Paid
-                            position: 7
+                            position: 10
+                            action_type: payment
+                            required: true
                             status: completed
                             completed_at: '2026-08-30T09:00:00Z'
                           - code: documents_shared_with_qatar_bu
                             name: Documents Shared with Qatar BU
-                            position: 8
+                            position: 11
+                            action_type: none
+                            required: true
                             status: current
                             started_at: '2026-08-30T09:00:00Z'
                         qvc_attempts: []
                         protection: null
-                        completed_count: 7
-                        total_count: 15
-                        progress_percentage: 46
+                        completed_count: 10
+                        total_count: 19
+                        progress_percentage: 52
                         updated_at: '2026-08-30T09:00:00Z'
                       transition:
                         from_stage:
                           code: fee_paid
                           name: Fee Paid
-                          position: 7
+                          position: 10
                         to_stage:
                           code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
                         occurred_at: '2026-08-30T09:00:00Z'
                         reason_code: qatar_bu_shared
                         actor:
@@ -6227,7 +6293,9 @@ paths:
                         current_stage:
                           code: qvc_appointment_booked
                           name: QVC Appointment Booked
-                          position: 9
+                          position: 12
+                          action_type: qvc_appointment
+                          required: true
                           status: current
                           started_at: '2026-09-01T10:00:00Z'
                         timeline: []
@@ -6240,19 +6308,19 @@ paths:
                             outcome_recorded_at: null
                             status: scheduled
                         protection: null
-                        completed_count: 8
-                        total_count: 15
-                        progress_percentage: 53
+                        completed_count: 11
+                        total_count: 19
+                        progress_percentage: 57
                         updated_at: '2026-09-01T10:00:00Z'
                       transition:
                         from_stage:
                           code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
                         to_stage:
                           code: qvc_appointment_booked
                           name: QVC Appointment Booked
-                          position: 9
+                          position: 12
                         occurred_at: '2026-09-01T10:00:00Z'
                         actor:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6334,7 +6402,9 @@ paths:
                         current_stage:
                           code: qvc_completed_outcome_received
                           name: QVC Completed / Outcome Received
-                          position: 10
+                          position: 13
+                          action_type: qvc_outcome
+                          required: true
                           status: current
                           started_at: '2026-09-02T12:00:00Z'
                         timeline: []
@@ -6347,19 +6417,19 @@ paths:
                             outcome_recorded_at: '2026-09-02T12:00:00Z'
                             status: approved
                         protection: null
-                        completed_count: 9
-                        total_count: 15
-                        progress_percentage: 60
+                        completed_count: 12
+                        total_count: 19
+                        progress_percentage: 63
                         updated_at: '2026-09-02T12:00:00Z'
                       transition:
                         from_stage:
                           code: qvc_appointment_booked
                           name: QVC Appointment Booked
-                          position: 9
+                          position: 12
                         to_stage:
                           code: qvc_completed_outcome_received
                           name: QVC Completed / Outcome Received
-                          position: 10
+                          position: 13
                         occurred_at: '2026-09-02T12:00:00Z'
                         actor:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6494,15 +6564,17 @@ paths:
                         current_stage:
                           code: visa_issued_or_rejected
                           name: Visa Issued / Visa Rejected
-                          position: 11
+                          position: 14
+                          action_type: visa_decision
+                          required: true
                           status: current
                           started_at: '2026-09-05T10:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 10
-                        total_count: 15
-                        progress_percentage: 66
+                        completed_count: 13
+                        total_count: 19
+                        progress_percentage: 68
                         updated_at: '2026-09-05T10:00:00Z'
                       visa_decision:
                         id: 9b8a5883-70d5-4040-8823-424f4b4b669b
@@ -6668,7 +6740,7 @@ paths:
       description: >-
         Records airline, flight number, sector, flight date/time, and a
         private ticket upload, moving the candidate from
-        `protected_ready_to_fly` to `flight_details_uploaded` through the
+        `ticket_handover` to `flight_details_uploaded` through the
         canonical workflow transition service. Exactly one flight detail
         record exists per assignment.
       security:
@@ -6720,15 +6792,17 @@ paths:
                         current_stage:
                           code: flight_details_uploaded
                           name: Flight Details Uploaded
-                          position: 14
+                          position: 18
+                          action_type: flight_details
+                          required: true
                           status: current
                           started_at: '2026-09-15T10:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 13
-                        total_count: 15
-                        progress_percentage: 86
+                        completed_count: 17
+                        total_count: 19
+                        progress_percentage: 89
                         updated_at: '2026-09-15T10:00:00Z'
                       flight_detail:
                         id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -6815,14 +6889,16 @@ paths:
                         current_stage:
                           code: mobilized
                           name: Mobilized
-                          position: 15
+                          position: 19
+                          action_type: mobilization
+                          required: true
                           status: completed
                           completed_at: '2026-09-21T09:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 15
-                        total_count: 15
+                        completed_count: 19
+                        total_count: 19
                         progress_percentage: 100
                         updated_at: '2026-09-21T09:00:00Z'
                       flight_detail:
@@ -7556,15 +7632,17 @@ paths:
                         current_stage:
                           code: fee_pending
                           name: Fee Pending
-                          position: 6
+                          position: 9
+                          action_type: payment
+                          required: true
                           status: current
                           started_at: '2026-08-31T09:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 5
-                        total_count: 15
-                        progress_percentage: 33
+                        completed_count: 8
+                        total_count: 19
+                        progress_percentage: 42
                         updated_at: '2026-08-31T09:07:00Z'
                     meta:
                       request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
@@ -9046,9 +9124,13 @@ paths:
                       workflow_stage_queue:
                         - code: registered
                           position: 1
+                          action_type: none
+                          required: true
                           count: 12
                         - code: verified
                           position: 5
+                          action_type: none
+                          required: true
                           count: 40
                       document_review_queue:
                         pending_review: 6
@@ -9182,6 +9264,8 @@ paths:
                       workflow_stage_queue:
                         - code: registered
                           position: 1
+                          action_type: none
+                          required: true
                           count: 12
                       delayed_cases:
                         delayed: 9
@@ -9391,9 +9475,13 @@ paths:
                     data:
                       - code: registered
                         position: 1
+                        action_type: none
+                        required: true
                         count: 12
                       - code: verified
                         position: 5
+                        action_type: none
+                        required: true
                         count: 40
                     meta:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5

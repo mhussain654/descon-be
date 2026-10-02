@@ -8,9 +8,8 @@ module CandidateWorkflows
     'verified' => :verified_documents_result,
     'fee_paid' => :fee_paid_result,
     'documents_shared_with_qatar_bu' => :fee_paid_result,
-    'visa_issued_or_rejected' => :qvc_approved_result,
-    'appeared_for_protection' => :appeared_for_protection_result,
-    'protected_ready_to_fly' => :protected_ready_to_fly_result
+    'visa_issued_or_rejected' => :visa_decision_result,
+    'appeared_for_protection' => :appeared_for_protection_result
   }.freeze
 
   # rubocop:disable Metrics/ClassLength
@@ -131,25 +130,20 @@ module CandidateWorkflows
       missing_qvc_approval_result
     end
 
+    # QVC approval gates the visa only in processes that have a QVC step
+    # (Qatar); elsewhere the visa decision just needs its own evidence.
+    def visa_decision_result
+      qvc_process? ? qvc_approved_result : evidence_result
+    end
+
     def appeared_for_protection_result
-      qvc_result = qvc_approved_result
+      qvc_result = qvc_process? ? qvc_approved_result : allowed_result
       return qvc_result unless qvc_result.allowed
 
       unless latest_visa_outcome_code == 'issued'
         return blocked_result(
           field: 'candidate_workflow_transition.to_stage_code',
           blocking_reasons: ['visa_issued_required']
-        )
-      end
-
-      evidence_result
-    end
-
-    def protected_ready_to_fly_result
-      if protection_record&.appeared_on.blank?
-        return blocked_result(
-          field: 'candidate_workflow_transition.to_stage_code',
-          blocking_reasons: ['protection_appearance_required']
         )
       end
 
@@ -197,8 +191,8 @@ module CandidateWorkflows
                                                 .first
     end
 
-    def protection_record
-      @protection_record ||= @assignment.candidate_protection_record
+    def qvc_process?
+      @assignment.mobilization_process.includes_stage_code?('qvc_completed_outcome_received')
     end
 
     def evidence_field(field_name)

@@ -12,12 +12,14 @@ module Admin
     # project/country/craft on every read (Candidates::Documents::
     # RequirementResolver), never frozen at a point in time -- so changing
     # them is only actually risky once a document has been uploaded against
-    # the old requirement set. `registered` (position 1) auto-advances to
-    # `documents_pending` (position 2) immediately on creation
+    # the old requirement set. `registered` auto-advances to
+    # `documents_pending` immediately on creation
     # (CandidateWorkflows::AutomaticTransitionService), so locking this
     # purely to `registered` would make the fields practically uneditable in
     # real use; the true safe boundary is "no document uploaded yet," i.e.
-    # position <= DOCUMENTS_PENDING_POSITION.
+    # one of PRE_DOCUMENT_STAGE_CODES. Those stages open every mobilization
+    # process, so a country change there also moves the candidate onto the
+    # new country's process without losing their place.
     #
     # `expected_updated_at`, when supplied, must match the current combined
     # candidate/assignment state (the more recent of the two `updated_at`
@@ -27,7 +29,7 @@ module Admin
     # profile edit is a plain attribute update, not a stage transition.
     # rubocop:disable Metrics/ClassLength
     class UpdateService < ApplicationService
-      DOCUMENTS_PENDING_POSITION = 2
+      PRE_DOCUMENT_STAGE_CODES = %w[registered documents_pending].freeze
 
       # Shared with Admin::CandidateSerializer, which exposes this same
       # boolean to the frontend as `assignment.fields_editable` -- the single
@@ -35,7 +37,7 @@ module Admin
       # duplicate this business rule to decide whether to render the
       # project/country/craft fields as read-only.
       def self.assignment_fields_editable?(assignment)
-        assignment.present? && assignment.current_workflow_stage.position <= DOCUMENTS_PENDING_POSITION
+        assignment.present? && PRE_DOCUMENT_STAGE_CODES.include?(assignment.current_workflow_stage.code)
       end
 
       # Symbols, not strings -- `@provided_fields` comes from a
@@ -245,7 +247,11 @@ module Admin
         attributes = assignment_attributes
         return if attributes.empty?
 
-        assignment.update!(attributes)
+        assignment.assign_attributes(attributes)
+        if assignment.country_id_changed?
+          assignment.mobilization_process = MobilizationProcess.resolve_for(assignment.country)
+        end
+        assignment.save!
       end
 
       def assignment_attributes

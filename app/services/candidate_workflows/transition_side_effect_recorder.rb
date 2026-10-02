@@ -58,7 +58,6 @@ module CandidateWorkflows
 
     def record_protection_record!
       record_protection_appearance! if destination_stage_code == 'appeared_for_protection'
-      record_ready_to_fly! if destination_stage_code == 'protected_ready_to_fly'
     end
 
     def record_protection_appearance!
@@ -66,14 +65,6 @@ module CandidateWorkflows
         appeared_on: Date.iso8601(evidence.fetch('appeared_for_protection_on')),
         appeared_recorded_at: @transition.fetch(:transitioned_at),
         appeared_recorded_by: @history_entry.actor || assignment.created_by
-      )
-    end
-
-    def record_ready_to_fly!
-      protection_record.update!(
-        protected_on: Date.iso8601(evidence.fetch('protected_on')),
-        ready_to_fly_at: @transition.fetch(:transitioned_at),
-        ready_recorded_by: @history_entry.actor || assignment.created_by
       )
     end
 

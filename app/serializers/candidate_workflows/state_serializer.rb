@@ -17,6 +17,7 @@ module CandidateWorkflows
         candidate_id: @snapshot.candidate.public_id,
         assignment_id: @snapshot.assignment&.public_id,
         candidate_status: @snapshot.candidate_status,
+        mobilization_process: MobilizationProcessSerializer.new(@snapshot.mobilization_process).as_json,
         current_stage: @snapshot.current_stage,
         timeline: @snapshot.timeline,
         qvc_attempts: serialized_qvc_attempts,

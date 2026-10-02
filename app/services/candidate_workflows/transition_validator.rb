@@ -2,13 +2,17 @@
 
 module CandidateWorkflows
   class TransitionValidator < ApplicationService
-    def initialize(actor:, validate_permissions:, expected_current_stage_code:, current_stage:, destination_stage:)
+    # rubocop:disable Metrics/ParameterLists
+    def initialize(actor:, validate_permissions:, expected_current_stage_code:, current_stage:, destination_stage:,
+                   next_process_stage:)
       @actor = actor
       @validate_permissions = validate_permissions
       @expected_current_stage_code = expected_current_stage_code
       @current_stage = current_stage
       @destination_stage = destination_stage
+      @next_process_stage = next_process_stage
     end
+    # rubocop:enable Metrics/ParameterLists
 
     def call
       validate_actor!
@@ -33,9 +37,11 @@ module CandidateWorkflows
       )
     end
 
+    # The only legal destination is the next stage of the candidate's own
+    # process; at the process's terminal stage there is none.
     def validate_stage_order!
-      raise_invalid_transition if @current_stage.blank? || @current_stage.code == 'mobilized'
-      return if @destination_stage.position == @current_stage.position + 1
+      raise_invalid_transition if @current_stage.blank? || @next_process_stage.blank?
+      return if @destination_stage.id == @next_process_stage.workflow_stage_id
 
       raise InvalidWorkflowTransitionError.new(
         field: 'candidate_workflow_transition.to_stage_code',

@@ -43,8 +43,7 @@ RSpec.describe Admin::Reports::LatestMobilizationQuery do
   end
 
   it 'scopes to the given candidate scope' do
-    country = create(:country)
-    matching_assignment = create(:candidate_assignment, country:)
+    matching_assignment = create(:candidate_assignment)
     mobilization_event(assignment: matching_assignment, occurred_at: 2.days.ago)
     other_assignment = create(:candidate_assignment)
     mobilization_event(assignment: other_assignment, occurred_at: 1.day.ago)

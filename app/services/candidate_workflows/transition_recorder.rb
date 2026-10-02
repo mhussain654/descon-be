@@ -40,6 +40,8 @@ module CandidateWorkflows
         candidate_assignment_public_id: @context.fetch(:assignment).public_id,
         from_stage_code: @context.fetch(:current_stage).code,
         to_stage_code: @context.fetch(:destination_stage).code,
+        mobilization_process_code: @context.fetch(:mobilization_process).code,
+        mobilization_process_version: @context.fetch(:mobilization_process).version,
         details: @transition.fetch(:evidence)
       }.compact
     end

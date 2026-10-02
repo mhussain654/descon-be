@@ -4,8 +4,8 @@ module Admin
   module Reports
     # The single most recently mobilized candidate (MPS-802 Operations
     # dashboard "Latest mobilization" card) -- the newest
-    # CandidateStageHistory row whose destination is the terminal
-    # 'mobilized' stage, enriched with the assignment's country/project/
+    # CandidateStageHistory row whose destination is its process's terminal
+    # stage, enriched with the assignment's country/project/
     # craft for display. Returns nil when nothing has been mobilized yet in
     # scope, never a fabricated placeholder row.
     class LatestMobilizationQuery < ApplicationQuery
@@ -41,7 +41,8 @@ module Admin
 
       def latest_mobilization_history
         CandidateStageHistory
-          .where(to_workflow_stage_id: mobilized_stage_id, candidate_assignment_id: assignment_ids)
+          .where(to_mobilization_process_stage_id: MobilizationProcessStage.terminal.select(:id),
+                 candidate_assignment_id: assignment_ids)
           .includes(candidate_assignment: %i[candidate country project craft])
           .order(occurred_at: :desc)
           .first
@@ -49,10 +50,6 @@ module Admin
 
       def assignment_ids
         @assignment_ids ||= CurrentAssignmentJoin.call(scope: @scope).select('current_assignments.id')
-      end
-
-      def mobilized_stage_id
-        @mobilized_stage_id ||= WorkflowStage.find_by!(code: 'mobilized').id
       end
     end
   end

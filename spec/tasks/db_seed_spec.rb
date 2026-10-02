@@ -33,7 +33,7 @@ RSpec.describe 'db:seed rake task' do
     Rake::Task['db:seed'].invoke
 
     expect(Role.pluck(:code)).to match_array(Role::SYSTEM_ROLES.map { |r| r.fetch(:code) })
-    expect(WorkflowStage.count).to eq(15)
+    expect(WorkflowStage.count).to eq(30)
     expect(WorkflowStage.pluck(:code)).to match_array(WorkflowStage::CANONICAL_STAGES.map { |s| s.fetch(:code) })
   end
 
@@ -60,6 +60,20 @@ RSpec.describe 'db:seed rake task' do
     script = WorkflowStageCallScript.find_by!(workflow_stage_code: 'verified')
     expect(script.announcement_en).to eq('Approved wording.')
     expect(script.active).to be(true)
+  end
+
+  it 'publishes the common, KSA and Qatar mobilization processes once, for all seven countries' do
+    Rake::Task['db:seed'].invoke
+
+    expect(Country.pluck(:code)).to include('uae', 'saudi_arabia', 'qatar', 'oman', 'kuwait', 'azerbaijan',
+                                            'south_africa')
+    expect(MobilizationProcess.active.pluck(:code, :version)).to contain_exactly(
+      ['common_mobilization', 1], ['ksa_mobilization', 1], ['qatar_mobilization', 1]
+    )
+    expect(MobilizationProcess.resolve_for(Country.find_by!(code: 'oman')).code).to eq('common_mobilization')
+
+    Rake::Task['db:seed'].reenable
+    expect { Rake::Task['db:seed'].invoke }.not_to change(MobilizationProcessStage, :count)
   end
 
   it 'seeds reference catalogs: countries, projects, crafts and document types' do

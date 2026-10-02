@@ -144,12 +144,21 @@ SupportSetting.current
 [
   { code: 'qatar', name_en: 'Qatar', name_ur: 'قطر' },
   { code: 'saudi_arabia', name_en: 'Saudi Arabia', name_ur: 'سعودی عرب' },
-  { code: 'uae', name_en: 'United Arab Emirates', name_ur: 'متحدہ عرب امارات' }
+  { code: 'uae', name_en: 'United Arab Emirates', name_ur: 'متحدہ عرب امارات' },
+  { code: 'oman', name_en: 'Oman', name_ur: 'عمان' },
+  { code: 'kuwait', name_en: 'Kuwait', name_ur: 'کویت' },
+  { code: 'azerbaijan', name_en: 'Azerbaijan', name_ur: 'آذربائیجان' },
+  { code: 'south_africa', name_en: 'South Africa', name_ur: 'جنوبی افریقہ' }
 ].each do |attributes|
   country = Country.find_or_initialize_by(code: attributes.fetch(:code))
   country.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
   country.save!
 end
+
+# Country mobilization processes: publishes each approved version once (needs
+# the workflow stage catalog and countries above). A published version never
+# changes -- see MobilizationProcesses::Definitions.
+MobilizationProcesses::Seeder.call
 
 [
   { code: 'qatar_infrastructure', name_en: 'Qatar Infrastructure', name_ur: 'قطر انفراسٹرکچر' },

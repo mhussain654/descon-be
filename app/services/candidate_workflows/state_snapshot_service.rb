@@ -5,6 +5,7 @@ module CandidateWorkflows
     Snapshot = Data.define(
       :candidate,
       :assignment,
+      :mobilization_process,
       :candidate_status,
       :current_stage,
       :timeline,
@@ -31,13 +32,10 @@ module CandidateWorkflows
 
     def assignment = @assignment ||= @candidate.current_assignment
 
-    def stages = @stages ||= WorkflowStage.order(:position).to_a
-
     def snapshot_attributes
       SnapshotBuilder.call(
         assignment:,
         candidate_status: @candidate.status_code,
-        stages:,
         include_history_actor: @include_history_actor
       )
     end

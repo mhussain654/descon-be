@@ -42,7 +42,7 @@ module CandidateWorkflows
 
     def execute_transition
       context = resolved_transition_context
-      validate_transition_request!(**context.slice(:current_stage, :destination_stage))
+      validate_transition_request!(context)
       validate_prerequisites!(**context.slice(:candidate, :assignment, :destination_stage))
 
       transitioned_at = Time.current
@@ -74,13 +74,14 @@ module CandidateWorkflows
       prerequisite_validator(candidate:, assignment:, destination_stage:).call
     end
 
-    def validate_transition_request!(current_stage:, destination_stage:)
+    def validate_transition_request!(context)
       TransitionValidator.call(
         actor: @actor,
         validate_permissions: @validate_permissions,
         expected_current_stage_code: @expected_current_stage_code,
-        current_stage:,
-        destination_stage:
+        current_stage: context.fetch(:current_stage),
+        destination_stage: context.fetch(:destination_stage),
+        next_process_stage: context.fetch(:assignment).next_process_stage
       )
     end
 
@@ -122,6 +123,7 @@ module CandidateWorkflows
       context.fetch(:candidate).update!(status_code: context.fetch(:destination_stage).code)
       context.fetch(:assignment).update!(
         current_workflow_stage: context.fetch(:destination_stage),
+        current_mobilization_process_stage: context.fetch(:destination_process_stage),
         updated_at: transitioned_at
       )
     end

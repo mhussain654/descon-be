@@ -30,13 +30,7 @@ RSpec.configure do |config|
   # expiry and resend-cooldown specs.
   config.include ActiveSupport::Testing::TimeHelpers
   config.before(:suite) do
-    WorkflowStage::CANONICAL_STAGES.each do |attributes|
-      WorkflowStage.find_or_create_by!(code: attributes.fetch(:code)) do |stage|
-        stage.position = attributes.fetch(:position)
-        stage.system_defined = true
-        stage.active = true
-      end
-    end
+    WorkflowReferenceData.ensure_mobilization_processes!
   end
 end
 

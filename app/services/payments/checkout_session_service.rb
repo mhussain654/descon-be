@@ -22,7 +22,6 @@ module Payments
     def execute_checkout
       candidate, assignment = locked_candidate_and_assignment
       ensure_checkout_eligible!(candidate:)
-      ensure_fee_pending!(candidate:, assignment:)
 
       existing_payment = reusable_payment_for(assignment)
       return response_for(existing_payment, replayed: true) if existing_payment.present?
@@ -49,19 +48,6 @@ module Payments
       return if eligibility.eligible
 
       raise PaymentNotEligibleError.new(details: { blocking_reasons: eligibility.blocking_reasons })
-    end
-
-    def ensure_fee_pending!(candidate:, assignment:)
-      return unless assignment.current_workflow_stage.code == 'verified'
-
-      CandidateWorkflows::TransitionService.call(
-        actor: nil,
-        candidate:,
-        to_stage_code: 'fee_pending',
-        request_id: "#{@request_id}:fee_pending",
-        validate_permissions: false
-      )
-      assignment.reload
     end
 
     def reusable_payment_for(assignment)

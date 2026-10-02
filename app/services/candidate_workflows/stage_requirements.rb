@@ -35,11 +35,6 @@ module CandidateWorkflows
         allowed_fields: %w[appeared_for_protection_on],
         field_types: { 'appeared_for_protection_on' => :iso_date }
       },
-      'protected_ready_to_fly' => {
-        required_fields: %w[protected_on],
-        allowed_fields: %w[protected_on],
-        field_types: { 'protected_on' => :iso_date }
-      },
       'flight_details_uploaded' => {
         required_fields: %w[airline flight_reference sector flight_date],
         allowed_fields: %w[airline flight_reference sector flight_date],

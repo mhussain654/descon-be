@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_090100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -216,7 +216,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
     t.bigint "craft_id", null: false
     t.datetime "created_at", null: false
     t.bigint "created_by_id", null: false
+    t.bigint "current_mobilization_process_stage_id"
     t.bigint "current_workflow_stage_id", null: false
+    t.bigint "mobilization_process_id"
     t.bigint "project_id", null: false
     t.string "public_id", null: false
     t.string "qvc_outcome_code"
@@ -228,8 +230,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
     t.index ["country_id"], name: "index_candidate_assignments_on_country_id"
     t.index ["craft_id"], name: "index_candidate_assignments_on_craft_id"
     t.index ["created_by_id"], name: "index_candidate_assignments_on_created_by_id"
+    t.index ["current_mobilization_process_stage_id"], name: "idx_on_current_mobilization_process_stage_id_0af2cae2ae"
     t.index ["current_workflow_stage_id", "created_at"], name: "index_candidate_assignments_on_stage_and_created_at"
     t.index ["current_workflow_stage_id"], name: "index_candidate_assignments_on_current_workflow_stage_id"
+    t.index ["mobilization_process_id"], name: "index_candidate_assignments_on_mobilization_process_id"
     t.index ["project_id", "craft_id", "country_id"], name: "index_candidate_assignments_on_project_craft_country"
     t.index ["project_id"], name: "index_candidate_assignments_on_project_id"
     t.index ["public_id"], name: "index_candidate_assignments_on_public_id", unique: true
@@ -516,19 +520,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
     t.bigint "actor_id"
     t.bigint "candidate_assignment_id", null: false
     t.datetime "created_at", null: false
+    t.bigint "from_mobilization_process_stage_id"
     t.bigint "from_workflow_stage_id"
     t.jsonb "metadata", default: {}, null: false
+    t.bigint "mobilization_process_id"
     t.text "note"
     t.datetime "occurred_at", null: false
+    t.integer "position"
     t.string "reason_code"
+    t.string "stage_code"
+    t.string "stage_name_en"
+    t.string "stage_name_ur"
+    t.bigint "to_mobilization_process_stage_id"
     t.bigint "to_workflow_stage_id", null: false
     t.datetime "updated_at", null: false
     t.index ["actor_id"], name: "index_candidate_stage_histories_on_actor_id"
     t.index ["candidate_assignment_id", "occurred_at"], name: "index_candidate_stage_histories_on_assignment_and_occurred_at"
     t.index ["candidate_assignment_id", "to_workflow_stage_id"], name: "index_stage_histories_on_assignment_and_destination_stage", unique: true
     t.index ["candidate_assignment_id"], name: "index_candidate_stage_histories_on_candidate_assignment_id"
+    t.index ["from_mobilization_process_stage_id"], name: "idx_on_from_mobilization_process_stage_id_aa34c44ace"
     t.index ["from_workflow_stage_id", "occurred_at"], name: "index_candidate_stage_histories_on_from_stage_and_occurred_at"
     t.index ["from_workflow_stage_id"], name: "index_candidate_stage_histories_on_from_workflow_stage_id"
+    t.index ["mobilization_process_id"], name: "index_candidate_stage_histories_on_mobilization_process_id"
+    t.index ["to_mobilization_process_stage_id"], name: "idx_on_to_mobilization_process_stage_id_26a7ed9b21"
     t.index ["to_workflow_stage_id", "occurred_at"], name: "index_candidate_stage_histories_on_to_stage_and_occurred_at"
     t.index ["to_workflow_stage_id"], name: "index_candidate_stage_histories_on_to_workflow_stage_id"
     t.check_constraint "from_workflow_stage_id IS NULL OR from_workflow_stage_id <> to_workflow_stage_id", name: "candidate_stage_histories_distinct_transition"
@@ -728,6 +742,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
     t.check_constraint "request_method::text ~ '^[A-Z]+$'::text", name: "idempotency_keys_request_method_format"
     t.check_constraint "status::text = 'processing'::text AND response_status IS NULL AND response_payload IS NULL AND completed_at IS NULL OR status::text = 'completed'::text AND response_status IS NOT NULL AND response_payload IS NOT NULL AND completed_at IS NOT NULL", name: "idempotency_keys_response_consistency"
     t.check_constraint "status::text = ANY (ARRAY['processing'::character varying::text, 'completed'::character varying::text])", name: "idempotency_keys_status"
+  end
+
+  create_table "mobilization_process_stages", force: :cascade do |t|
+    t.string "action_type", default: "none", null: false
+    t.jsonb "configuration", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.bigint "mobilization_process_id", null: false
+    t.integer "position", null: false
+    t.boolean "required", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_stage_id", null: false
+    t.index ["mobilization_process_id", "position"], name: "index_process_stages_on_process_and_position", unique: true
+    t.index ["mobilization_process_id", "workflow_stage_id"], name: "index_process_stages_on_process_and_stage", unique: true
+    t.index ["mobilization_process_id"], name: "index_mobilization_process_stages_on_mobilization_process_id"
+    t.index ["workflow_stage_id"], name: "index_mobilization_process_stages_on_workflow_stage_id"
+    t.check_constraint "\"position\" > 0", name: "mobilization_process_stages_position_positive"
+    t.check_constraint "action_type::text ~ '^[a-z0-9_]+$'::text", name: "mobilization_process_stages_action_type_format"
+  end
+
+  create_table "mobilization_processes", force: :cascade do |t|
+    t.string "code", null: false
+    t.bigint "country_id"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.datetime "effective_from"
+    t.datetime "effective_until"
+    t.boolean "provisional", default: false, null: false
+    t.datetime "published_at"
+    t.bigint "published_by_id"
+    t.string "status", default: "draft", null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", null: false
+    t.index ["code", "version"], name: "index_mobilization_processes_on_code_and_version", unique: true
+    t.index ["country_id"], name: "index_mobilization_processes_on_country_id"
+    t.index ["country_id"], name: "index_mobilization_processes_one_active_per_country", unique: true, where: "(((status)::text = 'active'::text) AND (country_id IS NOT NULL))"
+    t.index ["created_by_id"], name: "index_mobilization_processes_on_created_by_id"
+    t.index ["published_by_id"], name: "index_mobilization_processes_on_published_by_id"
+    t.index ["status"], name: "index_mobilization_processes_one_active_common", unique: true, where: "(((status)::text = 'active'::text) AND (country_id IS NULL))"
+    t.check_constraint "code::text ~ '^[a-z0-9_]+$'::text", name: "mobilization_processes_code_format"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying, 'active'::character varying, 'retired'::character varying]::text[])", name: "mobilization_processes_status"
+    t.check_constraint "version > 0", name: "mobilization_processes_version_positive"
   end
 
   create_table "payment_events", force: :cascade do |t|
@@ -1013,6 +1068,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
   add_foreign_key "candidate_assignments", "candidates"
   add_foreign_key "candidate_assignments", "countries"
   add_foreign_key "candidate_assignments", "crafts"
+  add_foreign_key "candidate_assignments", "mobilization_process_stages", column: "current_mobilization_process_stage_id"
+  add_foreign_key "candidate_assignments", "mobilization_processes"
   add_foreign_key "candidate_assignments", "projects"
   add_foreign_key "candidate_assignments", "users", column: "created_by_id"
   add_foreign_key "candidate_assignments", "workflow_stages", column: "current_workflow_stage_id"
@@ -1044,6 +1101,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
   add_foreign_key "candidate_refresh_tokens", "candidate_sessions"
   add_foreign_key "candidate_sessions", "candidates"
   add_foreign_key "candidate_stage_histories", "candidate_assignments"
+  add_foreign_key "candidate_stage_histories", "mobilization_process_stages", column: "from_mobilization_process_stage_id"
+  add_foreign_key "candidate_stage_histories", "mobilization_process_stages", column: "to_mobilization_process_stage_id"
+  add_foreign_key "candidate_stage_histories", "mobilization_processes"
   add_foreign_key "candidate_stage_histories", "users", column: "actor_id"
   add_foreign_key "candidate_stage_histories", "workflow_stages", column: "from_workflow_stage_id"
   add_foreign_key "candidate_stage_histories", "workflow_stages", column: "to_workflow_stage_id"
@@ -1062,6 +1122,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
   add_foreign_key "document_requirements", "crafts"
   add_foreign_key "document_requirements", "document_types"
   add_foreign_key "document_requirements", "projects"
+  add_foreign_key "mobilization_process_stages", "mobilization_processes"
+  add_foreign_key "mobilization_process_stages", "workflow_stages"
+  add_foreign_key "mobilization_processes", "countries"
+  add_foreign_key "mobilization_processes", "users", column: "created_by_id"
+  add_foreign_key "mobilization_processes", "users", column: "published_by_id"
   add_foreign_key "payment_events", "candidate_assignments"
   add_foreign_key "payment_events", "payments"
   add_foreign_key "payment_events", "users", column: "actor_id"

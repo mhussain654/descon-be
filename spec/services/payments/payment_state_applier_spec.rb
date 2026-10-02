@@ -42,9 +42,9 @@ RSpec.describe Payments::PaymentStateApplier do
     Time.zone.parse('2026-08-31T09:05:00Z')
   end
 
-  it 'marks a payment paid and advances verified candidates through fee_pending to fee_paid' do
-    candidate = create(:candidate, status_code: 'verified')
-    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+  it 'marks a payment paid and advances a fee_pending candidate to fee_paid' do
+    candidate = create(:candidate, status_code: 'fee_pending')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('fee_pending'))
     payment = create(
       :payment,
       candidate_assignment: assignment,
@@ -75,9 +75,28 @@ RSpec.describe Payments::PaymentStateApplier do
     expect(candidate.reload.status_code).to eq('fee_paid')
     expect(Payments::AuditRecorder).to have_received(:call).with(hash_including(action: :paid))
     expect(CandidateWorkflows::TransitionService)
-      .to have_received(:call).with(hash_including(to_stage_code: 'fee_pending'))
-    expect(CandidateWorkflows::TransitionService)
-      .to have_received(:call).with(hash_including(to_stage_code: 'fee_paid'))
+      .to have_received(:call).once.with(hash_including(to_stage_code: 'fee_paid'))
+  end
+
+  it 'records the payment but does not move a candidate who is not at fee_pending' do
+    candidate = create(:candidate, status_code: 'verified')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+    payment = create(:payment, candidate_assignment: assignment, status_code: 'checkout_pending')
+
+    allow(Payments::AuditRecorder).to receive(:call)
+    allow(CandidateWorkflows::TransitionService).to receive(:call)
+
+    described_class.call(
+      payment:,
+      assignment:,
+      candidate:,
+      notification: notification(status: 'SUCCESS', transaction_id: 'TXN-4'),
+      request_id: 'req-4'
+    )
+
+    expect(payment.reload.status_code).to eq('paid')
+    expect(assignment.reload.current_workflow_stage.code).to eq('verified')
+    expect(CandidateWorkflows::TransitionService).not_to have_received(:call)
   end
 
   it 'marks a checkout as cancelled without advancing workflow' do
