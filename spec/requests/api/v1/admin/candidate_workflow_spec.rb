@@ -380,7 +380,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
   it 'requires visa decisions to use the dedicated endpoint' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate)
-    create(:candidate_assignment, candidate:, current_workflow_stage: workflow_stage('visa_processing'))
+    create(:candidate_assignment, candidate:)
 
     transition_request(
       candidate:,
