@@ -78,6 +78,7 @@ Rails.application.routes.draw do
           resource :workflow_history, only: :show, controller: :candidate_workflow_histories
           resources :workflow_transitions, only: %i[index create], controller: :candidate_workflow_transitions
           resources :qvc_attempts, only: %i[index create update], controller: :candidate_qvc_attempts
+          resources :medical_results, only: %i[index create], controller: :candidate_medical_results
           resources :visa_decisions, only: %i[index create], controller: :candidate_visa_decisions do
             resource :visa_copy_access, only: :create, controller: :candidate_visa_decision_visa_copy_accesses
           end

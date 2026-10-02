@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_100200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -433,6 +433,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100200) do
     t.check_constraint "status::text = ANY (ARRAY['accepted'::character varying::text, 'rejected'::character varying::text, 'skipped'::character varying::text, 'committed'::character varying::text])", name: "candidate_import_row_results_status"
   end
 
+  create_table "candidate_medical_results", force: :cascade do |t|
+    t.bigint "candidate_assignment_id", null: false
+    t.bigint "candidate_stage_history_id"
+    t.datetime "created_at", null: false
+    t.text "note"
+    t.string "outcome_code", null: false
+    t.string "public_id", null: false
+    t.bigint "recorded_by_id", null: false
+    t.date "result_date", null: false
+    t.datetime "updated_at", null: false
+    t.index ["candidate_assignment_id", "created_at"], name: "index_medical_results_on_assignment_and_created_at"
+    t.index ["candidate_assignment_id"], name: "index_candidate_medical_results_on_candidate_assignment_id"
+    t.index ["candidate_stage_history_id"], name: "index_candidate_medical_results_on_candidate_stage_history_id", unique: true
+    t.index ["public_id"], name: "index_candidate_medical_results_on_public_id", unique: true
+    t.index ["recorded_by_id"], name: "index_candidate_medical_results_on_recorded_by_id"
+    t.check_constraint "outcome_code::text = ANY (ARRAY['fit'::character varying::text, 'unfit'::character varying::text])", name: "candidate_medical_results_outcome_code_values"
+  end
+
   create_table "candidate_otp_challenges", force: :cascade do |t|
     t.integer "attempts", default: 0, null: false
     t.bigint "candidate_id"
@@ -570,7 +588,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100200) do
 
   create_table "candidate_visa_decisions", force: :cascade do |t|
     t.bigint "candidate_assignment_id", null: false
-    t.bigint "candidate_stage_history_id", null: false
+    t.bigint "candidate_stage_history_id"
     t.datetime "created_at", null: false
     t.date "decision_date", null: false
     t.string "outcome_code", null: false
@@ -1124,6 +1142,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100200) do
   add_foreign_key "candidate_flight_details", "users", column: "recorded_by_id"
   add_foreign_key "candidate_import_batches", "users", column: "actor_id"
   add_foreign_key "candidate_import_row_results", "candidate_import_batches"
+  add_foreign_key "candidate_medical_results", "candidate_assignments"
+  add_foreign_key "candidate_medical_results", "candidate_stage_histories"
+  add_foreign_key "candidate_medical_results", "users", column: "recorded_by_id"
   add_foreign_key "candidate_otp_challenges", "candidates"
   add_foreign_key "candidate_protection_records", "candidate_assignments"
   add_foreign_key "candidate_protection_records", "users", column: "appeared_recorded_by_id"

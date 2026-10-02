@@ -26,6 +26,7 @@ module Candidates
         entries = validated_entries
         blobs = entries.map { |entry| build_blob(entry) }
         uploaded_document = persist_upload_and_advance_workflow(entries:, blobs:)
+        enqueue_extraction(uploaded_document)
         ChecklistItemBuilder.call(requirement:, document: uploaded_document)
       rescue StandardError
         blobs.each { |blob| purge_blob(blob) }
@@ -122,6 +123,17 @@ module Candidates
           advance_workflow!
           uploaded_document
         end
+      end
+
+      # Only after the whole upload + workflow transaction has committed: Solid
+      # Queue writes to its own database, so a job enqueued inside the
+      # transaction would survive a rollback and run against a document that
+      # was never saved. Only OCR-supported types (passport, CNIC, next-of-kin
+      # CNIC) are extracted.
+      def enqueue_extraction(document)
+        return unless document.document_type.supports_ocr_extraction?
+
+        ExtractDatesJob.perform_later(document.id)
       end
 
       def pcc_issued_on

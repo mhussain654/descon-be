@@ -17,6 +17,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -39,6 +40,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -134,6 +136,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         external_reference: "PAY-QA-REQ-#{SecureRandom.hex(4)}"
       }.merge(payment_attributes)
     )
+    create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'fit')
 
     [candidate, assignment]
   end

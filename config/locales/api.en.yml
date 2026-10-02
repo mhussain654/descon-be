@@ -28,6 +28,7 @@ en:
       unsupported_photo_type: "Upload a JPEG, PNG, or WebP image."
       file_too_large: "The uploaded file exceeds the maximum allowed size."
       empty_file: "The uploaded file is empty."
+      malware_scan_unavailable: "Document uploads are temporarily unavailable. Please try again later."
       malware_detected: "This file could not be accepted. Please upload a different file."
       invalid_document_files:
         too_few_files: "Add the remaining files for this document."

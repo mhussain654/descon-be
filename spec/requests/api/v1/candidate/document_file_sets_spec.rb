@@ -87,6 +87,16 @@ RSpec.describe 'API V1 Candidate Document File Sets', type: :request do
     expect(CandidateDocument.count).to eq(0)
   end
 
+  it 'refuses document uploads with 503 when no malware scanner is available (fail closed), storing nothing' do
+    unavailable = instance_double(MalwareScanning::Configuration, provider: nil, provider_code: nil)
+    allow(MalwareScanning::Configuration).to receive(:new).and_return(unavailable)
+
+    expect { upload('cv', [['test.pdf', nil]]) }.not_to change(ActiveStorage::Blob, :count)
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('malware_scan_unavailable')
+  end
+
   it 'accepts several certificates under one requirement' do
     upload('educational_certificates', [['test.pdf', nil], ['test.jpg', nil], ['test.png', nil]])
 

@@ -15,26 +15,13 @@ module Candidates
         @issued_on = context[:issued_on]
       end
 
+      # Runs inside the caller's transaction (UploadService), which owns the
+      # commit -- and therefore the OCR enqueue that must follow it.
       def call
-        uploaded_document = nil
-
-        CandidateDocument.transaction { uploaded_document = persist_document }
-        enqueue_extraction(uploaded_document)
-
-        uploaded_document
+        CandidateDocument.transaction { persist_document }
       end
 
       private
-
-      # Enqueued after the transaction commits (MPS-404), never inside it --
-      # a job dequeued before commit would find no row. Only passport/CNIC
-      # front/back/next-of-kin-CNIC (DocumentType#supports_ocr_extraction?)
-      # ever get OCR; every other document type is unaffected.
-      def enqueue_extraction(document)
-        return unless document.document_type.supports_ocr_extraction?
-
-        Candidates::Documents::ExtractDatesJob.perform_later(document.id)
-      end
 
       def persist_document
         current_assignment.with_lock do
@@ -56,13 +43,9 @@ module Candidates
       end
 
       def validate_replacement!(current_document)
-        return if current_document.blank? || replacement_allowed?(current_document)
+        return if current_document.blank? || current_document.replacement_allowed?
 
         raise ReplacementNotAllowedError
-      end
-
-      def replacement_allowed?(current_document)
-        current_document.replacement_allowed? || expired_pcc_replacement?(current_document)
       end
 
       def supersede_current_document!(current_document)
@@ -126,10 +109,6 @@ module Candidates
           issued_on: uploaded_document.issued_on.iso8601,
           expires_on: uploaded_document.expires_on.iso8601
         }
-      end
-
-      def expired_pcc_replacement?(current_document)
-        current_document.police_character? && current_document.compliance_status == 'expired'
       end
     end
   end

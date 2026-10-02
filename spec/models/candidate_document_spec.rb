@@ -27,6 +27,31 @@ RSpec.describe CandidateDocument, type: :model do
     expect(candidate_document.status_code).to eq('verified')
   end
 
+  describe '#replacement_allowed?' do
+    let(:pcc_type) { create(:document_type, code: CandidateDocument::PCC_REQUIREMENT_CODE) }
+    let(:reviewer) { create(:user) }
+
+    def document_with(status_code, document_type: create(:document_type), issued_on: nil)
+      review = status_code == 'verified' ? { verified_by: reviewer, verified_at: Time.current } : {}
+      build(:candidate_document, document_type:, status_code:, issued_on:, **review)
+    end
+
+    it 'allows replacing uploaded and rejected documents only, while unexpired' do
+      expect(document_with('uploaded')).to be_replacement_allowed
+      expect(document_with('under_verification')).not_to be_replacement_allowed
+      expect(document_with('verified')).not_to be_replacement_allowed
+      expect(document_with('verified', document_type: pcc_type, issued_on: Date.current)).not_to be_replacement_allowed
+    end
+
+    it 'allows replacing an expired PCC whatever its review status' do
+      expired = document_with('verified', document_type: pcc_type, issued_on: 8.months.ago.to_date)
+      expired.validate
+
+      expect(expired.compliance_status).to eq('expired')
+      expect(expired).to be_replacement_allowed
+    end
+  end
+
   it 'requires at least one file for the current version' do
     candidate_document.files = []
 

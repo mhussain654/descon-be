@@ -53,7 +53,10 @@ module CandidateWorkflows
         position: process_stage.position,
         action_type: process_stage.action_type,
         required: process_stage.required,
-        required_fields: TransitionService.required_fields_for(process_stage.code)
+        required_fields: TransitionService.required_fields_for(process_stage.code),
+        # Every accepted evidence field with its type, whether it's required and
+        # (for enums) its values -- enough for a client to build the form.
+        fields: StageRequirements.fields_for(process_stage.code)
       }
     end
 

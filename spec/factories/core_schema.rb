@@ -268,6 +268,15 @@ FactoryBot.define do
     ready_recorded_by { nil }
   end
 
+  factory :candidate_medical_result do
+    candidate_assignment
+    candidate_stage_history { nil }
+    association :recorded_by, factory: :user
+    outcome_code { 'fit' }
+    result_date { Date.current }
+    note { nil }
+  end
+
   factory :candidate_visa_decision do
     candidate_assignment
     candidate_stage_history do
