@@ -2,6 +2,10 @@
 
 require 'spec_helper'
 ENV['RAILS_ENV'] ||= 'test'
+# The suite explicitly opts into the mock malware scanner (it is off by default;
+# see MalwareScanning::Configuration). Specs that need another setup override it.
+ENV['APP_ENV'] ||= 'test'
+ENV['DOCUMENT_MALWARE_SCANNER'] ||= 'mock'
 require_relative '../config/environment'
 # Prevent database truncation if the environment is production
 abort('The Rails environment is running in production mode!') if Rails.env.production?
@@ -30,13 +34,7 @@ RSpec.configure do |config|
   # expiry and resend-cooldown specs.
   config.include ActiveSupport::Testing::TimeHelpers
   config.before(:suite) do
-    WorkflowStage::CANONICAL_STAGES.each do |attributes|
-      WorkflowStage.find_or_create_by!(code: attributes.fetch(:code)) do |stage|
-        stage.position = attributes.fetch(:position)
-        stage.system_defined = true
-        stage.active = true
-      end
-    end
+    WorkflowReferenceData.ensure_mobilization_processes!
   end
 end
 

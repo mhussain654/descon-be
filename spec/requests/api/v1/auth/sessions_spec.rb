@@ -12,6 +12,7 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
     AuthenticationEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
+    AuditEvent.delete_all
     User.delete_all
     admin_user
     example.run

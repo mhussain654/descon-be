@@ -11,8 +11,6 @@ module DevData
   class CandidateFixtureBuilder
     include FactoryBot::Syntax::Methods
 
-    STAGE_CODES = WorkflowStage::CANONICAL_STAGES.map { |stage| stage.fetch(:code) }.freeze
-
     # One optional builder per Profile field -- looping over this table instead of a chain of
     # `if profile.x` calls keeps dispatch data-driven rather than branchy.
     OPTIONAL_BUILDERS = {
@@ -36,13 +34,9 @@ module DevData
       'Umar Farooq Chaudhry', 'Ali Raza Baloch'
     ].freeze
 
-    def initialize(document_types:)
-      @document_types = document_types
-    end
-
     def build(profile:, index:, actor:, reference:)
       candidate = build_candidate(profile, index, actor)
-      assignment = build_assignment(candidate, actor, reference)
+      assignment = build_assignment(candidate, actor, reference, profile)
 
       build_stage_history!(assignment, profile.stage, actor)
       apply_optional_builders(profile, assignment, actor)
@@ -65,20 +59,33 @@ module DevData
                          skip_consent: profile.consent_accepted == false)
     end
 
-    def build_assignment(candidate, actor, reference)
-      create(:candidate_assignment, candidate:, created_by: actor, country: reference.fetch(:countries).sample,
+    def build_assignment(candidate, actor, reference, profile)
+      create(:candidate_assignment, candidate:, created_by: actor, country: country_for(profile, reference),
                                     project: reference.fetch(:projects).sample, craft: reference.fetch(:crafts).sample)
     end
 
-    # Walks the fixed stage sequence from `registered` up to `target_code`, leaving a realistic
-    # CandidateStageHistory trail behind -- not just the assignment landing directly on the final
-    # stage -- so the per-candidate workflow-history admin tab has something to show.
+    # A random country whose mobilization process actually has every stage this profile's data
+    # implies (e.g. QVC or flight data only make sense for a Qatar candidate).
+    def country_for(profile, reference)
+      required_codes = [profile.stage]
+      required_codes << 'qvc_appointment_booked' if profile.qvc
+      required_codes << 'flight_details_uploaded' if profile.flight
+      reference.fetch(:countries).select do |country|
+        process = MobilizationProcess.resolve_for(country)
+        process && required_codes.all? { |code| process.includes_stage_code?(code) }
+      end.sample || raise("No active mobilization process includes #{required_codes.join(', ')}")
+    end
+
+    # Walks the assignment's own process from `registered` up to `target_code`, leaving a
+    # realistic CandidateStageHistory trail behind -- not just the assignment landing directly on
+    # the final stage -- so the per-candidate workflow-history admin tab has something to show.
     def build_stage_history!(assignment, target_code, actor)
-      target_index = STAGE_CODES.index(target_code)
+      stage_codes = assignment.mobilization_process.stages.includes(:workflow_stage).map(&:code)
+      target_index = stage_codes.index(target_code)
       return if target_index.zero?
 
       base_time = 30.days.ago
-      (1..target_index).each { |i| create_stage_history_step(assignment, i, actor, base_time) }
+      (1..target_index).each { |i| create_stage_history_step(assignment, stage_codes, i, actor, base_time) }
       assignment.update!(current_workflow_stage: WorkflowStage.find_by!(code: target_code))
       # Mirrors CandidateWorkflows::TransitionService#apply_transition!, which real transitions
       # always update together -- built directly here (not via TransitionService) since a seed
@@ -86,18 +93,35 @@ module DevData
       assignment.candidate.update!(status_code: target_code)
     end
 
-    def create_stage_history_step(assignment, index, actor, base_time)
-      create(:candidate_stage_history, candidate_assignment: assignment,
-                                       from_workflow_stage: WorkflowStage.find_by!(code: STAGE_CODES[index - 1]),
-                                       to_workflow_stage: WorkflowStage.find_by!(code: STAGE_CODES[index]),
-                                       actor:, occurred_at: base_time + (index * 2).days)
+    def create_stage_history_step(assignment, stage_codes, index, actor, base_time)
+      history = create(
+        :candidate_stage_history,
+        candidate_assignment: assignment, actor:, occurred_at: base_time + (index * 2).days,
+        from_workflow_stage: WorkflowStage.find_by!(code: stage_codes[index - 1]),
+        to_workflow_stage: WorkflowStage.find_by!(code: stage_codes[index])
+      )
+      record_fit_medical_result!(assignment, history, actor)
+    end
+
+    # Passing the process's medical-outcome stage means the candidate was found fit.
+    def record_fit_medical_result!(assignment, history, actor)
+      return unless history.to_mobilization_process_stage.action_type == 'medical_outcome'
+
+      create(:candidate_medical_result, candidate_assignment: assignment, candidate_stage_history: history,
+                                        recorded_by: actor, outcome_code: 'fit',
+                                        result_date: history.occurred_at.to_date)
     end
 
     # ------------------------------------------------------------------------
     # Documents
     # ------------------------------------------------------------------------
 
+    # Documents for the assignment's own checklist (its country, project and craft decide it).
     def build_documents!(assignment, variation, actor)
+      @requirements_by_type = Candidates::Documents::RequirementResolver
+                              .call(candidate: assignment.candidate, assignment:)
+                              .select(&:required).index_by(&:document_type)
+      @document_types = @requirements_by_type.keys
       send("build_documents_#{variation}!", assignment, actor)
     end
 
@@ -143,7 +167,27 @@ module DevData
       attrs = { candidate_assignment: assignment, document_type: type, uploaded_by: actor, status_code: status.to_s }
       attrs.merge!(document_status_attributes(status, actor))
       attrs[:issued_on] = issued_on || default_issued_on(type)
-      create(:candidate_document, **attrs)
+      create(:candidate_document, **attrs, files: document_files(@requirements_by_type.fetch(type)))
+    end
+
+    # A realistic file set for the requirement: front + back images, passport page 1 + page 2,
+    # two certificates, or a single PDF.
+    def document_files(requirement)
+      sides = requirement.allowed_side_codes
+      layout = if sides.include?('front') then [%w[front image/jpeg], %w[back image/jpeg]]
+               elsif sides.include?('page_1') then [%w[page_1 image/jpeg], %w[page_2 image/jpeg]]
+               elsif sides.include?('certificate') then [%w[certificate application/pdf]] * 2
+               else [[nil, requirement.accepted_content_types.first]]
+               end
+      layout.each_with_index.map { |(side_code, content_type), index| fixture_file(side_code, content_type, index + 1) }
+    end
+
+    def fixture_file(side_code, content_type, position)
+      name = content_type == 'application/pdf' ? 'test.pdf' : 'test.jpg'
+      FactoryBot.build(:candidate_document_file, side_code:, position:, content_type:,
+                                                 original_filename: name).tap do |file|
+        file.file.attach(io: Rails.root.join('spec/fixtures/files', name).open, filename: name, content_type:)
+      end
     end
 
     # `police_character` documents require `issued_on` regardless of status (see
@@ -234,13 +278,6 @@ module DevData
     def build_protection_appeared_only!(assignment, actor)
       create(:candidate_protection_record, candidate_assignment: assignment, appeared_on: 3.days.ago.to_date,
                                            appeared_recorded_at: 3.days.ago, appeared_recorded_by: actor)
-    end
-
-    def build_protection_ready_to_fly!(assignment, actor)
-      create(:candidate_protection_record, candidate_assignment: assignment, appeared_on: 10.days.ago.to_date,
-                                           appeared_recorded_at: 10.days.ago, appeared_recorded_by: actor,
-                                           protected_on: 5.days.ago.to_date, ready_to_fly_at: 5.days.ago,
-                                           ready_recorded_by: actor)
     end
 
     def build_flight!(assignment, variation, actor)

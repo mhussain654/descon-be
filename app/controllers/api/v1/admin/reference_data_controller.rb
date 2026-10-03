@@ -79,13 +79,19 @@ module Api
 
         # Permits the params accepted when creating a record.
         def create_params
-          params.expect(reference_data: CREATE_PARAMS)
+          params.expect(reference_data: CREATE_PARAMS + extra_param_keys)
         end
 
         # Permits the params accepted when updating a record.
         def update_params
-          params.fetch(:reference_data, {}).permit(*UPDATE_PARAMS)
+          params.fetch(:reference_data, {}).permit(*UPDATE_PARAMS, *extra_param_keys)
         end
+
+        # Type-specific editable attributes beyond code/names (none by default).
+        def extra_param_keys = []
+
+        # Type-specific attributes returned alongside code/name (none by default).
+        def extra_attributes(_record) = {}
 
         # Serializes a reference-data record for the API response.
         def serialized(record)
@@ -94,13 +100,13 @@ module Api
             name: record.name_for,
             active: record.active,
             updated_at: record.updated_at.utc.iso8601
-          }
+          }.merge(extra_attributes(record))
         end
 
         # Serializes a reference-data record for the lightweight index/
-        # lookup list (code and name only).
+        # lookup list (code and name only, plus any type-specific attributes).
         def lookup_serialized(record)
-          { code: record.code, name: record.name_for }
+          { code: record.code, name: record.name_for }.merge(extra_attributes(record))
         end
 
         # Sets the private cache/ETag headers for a mutated reference-data

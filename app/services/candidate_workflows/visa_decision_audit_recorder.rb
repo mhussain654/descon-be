@@ -25,7 +25,8 @@ module CandidateWorkflows
         visa_decision_public_id: decision.public_id,
         outcome_code: decision.outcome_code,
         decision_date: decision.decision_date.iso8601,
-        rejection_reason_code: decision.rejection_reason_code
+        rejection_reason_code: decision.rejection_reason_code,
+        re_decision: decision.candidate_stage_history_id.nil?
       }.compact
     end
 

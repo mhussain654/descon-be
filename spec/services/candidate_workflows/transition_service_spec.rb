@@ -109,62 +109,55 @@ RSpec.describe CandidateWorkflows::TransitionService do
     expect(e.field).to eq(field)
   end
 
-  it 'progresses through the complete 15-stage workflow without skipping stages' do
-    actor = create(:user, role: 'mps')
-    candidate = create(:candidate)
-    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('registered'))
-
+  def advance_through_documents!(candidate:, assignment:, actor:)
     transition!(candidate:, actor:, to_stage_code: 'documents_pending')
     create_uploaded_required_document(assignment:, code: 'passport')
-    create_required_documents(
-      candidate:,
-      assignment:,
-      default_status: 'uploaded',
-      overrides: {
-        'passport' => { skip_create: true }
-      }
-    )
+    create_required_documents(candidate:, assignment:, default_status: 'uploaded',
+                              overrides: { 'passport' => { skip_create: true } })
     transition!(candidate:, actor:, to_stage_code: 'documents_uploaded')
     transition!(candidate:, actor:, to_stage_code: 'under_verification')
     CandidateDocument.current_version.where(candidate_assignment: assignment).find_each do |document|
       document.update!(status_code: 'verified', verified_by: actor, verified_at: Time.current)
     end
     transition!(candidate:, actor:, to_stage_code: 'verified')
+  end
+
+  def record_paid_fee!(assignment)
+    create(:payment, candidate_assignment: assignment, status_code: 'paid', paid_at: Time.current,
+                     external_reference: "PAY-#{SecureRandom.hex(4)}")
+  end
+
+  def history_codes(assignment)
+    assignment.candidate_stage_histories.order(:occurred_at, :id).map { |entry| entry.to_workflow_stage.code }
+  end
+
+  it 'moves a Qatar candidate through every stage of the Qatar process, in order' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate)
+    assignment = create(:candidate_assignment, candidate:, country: process_country(:qatar),
+                                               current_workflow_stage: stage_for('registered'))
+
+    advance_through_documents!(candidate:, assignment:, actor:)
+    transition!(candidate:, actor:, to_stage_code: 'campaign_nomination')
+    transition!(candidate:, actor:, to_stage_code: 'medical_appointment',
+                evidence: { medical_appointment_date: '2026-08-20' })
+    transition!(candidate:, actor:, to_stage_code: 'medical_fit',
+                evidence: { medical_outcome_code: 'fit', medical_result_date: '2026-08-22' })
     transition!(candidate:, actor:, to_stage_code: 'fee_pending')
-    create(
-      :payment,
-      candidate_assignment: assignment,
-      status_code: 'paid',
-      paid_at: Time.current,
-      external_reference: 'PAY-123'
-    )
+    record_paid_fee!(assignment)
     transition!(candidate:, actor:, to_stage_code: 'fee_paid')
     transition!(candidate:, actor:, to_stage_code: 'documents_shared_with_qatar_bu')
-    transition!(
-      candidate:,
-      actor:,
-      to_stage_code: 'qvc_appointment_booked',
-      evidence: { appointment_date: '2026-09-01' }
-    )
-    transition!(
-      candidate:,
-      actor:,
-      to_stage_code: 'qvc_completed_outcome_received',
-      evidence: { qvc_outcome_code: 'approved' }
-    )
-    transition!(
-      candidate:,
-      actor:,
-      to_stage_code: 'visa_issued_or_rejected',
-      evidence: { visa_outcome_code: 'issued', visa_outcome_date: '2026-09-10' }
-    )
-    transition!(
-      candidate:,
-      actor:,
-      to_stage_code: 'appeared_for_protection',
-      evidence: { appeared_for_protection_on: '2026-09-12' }
-    )
-    transition!(candidate:, actor:, to_stage_code: 'protected_ready_to_fly', evidence: { protected_on: '2026-09-15' })
+    transition!(candidate:, actor:, to_stage_code: 'qvc_appointment_booked',
+                evidence: { appointment_date: '2026-09-01' })
+    transition!(candidate:, actor:, to_stage_code: 'qvc_completed_outcome_received',
+                evidence: { qvc_outcome_code: 'approved' })
+    transition!(candidate:, actor:, to_stage_code: 'visa_issued_or_rejected',
+                evidence: { visa_outcome_code: 'issued', visa_outcome_date: '2026-09-10' })
+    transition!(candidate:, actor:, to_stage_code: 'protection_call',
+                evidence: { protection_call_status: 'scheduled', protection_call_on: '2026-09-11' })
+    transition!(candidate:, actor:, to_stage_code: 'appeared_for_protection',
+                evidence: { appeared_for_protection_on: '2026-09-12' })
+    transition!(candidate:, actor:, to_stage_code: 'ticket_handover', evidence: { ticket_handed_over_on: '2026-09-14' })
     transition!(
       candidate:,
       actor:,
@@ -176,12 +169,124 @@ RSpec.describe CandidateWorkflows::TransitionService do
         flight_date: '2026-09-20T14:30:00Z'
       }
     )
-    transition!(candidate:, actor:, to_stage_code: 'mobilized', evidence: { mobilized_on: '2026-09-22' })
+    result = transition!(candidate:, actor:, to_stage_code: 'mobilized', evidence: { mobilized_on: '2026-09-22' })
 
+    qatar_codes = MobilizationProcesses::Definitions::ALL.find { |d| d[:code] == 'qatar_mobilization' }[:stages]
+    expect(history_codes(assignment)).to eq(qatar_codes.drop(1))
     expect(candidate.reload.status_code).to eq('mobilized')
-    expect(assignment.reload.current_workflow_stage.code).to eq('mobilized')
-    expect(assignment.candidate_stage_histories.order(:occurred_at, :id).count).to eq(14)
-    expect(AuditEvent.where(action_code: 'candidate_workflow_transitioned', entity_id: assignment.id).count).to eq(14)
+    expect(assignment.reload).to be_terminal_stage
+    expect(result.fetch(:snapshot)).to have_attributes(completed_count: 19, total_count: 19, progress_percentage: 100)
+    expect(AuditEvent.where(action_code: 'candidate_workflow_transitioned', entity_id: assignment.id).count).to eq(18)
+  end
+
+  it 'moves a KSA candidate through the KSA process, ending at ticket handover' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate)
+    assignment = create(:candidate_assignment, candidate:, country: process_country(:saudi_arabia),
+                                               current_workflow_stage: stage_for('registered'))
+
+    advance_through_documents!(candidate:, assignment:, actor:)
+    transition!(candidate:, actor:, to_stage_code: 'campaign_nomination')
+    transition!(candidate:, actor:, to_stage_code: 'gamca_medical_pending')
+    transition!(candidate:, actor:, to_stage_code: 'gamca_medical_completed',
+                evidence: { medical_outcome_code: 'fit', medical_result_date: '2026-08-22' })
+    transition!(candidate:, actor:, to_stage_code: 'e_number_processing')
+    transition!(candidate:, actor:, to_stage_code: 'e_number_requested')
+    transition!(candidate:, actor:, to_stage_code: 'e_number_received',
+                evidence: { e_number: 'E-1234567', e_number_received_on: '2026-08-25' })
+    transition!(candidate:, actor:, to_stage_code: 'biometric_completed',
+                evidence: { biometric_completed_on: '2026-08-27' })
+    transition!(candidate:, actor:, to_stage_code: 'visa_stamping_case_prepared')
+    transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+    record_paid_fee!(assignment)
+    transition!(candidate:, actor:, to_stage_code: 'fee_paid')
+    transition!(candidate:, actor:, to_stage_code: 'visa_stamping_case_sent')
+    # No QVC step in the KSA process, so the visa decision needs no QVC approval.
+    transition!(candidate:, actor:, to_stage_code: 'visa_issued_or_rejected',
+                evidence: { visa_outcome_code: 'issued', visa_outcome_date: '2026-09-10' })
+    transition!(candidate:, actor:, to_stage_code: 'appeared_for_protection',
+                evidence: { appeared_for_protection_on: '2026-09-12' })
+    result = transition!(candidate:, actor:, to_stage_code: 'ticket_handover',
+                         evidence: { ticket_handed_over_on: '2026-09-14', ticket_reference: 'SV-778' })
+
+    ksa_codes = MobilizationProcesses::Definitions::ALL.find { |d| d[:code] == 'ksa_mobilization' }[:stages]
+    expect(history_codes(assignment)).to eq(ksa_codes.drop(1))
+    expect(assignment.reload).to be_terminal_stage
+    expect(result.fetch(:snapshot)).to have_attributes(completed_count: 19, total_count: 19, progress_percentage: 100)
+    expect(assignment.candidate_stage_histories.last).to have_attributes(
+      mobilization_process: assignment.mobilization_process, stage_code: 'ticket_handover', position: 19,
+      stage_name_en: 'Ticket Handover', stage_name_ur: 'ٹکٹ کی حوالگی'
+    )
+    expect { transition!(candidate:, actor:, to_stage_code: 'flight_details_uploaded') }
+      .to raise_error(InvalidWorkflowTransitionError)
+  end
+
+  it 'keeps Qatar and KSA candidates on independent sequences from the same stage' do
+    actor = create(:user, role: 'mps')
+    qatar_candidate = create(:candidate)
+    ksa_candidate = create(:candidate)
+    qatar_assignment = create(:candidate_assignment, candidate: qatar_candidate, country: process_country(:qatar),
+                                                     current_workflow_stage: stage_for('campaign_nomination'))
+    ksa_assignment = create(:candidate_assignment, candidate: ksa_candidate, country: process_country(:saudi_arabia),
+                                                   current_workflow_stage: stage_for('campaign_nomination'))
+
+    expect(qatar_assignment.next_process_stage.code).to eq('medical_appointment')
+    expect(ksa_assignment.next_process_stage.code).to eq('gamca_medical_pending')
+
+    transition!(candidate: qatar_candidate, actor:, to_stage_code: 'medical_appointment')
+    transition!(candidate: ksa_candidate, actor:, to_stage_code: 'gamca_medical_pending')
+
+    expect(qatar_assignment.reload.current_mobilization_process_stage.position).to eq(7)
+    expect(ksa_assignment.reload.current_mobilization_process_stage.position).to eq(7)
+    expect(qatar_assignment.mobilization_process.code).to eq('qatar_mobilization')
+    expect(ksa_assignment.mobilization_process.code).to eq('ksa_mobilization')
+  end
+
+  it "rejects transitions into a stage that belongs only to another country's process" do
+    actor = create(:user, role: 'mps')
+    qatar_candidate = create(:candidate)
+    ksa_candidate = create(:candidate)
+    create(:candidate_assignment, candidate: qatar_candidate, country: process_country(:qatar),
+                                  current_workflow_stage: stage_for('campaign_nomination'))
+    create(:candidate_assignment, candidate: ksa_candidate, country: process_country(:saudi_arabia),
+                                  current_workflow_stage: stage_for('fee_paid'))
+
+    expect { transition!(candidate: qatar_candidate, actor:, to_stage_code: 'gamca_medical_pending') }
+      .to raise_error(InvalidWorkflowTransitionError) { |error|
+        expect(error.details).to include(mobilization_process_code: 'qatar_mobilization')
+      }
+    expect { transition!(candidate: ksa_candidate, actor:, to_stage_code: 'documents_shared_with_qatar_bu') }
+      .to raise_error(InvalidWorkflowTransitionError) { |error|
+        expect(error.details).to include(mobilization_process_code: 'ksa_mobilization')
+      }
+    expect(CandidateStageHistory.count).to eq(0)
+  end
+
+  it 'refuses to place an assignment on a stage outside its process' do
+    expect do
+      create(:candidate_assignment, country: process_country(:saudi_arabia),
+                                    current_workflow_stage: stage_for('qvc_appointment_booked'))
+    end.to raise_error(ActiveRecord::RecordInvalid, /not part of this assignment's mobilization process/)
+  end
+
+  it 'keeps an in-flight candidate on the process version they started with' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate)
+    assignment = create(:candidate_assignment, candidate:, country: process_country(:saudi_arabia),
+                                               current_workflow_stage: stage_for('campaign_nomination'))
+    original_process = assignment.mobilization_process
+    replacement = MobilizationProcess.create!(code: 'ksa_mobilization', version: 2,
+                                              country: process_country(:saudi_arabia))
+    %w[registered campaign_nomination medical_pending].each.with_index(1) do |code, position|
+      replacement.stages.create!(workflow_stage: stage_for(code), position:, action_type: 'none')
+    end
+    replacement.publish!
+
+    transition!(candidate:, actor:, to_stage_code: 'gamca_medical_pending')
+
+    expect(assignment.reload.mobilization_process).to eq(original_process)
+    expect(original_process.reload.status).to eq('retired')
+    expect(MobilizationProcess.resolve_for(process_country(:saudi_arabia))).to eq(replacement)
   end
 
   it 'rejects skipped and backward transitions' do
@@ -346,6 +451,15 @@ RSpec.describe CandidateWorkflows::TransitionService do
       occurred_at: Time.current,
       metadata: { 'visa_outcome_code' => 'issued', 'visa_outcome_date' => '2026-09-10' }
     )
+    create(:candidate_visa_decision, candidate_assignment: assignment, candidate_stage_history: nil,
+                                     outcome_code: 'issued')
+
+    expect_validation_error(field: 'candidate_workflow_transition.evidence.protection_call_status') do
+      transition!(candidate:, actor:, to_stage_code: 'protection_call',
+                  evidence: { protection_call_status: 'maybe', protection_call_on: '2026-09-11' })
+    end
+    transition!(candidate:, actor:, to_stage_code: 'protection_call',
+                evidence: { protection_call_status: 'completed', protection_call_on: '2026-09-11' })
 
     expect_validation_error(field: 'candidate_workflow_transition.evidence.appeared_for_protection_on') do
       transition!(
@@ -386,7 +500,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
     end
   end
 
-  it 'treats mobilized as terminal' do
+  it "treats the process's last stage as terminal" do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate)
     create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('mobilized'))
@@ -396,7 +510,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
     end.to raise_error(InvalidWorkflowTransitionError)
   end
 
-  it 'requires an approved qvc outcome before visa progression and a visa-issued result before protection' do
+  it 'requires an approved qvc outcome before visa progression and holds a rejected visa until re-decided' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate, status_code: 'qvc_completed_outcome_received')
     assignment = create(
@@ -404,6 +518,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
       candidate:,
       current_workflow_stage: stage_for('qvc_completed_outcome_received')
     )
+    record_paid_fee!(assignment)
 
     create(
       :candidate_qvc_attempt,
@@ -444,23 +559,25 @@ RSpec.describe CandidateWorkflows::TransitionService do
         rejection_reason_code: 'document_discrepancy'
       }
     )
+    protection_call = { protection_call_status: 'scheduled', protection_call_on: '2026-09-11' }
 
-    expect do
-      transition!(
-        candidate:,
-        actor:,
-        to_stage_code: 'appeared_for_protection',
-        evidence: { appeared_for_protection_on: '2026-09-12' }
-      )
-    end.to raise_error(WorkflowTransitionPrerequisiteError) { |error|
-      expect(error.details[:blocking_reasons]).to eq(['visa_issued_required'])
-    }
+    expect { transition!(candidate:, actor:, to_stage_code: 'protection_call', evidence: protection_call) }
+      .to raise_error(WorkflowTransitionPrerequisiteError) { |error|
+        expect(error.details[:blocking_reasons]).to eq(['visa_issued_required'])
+      }
+
+    create(:candidate_visa_decision, candidate_assignment: assignment, candidate_stage_history: nil,
+                                     outcome_code: 'issued')
+    transition!(candidate:, actor:, to_stage_code: 'protection_call', evidence: protection_call)
+
+    expect(assignment.reload.current_workflow_stage.code).to eq('protection_call')
   end
 
   it 'blocks fee_pending when a previously verified required document is rejected' do
     actor = create(:user, role: 'mps')
-    candidate = create(:candidate, status_code: 'verified')
-    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+    candidate = create(:candidate, status_code: 'medical_fit')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('medical_fit'))
+    create(:candidate_medical_result, candidate_assignment: assignment)
     requirement_for(assignment:, code: 'passport')
     create_required_documents(candidate:, assignment:, default_status: 'verified')
 
@@ -481,8 +598,9 @@ RSpec.describe CandidateWorkflows::TransitionService do
 
   it 'blocks fee_pending when a new required global requirement is introduced after verification' do
     actor = create(:user, role: 'mps')
-    candidate = create(:candidate, status_code: 'verified')
-    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+    candidate = create(:candidate, status_code: 'medical_fit')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('medical_fit'))
+    create(:candidate_medical_result, candidate_assignment: assignment)
     requirement_for(assignment:, code: 'passport')
     create_required_documents(candidate:, assignment:, default_status: 'verified')
     medical_clearance_type = document_type_for('medical_clearance')
@@ -497,8 +615,9 @@ RSpec.describe CandidateWorkflows::TransitionService do
 
   it 'blocks fee_pending for expired pcc and fee_paid without a full authoritative payment record' do
     actor = create(:user, role: 'mps')
-    candidate = create(:candidate, status_code: 'verified')
-    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('verified'))
+    candidate = create(:candidate, status_code: 'medical_fit')
+    assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('medical_fit'))
+    create(:candidate_medical_result, candidate_assignment: assignment)
     requirement_for(assignment:, code: 'passport')
     pcc_type = requirement_for(assignment:, code: CandidateDocument::PCC_REQUIREMENT_CODE)
     create_required_documents(
@@ -570,6 +689,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
       paid_at: Time.zone.parse('2026-08-30T08:00:00Z'),
       external_reference: 'PAY-QA-001'
     )
+    create(:candidate_medical_result, candidate_assignment: assignment)
 
     result = transition!(
       candidate:,
@@ -611,6 +731,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
       paid_at: Time.current,
       external_reference: 'PAY-QA-002'
     )
+    create(:candidate_medical_result, candidate_assignment: assignment)
     assignment.candidate_documents.current_version.first.update!(
       status_code: 'rejected',
       rejection_reason: 'Document is unreadable.',
@@ -657,6 +778,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
       paid_at: Time.current,
       external_reference: 'PAY-QA-003'
     )
+    create(:candidate_medical_result, candidate_assignment: assignment)
 
     expect do
       transition!(candidate:, actor:, to_stage_code: 'documents_shared_with_qatar_bu')
@@ -678,6 +800,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
       paid_at: Time.current,
       external_reference: 'PAY-QA-004'
     )
+    create(:candidate_medical_result, candidate_assignment: assignment)
 
     allow(CandidateWorkflowEvent).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(CandidateWorkflowEvent.new))
 

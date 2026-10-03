@@ -18,6 +18,7 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateFlightDetail.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
@@ -37,6 +38,7 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateFlightDetail.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
@@ -64,9 +66,9 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
   end
 
   def candidate_ready_to_fly
-    candidate = create(:candidate, status_code: 'protected_ready_to_fly')
+    candidate = create(:candidate, status_code: 'ticket_handover')
     assignment = create(:candidate_assignment, candidate:,
-                                               current_workflow_stage: workflow_stage('protected_ready_to_fly'))
+                                               current_workflow_stage: workflow_stage('ticket_handover'))
     [candidate, assignment]
   end
 
@@ -77,7 +79,7 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
       sector: 'LHE-DOH',
       flight_date: '2026-09-20T14:30:00Z',
       ticket: fixture_upload('test.pdf', 'application/pdf'),
-      expected_current_stage_code: 'protected_ready_to_fly'
+      expected_current_stage_code: 'ticket_handover'
     }.merge(overrides)
   end
 
@@ -232,7 +234,7 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
           params: {
             candidate_flight_detail: {
               mobilized_on: '2026-09-21',
-              expected_current_stage_code: 'protected_ready_to_fly'
+              expected_current_stage_code: 'ticket_handover'
             }
           },
           headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'mobilize-stale' }

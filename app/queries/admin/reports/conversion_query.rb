@@ -3,13 +3,15 @@
 module Admin
   module Reports
     # Docs -> Verified -> Mobilized conversion funnel (MPS-806). A
-    # candidate's current stage only ever advances forward (each
-    # destination stage is recorded at most once per assignment -- see the
-    # unique index on candidate_stage_histories), so "reached at least
-    # stage X" is reliably `current stage position >= X's position`; no
+    # candidate's current stage only ever advances forward along their own
+    # mobilization process, so "reached at least stage X" is reliably
+    # `current process position >= X's position in that same process`; no
     # separate historical scan is needed for a simple funnel count.
+    # `mobilized` counts candidates who completed their process -- its last
+    # stage differs per country (e.g. Ticket Handover for KSA).
     class ConversionQuery < ApplicationQuery
       FUNNEL_STAGE_CODES = %w[documents_uploaded verified mobilized].freeze
+      COMPLETED_PROCESS_CODE = 'mobilized'
 
       def initialize(scope: Candidate.all)
         super()
@@ -19,7 +21,7 @@ module Admin
       def call
         total = total_count
         FUNNEL_STAGE_CODES.map do |code|
-          reached = reached_count(position_for(code))
+          reached = reached_count(code)
           { code:, count: reached, percentage: percentage(reached, total) }
         end
       end
@@ -34,20 +36,38 @@ module Admin
         @total_count ||= base_scope.count
       end
 
-      def reached_count(position)
-        base_scope.where(current_assignments: { current_workflow_stage_id: stage_ids_at_or_after(position) }).count
+      def current_process_stage_scope
+        base_scope.joins(<<~SQL.squish)
+          INNER JOIN mobilization_process_stages current_process_stages
+            ON current_process_stages.id = current_assignments.current_mobilization_process_stage_id
+        SQL
       end
 
-      def stage_ids_at_or_after(position)
-        stages_by_position.select { |stage_position, _id| stage_position >= position }.values
+      def reached_count(code)
+        return completed_process_count if code == COMPLETED_PROCESS_CODE
+
+        current_process_stage_scope
+          .joins(target_stage_join_sql(code))
+          .where('current_process_stages.position >= target_process_stages.position')
+          .count
       end
 
-      def stages_by_position
-        @stages_by_position ||= WorkflowStage.pluck(:position, :id).to_h
+      def completed_process_count
+        base_scope.where(
+          current_assignments: { current_mobilization_process_stage_id: MobilizationProcessStage.terminal.select(:id) }
+        ).count
       end
 
-      def position_for(code)
-        WorkflowStage::CANONICAL_STAGES.find { |stage| stage.fetch(:code) == code }.fetch(:position)
+      def target_stage_join_sql(code)
+        ActiveRecord::Base.sanitize_sql_array([<<~SQL.squish, workflow_stage_ids.fetch(code)])
+          INNER JOIN mobilization_process_stages target_process_stages
+            ON target_process_stages.mobilization_process_id = current_assignments.mobilization_process_id
+           AND target_process_stages.workflow_stage_id = ?
+        SQL
+      end
+
+      def workflow_stage_ids
+        @workflow_stage_ids ||= WorkflowStage.where(code: FUNNEL_STAGE_CODES).pluck(:code, :id).to_h
       end
 
       def percentage(count, total)

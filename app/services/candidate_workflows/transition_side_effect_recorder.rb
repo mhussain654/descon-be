@@ -12,7 +12,7 @@ module CandidateWorkflows
     def call
       record_qvc_attempt!
       record_protection_record!
-      record_visa_decision!
+      record_outcome!
       record_flight_detail!
       trigger_workflow_stage_call!
       PostTransitionEventRecorder.call(
@@ -58,7 +58,6 @@ module CandidateWorkflows
 
     def record_protection_record!
       record_protection_appearance! if destination_stage_code == 'appeared_for_protection'
-      record_ready_to_fly! if destination_stage_code == 'protected_ready_to_fly'
     end
 
     def record_protection_appearance!
@@ -69,16 +68,31 @@ module CandidateWorkflows
       )
     end
 
-    def record_ready_to_fly!
-      protection_record.update!(
-        protected_on: Date.iso8601(evidence.fetch('protected_on')),
-        ready_to_fly_at: @transition.fetch(:transitioned_at),
-        ready_recorded_by: @history_entry.actor || assignment.created_by
-      )
-    end
-
     def protection_record
       @protection_record ||= assignment.candidate_protection_record || assignment.build_candidate_protection_record
+    end
+
+    # Entering a medical-outcome stage (whatever its code in this process)
+    # records the result; an unfit result then holds the candidate there.
+    def record_outcome!
+      record_medical_result!
+      record_visa_decision!
+    end
+
+    def record_medical_result!
+      return unless @context[:destination_process_stage]&.action_type == 'medical_outcome'
+
+      result = assignment.candidate_medical_results.create!(medical_result_attributes)
+      MedicalResultAuditRecorder.call(actor:, request_id: @transition.fetch(:request_id),
+                                      context: { candidate:, assignment:, result: })
+    end
+
+    def medical_result_attributes
+      {
+        candidate_stage_history: @history_entry, recorded_by: actor, note: @history_entry.note,
+        outcome_code: evidence.fetch('medical_outcome_code'),
+        result_date: Date.iso8601(evidence.fetch('medical_result_date'))
+      }
     end
 
     def record_visa_decision!

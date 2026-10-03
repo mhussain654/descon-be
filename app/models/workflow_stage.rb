@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
-# One of the 15 canonical, ordered stages a candidate assignment moves through from
-# registration to mobilization abroad. System-defined stages are seeded and protected from
-# being renamed, reordered, or deleted.
+# The catalog of stage *meanings* a candidate assignment can move through
+# (code + localized name). Which stages a candidate actually passes, and in
+# what order, comes from their assignment's MobilizationProcess -- `position`
+# here is only the catalog's display order, never the workflow order.
+# System-defined stages are seeded and protected from being renamed,
+# reordered, or deleted.
 class WorkflowStage < ApplicationRecord
   include HasLocalizedName
 
@@ -12,18 +15,34 @@ class WorkflowStage < ApplicationRecord
     { code: 'documents_uploaded', position: 3 },
     { code: 'under_verification', position: 4 },
     { code: 'verified', position: 5 },
-    { code: 'fee_pending', position: 6 },
-    { code: 'fee_paid', position: 7 },
-    { code: 'documents_shared_with_qatar_bu', position: 8 },
-    { code: 'qvc_appointment_booked', position: 9 },
-    { code: 'qvc_completed_outcome_received', position: 10 },
-    { code: 'visa_issued_or_rejected', position: 11 },
-    { code: 'appeared_for_protection', position: 12 },
-    { code: 'protected_ready_to_fly', position: 13 },
-    { code: 'flight_details_uploaded', position: 14 },
-    { code: 'mobilized', position: 15 }
+    { code: 'campaign_nomination', position: 6 },
+    { code: 'medical_pending', position: 7 },
+    { code: 'medical_completed', position: 8 },
+    { code: 'medical_appointment', position: 9 },
+    { code: 'medical_fit', position: 10 },
+    { code: 'gamca_medical_pending', position: 11 },
+    { code: 'gamca_medical_completed', position: 12 },
+    { code: 'e_number_processing', position: 13 },
+    { code: 'e_number_requested', position: 14 },
+    { code: 'e_number_received', position: 15 },
+    { code: 'biometric_completed', position: 16 },
+    { code: 'visa_stamping_case_prepared', position: 17 },
+    { code: 'fee_pending', position: 18 },
+    { code: 'fee_paid', position: 19 },
+    { code: 'documents_shared_with_qatar_bu', position: 20 },
+    { code: 'qvc_appointment_booked', position: 21 },
+    { code: 'qvc_completed_outcome_received', position: 22 },
+    { code: 'visa_processing', position: 23 },
+    { code: 'visa_stamping_case_sent', position: 24 },
+    { code: 'visa_issued_or_rejected', position: 25 },
+    { code: 'protection_call', position: 26 },
+    { code: 'appeared_for_protection', position: 27 },
+    { code: 'ticket_handover', position: 28 },
+    { code: 'flight_details_uploaded', position: 29 },
+    { code: 'mobilized', position: 30 }
   ].freeze
 
+  has_many :mobilization_process_stages, dependent: :restrict_with_exception
   has_many :candidate_assignments, foreign_key: :current_workflow_stage_id, inverse_of: :current_workflow_stage,
                                    dependent: :restrict_with_exception
   has_many :from_candidate_stage_histories, class_name: 'CandidateStageHistory', foreign_key: :from_workflow_stage_id,
@@ -36,7 +55,7 @@ class WorkflowStage < ApplicationRecord
   validates :active, :system_defined, inclusion: { in: [true, false] }
   validate :protect_system_definition_changes, on: :update
 
-  before_destroy :prevent_system_destroy
+  before_destroy :prevent_system_destroy, prepend: true
 
   # The initial workflow stage every new candidate assignment starts in.
   def self.registered

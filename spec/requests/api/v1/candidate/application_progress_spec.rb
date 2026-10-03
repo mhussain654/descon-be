@@ -80,7 +80,8 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.headers['ETag']).to be_present
       expect(response.parsed_body.dig('data', 'documents', 'submission_state')).to eq('no_assignment')
       expect(response.parsed_body.dig('data', 'documents', 'required_total')).to eq(0)
-      expect(response.parsed_body.dig('data', 'workflow', 'timeline').size).to eq(15)
+      # No assignment means no mobilization process yet, so no stages to list.
+      expect(response.parsed_body.dig('data', 'workflow', 'timeline')).to eq([])
       expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(0)
       expect(response.parsed_body.dig('data', 'payment', 'blocking_reasons')).to eq(['no_current_assignment'])
     end
@@ -146,8 +147,8 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
 
         expect(response).to have_http_status(:ok)
         expect(response.parsed_body.dig('data', 'workflow', 'completed_count')).to eq(3)
-        expect(response.parsed_body.dig('data', 'workflow', 'total_count')).to eq(15)
-        expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(20)
+        expect(response.parsed_body.dig('data', 'workflow', 'total_count')).to eq(19)
+        expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(15)
         expect(response.parsed_body.dig('data', 'workflow', 'timeline', 0, 'completed_at'))
           .to eq('2026-08-29T09:00:00Z')
         expect(response.parsed_body.dig('data', 'workflow', 'timeline', 1, 'completed_at'))

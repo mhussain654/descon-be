@@ -17,20 +17,12 @@ module CandidateWorkflows
 
     def serialized_transition(history_entry)
       {
-        from_stage: history_entry.from_workflow_stage && stage_reference(history_entry.from_workflow_stage),
-        to_stage: stage_reference(history_entry.to_workflow_stage),
+        from_stage: HistoryStageReference.from(history_entry),
+        to_stage: HistoryStageReference.to(history_entry),
         occurred_at: history_entry.occurred_at.utc.iso8601,
         reason_code: history_entry.reason_code,
         details: history_entry.metadata.presence
       }.compact
-    end
-
-    def stage_reference(stage)
-      {
-        code: stage.code,
-        name: stage.name_for,
-        position: stage.position
-      }
     end
   end
 end

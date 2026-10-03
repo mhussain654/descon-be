@@ -3,7 +3,7 @@
 module Candidates
   module BankDetails
     class UpsertService < ApplicationService
-      ALLOWED_CONTENT_TYPES = Candidates::Documents::UploadService::ALLOWED_CONTENT_TYPES
+      ALLOWED_CONTENT_TYPES = DocumentRequirement::CONTENT_TYPES
       Attributes = Data.define(:account_title, :account_number, :bank_name, :proof)
 
       def initialize(candidate:, attributes:, request_id:)

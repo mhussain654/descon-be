@@ -20,13 +20,57 @@ RSpec.describe CandidateDocument, type: :model do
   it { is_expected.to belong_to(:uploaded_by).class_name('User').optional }
   it { is_expected.to belong_to(:verified_by).class_name('User').optional }
 
-  it 'normalizes the status code and checksum' do
+  it 'normalizes the status code' do
     candidate_document.status_code = ' VERIFIED '
-    candidate_document.checksum_sha256 = ' ABCDEF '
     candidate_document.validate
 
     expect(candidate_document.status_code).to eq('verified')
-    expect(candidate_document.checksum_sha256).to eq('abcdef')
+  end
+
+  describe '#replacement_allowed?' do
+    let(:pcc_type) { police_character_type }
+    let(:reviewer) { create(:user) }
+
+    def document_with(status_code, document_type: create(:document_type), issued_on: nil)
+      review = status_code == 'verified' ? { verified_by: reviewer, verified_at: Time.current } : {}
+      build(:candidate_document, document_type:, status_code:, issued_on:, **review)
+    end
+
+    it 'allows replacing uploaded and rejected documents only, while unexpired' do
+      expect(document_with('uploaded')).to be_replacement_allowed
+      expect(document_with('under_verification')).not_to be_replacement_allowed
+      expect(document_with('verified')).not_to be_replacement_allowed
+      expect(document_with('verified', document_type: pcc_type, issued_on: Date.current)).not_to be_replacement_allowed
+    end
+
+    it 'allows replacing an expired PCC whatever its review status' do
+      expired = document_with('verified', document_type: pcc_type, issued_on: 8.months.ago.to_date)
+      expired.validate
+
+      expect(expired.compliance_status).to eq('expired')
+      expect(expired).to be_replacement_allowed
+    end
+  end
+
+  it 'requires at least one file for the current version' do
+    candidate_document.files = []
+
+    expect(candidate_document).not_to be_valid
+    expect(candidate_document.errors[:files]).to be_present
+  end
+
+  it 'picks a combined PDF, else page 1 / front, as the representative file' do
+    document = build(:candidate_document)
+    document.files = [build(:candidate_document_file, side_code: 'back', position: 1),
+                      build(:candidate_document_file, side_code: 'front', position: 2)]
+    document.save!
+    back = document.files.find { |file| file.side_code == 'back' }
+
+    expect(document.primary_file.side_code).to eq('front')
+    expect(document.file_for_access(nil).side_code).to eq('front')
+    expect(document.file_for_access(back.public_id)).to eq(back)
+    expect(document.file_for_access(SecureRandom.uuid)).to be_nil
+    expect(document.total_byte_size).to eq(2048)
   end
 
   it 'requires verification user and time together' do

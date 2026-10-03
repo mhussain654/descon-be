@@ -318,7 +318,7 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('document_access_forbidden')
 
       actor = create(:user, role: 'admin')
-      document.file.purge
+      document.files.first.file.purge
 
       post "/api/v1/admin/candidate_documents/#{document.public_id}/access",
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }

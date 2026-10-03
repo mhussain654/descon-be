@@ -3,8 +3,8 @@
 module Admin
   module Reports
     # Craft/trade-wise manpower summary (MPS-804): total candidates
-    # currently assigned to each craft, and how many of those have reached
-    # the terminal 'mobilized' stage.
+    # currently assigned to each craft, and how many of those have completed
+    # their mobilization process (reached its terminal stage).
     class CraftSummaryQuery < ApplicationQuery
       def initialize(scope: Candidate.all)
         super()
@@ -36,13 +36,12 @@ module Admin
       end
 
       def mobilized_counts
-        @mobilized_counts ||= base_scope.where(current_assignments: { current_workflow_stage_id: mobilized_stage_id })
-                                        .group('current_assignments.craft_id').count
+        @mobilized_counts ||= base_scope
+                              .where(current_assignments: { current_mobilization_process_stage_id: terminal_stage_ids })
+                              .group('current_assignments.craft_id').count
       end
 
-      def mobilized_stage_id
-        @mobilized_stage_id ||= WorkflowStage.find_by!(code: 'mobilized').id
-      end
+      def terminal_stage_ids = MobilizationProcessStage.terminal.select(:id)
     end
   end
 end

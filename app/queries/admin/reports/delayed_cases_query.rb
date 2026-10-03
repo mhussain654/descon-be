@@ -17,7 +17,6 @@ module Admin
     class DelayedCasesQuery < ApplicationQuery
       DELAYED_THRESHOLD = ENV.fetch('DASHBOARD_DELAYED_THRESHOLD_DAYS', '7').to_i.days
       CRITICAL_THRESHOLD = ENV.fetch('DASHBOARD_CRITICAL_THRESHOLD_DAYS', '14').to_i.days
-      TERMINAL_STAGE_CODE = 'mobilized'
 
       def initialize(scope: Candidate.all, reference_time: Time.current)
         super()
@@ -51,12 +50,9 @@ module Admin
       def non_terminal_scope
         @non_terminal_scope ||= begin
           joined = CurrentAssignmentJoin.call(scope: @scope).joins(LatestStageEntryJoin::SQL)
-          joined.where.not(current_assignments: { current_workflow_stage_id: terminal_stage_id })
+          terminal_stage_ids = MobilizationProcessStage.terminal.select(:id)
+          joined.where.not(current_assignments: { current_mobilization_process_stage_id: terminal_stage_ids })
         end
-      end
-
-      def terminal_stage_id
-        @terminal_stage_id ||= WorkflowStage.find_by!(code: TERMINAL_STAGE_CODE).id
       end
     end
   end

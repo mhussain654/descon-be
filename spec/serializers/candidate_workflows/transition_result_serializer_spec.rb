@@ -40,8 +40,8 @@ RSpec.describe CandidateWorkflows::TransitionResultSerializer do
           started_at: '2026-08-29T09:00:00Z'
         ),
         completed_count: 1,
-        total_count: 15,
-        progress_percentage: 6
+        total_count: 19,
+        progress_percentage: 5
       ),
       transition: include(
         from_stage: include(code: 'registered', position: 1),

@@ -126,7 +126,7 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
 
     context 'when the row is imported directly at a later, non-registered stage' do
       it 'records a CandidateStageHistory row for the direct landing, since AutomaticTransitionService cannot' do
-        later_stage = create(:workflow_stage, position: 99)
+        later_stage = WorkflowStage.find_by!(code: 'under_verification')
         row_plan = Admin::Candidates::Imports::Result::RowPlan.new(
           row_number: 2,
           candidate_attributes: candidate_attributes(cnic: '42101-1234567-1'),
