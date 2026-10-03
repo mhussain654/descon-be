@@ -65,6 +65,7 @@ module Candidates
                                      .candidate_documents
                                      .current_version
                                      .where(document_type_id: @requirements.map(&:document_type_id))
+                                     .preload(:document_type)
                                      .lock
                                      .index_by(&:document_type_id)
       end
