@@ -2,7 +2,7 @@
 
 require 'rails_helper'
 
-RSpec.describe 'Candidate workflow outcome recording safety' do
+RSpec.describe CandidateWorkflows, 'outcome recording safety' do
   let(:actor) { create(:user, role: 'mps') }
 
   before { ensure_staff_authorization_reference_data! }
