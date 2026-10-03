@@ -18,6 +18,7 @@ module CandidateWorkflows
 
       def call
         validate_actor!
+        validate_expected_stage!
         CandidateAssignment.transaction { held_at_medical_outcome? ? record_re_decision! : transition_into_outcome! }
       end
 
@@ -28,10 +29,20 @@ module CandidateWorkflows
         raise ForbiddenError unless @params.actor.permission?('manage_workflow')
       end
 
+      def validate_expected_stage!
+        return if @params.expected_current_stage_code.to_s.strip.present?
+
+        raise ValidationError.new(field: 'candidate_medical_result.expected_current_stage_code',
+                                  message: I18n.t('api.errors.expected_current_stage_code_required'))
+      end
+
       def locked_assignment
         return @locked_assignment if defined?(@locked_assignment)
 
-        assignment_id = @params.candidate.current_assignment&.id
+        candidate = Candidate.lock.find(@params.candidate.id)
+        raise InactiveAccountError unless candidate.active?
+
+        assignment_id = candidate.current_assignment&.id
         raise NoCurrentAssignmentError if assignment_id.blank?
 
         @locked_assignment = CandidateAssignment.lock.find(assignment_id)
