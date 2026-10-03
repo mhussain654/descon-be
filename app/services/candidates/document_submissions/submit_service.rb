@@ -120,7 +120,9 @@ module Candidates
       def submission_progress = ProgressSummaryBuilder.call(**progress_summary_arguments)
 
       def submit_documents!
-        ActiveRecord::Associations::Preloader.new(records: documents_to_submit, associations: :document_type).call
+        ActiveRecord::Associations::Preloader.new(
+          records: documents_to_submit, associations: %i[document_type files]
+        ).call
         documents_to_submit.each { |document| submit_document!(document) }
       end
 
