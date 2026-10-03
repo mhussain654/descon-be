@@ -119,7 +119,10 @@ module CandidateWorkflows
       def locked_assignment
         return @locked_assignment if defined?(@locked_assignment)
 
-        assignment_id = @params.candidate.current_assignment&.id
+        candidate = Candidate.lock.find(@params.candidate.id)
+        raise InactiveAccountError unless candidate.active?
+
+        assignment_id = candidate.current_assignment&.id
         @locked_assignment = assignment_id && CandidateAssignment.lock.find(assignment_id)
       end
 
