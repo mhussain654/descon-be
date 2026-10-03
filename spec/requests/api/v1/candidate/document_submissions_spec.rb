@@ -43,16 +43,19 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
     Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required)
   end
 
-  def create_required_documents(candidate:, assignment:, default_status: 'uploaded', overrides: {})
+  def create_required_documents(
+    candidate:, assignment:, default_status: 'uploaded', overrides: {}
+  )
     resolved_required_requirements(candidate:, assignment:).each do |requirement|
-      attributes = overrides.fetch(requirement.document_type.code, {})
-      create(
-        :candidate_document,
-        candidate_assignment: assignment,
-        document_type: requirement.document_type,
-        status_code: attributes.fetch(:status_code, default_status),
-        **attributes.except(:status_code)
-      )
+      attributes =
+        compliance_attributes_for(requirement.document_type).merge(
+          overrides.fetch(requirement.document_type.code, {})
+        )
+
+      create(:candidate_document, candidate_assignment: assignment,
+                                  document_type: requirement.document_type,
+                                  status_code: attributes.fetch(:status_code, default_status),
+                                  **attributes.except(:status_code))
     end
   end
 

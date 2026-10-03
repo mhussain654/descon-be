@@ -4,7 +4,8 @@ require 'rails_helper'
 
 RSpec.describe CandidateVisaDecision, type: :model do
   it { is_expected.to belong_to(:candidate_assignment) }
-  it { is_expected.to belong_to(:candidate_stage_history) }
+  # Optional: a re-decision recorded while the candidate is held at the visa stage has no transition.
+  it { is_expected.to belong_to(:candidate_stage_history).optional }
   it { is_expected.to belong_to(:recorded_by).class_name('User') }
 
   it 'assigns a public id on create' do

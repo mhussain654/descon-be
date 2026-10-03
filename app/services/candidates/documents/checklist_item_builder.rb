@@ -13,6 +13,7 @@ module Candidates
           requirement_code: @requirement.document_type.code,
           name: @requirement.document_type.name_for,
           required: @requirement.required,
+          **configuration,
           status: current_status,
           replacement_allowed: replacement_allowed?,
           document: serialized_document
@@ -20,6 +21,25 @@ module Candidates
       end
 
       private
+
+      def configuration
+        {
+          display_position: @requirement.display_position,
+          instructions: @requirement.instructions_for,
+          upload_rules:
+        }
+      end
+
+      def upload_rules
+        {
+          minimum_files: @requirement.minimum_files,
+          maximum_files: @requirement.maximum_files,
+          combined_pdf_allowed: @requirement.combined_pdf_allowed,
+          allowed_side_codes: @requirement.allowed_side_codes,
+          accepted_content_types: @requirement.accepted_content_types,
+          maximum_file_size: @requirement.maximum_file_size
+        }
+      end
 
       def current_status
         return 'missing' if @document.blank?
@@ -38,11 +58,17 @@ module Candidates
 
         {
           id: @document.public_id,
-          file_name: @document.original_filename,
-          content_type: @document.content_type,
-          file_size: @document.byte_size,
-          uploaded_at: @document.uploaded_at.utc.iso8601
-        }.merge(pcc_metadata).merge(review_metadata)
+          uploaded_at: @document.uploaded_at.utc.iso8601,
+          files: @document.files.map { |file| CandidateDocumentFileSerializer.new(file).as_json }
+        }.merge(legacy_file_metadata).merge(pcc_metadata).merge(review_metadata)
+      end
+
+      # Deprecated single-file fields (the representative file), kept until
+      # every client reads `files`.
+      def legacy_file_metadata
+        primary_file = @document.primary_file
+        { file_name: primary_file.original_filename, content_type: primary_file.content_type,
+          file_size: primary_file.byte_size }
       end
 
       # Omitted (not merged as `nil`) until the document has actually been

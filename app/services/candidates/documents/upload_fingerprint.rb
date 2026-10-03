@@ -4,10 +4,14 @@ require 'digest'
 
 module Candidates
   module Documents
+    # Identifies one document-upload request's content, so a retried
+    # Idempotency-Key with a materially different upload (another file, side
+    # label, requirement or issue date) is detected. `uploaded_files` are
+    # `{ file:, side_code: }`.
     class UploadFingerprint < ApplicationService
-      def initialize(request:, uploaded_file:, requirement_code:, issued_on:)
+      def initialize(request:, uploaded_files:, requirement_code:, issued_on:)
         @request = request
-        @uploaded_file = uploaded_file
+        @uploaded_files = Array(uploaded_files)
         @requirement_code = requirement_code.to_s.strip.downcase
         @issued_on = issued_on.to_s.strip
       end
@@ -19,33 +23,20 @@ module Candidates
       private
 
       def fingerprint_parts
-        [
-          @request.request_method,
-          @request.path,
-          @requirement_code,
-          @issued_on,
-          sanitized_filename,
-          file_size,
-          file_checksum
-        ]
+        [@request.request_method, @request.path, @requirement_code, @issued_on] +
+          @uploaded_files.flat_map { |entry| file_parts(entry) }
       end
 
-      def sanitized_filename
-        return '' if @uploaded_file.blank?
+      def file_parts(entry)
+        file = entry[:file]
+        side_code = entry[:side_code].to_s.strip.downcase
+        return [side_code, '', 0, ''] unless file.respond_to?(:tempfile)
 
-        File.basename(@uploaded_file.original_filename.to_s)
+        [side_code, File.basename(file.original_filename.to_s), file.size.to_i, checksum(file)]
       end
 
-      def file_size
-        return 0 if @uploaded_file.blank?
-
-        @uploaded_file.size.to_i
-      end
-
-      def file_checksum
-        return '' if @uploaded_file.blank?
-
-        tempfile = @uploaded_file.tempfile
+      def checksum(file)
+        tempfile = file.tempfile
         tempfile.rewind
         Digest::SHA256.file(tempfile.path).hexdigest
       ensure

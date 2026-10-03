@@ -202,7 +202,7 @@ FactoryBot.define do
     country { nil }
     project { nil }
     craft { nil }
-    required { true }
+    requirement_level { 'required' }
     active { true }
   end
 
@@ -224,7 +224,7 @@ FactoryBot.define do
   factory :candidate_stage_history do
     candidate_assignment
     from_workflow_stage { association(:workflow_stage, :registered) }
-    to_workflow_stage { association(:workflow_stage) }
+    to_workflow_stage { WorkflowStage.find_by!(code: 'documents_pending') }
     actor { nil }
     occurred_at { Time.current }
     reason_code { nil }
@@ -268,9 +268,21 @@ FactoryBot.define do
     ready_recorded_by { nil }
   end
 
+  factory :candidate_medical_result do
+    candidate_assignment
+    candidate_stage_history { nil }
+    association :recorded_by, factory: :user
+    outcome_code { 'fit' }
+    result_date { Date.current }
+    note { nil }
+  end
+
   factory :candidate_visa_decision do
     candidate_assignment
-    candidate_stage_history { association(:candidate_stage_history, candidate_assignment:) }
+    candidate_stage_history do
+      association(:candidate_stage_history, candidate_assignment:,
+                                            to_workflow_stage: WorkflowStage.find_by!(code: 'visa_issued_or_rejected'))
+    end
     association :recorded_by, factory: :user
     public_id { SecureRandom.uuid }
     outcome_code { 'issued' }
@@ -285,7 +297,10 @@ FactoryBot.define do
 
   factory :candidate_flight_detail do
     candidate_assignment
-    candidate_stage_history { association(:candidate_stage_history, candidate_assignment:) }
+    candidate_stage_history do
+      association(:candidate_stage_history, candidate_assignment:,
+                                            to_workflow_stage: WorkflowStage.find_by!(code: 'flight_details_uploaded'))
+    end
     mobilized_stage_history { nil }
     association :recorded_by, factory: :user
     mobilized_recorded_by { nil }
@@ -298,7 +313,10 @@ FactoryBot.define do
 
     trait :mobilized do
       mobilized_on { flight_departure_at.to_date + 1.day }
-      mobilized_stage_history { association(:candidate_stage_history, candidate_assignment:) }
+      mobilized_stage_history do
+        association(:candidate_stage_history, candidate_assignment:,
+                                              to_workflow_stage: WorkflowStage.find_by!(code: 'mobilized'))
+      end
       association :mobilized_recorded_by, factory: :user
     end
   end
@@ -309,10 +327,6 @@ FactoryBot.define do
     association :uploaded_by, factory: :user
     verified_by { nil }
     status_code { 'uploaded' }
-    original_filename { 'document.pdf' }
-    content_type { 'application/pdf' }
-    byte_size { 1024 }
-    checksum_sha256 { 'a' * 64 }
     document_number { 'DOC-001' }
     issued_on { nil }
     expires_on { nil }
@@ -320,13 +334,30 @@ FactoryBot.define do
     verified_at { nil }
     rejection_reason { nil }
 
+    # One unlabelled PDF by default; build `files` explicitly for multi-file cases.
     after(:build) do |document|
-      next if document.file.attached?
+      next if document.files.any?
 
-      document.file.attach(
+      document.files << FactoryBot.build(:candidate_document_file, candidate_document: document)
+    end
+  end
+
+  factory :candidate_document_file do
+    candidate_document
+    side_code { nil }
+    position { 1 }
+    original_filename { 'document.pdf' }
+    content_type { 'application/pdf' }
+    byte_size { 1024 }
+    checksum_sha256 { 'a' * 64 }
+
+    after(:build) do |document_file|
+      next if document_file.file.attached?
+
+      document_file.file.attach(
         io: Rails.root.join('spec/fixtures/files/test.pdf').open,
-        filename: 'document.pdf',
-        content_type: 'application/pdf'
+        filename: document_file.original_filename,
+        content_type: document_file.content_type
       )
     end
   end

@@ -14,7 +14,7 @@ module CandidateWorkflows
     end
 
     def call
-      snapshot.merge(progress_attributes)
+      snapshot.merge(latest_outcomes).merge(progress_attributes)
     end
 
     private
@@ -29,6 +29,16 @@ module CandidateWorkflows
         qvc_attempts: loaded_qvc_attempts,
         protection_record: loaded_protection_record,
         updated_at: serialized_updated_at
+      }
+    end
+
+    # The latest medical result and visa decision (negative ones hold the candidate).
+    def latest_outcomes
+      return { medical_result: nil, visa_decision: nil } if @assignment.blank?
+
+      {
+        medical_result: @assignment.candidate_medical_results.latest_first.first,
+        visa_decision: @assignment.candidate_visa_decisions.latest_first.first
       }
     end
 
@@ -54,11 +64,11 @@ module CandidateWorkflows
     end
 
     def history_by_stage_code
-      @history_by_stage_code ||= stage_histories.index_by { |history_entry| history_entry.to_workflow_stage.code }
+      @history_by_stage_code ||= stage_histories.index_by(&:stage_code)
     end
 
     def history_from_stage_code
-      @history_from_stage_code ||= stage_histories.index_by { |history_entry| history_entry.from_workflow_stage&.code }
+      @history_from_stage_code ||= stage_histories.index_by(&:from_stage_code)
     end
 
     def current_stage_hash
@@ -144,11 +154,8 @@ module CandidateWorkflows
     def loaded_stage_histories
       return [] if @assignment.blank?
 
-      relation = @assignment
-                 .candidate_stage_histories
-                 .includes(:from_workflow_stage, :to_workflow_stage,
-                           :from_mobilization_process_stage, :to_mobilization_process_stage)
-                 .order(:occurred_at, :id)
+      # Entries are served from their own snapshot columns -- no stage joins needed.
+      relation = @assignment.candidate_stage_histories.order(:occurred_at, :id)
       relation = relation.includes(:actor) if @include_history_actor
       relation.to_a
     end

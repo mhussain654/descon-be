@@ -109,7 +109,7 @@ module DevData
 
       @users_by_role = seed_users
       @reference = load_reference_data
-      builder = CandidateFixtureBuilder.new(document_types: active_required_document_types)
+      builder = CandidateFixtureBuilder.new
 
       candidates = PROFILES.each_with_index.map do |profile, index|
         builder.build(profile:, index:, actor: actor_for(index), reference: @reference)
@@ -166,13 +166,6 @@ module DevData
 
     def load_reference_data
       { countries: Country.active.to_a, projects: Project.active.to_a, crafts: Craft.active.to_a }
-    end
-
-    def active_required_document_types
-      DocumentType.joins(:document_requirements)
-                  .where(document_requirements: { active: true, required: true, country: nil, project: nil,
-                                                  craft: nil })
-                  .distinct.to_a
     end
 
     def actor_for(index) = @users_by_role.fetch(%w[hr mps finance management].fetch(index % 4)).first

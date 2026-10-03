@@ -90,7 +90,8 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
         'file_name',
         'content_type',
         'file_size',
-        'uploaded_at'
+        'uploaded_at',
+        'files'
       )
       expect(response.body).not_to include('/storage/')
     end
@@ -470,7 +471,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       create_requirement(candidate:, code: 'passport')
       auth_header = candidate_auth_headers(candidate)
 
-      stub_const("#{Candidates::Documents::UploadService}::MAX_FILE_BYTES", 10)
+      DocumentRequirement.update_all(maximum_file_size: 10) # rubocop:disable Rails/SkipsModelValidations
       post '/api/v1/candidate/documents',
            params: {
              candidate_document: {
@@ -645,7 +646,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       candidate = create(:candidate)
       document_type = create_requirement(candidate:, code: 'passport')
       document = create(:candidate_document, candidate_assignment: candidate.current_assignment, document_type:)
-      document.file.purge
+      document.files.first.file.purge
 
       post "/api/v1/candidate/documents/#{document.public_id}/access", headers: candidate_auth_headers(candidate)
 

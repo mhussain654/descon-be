@@ -2,7 +2,19 @@
 
 module Candidates
   module Documents
+    # The candidate's document checklist configuration, decided entirely by the
+    # backend from their current assignment: for each document type the most
+    # specific active row wins --
+    #
+    #   country + project + craft > country + project > country + craft > country > common
+    #
+    # (rows scoped by project and/or craft without a country rank below a
+    # country row). A winning `not_applicable` row drops the document; rows
+    # marked `driver_only` are considered only when the assignment's craft is a
+    # driver craft. The result is ordered by `display_position`.
     class RequirementResolver < ApplicationService
+      SCOPE_WEIGHTS = { country_id: 4, project_id: 2, craft_id: 1 }.freeze
+
       def initialize(candidate:, assignment: nil)
         @candidate = candidate
         @assignment = assignment
@@ -14,8 +26,9 @@ module Candidates
         applicable_requirements
           .group_by(&:document_type_id)
           .values
-          .map { |requirements| prioritize(requirements) }
-          .sort_by { |requirement| requirement.document_type.code }
+          .map { |requirements| requirements.max_by { |requirement| [specificity(requirement), -requirement.id] } }
+          .reject(&:not_applicable?)
+          .sort_by { |requirement| [requirement.display_position, requirement.document_type.code] }
       end
 
       private
@@ -31,27 +44,22 @@ module Candidates
         # requirement row linking to it can stay active, so the retired
         # type keeps appearing in candidate checklists and the HR review
         # queue.
-        DocumentRequirement
-          .includes(:document_type)
-          .where(active: true)
-          .where(document_types: { active: true })
-          .where(country_id: [nil, current_assignment.country_id])
-          .where(project_id: [nil, current_assignment.project_id])
-          .where(craft_id: [nil, current_assignment.craft_id])
+        scope = DocumentRequirement
+                .includes(:document_type)
+                .where(active: true)
+                .where(document_types: { active: true })
+                .where(country_id: [nil, current_assignment.country_id])
+                .where(project_id: [nil, current_assignment.project_id])
+                .where(craft_id: [nil, current_assignment.craft_id])
+        driver_craft? ? scope : scope.where(driver_only: false)
       end
 
-      def prioritize(requirements)
-        requirements.max_by do |requirement|
-          [specificity_score(requirement), required_priority(requirement), -requirement.id]
-        end
+      def driver_craft?
+        Craft.exists?(id: current_assignment.craft_id, is_driver: true)
       end
 
-      def specificity_score(requirement)
-        [requirement.country_id, requirement.project_id, requirement.craft_id].count(&:present?)
-      end
-
-      def required_priority(requirement)
-        requirement.required ? 1 : 0
+      def specificity(requirement)
+        SCOPE_WEIGHTS.sum { |column, weight| requirement.public_send(column).present? ? weight : 0 }
       end
     end
   end

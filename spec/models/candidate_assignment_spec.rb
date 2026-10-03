@@ -51,6 +51,8 @@ RSpec.describe CandidateAssignment, type: :model do
             craft_id,
             reference_number,
             current_workflow_stage_id,
+            mobilization_process_id,
+            current_mobilization_process_stage_id,
             created_by_id,
             created_at,
             updated_at
@@ -62,7 +64,9 @@ RSpec.describe CandidateAssignment, type: :model do
             #{create(:project).id},
             #{create(:craft).id},
             'DES-2026-001',
-            #{create(:workflow_stage).id},
+            #{WorkflowStage.registered.id},
+            #{MobilizationProcess.resolve_for(nil).id},
+            #{MobilizationProcess.resolve_for(nil).first_stage.id},
             #{create(:user).id},
             #{described_class.connection.quote(Time.current)},
             #{described_class.connection.quote(Time.current)}

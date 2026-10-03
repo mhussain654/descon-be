@@ -14,8 +14,8 @@ RSpec.describe DocumentType, type: :model do
   end
 
   describe '#supports_ocr_extraction?' do
-    it 'is true for passport, cnic_front, cnic_back and next_of_kin_cnic' do
-      %w[passport cnic_front cnic_back next_of_kin_cnic].each do |code|
+    it 'is true for passport, cnic and next_of_kin_cnic' do
+      %w[passport cnic next_of_kin_cnic].each do |code|
         expect(build(:document_type, code:)).to be_supports_ocr_extraction
       end
     end

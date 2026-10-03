@@ -17,6 +17,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
@@ -35,6 +36,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
