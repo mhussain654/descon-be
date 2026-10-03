@@ -42,7 +42,6 @@ module Candidates
         current_assignment
           .candidate_documents
           .current_version
-          .includes(:document_type)
           .where(document_type_id: requirements.map(&:document_type_id))
           .index_by(&:document_type_id)
       end
