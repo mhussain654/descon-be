@@ -301,6 +301,10 @@ RSpec.describe Candidates::Documents::UploadService do
       )
 
       expect(current_document.compliance_status).to eq('expired')
+      # The checklist and the upload apply the same replacement policy.
+      checklist_pcc = Candidates::Documents::ChecklistService.call(candidate:)
+                                                             .find { |item| item.requirement_code == pcc_code }
+      expect(checklist_pcc).to have_attributes(status: 'verified', replacement_allowed: true)
 
       described_class.call(
         candidate:,
@@ -364,6 +368,24 @@ RSpec.describe Candidates::Documents::UploadService do
       expect(existing_document.reload.superseded_at).to be_nil
       expect(CandidateDocument.current_version.where(candidate_assignment: assignment, document_type:).count).to eq(1)
       expect(ActiveStorage::Blob.pluck(:id)).to match_array(original_blob_ids)
+    end
+
+    it 'queues OCR only after the whole upload and workflow transaction commits, never for a rolled-back upload' do
+      allow(CandidateWorkflows::TransitionRecorder).to receive(:call)
+        .and_raise(ActiveRecord::RecordInvalid.new(CandidateStageHistory.new))
+
+      expect do
+        described_class.call(
+          candidate:,
+          uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
+          requirement_code: 'passport',
+          request_id: 'req-doc-upload-ocr-rollback-1'
+        )
+      rescue ActiveRecord::RecordInvalid
+        nil
+      end.not_to have_enqueued_job(Candidates::Documents::ExtractDatesJob)
+
+      expect(CandidateDocument.where(candidate_assignment: assignment, document_type:)).to be_empty
     end
 
     it 'rolls back a first-time upload when workflow transition persistence fails and purges the orphan blob' do

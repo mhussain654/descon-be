@@ -10,7 +10,7 @@ module CandidateWorkflows
 
     private
 
-    def base_attributes = workflow_attributes.merge(progress_attributes)
+    def base_attributes = workflow_attributes.merge(outcomes: serialized_outcomes).merge(progress_attributes)
 
     def workflow_attributes
       {
@@ -35,6 +35,15 @@ module CandidateWorkflows
 
     def serialized_qvc_attempts
       @snapshot.qvc_attempts.map { |attempt| QvcAttemptSerializer.new(attempt).as_json }
+    end
+
+    # The latest medical and visa decisions: a negative one means the candidate
+    # is held at that outcome stage until staff record a new decision.
+    def serialized_outcomes
+      {
+        medical: @snapshot.medical_result && MedicalResultSerializer.new(@snapshot.medical_result).as_json,
+        visa: @snapshot.visa_decision && VisaDecisionSerializer.new(@snapshot.visa_decision).as_json
+      }
     end
 
     def serialized_protection

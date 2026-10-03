@@ -94,10 +94,22 @@ module DevData
     end
 
     def create_stage_history_step(assignment, stage_codes, index, actor, base_time)
-      create(:candidate_stage_history, candidate_assignment: assignment,
-                                       from_workflow_stage: WorkflowStage.find_by!(code: stage_codes[index - 1]),
-                                       to_workflow_stage: WorkflowStage.find_by!(code: stage_codes[index]),
-                                       actor:, occurred_at: base_time + (index * 2).days)
+      history = create(
+        :candidate_stage_history,
+        candidate_assignment: assignment, actor:, occurred_at: base_time + (index * 2).days,
+        from_workflow_stage: WorkflowStage.find_by!(code: stage_codes[index - 1]),
+        to_workflow_stage: WorkflowStage.find_by!(code: stage_codes[index])
+      )
+      record_fit_medical_result!(assignment, history, actor)
+    end
+
+    # Passing the process's medical-outcome stage means the candidate was found fit.
+    def record_fit_medical_result!(assignment, history, actor)
+      return unless history.to_mobilization_process_stage.action_type == 'medical_outcome'
+
+      create(:candidate_medical_result, candidate_assignment: assignment, candidate_stage_history: history,
+                                        recorded_by: actor, outcome_code: 'fit',
+                                        result_date: history.occurred_at.to_date)
     end
 
     # ------------------------------------------------------------------------

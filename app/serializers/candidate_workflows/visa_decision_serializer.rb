@@ -16,6 +16,7 @@ module CandidateWorkflows
         decision_date: @decision.decision_date.iso8601,
         rejection_reason_code: @decision.rejection_reason_code,
         visa_copy_attached: @decision.visa_copy.attached?,
+        re_decision: @decision.candidate_stage_history_id.nil?,
         created_at: @decision.created_at.utc.iso8601
       }
     end

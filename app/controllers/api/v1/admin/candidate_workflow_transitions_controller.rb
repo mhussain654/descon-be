@@ -9,6 +9,10 @@ module Api
       # guards around each transition.
       # rubocop:disable Metrics/ClassLength
       class CandidateWorkflowTransitionsController < ProtectedStaffController
+        DEDICATED_TRANSITION_ENDPOINTS = {
+          'visa_issued_or_rejected' => 'candidate_visa_decisions'
+        }.freeze
+
         # Returns the candidate's current workflow snapshot plus the list of
         # transitions the current staff member is allowed to make next.
         def index
@@ -50,6 +54,7 @@ module Api
           raw_transition = raw_transition_params
           validate_expected_current_stage_requirement!(raw_transition)
           validate_evidence_keys!(raw_transition[:to_stage_code], raw_transition[:evidence])
+          validate_dedicated_transition_endpoint!(raw_transition[:to_stage_code])
           permitted_transition_params(raw_transition[:to_stage_code]).to_h.deep_symbolize_keys
         end
 
@@ -150,6 +155,20 @@ module Api
           raise ValidationError.new(
             field: 'candidate_workflow_transition.expected_current_stage_code',
             message: I18n.t('api.errors.workflow_transition_expected_stage_required')
+          )
+        end
+
+        # Stages that need multipart files or dedicated command semantics must
+        # not be entered through the generic JSON transition endpoint. In
+        # particular, an issued visa must go through CandidateVisaDecisions so
+        # its mandatory visa-copy validation cannot be bypassed.
+        def validate_dedicated_transition_endpoint!(stage_code)
+          endpoint = DEDICATED_TRANSITION_ENDPOINTS[stage_code.to_s.strip.downcase]
+          return if endpoint.blank?
+
+          raise InvalidWorkflowTransitionError.new(
+            field: 'candidate_workflow_transition.to_stage_code',
+            details: { required_endpoint: endpoint }
           )
         end
 

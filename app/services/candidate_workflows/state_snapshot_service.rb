@@ -13,6 +13,8 @@ module CandidateWorkflows
       :history_entries,
       :qvc_attempts,
       :protection_record,
+      :medical_result,
+      :visa_decision,
       :completed_count,
       :total_count,
       :progress_percentage,

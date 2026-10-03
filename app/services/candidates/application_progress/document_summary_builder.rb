@@ -48,10 +48,6 @@ module Candidates
 
       def required_requirements = @required_requirements ||= @requirements.select(&:required)
 
-      def submitted_total = required_documents.count { |document| valid_submission_evidence?(document) }
-
-      def allowed_for_submission? = required_documents.all? { |document| allowed_submission_document?(document) }
-
       def count_status(status) = required_documents.count { |document| document&.api_status == status }
 
       def rejected = count_status('rejected')
@@ -87,21 +83,6 @@ module Candidates
 
       def document_for(requirement) = @current_documents_by_type[requirement.document_type_id]
 
-      def allowed_submission_document?(document)
-        SUBMISSION_ALLOWED_STATUS_CODES.include?(document&.api_status) && compliant_submission_evidence?(document)
-      end
-
-      def compliant_submission_evidence?(document)
-        return false if document.blank?
-        return true unless document.police_character?
-
-        document.compliance_status != 'expired'
-      end
-
-      def valid_submission_evidence?(document)
-        PROVIDED_STATUS_CODES.include?(document&.api_status) && compliant_submission_evidence?(document)
-      end
-
       def expired_pcc_requirement?(requirement:, document:)
         requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE &&
           document.compliance_status == 'expired'
@@ -111,6 +92,35 @@ module Candidates
         StateResolver.call(
           assignment: @assignment, blocking_requirements:, can_submit:, required_documents:, required_requirements:
         )
+      end
+
+      def submitted_total
+        required_requirements.count do |requirement|
+          valid_submission_evidence?(requirement, document_for(requirement))
+        end
+      end
+
+      def allowed_for_submission?
+        required_requirements.all? do |requirement|
+          allowed_submission_document?(requirement, document_for(requirement))
+        end
+      end
+
+      def allowed_submission_document?(requirement, document)
+        SUBMISSION_ALLOWED_STATUS_CODES.include?(document&.api_status) &&
+          compliant_submission_evidence?(requirement, document)
+      end
+
+      def compliant_submission_evidence?(requirement, document)
+        return false if document.blank?
+        return true unless requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE
+
+        document.compliance_status != 'expired'
+      end
+
+      def valid_submission_evidence?(requirement, document)
+        PROVIDED_STATUS_CODES.include?(document&.api_status) &&
+          compliant_submission_evidence?(requirement, document)
       end
     end
   end

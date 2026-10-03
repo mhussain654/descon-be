@@ -28,6 +28,7 @@ class CandidateAssignment < ApplicationRecord
   has_many :candidate_qvc_attempts, dependent: :restrict_with_exception
   has_one :candidate_protection_record, dependent: :restrict_with_exception
   has_many :candidate_visa_decisions, dependent: :restrict_with_exception
+  has_many :candidate_medical_results, dependent: :restrict_with_exception
   has_one :candidate_flight_detail, dependent: :restrict_with_exception
   has_many :payments, dependent: :restrict_with_exception
   has_many :payment_events, through: :payments

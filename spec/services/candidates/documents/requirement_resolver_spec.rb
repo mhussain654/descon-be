@@ -45,7 +45,7 @@ RSpec.describe Candidates::Documents::RequirementResolver do
       # requirement from
       # db/migrate/20260912100000_activate_missing_global_document_requirements.rb,
       # which would collide with the one this test creates itself.
-      document_type = existing_or_create_document_type('cv')
+      document_type = existing_or_create_document_type("resolver_specificity_#{SecureRandom.hex(4)}")
       global_requirement = create(:document_requirement, document_type:, required: true)
       scoped_requirement = create(:document_requirement, document_type:, country: assignment.country, required: false)
 

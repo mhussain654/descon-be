@@ -2,6 +2,10 @@
 
 require 'spec_helper'
 ENV['RAILS_ENV'] ||= 'test'
+# The suite explicitly opts into the mock malware scanner (it is off by default;
+# see MalwareScanning::Configuration). Specs that need another setup override it.
+ENV['APP_ENV'] ||= 'test'
+ENV['DOCUMENT_MALWARE_SCANNER'] ||= 'mock'
 require_relative '../config/environment'
 # Prevent database truncation if the environment is production
 abort('The Rails environment is running in production mode!') if Rails.env.production?

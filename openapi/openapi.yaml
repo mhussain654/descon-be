@@ -945,6 +945,34 @@ components:
         visa_outcome_date:
           type: string
           format: date
+        medical_appointment_date:
+          type: string
+          format: date
+        medical_outcome_code:
+          type: string
+          enum: [fit, unfit]
+        medical_result_date:
+          type: string
+          format: date
+        e_number:
+          type: string
+        e_number_received_on:
+          type: string
+          format: date
+        biometric_completed_on:
+          type: string
+          format: date
+        protection_call_status:
+          type: string
+          enum: [scheduled, completed]
+        protection_call_on:
+          type: string
+          format: date
+        ticket_handed_over_on:
+          type: string
+          format: date
+        ticket_reference:
+          type: string
         appeared_for_protection_on:
           type: string
           format: date
@@ -974,10 +1002,35 @@ components:
         visa_outcome_date:
           type: string
           format: date
-        appeared_for_protection_on:
+        medical_appointment_date:
           type: string
           format: date
-        protected_on:
+        medical_outcome_code:
+          type: string
+          enum: [fit, unfit]
+        medical_result_date:
+          type: string
+          format: date
+        e_number:
+          type: string
+        e_number_received_on:
+          type: string
+          format: date
+        biometric_completed_on:
+          type: string
+          format: date
+        protection_call_status:
+          type: string
+          enum: [scheduled, completed]
+        protection_call_on:
+          type: string
+          format: date
+        ticket_handed_over_on:
+          type: string
+          format: date
+        ticket_reference:
+          type: string
+        appeared_for_protection_on:
           type: string
           format: date
         flight_reference:
@@ -1352,6 +1405,21 @@ components:
           anyOf:
             - $ref: '#/components/schemas/CandidateProtectionRecord'
             - type: 'null'
+        outcomes:
+          type: object
+          description: >-
+            The latest medical result and visa decision. A negative one (unfit/rejected) means the
+            candidate is held at that outcome stage until staff record a new, positive decision.
+          properties:
+            medical:
+              anyOf:
+                - $ref: '#/components/schemas/CandidateMedicalResult'
+                - type: 'null'
+            visa:
+              anyOf:
+                - $ref: '#/components/schemas/CandidateVisaDecision'
+                - type: 'null'
+          required: [medical, visa]
         completed_count:
           type: integer
         total_count:
@@ -1364,7 +1432,7 @@ components:
               format: date-time
             - type: 'null'
       required: [candidate_id, assignment_id, candidate_status, mobilization_process, current_stage, timeline,
-        qvc_attempts, protection, completed_count, total_count, progress_percentage, updated_at]
+        qvc_attempts, protection, outcomes, completed_count, total_count, progress_percentage, updated_at]
     CandidateWorkflowHistoryItem:
       type: object
       properties:
@@ -1491,13 +1559,37 @@ components:
           type: array
           items:
             type: string
+        fields:
+          type: array
+          description: Every evidence field this transition accepts -- enough to build its form.
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [iso_date, iso_datetime, string, enum]
+              required:
+                type: boolean
+              values:
+                type: array
+                items:
+                  type: string
+                description: Present for enum fields.
+            required: [name, type, required]
         allowed:
           type: boolean
         blocking_reasons:
           type: array
+          description: >-
+            Stable codes, e.g. `documents_required`, `required_documents_not_verified`, `expired_pcc`,
+            `payment_required`, `medical_fit_required` (held by an unfit latest medical result),
+            `visa_issued_required` (held by a rejected latest visa decision), `qvc_approval_required`,
+            `qvc_rejected`, or `<field>_required` for missing evidence.
           items:
             type: string
-      required: [code, name, position, action_type, required, required_fields, allowed, blocking_reasons]
+      required: [code, name, position, action_type, required, required_fields, fields, allowed, blocking_reasons]
     CandidateQvcAttempt:
       type: object
       properties:
@@ -1776,10 +1868,95 @@ components:
             - type: 'null'
         visa_copy_attached:
           type: boolean
+        re_decision:
+          type: boolean
+          description: True for a decision recorded while the candidate was held at the visa stage (no transition).
         created_at:
           type: string
           format: date-time
-      required: [id, outcome_code, decision_date, rejection_reason_code, visa_copy_attached, created_at]
+      required: [id, outcome_code, decision_date, rejection_reason_code, visa_copy_attached, re_decision, created_at]
+    CandidateMedicalResult:
+      type: object
+      description: One medical result. The latest decides whether the candidate may leave the medical-outcome stage.
+      properties:
+        id:
+          type: string
+          format: uuid
+        outcome_code:
+          type: string
+          enum: [fit, unfit]
+        result_date:
+          type: string
+          format: date
+        re_decision:
+          type: boolean
+          description: True for a result recorded while the candidate was held at the medical-outcome stage.
+        created_at:
+          type: string
+          format: date-time
+      required: [id, outcome_code, result_date, re_decision, created_at]
+    AdminMedicalResult:
+      allOf:
+        - $ref: '#/components/schemas/CandidateMedicalResult'
+        - type: object
+          properties:
+            note:
+              anyOf:
+                - type: string
+                - type: 'null'
+            recorded_by:
+              $ref: '#/components/schemas/AdminReviewer'
+          required: [note, recorded_by]
+    AdminMedicalResultRequest:
+      type: object
+      properties:
+        candidate_medical_result:
+          type: object
+          required: [outcome_code, result_date, expected_current_stage_code]
+          properties:
+            outcome_code:
+              type: string
+              enum: [fit, unfit]
+            result_date:
+              type: string
+              format: date
+            note:
+              type: string
+            expected_current_stage_code:
+              type: string
+              description: Required for stale-state protection.
+          additionalProperties: false
+      required: [candidate_medical_result]
+    AdminMedicalResultResult:
+      type: object
+      properties:
+        workflow:
+          $ref: '#/components/schemas/CandidateWorkflowState'
+        medical_result:
+          $ref: '#/components/schemas/AdminMedicalResult'
+      required: [workflow, medical_result]
+    AdminCandidateMedicalResultsCollection:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        medical_results:
+          type: array
+          description: Newest first.
+          items:
+            $ref: '#/components/schemas/AdminMedicalResult'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [candidate_id, assignment_id, medical_results, updated_at]
     AdminVisaDecision:
       allOf:
         - $ref: '#/components/schemas/CandidateVisaDecision'
@@ -4168,6 +4345,14 @@ paths:
                         message: The idempotency key does not match the original request.
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
+        '503':
+          description: >-
+            `malware_scan_unavailable` -- no malware scanner is available, so the upload is refused rather
+            than accepted unscanned (production fails closed until a real scanning provider is configured).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '422':
           description: >-
             Validation failure for missing file, invalid requirement, unsupported content type, empty file,
@@ -4592,6 +4777,9 @@ paths:
                           started_at: '2026-08-29T09:00:00Z'
                       qvc_attempts: []
                       protection: null
+                      outcomes:
+                        medical: null
+                        visa: null
                       completed_count: 1
                       total_count: 19
                       progress_percentage: 5
@@ -5747,6 +5935,7 @@ paths:
                           action_type: document_submission
                           required: true
                           required_fields: []
+                          fields: []
                           allowed: true
                           blocking_reasons: []
                 blockedTransition:
@@ -5756,12 +5945,16 @@ paths:
                       updated_at: '2026-08-29T12:00:00Z'
                       allowed_next_transitions:
                         - code: qvc_appointment_booked
-                          name: QVC Appointment Booked
+                          name: QVC Appointment
                           position: 12
                           action_type: qvc_appointment
                           required: true
                           required_fields:
                             - appointment_date
+                          fields:
+                            - name: appointment_date
+                              type: iso_date
+                              required: true
                           allowed: false
                           blocking_reasons:
                             - appointment_date_required
@@ -5781,6 +5974,7 @@ paths:
                           action_type: none
                           required: true
                           required_fields: []
+                          fields: []
                           allowed: false
                           blocking_reasons:
                             - payment_required
@@ -5794,6 +5988,11 @@ paths:
           description: Not authorized to view workflow transitions
     post:
       summary: Transition a candidate to the next allowed workflow stage
+      description: >-
+        Applies an ordinary JSON workflow transition. Stages with dedicated
+        command resources cannot be entered here. In particular,
+        visa_issued_or_rejected must use the candidate visa-decisions endpoint
+        so issued visas cannot bypass the required private visa-copy upload.
       security:
         - bearerAuth: []
       parameters:
@@ -5872,6 +6071,9 @@ paths:
                             started_at: '2026-08-30T09:00:00Z'
                         qvc_attempts: []
                         protection: null
+                        outcomes:
+                          medical: null
+                          visa: null
                         completed_count: 10
                         total_count: 19
                         progress_percentage: 52
@@ -5944,6 +6146,7 @@ paths:
                         details:
                           to_stage_code: documents_shared_with_qatar_bu
                           required_fields: []
+                          fields: []
                           blocking_reasons:
                             - payment_required
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -5957,6 +6160,7 @@ paths:
                         details:
                           to_stage_code: documents_shared_with_qatar_bu
                           required_fields: []
+                          fields: []
                           blocking_reasons:
                             - expired_pcc
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -6424,7 +6628,7 @@ paths:
                         candidate_status: qvc_appointment_booked
                         current_stage:
                           code: qvc_appointment_booked
-                          name: QVC Appointment Booked
+                          name: QVC Appointment
                           position: 12
                           action_type: qvc_appointment
                           required: true
@@ -6440,6 +6644,9 @@ paths:
                             outcome_recorded_at: null
                             status: scheduled
                         protection: null
+                        outcomes:
+                          medical: null
+                          visa: null
                         completed_count: 11
                         total_count: 19
                         progress_percentage: 57
@@ -6451,7 +6658,7 @@ paths:
                           position: 11
                         to_stage:
                           code: qvc_appointment_booked
-                          name: QVC Appointment Booked
+                          name: QVC Appointment
                           position: 12
                         occurred_at: '2026-09-01T10:00:00Z'
                         actor:
@@ -6549,6 +6756,9 @@ paths:
                             outcome_recorded_at: '2026-09-02T12:00:00Z'
                             status: approved
                         protection: null
+                        outcomes:
+                          medical: null
+                          visa: null
                         completed_count: 12
                         total_count: 19
                         progress_percentage: 63
@@ -6556,7 +6766,7 @@ paths:
                       transition:
                         from_stage:
                           code: qvc_appointment_booked
-                          name: QVC Appointment Booked
+                          name: QVC Appointment
                           position: 12
                         to_stage:
                           code: qvc_completed_outcome_received
@@ -6578,6 +6788,81 @@ paths:
           description: Idempotency conflict or stale request
         '422':
           description: Invalid outcome, conflicting no-show payload, or closed attempt
+  /api/v1/admin/candidates/{candidate_id}/medical_results:
+    get:
+      summary: List a candidate's medical results (newest first)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Medical results retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminCandidateMedicalResultsCollection'
+        '403':
+          description: Staff user cannot view this candidate's workflow
+        '404':
+          description: Candidate not found
+    post:
+      summary: Record a medical result (fit/unfit)
+      description: >-
+        When the candidate's next process stage is the medical-outcome stage (e.g. Medical Completed,
+        Medical Completed and Fit, GAMCA/Wafid Medical Completed), this moves them into it and records
+        the result. An `unfit` result holds them there: leaving the stage is blocked with
+        `medical_fit_required`. Calling this again while held (with the outcome stage as
+        `expected_current_stage_code`) records a re-decision without a transition; a `fit` latest
+        result lets the candidate continue. Any other position returns `invalid_workflow_transition`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMedicalResultRequest'
+      responses:
+        '201':
+          description: Medical result recorded or replayed idempotently
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminMedicalResultResult'
+        '403':
+          description: Staff user lacks manage_workflow
+        '409':
+          description: Stale `expected_current_stage_code`, or an idempotency conflict
+        '422':
+          description: Invalid outcome or date, or the candidate is not at or next to a medical-outcome stage
   /api/v1/admin/candidates/{candidate_id}/visa_decisions:
     get:
       summary: List structured visa decisions for a candidate
@@ -6622,6 +6907,7 @@ paths:
                           decision_date: '2026-09-05'
                           rejection_reason_code: null
                           visa_copy_attached: true
+                          re_decision: false
                           created_at: '2026-09-05T10:00:00Z'
                           recorded_by:
                             id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6638,15 +6924,19 @@ paths:
     post:
       summary: Record a visa decision (issued or rejected)
       description: >-
-        Records the outcome of a candidate's visa application, moving the
-        candidate from `qvc_completed_outcome_received` to
-        `visa_issued_or_rejected` through the canonical workflow transition
-        service. An `issued` outcome requires a private visa copy upload and
-        a decision date; a `rejected` outcome requires a structured
-        rejection reason and a decision date. The transition is blocked
-        (`workflow_transition_prerequisite_missing`) unless the candidate's
-        latest completed QVC attempt outcome is `approved`. Existing
-        workflow history is never rewritten.
+        Records the outcome of a candidate's visa application. The first
+        decision moves the candidate into their process's visa stage
+        (`visa_issued_or_rejected`) through the canonical workflow transition
+        service; it is blocked (`workflow_transition_prerequisite_missing`)
+        unless the fee is paid (`payment_required`) and, in processes with a
+        QVC step, the latest QVC outcome is `approved`. A `rejected` decision
+        holds the candidate at the visa stage; calling this again while held
+        (with `expected_current_stage_code: visa_issued_or_rejected`) records a
+        re-decision (`re_decision: true`) without a transition, and only an
+        `issued` latest decision lets the candidate continue. An `issued`
+        outcome requires a private visa copy upload; a `rejected` outcome
+        requires a structured rejection reason. Existing workflow history is
+        never rewritten.
       security:
         - bearerAuth: []
       parameters:
@@ -6704,6 +6994,9 @@ paths:
                         timeline: []
                         qvc_attempts: []
                         protection: null
+                        outcomes:
+                          medical: null
+                          visa: null
                         completed_count: 13
                         total_count: 19
                         progress_percentage: 68
@@ -6714,6 +7007,7 @@ paths:
                         decision_date: '2026-09-05'
                         rejection_reason_code: null
                         visa_copy_attached: true
+                        re_decision: false
                         created_at: '2026-09-05T10:00:00Z'
                         recorded_by:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6932,6 +7226,9 @@ paths:
                         timeline: []
                         qvc_attempts: []
                         protection: null
+                        outcomes:
+                          medical: null
+                          visa: null
                         completed_count: 17
                         total_count: 19
                         progress_percentage: 89
@@ -7029,6 +7326,9 @@ paths:
                         timeline: []
                         qvc_attempts: []
                         protection: null
+                        outcomes:
+                          medical: null
+                          visa: null
                         completed_count: 19
                         total_count: 19
                         progress_percentage: 100
@@ -7265,6 +7565,7 @@ paths:
                           decision_date: '2026-09-05'
                           rejection_reason_code: null
                           visa_copy_attached: true
+                          re_decision: false
                           created_at: '2026-09-05T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -7772,6 +8073,9 @@ paths:
                         timeline: []
                         qvc_attempts: []
                         protection: null
+                        outcomes:
+                          medical: null
+                          visa: null
                         completed_count: 8
                         total_count: 19
                         progress_percentage: 42

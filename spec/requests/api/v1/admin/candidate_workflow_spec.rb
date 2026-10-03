@@ -17,6 +17,8 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
+    CandidateVisaDecision.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -39,6 +41,8 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
+    CandidateVisaDecision.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -134,6 +138,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         external_reference: "PAY-QA-REQ-#{SecureRandom.hex(4)}"
       }.merge(payment_attributes)
     )
+    create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'fit')
 
     [candidate, assignment]
   end
@@ -370,6 +375,35 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
       'candidate_workflow_transition.evidence.cnic'
     )
     expect(IdempotencyKey.find_by(key_digest: Digest::SHA256.hexdigest('wf-bad-visa'))).to be_nil
+  end
+
+  it 'requires visa decisions to use the dedicated endpoint' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate)
+    create(:candidate_assignment, candidate:)
+
+    transition_request(
+      candidate:,
+      token: access_token_for(actor),
+      headers: { 'Idempotency-Key' => 'wf-direct-visa' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'visa_issued_or_rejected',
+          evidence: {
+            visa_outcome_code: 'issued',
+            visa_outcome_date: '2026-09-10'
+          }
+        }
+      }
+    )
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_workflow_transition')
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_workflow_transition.to_stage_code')
+    expect(response.parsed_body.dig('errors', 0, 'details', 'required_endpoint')).to eq(
+      'candidate_visa_decisions'
+    )
+    expect(CandidateVisaDecision.where(candidate_assignment: candidate.current_assignment)).to be_empty
   end
 
   it 'prevents concurrent or stale duplicate transitions from overwriting the winning state' do

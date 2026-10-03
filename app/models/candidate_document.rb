@@ -40,8 +40,12 @@ class CandidateDocument < ApplicationRecord
   # The document's status translated to the external API's vocabulary.
   def api_status = API_STATUS_MAP.fetch(status_code)
 
-  # Whether the candidate is allowed to upload a new file to replace this one.
-  def replacement_allowed? = REPLACEABLE_STATUS_CODES.include?(status_code)
+  # Whether the candidate may upload a new version to replace this one: while it is still
+  # unreviewed-and-uploaded or rejected, or -- whatever its review status -- when it is a
+  # PCC that has expired. The single policy for both the checklist flag and the upload itself.
+  def replacement_allowed?
+    REPLACEABLE_STATUS_CODES.include?(status_code) || (police_character? && compliance_status == 'expired')
+  end
 
   # Whether this row is the active document version (not yet replaced by a newer upload).
   def current_version? = superseded_at.blank?

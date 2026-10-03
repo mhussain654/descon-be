@@ -9,6 +9,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     AuthenticationEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
@@ -24,6 +25,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     AuthenticationEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
