@@ -65,7 +65,6 @@ module Candidates
                                      .candidate_documents
                                      .current_version
                                      .where(document_type_id: @requirements.map(&:document_type_id))
-                                     .preload(:document_type)
                                      .lock
                                      .index_by(&:document_type_id)
       end
@@ -120,7 +119,10 @@ module Candidates
 
       def submission_progress = ProgressSummaryBuilder.call(**progress_summary_arguments)
 
-      def submit_documents! = documents_to_submit.each { |document| submit_document!(document) }
+      def submit_documents!
+        ActiveRecord::Associations::Preloader.new(records: documents_to_submit, associations: :document_type).call
+        documents_to_submit.each { |document| submit_document!(document) }
+      end
 
       def submit_document!(document)
         document.update!(status_code: 'under_verification')
