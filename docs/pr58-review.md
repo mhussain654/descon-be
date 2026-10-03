@@ -7,8 +7,12 @@ Base: `docs-per-country-pr2` (`6ee3820f7532d02442b5fe8bf4180f8a7aaf9de9`).
 
 - The three failing document-submission request examples were Bullet N+1
   failures. Updating each document invokes PCC validation, which reads its
-  document type. Preload those types on the locked submission query; retain
-  Bullet enforcement and document validations.
+  document type. Preload those types on the ready-to-submit records after
+  readiness validation; retain Bullet enforcement and document validations.
+  Blocked submissions do not load associations that they will not use.
+- The Qatar BU prerequisite spec had no explicit document requirement and
+  depended on seed data left by other examples. Create its requirement within
+  the example so it consistently reaches the medical-fit gate.
 - Medical and visa re-decisions bypassed the transition resolver's active
   candidate guard. Both now lock and validate the current candidate before
   resolving the current assignment from fresh database state.
