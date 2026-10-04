@@ -25,6 +25,58 @@ RSpec.describe 'API V1 Admin Onboarding Fees', type: :request do
           params: { fee: { amount:, expected_version: version, reason: } }.to_json, headers: auth
   end
 
+  it 'allows management to read a candidate fee inherited from the default' do
+    OnboardingFeeSetting.current.update!(amount: '26800')
+    assignment
+
+    get "/api/v1/admin/candidates/#{candidate.public_id}/fee", headers: headers(create(:user, role: 'management'))
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch('data')).to include(
+      'default_amount' => '26800.00', 'override_amount' => nil, 'effective_amount' => '26800.00',
+      'assignment_id' => assignment.public_id, 'version' => 0, 'locked' => false
+    )
+  end
+
+  it 'reads the current candidate override and version' do
+    assignment.update!(onboarding_fee_amount: '25000', fee_version: 2)
+
+    get "/api/v1/admin/candidates/#{candidate.public_id}/fee", headers: headers
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch('data')).to include(
+      'override_amount' => '25000.00', 'effective_amount' => '25000.00', 'version' => 2
+    )
+  end
+
+  it 'forbids candidate fee reads without payment-view permission' do
+    get "/api/v1/admin/candidates/#{candidate.public_id}/fee", headers: headers(create(:user, role: 'hr'))
+
+    expect(response).to have_http_status(:forbidden)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('forbidden')
+    expect(response.parsed_body).not_to have_key('data')
+  end
+
+  it 'rejects fee updates for candidates without a current assignment' do
+    patch "/api/v1/admin/candidates/#{candidate.public_id}/fee",
+          params: { fee: { amount: '26000', expected_version: 0, reason: 'Approved fee' } }.to_json, headers: headers
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('no_current_assignment')
+    expect(candidate.candidate_assignments).to be_empty
+  end
+
+  it 'rejects an omitted amount instead of treating it as an explicit override removal' do
+    assignment.update!(onboarding_fee_amount: '25000')
+
+    patch "/api/v1/admin/candidates/#{candidate.public_id}/fee",
+          params: { fee: { expected_version: 0, reason: 'Approved fee' } }.to_json, headers: headers
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('fee.amount')
+    expect(assignment.reload.onboarding_fee_amount).to eq(BigDecimal('25000'))
+  end
+
   it 'updates the default with an audit record, actor, and version' do
     patch '/api/v1/admin/onboarding_fee_setting',
           params: { fee: { amount: '26800', expected_version: 0, reason: 'New standard fee' } }.to_json,
