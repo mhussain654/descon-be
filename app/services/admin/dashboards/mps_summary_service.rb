@@ -15,9 +15,11 @@ module Admin
 
       def call
         scope = filtered_scope
+        delays = Reports::DelayedCasesQuery.new(scope:)
         {
           workflow_stage_queue: Reports::StatusSummaryQuery.call(scope:),
-          delayed_cases: Reports::DelayedCasesQuery.call(scope:),
+          delayed_cases: delays.call,
+          attention_candidates: delays.attention_candidates,
           craft_summary: Reports::CraftSummaryQuery.call(scope:),
           mobilization: Reports::MobilizationQuery.call(scope:),
           mobilization_trend: Reports::TrendQuery.call(scope:, granularity: @trend_granularity),

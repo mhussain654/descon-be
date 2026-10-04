@@ -28,7 +28,37 @@ module Admin
         { delayed: count_stale_since(DELAYED_THRESHOLD), critical: count_stale_since(CRITICAL_THRESHOLD) }
       end
 
+      # Bounded work queue, oldest stage entry first, using the same eligibility
+      # and timestamp as the totals above. No document/contact identifiers.
+      def attention_candidates
+        attention_scope
+          .pluck('candidates.full_name', 'candidates.public_id', 'current_assignments.reference_number',
+                 'workflow_stages.code',
+                 Arel.sql('COALESCE(latest_stage_entry.occurred_at, current_assignments.created_at)'))
+          .map { |row| attention_row(row) }
+      end
+
       private
+
+      def attention_scope
+        non_terminal_scope
+          .joins(RecentlyUpdatedCandidatesQuery::WORKFLOW_STAGE_JOIN_SQL)
+          .where('COALESCE(latest_stage_entry.occurred_at, current_assignments.created_at) <= ?',
+                 @reference_time - DELAYED_THRESHOLD)
+          .order(Arel.sql('COALESCE(latest_stage_entry.occurred_at, current_assignments.created_at) ASC, ' \
+                          'current_assignments.id ASC'))
+          .limit(8)
+      end
+
+      def attention_row(row)
+        name, public_id, reference, stage_code, entered_at = row
+        {
+          candidate_full_name: name, candidate_public_id: public_id,
+          reference_number: reference, workflow_stage_code: stage_code,
+          days_waiting: ((@reference_time - entered_at) / 1.day.to_i).floor,
+          severity: entered_at <= @reference_time - CRITICAL_THRESHOLD ? 'critical' : 'delayed'
+        }
+      end
 
       def count_stale_since(threshold)
         cutoff = @reference_time - threshold

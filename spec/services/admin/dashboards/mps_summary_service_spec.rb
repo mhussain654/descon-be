@@ -20,6 +20,7 @@ RSpec.describe Admin::Dashboards::MpsSummaryService do
     expect(result.fetch(:conversion_funnel).pluck(:code)).to contain_exactly('documents_uploaded', 'verified',
                                                                              'mobilized')
     expect(result.fetch(:latest_mobilization)).to be_nil
+    expect(result.fetch(:attention_candidates)).to eq([])
   end
 
   it 'includes the most recently mobilized candidate when one exists' do

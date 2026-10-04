@@ -9681,7 +9681,9 @@ paths:
         Pipeline/status queues, delayed and critical case counts, craft-wise and
         country/project-wise mobilization summaries, the mobilization trend, the conversion
         funnel (the same data `GET /api/v1/admin/dashboard` returns), and the single most
-        recently mobilized candidate. Requires the active `view_mps_dashboard` permission.
+        recently mobilized candidate. attention_candidates returns up to eight oldest delayed non-terminal
+        current assignments in the same filter scope (candidate name/public ID, reference, stage code,
+        integer days_waiting, and severity critical/delayed). Critical is included in delayed. Requires the active `view_mps_dashboard` permission.
         "Delayed" (>= 7 days in the current stage) and "critical" (>= 14 days) are documented
         implementation defaults, not a stakeholder-set threshold; `critical` cases are also
         included in `delayed`. `latest_mobilization` is `null` when no assignment in scope has
@@ -9735,6 +9737,13 @@ paths:
                       delayed_cases:
                         delayed: 9
                         critical: 2
+                      attention_candidates:
+                        - candidate_full_name: Sample Candidate
+                          candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
+                          reference_number: REF-000123
+                          workflow_stage_code: documents_pending
+                          days_waiting: 18
+                          severity: critical
                       craft_summary:
                         - code: electrician
                           name: Electrician
