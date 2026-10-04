@@ -36,9 +36,8 @@ module Admin
         if @reason.empty? || @reason.length > 500
           raise ValidationError.new(field: 'fee.reason', message: I18n.t('api.errors.fee_reason_required'))
         end
-        unless @expected_version.to_s.match?(/\A\d+\z/)
-          raise ValidationError.new(field: 'fee.expected_version')
-        end
+        raise ValidationError.new(field: 'fee.expected_version') unless @expected_version.to_s.match?(/\A\d+\z/)
+
         validate_amount!
       end
 

@@ -45,7 +45,7 @@ RSpec.describe 'API V1 MPS Dashboard', type: :request do
       rows = response.parsed_body.dig('data', 'attention_candidates')
       expect(rows.size).to eq(1)
       expect(rows.first).to include('candidate_public_id' => assignment.candidate.public_id,
-                                   'days_waiting' => 20, 'severity' => 'critical')
+                                    'days_waiting' => 20, 'severity' => 'critical')
     end
 
     it 'accepts a granularity param for the trend section' do

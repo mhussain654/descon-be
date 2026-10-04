@@ -18,10 +18,11 @@ RSpec.describe 'API V1 Admin Onboarding Fees', type: :request do
       'Content-Type' => 'application/json' }
   end
 
-  def update_fee(amount, version: 0, reason: 'Approved fee', user: admin)
+  def update_fee(amount, version: 0, reason: 'Approved fee', user: admin, locale: 'en')
     assignment
+    auth = headers(user).merge('X-Locale' => locale)
     patch "/api/v1/admin/candidates/#{candidate.public_id}/fee",
-          params: { fee: { amount:, expected_version: version, reason: } }.to_json, headers: headers(user)
+          params: { fee: { amount:, expected_version: version, reason: } }.to_json, headers: auth
   end
 
   it 'updates the default with an audit record, actor, and version' do
@@ -99,6 +100,20 @@ RSpec.describe 'API V1 Admin Onboarding Fees', type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq('fee.reason')
+  end
+
+  it 'returns localized fee validation and conflict responses in Urdu' do
+    update_fee('26000', reason: ' ', locale: 'ur')
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'message')).to eq(
+      I18n.t('api.errors.fee_reason_required', locale: :ur)
+    )
+    update_fee('26000', version: 99, locale: 'ur')
+
+    expect(response).to have_http_status(:conflict)
+    expect(response.parsed_body.dig('errors', 0, 'message')).to eq(I18n.t('api.errors.stale_fee', locale: :ur))
+    expect(assignment.reload.onboarding_fee_amount).to be_nil
   end
 
   it 'requires payment-management permission even for staff who can edit candidates' do

@@ -69,7 +69,8 @@ RSpec.describe Admin::Reports::DelayedCasesQuery do
     )
     expect(query.attention_candidates.first.fetch(:candidate_public_id)).to eq(old.candidate.public_id)
     scoped = described_class.new(reference_time: now, scope: Candidate.where(id: recent.candidate_id))
-    expect(scoped.attention_candidates.map { |row| row.fetch(:candidate_public_id) }).to eq([recent.candidate.public_id])
+    ids = scoped.attention_candidates.map { |row| row.fetch(:candidate_public_id) }
+    expect(ids).to eq([recent.candidate.public_id])
   end
 
   it 'limits attention rows and excludes terminal and recently moved cases' do
