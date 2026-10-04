@@ -3,16 +3,8 @@
 require 'rails_helper'
 
 RSpec.describe Users::InvitationAcceptanceService do
-  self.use_transactional_tests = false
-
-  around do |example|
-    AuditEvent.delete_all
-    User.delete_all
+  before do
     ensure_staff_authorization_reference_data!
-    example.run
-  ensure
-    AuditEvent.delete_all
-    User.delete_all
   end
 
   def accept(token:, password: 'Password123!', password_confirmation: 'Password123!')
