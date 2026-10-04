@@ -5,32 +5,36 @@ module Admin
     class AccessService < ApplicationService
       ACCESS_TTL = ENV.fetch('ADMIN_DOCUMENT_ACCESS_TTL_SECONDS', 300).to_i.seconds
 
-      def initialize(actor:, document:, request_id:)
+      # `file_id` picks one file of a multi-file document (defaults to its
+      # representative file).
+      def initialize(actor:, document:, request_id:, file_id: nil)
         @actor = actor
         @document = document
         @request_id = request_id
+        @file_id = file_id
       end
 
       def call
-        raise DocumentAttachmentMissingError unless @document.file.attached?
+        raise CandidateDocumentNotFoundError if document_file.blank?
+        raise DocumentAttachmentMissingError unless document_file.file.attached?
 
         expires_at = Time.current + ACCESS_TTL
         url = access_url(expires_at:)
         create_audit_event!(expires_at:)
 
-        AccessResult.new(
-          document: @document,
-          expires_at: expires_at.utc.iso8601,
-          url:
-        )
+        AccessResult.new(document: @document, file: document_file, expires_at: expires_at.utc.iso8601, url:)
       end
 
       private
 
+      def document_file
+        @document_file ||= @document.file_for_access(@file_id)
+      end
+
       def access_url(expires_at:)
         Rails.application.routes.url_helpers.rails_service_blob_proxy_path(
-          @document.file.blob.signed_id(expires_at:),
-          @document.file.blob.filename,
+          document_file.file.blob.signed_id(expires_at:),
+          document_file.file.blob.filename,
           disposition: 'inline',
           only_path: true
         )
@@ -58,6 +62,7 @@ module Admin
           candidate_public_id: candidate.public_id,
           candidate_assignment_public_id: @document.candidate_assignment.public_id,
           document_public_id: @document.public_id,
+          file_public_id: document_file.public_id,
           requirement_code: @document.submission_item.requirement_code,
           expires_at: expires_at.utc.iso8601
         }

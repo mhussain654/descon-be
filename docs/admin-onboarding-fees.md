@@ -1,0 +1,15 @@
+# Admin-managed onboarding fees
+
+The global OnboardingFeeSetting singleton holds the default onboarding fee. Its first creation uses the existing ONBOARDING_FEE_AMOUNT (1500.00 fallback), preserving deployment configuration until an authorized admin explicitly sets a new default, such as 26800.00. Subsequent ENV changes do not override the database value. Currency continues to use PAYMENT_CURRENCY_CODE.
+
+GET/PATCH /api/v1/admin/onboarding_fee_setting reads/changes the default. GET/PATCH /api/v1/admin/candidates/:candidate_id/fee reads/changes the current assignment's override. PATCH requires fee.amount, fee.expected_version and fee.reason. Amount is an exact positive decimal string below 100000000 with at most two decimal places. A null amount removes a candidate override, but cannot clear the default. Reason is required, up to 500 characters.
+
+Read permission: view_payments or manage_payments. Write permission: manage_payments. Candidate endpoints additionally authorize and scope candidate access. Writes lock the target, check the supplied version, and record actor, reason and amount changes in AuditEvent within the same transaction. Candidate edits use checkout's candidate-then-assignment lock order. Concurrent edits return stale_fee; committed candidate payments return fee_locked (409).
+
+Fee resolution: a settled onboarding payment or active unexpired checkout's amount takes precedence, then the assignment override, then the database default. Overrides do not carry into later assignments. Failed/cancelled/expired unpaid attempts do not lock a fee. Existing payment records and checkout payloads keep their original amount; provider creation uses the newly persisted Payment amount, never a second read of a mutable default. Candidate web and mobile consume the existing payment eligibility response, so both receive the resolved amount without platform-specific business rules. Existing Fee Pending eligibility, provider callbacks and finalization are preserved.
+
+## Deployment and checks
+
+Run bundle exec rails db:prepare (including the new migration), regenerate and commit db/schema.rb from the database, and run all AGENTS.md backend checks before deploying the frontend. The migration adds one singleton table, nullable assignment fee amount, non-null assignment fee version, foreign key, uniqueness and positive-amount constraints; it does not rewrite payment amounts or backfill overrides. Schema regeneration was not possible here because Ruby/Bundler/PostgreSQL runtime execution was unavailable.
+
+RSpec request/model/policy/resolver coverage was added, including the candidate payment response and real checkout request using a candidate override. These specs were not executed in this workspace: bundle is unavailable. OpenAPI/locales parse, internal OpenAPI references resolve, and git diff --check passes. Rails OpenAPI validation, migrations, RSpec, coverage, RuboCop, Zeitwerk, Brakeman and bundle-audit still require CI/developer verification. No live fee configuration was changed.

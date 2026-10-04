@@ -23,16 +23,22 @@ module Admin
       @document ||= @submission_item.candidate_document
     end
 
+    # `files` is the full set staff review together; the single-file fields
+    # describe the representative file and are kept for older clients.
     def file_metadata
+      primary_file = document.primary_file
       {
-        file_name: document.original_filename,
-        content_type: document.content_type,
-        file_size: document.byte_size,
+        file_name: primary_file.original_filename,
+        content_type: primary_file.content_type,
+        file_size: primary_file.byte_size,
+        files: serialized_files,
         uploaded_at: document.uploaded_at.utc.iso8601,
         status: document.api_status
       }.merge(pcc_metadata)
         .merge(ocr_date_metadata)
     end
+
+    def serialized_files = document.files.map { |file| CandidateDocumentFileSerializer.new(file).as_json }
 
     def review_metadata
       {

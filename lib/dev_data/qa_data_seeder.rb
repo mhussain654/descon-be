@@ -19,7 +19,6 @@ module DevData
     include FactoryBot::Syntax::Methods
 
     PASSWORD = 'Testing@123'
-    STAGE_CODES = CandidateFixtureBuilder::STAGE_CODES
     COMMUNICATION_CHANNELS = %w[sms whatsapp email].freeze
     COMMUNICATION_STATUSES = %w[sent delivered failed].freeze
     AUDIT_ACTIONS = %w[created updated workflow_transitioned].freeze
@@ -91,14 +90,14 @@ module DevData
                   visa: :issued, protection: :appeared_only,
                   ai_call: { direction: 'outbound', call_reason: 'protection_appearance_reminder',
                              outcome: 'answered', outcome_reason: 'resolved' }),
-      Profile.new(stage: 'protected_ready_to_fly', documents: :all_verified, payment: :paid,
-                  visa: :issued, protection: :ready_to_fly),
+      Profile.new(stage: 'ticket_handover', documents: :all_verified, payment: :paid,
+                  visa: :issued, protection: :appeared_only),
       Profile.new(stage: 'flight_details_uploaded', documents: :all_verified, payment: :paid,
-                  protection: :ready_to_fly, flight: :scheduled,
+                  protection: :appeared_only, flight: :scheduled,
                   ai_call: { direction: 'outbound', call_reason: 'flight_information', outcome: 'answered',
                              outcome_reason: 'resolved' }),
       Profile.new(stage: 'mobilized', documents: :all_verified, payment: :paid,
-                  protection: :ready_to_fly, flight: :mobilized,
+                  protection: :appeared_only, flight: :mobilized,
                   ai_call: { direction: 'outbound', call_reason: 'workflow_stage_notification',
                              needs_manual_review: true, resolve: true })
     ].freeze
@@ -110,7 +109,7 @@ module DevData
 
       @users_by_role = seed_users
       @reference = load_reference_data
-      builder = CandidateFixtureBuilder.new(document_types: active_required_document_types)
+      builder = CandidateFixtureBuilder.new
 
       candidates = PROFILES.each_with_index.map do |profile, index|
         builder.build(profile:, index:, actor: actor_for(index), reference: @reference)
@@ -167,13 +166,6 @@ module DevData
 
     def load_reference_data
       { countries: Country.active.to_a, projects: Project.active.to_a, crafts: Craft.active.to_a }
-    end
-
-    def active_required_document_types
-      DocumentType.joins(:document_requirements)
-                  .where(document_requirements: { active: true, required: true, country: nil, project: nil,
-                                                  craft: nil })
-                  .distinct.to_a
     end
 
     def actor_for(index) = @users_by_role.fetch(%w[hr mps finance management].fetch(index % 4)).first

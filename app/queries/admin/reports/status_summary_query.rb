@@ -2,10 +2,10 @@
 
 module Admin
   module Reports
-    # Status-wise candidate counts across all 15 canonical workflow stages
-    # (MPS-804). Every stage is represented in the output, zero-filled when
-    # no candidate is currently there -- callers must never need to guess
-    # whether a missing key means zero or "not computed".
+    # Status-wise candidate counts across every catalog workflow stage
+    # (MPS-804), in catalog display order -- a stage only some countries'
+    # processes use still appears, zero-filled -- callers must never need to
+    # guess whether a missing key means zero or "not computed".
     class StatusSummaryQuery < ApplicationQuery
       def initialize(scope: Candidate.all)
         super()

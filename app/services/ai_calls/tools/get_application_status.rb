@@ -18,9 +18,9 @@ module AiCalls
         }
       end
 
-      # `total_count`/`progress_percentage` count the 15 fixed internal pipeline
-      # stages -- not meaningful read aloud to a candidate ("0 of 15" the moment
-      # they register). `current_stage_name`/`next_stage_name` are the
+      # `total_count`/`progress_percentage` count the internal stages of the
+      # candidate's mobilization process -- not meaningful read aloud ("0 of 19"
+      # the moment they register). `current_stage_name`/`next_stage_name` are the
       # human-readable equivalents the baseline prompt is expected to speak
       # instead; `current_stage_code` stays for the agent's own conditional
       # logic, never for narration.

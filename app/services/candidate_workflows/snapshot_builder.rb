@@ -1,23 +1,27 @@
 # frozen_string_literal: true
 
 module CandidateWorkflows
+  # Builds the workflow state for one assignment from its own mobilization
+  # process: the timeline lists only that process's stages, positions are
+  # places within it, the terminal stage is its last stage, and progress is
+  # completed process stages / total process stages.
   # rubocop:disable Metrics/ClassLength
   class SnapshotBuilder < ApplicationService
-    def initialize(assignment:, candidate_status:, stages:, include_history_actor: false)
+    def initialize(assignment:, candidate_status:, include_history_actor: false)
       @assignment = assignment
       @candidate_status = candidate_status
-      @stages = stages
       @include_history_actor = include_history_actor
     end
 
     def call
-      snapshot.merge(progress_attributes)
+      snapshot.merge(latest_outcomes).merge(progress_attributes)
     end
 
     private
 
     def snapshot
       {
+        mobilization_process: @assignment&.mobilization_process,
         current_stage: current_stage_hash,
         timeline:,
         history:,
@@ -28,39 +32,56 @@ module CandidateWorkflows
       }
     end
 
+    # The latest medical result and visa decision (negative ones hold the candidate).
+    def latest_outcomes
+      return { medical_result: nil, visa_decision: nil } if @assignment.blank?
+
+      {
+        medical_result: @assignment.candidate_medical_results.latest_first.first,
+        visa_decision: @assignment.candidate_visa_decisions.latest_first.first
+      }
+    end
+
     def progress_attributes
       {
         completed_count:,
-        total_count: @stages.length,
+        total_count: process_stages.length,
         progress_percentage: progress_percentage
       }
     end
 
-    def current_stage = @assignment&.current_workflow_stage
+    def process_stages
+      @process_stages ||=
+        @assignment.present? ? @assignment.mobilization_process.stages.includes(:workflow_stage).to_a : []
+    end
 
-    def current_position = current_stage&.position
+    def current_process_stage = @assignment&.current_mobilization_process_stage
+
+    def current_position = current_process_stage&.position
 
     def stage_histories
       @stage_histories ||= loaded_stage_histories
     end
 
     def history_by_stage_code
-      @history_by_stage_code ||= stage_histories.index_by { |history_entry| history_entry.to_workflow_stage.code }
+      @history_by_stage_code ||= stage_histories.index_by(&:stage_code)
     end
 
     def history_from_stage_code
-      @history_from_stage_code ||= stage_histories.index_by { |history_entry| history_entry.from_workflow_stage&.code }
+      @history_from_stage_code ||= stage_histories.index_by(&:from_stage_code)
     end
 
-    def current_stage_hash = current_stage.present? ? serialize_stage(current_stage, status: current_stage_status) : nil
+    def current_stage_hash
+      current_process_stage.present? ? serialize_stage(current_process_stage, status: current_stage_status) : nil
+    end
 
-    def timeline = @stages.map { |stage| serialize_stage(stage, status: timeline_status_for(stage)) }
+    def timeline = process_stages.map { |stage| serialize_stage(stage, status: timeline_status_for(stage)) }
 
     def history
       stage_histories.map do |history_entry|
         {
-          from_stage: history_entry.from_workflow_stage && stage_reference(history_entry.from_workflow_stage),
-          to_stage: stage_reference(history_entry.to_workflow_stage),
+          from_stage: HistoryStageReference.from(history_entry),
+          to_stage: HistoryStageReference.to(history_entry),
           occurred_at: history_entry.occurred_at.utc.iso8601,
           reason_code: history_entry.reason_code,
           details: history_entry.metadata.presence
@@ -68,48 +89,50 @@ module CandidateWorkflows
       end
     end
 
-    def serialize_stage(stage, status:)
+    def serialize_stage(process_stage, status:)
       {
-        code: stage.code,
-        name: stage.name_for,
-        position: stage.position,
+        code: process_stage.code,
+        name: process_stage.workflow_stage.name_for,
+        position: process_stage.position,
+        action_type: process_stage.action_type,
+        required: process_stage.required,
         status:
-      }.merge(timestamp_attributes_for(stage, status:))
+      }.merge(timestamp_attributes_for(process_stage, status:))
     end
 
-    def timestamp_attributes_for(stage, status:)
+    def timestamp_attributes_for(process_stage, status:)
       case status
       when 'completed'
-        { completed_at: completed_at_for(stage)&.utc&.iso8601 }.compact
+        { completed_at: completed_at_for(process_stage)&.utc&.iso8601 }.compact
       when 'current'
-        { started_at: started_at_for(stage)&.utc&.iso8601 }.compact
+        { started_at: started_at_for(process_stage)&.utc&.iso8601 }.compact
       else
         {}
       end
     end
 
-    def completed_at_for(stage)
-      return history_by_stage_code[stage.code]&.occurred_at if terminal_stage?(stage) && terminal_workflow?
+    def completed_at_for(process_stage)
+      if terminal_stage?(process_stage) && terminal_workflow?
+        return history_by_stage_code[process_stage.code]&.occurred_at
+      end
 
-      history_from_stage_code[stage.code]&.occurred_at
+      history_from_stage_code[process_stage.code]&.occurred_at
     end
 
-    def started_at_for(stage)
-      return @assignment&.created_at if stage.code == WorkflowStage.registered.code
+    def started_at_for(process_stage)
+      return @assignment&.created_at if process_stage.code == WorkflowStage.registered.code
 
-      history_by_stage_code[stage.code]&.occurred_at
+      history_by_stage_code[process_stage.code]&.occurred_at
     end
 
-    def timeline_status_for(stage)
+    def timeline_status_for(process_stage)
       return 'pending' if current_position.blank?
-      return 'completed' if terminal_workflow? && stage.position <= current_position
-      return 'completed' if stage.position < current_position
-      return 'current' if stage.position == current_position
+      return 'completed' if terminal_workflow? && process_stage.position <= current_position
+      return 'completed' if process_stage.position < current_position
+      return 'current' if process_stage.position == current_position
 
       'pending'
     end
-
-    def stage_reference(stage) = { code: stage.code, name: stage.name_for, position: stage.position }
 
     def completed_count
       return 0 if current_position.blank?
@@ -118,9 +141,9 @@ module CandidateWorkflows
     end
 
     def progress_percentage
-      return 0 if completed_count.zero? || @stages.empty?
+      return 0 if completed_count.zero? || process_stages.empty?
 
-      ((completed_count * 100.0) / @stages.length).floor
+      ((completed_count * 100.0) / process_stages.length).floor
     end
 
     def serialized_updated_at
@@ -131,10 +154,8 @@ module CandidateWorkflows
     def loaded_stage_histories
       return [] if @assignment.blank?
 
-      relation = @assignment
-                 .candidate_stage_histories
-                 .includes(:from_workflow_stage, :to_workflow_stage)
-                 .order(:occurred_at, :id)
+      # Entries are served from their own snapshot columns -- no stage joins needed.
+      relation = @assignment.candidate_stage_histories.order(:occurred_at, :id)
       relation = relation.includes(:actor) if @include_history_actor
       relation.to_a
     end
@@ -153,10 +174,10 @@ module CandidateWorkflows
 
     def current_stage_status = terminal_workflow? ? 'completed' : 'current'
 
-    def terminal_workflow? = terminal_stage?(current_stage)
+    def terminal_workflow? = terminal_stage?(current_process_stage)
 
-    def terminal_stage?(stage)
-      stage&.code == 'mobilized'
+    def terminal_stage?(process_stage)
+      process_stage.present? && process_stage.position == process_stages.last&.position
     end
   end
   # rubocop:enable Metrics/ClassLength

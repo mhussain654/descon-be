@@ -5,6 +5,9 @@ ur:
         cnic: "شناختی کارڈ نمبر"
         mobile_number: "موبائل نمبر"
     errors:
+      messages:
+        published_process_immutable: "شائع ہو چکا ہے اور تبدیل نہیں کیا جا سکتا۔ اس کے بجائے نیا ورژن شائع کریں۔"
+        not_in_mobilization_process: "اس اسائنمنٹ کے موبلائزیشن عمل کا حصہ نہیں ہے۔"
       models:
         candidate:
           attributes:

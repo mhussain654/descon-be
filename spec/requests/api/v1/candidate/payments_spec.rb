@@ -17,6 +17,18 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
   end
 
   describe 'GET /api/v1/candidate/payment' do
+    it 'shows the configured candidate override before payment becomes due' do
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:, onboarding_fee_amount: '25000')
+      OnboardingFeeSetting.current.update!(amount: '26800')
+
+      get '/api/v1/candidate/payment', headers: candidate_auth_headers(candidate)
+
+      expect(response).to have_http_status(:ok)
+      expect(BigDecimal(response.parsed_body.dig('data', 'amount'))).to eq(BigDecimal('25000'))
+      expect(response.parsed_body.dig('data', 'eligible')).to be(false)
+    end
+
     it 'returns blocking information before the fee stage and exposes no-store freshness headers' do
       candidate = create(:candidate, status_code: 'documents_uploaded')
       create(
@@ -36,14 +48,15 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
   end
 
   describe 'POST /api/v1/candidate/payment' do
-    it 'creates an idempotent hosted checkout attempt and advances verified candidates to fee_pending' do
-      candidate = create(:candidate, status_code: 'verified')
+    it 'creates an idempotent hosted checkout attempt for a candidate at their fee_pending stage' do
+      candidate = create(:candidate, status_code: 'fee_pending')
       assignment = create(
         :candidate_assignment,
         candidate:,
-        current_workflow_stage: WorkflowStage.find_by!(code: 'verified')
+        current_workflow_stage: WorkflowStage.find_by!(code: 'fee_pending')
       )
       create_all_verified_required_documents(assignment:)
+      assignment.update!(onboarding_fee_amount: '26800')
       headers = candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-payment-1')
 
       with_kuickpay_configured do
@@ -59,6 +72,7 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
         expect(candidate.reload.status_code).to eq('fee_pending')
         expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
         expect(Payment.count).to eq(1)
+        expect(Payment.last.amount).to eq(BigDecimal('26800'))
 
         session_created_event = PaymentEvent.find_by!(event_type: 'session_created')
         expect(session_created_event.provider_code).to eq('kuickpay')
@@ -75,11 +89,11 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
     end
 
     it 'rejects checkout initiation when payment eligibility prerequisites are not met' do
-      candidate = create(:candidate, status_code: 'verified')
+      candidate = create(:candidate, status_code: 'fee_pending')
       create(
         :candidate_assignment,
         candidate:,
-        current_workflow_stage: WorkflowStage.find_by!(code: 'verified')
+        current_workflow_stage: WorkflowStage.find_by!(code: 'fee_pending')
       )
 
       with_kuickpay_configured do
@@ -91,6 +105,27 @@ RSpec.describe 'API V1 Candidate Payments', type: :request do
         expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons'))
           .to eq(['required_documents_not_verified'])
         expect(Payment.count).to eq(0)
+      end
+    end
+
+    it 'keeps checkout closed until the candidate reaches fee_pending in their own process' do
+      candidate = create(:candidate, status_code: 'verified')
+      assignment = create(
+        :candidate_assignment,
+        candidate:,
+        current_workflow_stage: WorkflowStage.find_by!(code: 'verified')
+      )
+      create_all_verified_required_documents(assignment:)
+
+      with_kuickpay_configured do
+        post '/api/v1/candidate/payment',
+             headers: candidate_auth_headers(candidate, 'Idempotency-Key' => 'candidate-payment-4')
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body.dig('errors', 0, 'details', 'blocking_reasons'))
+          .to eq(['payment_stage_not_reached'])
+        expect(Payment.count).to eq(0)
+        expect(assignment.reload.current_workflow_stage.code).to eq('verified')
       end
     end
 

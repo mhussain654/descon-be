@@ -18,6 +18,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateVisaDecision.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
@@ -38,6 +39,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateVisaDecision.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all

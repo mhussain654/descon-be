@@ -12,6 +12,7 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
     AuthenticationEvent.delete_all
     RefreshToken.delete_all
     Session.delete_all
+    AuditEvent.delete_all
     User.delete_all
     admin_user
     example.run
@@ -301,7 +302,10 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
 
     it 'replays a successful logout when the same idempotency key is retried' do
       tokens = login!
+      create(:idempotency_key)
       headers = { 'Idempotency-Key' => 'logout-123' }
+      logout_keys = IdempotencyKey.where(idempotency_scope: 'auth.logout',
+                                         subject: Session.find_by!(user: admin_user))
 
       logout(access_token: tokens.fetch('access_token'), headers:)
       first_response = response.parsed_body
@@ -311,7 +315,7 @@ RSpec.describe 'API V1 Auth Sessions', type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.headers['Idempotency-Replayed']).to eq('true')
       expect(response.parsed_body.fetch('data')).to eq(first_response.fetch('data'))
-      expect(IdempotencyKey.count).to eq(1)
+      expect(logout_keys.count).to eq(1)
     end
   end
 end

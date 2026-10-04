@@ -58,6 +58,7 @@ module DevData
       PaymentEvent.where(candidate_assignment_id: assignment_ids).delete_all
       Payment.where(candidate_assignment_id: assignment_ids).delete_all
       CandidateVisaDecision.where(candidate_assignment_id: assignment_ids).delete_all
+      CandidateMedicalResult.where(candidate_assignment_id: assignment_ids).delete_all
       CandidateProtectionRecord.where(candidate_assignment_id: assignment_ids).delete_all
       CandidateFlightDetail.where(candidate_assignment_id: assignment_ids).delete_all
       CandidateQvcAttempt.where(candidate_assignment_id: assignment_ids).delete_all

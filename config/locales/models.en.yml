@@ -5,6 +5,9 @@ en:
         cnic: "Cnic"
         mobile_number: "Mobile number"
     errors:
+      messages:
+        published_process_immutable: "is published and cannot be changed. Publish a new version instead."
+        not_in_mobilization_process: "is not part of this assignment's mobilization process."
       models:
         candidate:
           attributes:

@@ -12,7 +12,7 @@
 # Bcrypt's per-record salt and deliberate slowness make that infeasible.
 class CandidateOtpChallenge < ApplicationRecord
   CODE_LENGTH = ENV.fetch('OTP_CODE_LENGTH', 6).to_i
-  EXPIRY_WINDOW = ENV.fetch('OTP_EXPIRY_SECONDS', 300).to_i.seconds
+  EXPIRY_WINDOW = ENV.fetch('OTP_EXPIRY_SECONDS', 600).to_i.seconds
   RESEND_COOLDOWN = ENV.fetch('OTP_RESEND_COOLDOWN_SECONDS', 60).to_i.seconds
   MAX_ATTEMPTS = ENV.fetch('OTP_MAX_ATTEMPTS', 5).to_i
 

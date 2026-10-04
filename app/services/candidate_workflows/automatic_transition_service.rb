@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 module CandidateWorkflows
+  # Advances a candidate, one step at a time along their own process, up to the
+  # stage an event implies (stopping early at any step whose prerequisites
+  # aren't met). An event whose target isn't in the candidate's process -- or
+  # is already behind them -- does nothing.
   class AutomaticTransitionService < ApplicationService
     EVENT_TARGETS = {
       assignment_created: 'documents_pending',
@@ -16,23 +20,13 @@ module CandidateWorkflows
       @request_id = request_id
     end
 
-    # rubocop:disable Metrics/AbcSize
     def call
       return if assignment.blank? || !@candidate.active?
+      return assignment.current_workflow_stage if target_process_stage.blank?
 
-      while current_stage.position < target_stage.position
-        next_stage = WorkflowStage.find_by(position: current_stage.position + 1)
-        break if next_stage.blank? || next_stage.position > target_stage.position
-        break unless next_stage_allowed?(next_stage)
-
-        transition_to_next_stage!(next_stage)
-
-        assignment.reload
-      end
-
+      advance_one_stage! while current_position < target_process_stage.position && advanceable_next_stage
       assignment.current_workflow_stage
     end
-    # rubocop:enable Metrics/AbcSize
 
     private
 
@@ -40,12 +34,29 @@ module CandidateWorkflows
       @assignment ||= @candidate.current_assignment
     end
 
-    def current_stage
-      assignment.current_workflow_stage
+    def current_position
+      assignment.current_mobilization_process_stage.position
     end
 
-    def target_stage
-      @target_stage ||= WorkflowStage.find_by!(code: EVENT_TARGETS.fetch(@event))
+    # The next stage in the candidate's process, if its prerequisites are met.
+    def advanceable_next_stage
+      next_process_stage = assignment.next_process_stage
+      return if next_process_stage.blank?
+
+      next_stage = WorkflowStage.find(next_process_stage.workflow_stage_id)
+      next_stage if next_stage_allowed?(next_stage)
+    end
+
+    def advance_one_stage!
+      next_process_stage = assignment.next_process_stage
+      transition_to_next_stage!(WorkflowStage.find(next_process_stage.workflow_stage_id), next_process_stage)
+      assignment.reload
+    end
+
+    def target_process_stage
+      return @target_process_stage if defined?(@target_process_stage)
+
+      @target_process_stage = assignment.mobilization_process.stage_with_code(EVENT_TARGETS.fetch(@event))
     end
 
     def next_stage_allowed?(next_stage)
@@ -56,21 +67,15 @@ module CandidateWorkflows
       ).allowed
     end
 
-    # rubocop:disable Metrics/MethodLength
-    def transition_to_next_stage!(next_stage)
-      TransitionService.call(
-        actor: @actor,
-        candidate: @candidate,
-        to_stage_code: next_stage.code,
-        request_id: transition_request_id,
-        reason_code: reason_code,
-        validate_permissions: false
-      )
+    # A concurrent writer may have already moved the candidate past this step;
+    # that's fine -- only re-raise if they're still behind it.
+    def transition_to_next_stage!(next_stage, next_process_stage)
+      TransitionService.call(actor: @actor, candidate: @candidate, to_stage_code: next_stage.code,
+                             request_id: transition_request_id, reason_code:, validate_permissions: false)
     rescue InvalidWorkflowTransitionError
       assignment.reload
-      raise unless assignment.current_workflow_stage.position >= next_stage.position
+      raise unless current_position >= next_process_stage.position
     end
-    # rubocop:enable Metrics/MethodLength
 
     def transition_request_id
       @request_id.presence || "workflow-auto-#{@event}-#{assignment.public_id}"

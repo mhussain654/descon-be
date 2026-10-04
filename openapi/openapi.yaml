@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Descon Manpower API
+  title: MPS Connect API
   version: 1.0.0
 components:
   parameters:
@@ -157,6 +157,35 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    AdminOnboardingFee:
+      type: object
+      required: [default_amount, override_amount, effective_amount, currency_code, version, assignment_id, locked, updated_at]
+      properties:
+        default_amount: { type: string, example: '26800.00' }
+        override_amount:
+          anyOf: [{ type: string, example: '25000.00' }, { type: 'null' }]
+        effective_amount: { type: string, example: '25000.00' }
+        currency_code: { type: string, example: PKR }
+        version: { type: integer, minimum: 0 }
+        assignment_id:
+          anyOf: [{ type: string, format: uuid }, { type: 'null' }]
+        locked: { type: boolean }
+        updated_at: { type: string, format: date-time }
+    OnboardingFeeUpdate:
+      type: object
+      required: [fee]
+      properties:
+        fee:
+          type: object
+          required: [amount, expected_version, reason]
+          properties:
+            amount:
+              description: Positive decimal string below 100000000 with at most two decimal places. Null removes a candidate override; null is invalid for the default.
+              anyOf:
+                - { type: string, pattern: '^\d{1,8}(\.\d{1,2})?$', example: '26800.00' }
+                - { type: 'null' }
+            expected_version: { type: integer, minimum: 0 }
+            reason: { type: string, minLength: 1, maxLength: 500 }
     EnvelopeMeta:
       type: object
       properties:
@@ -439,7 +468,7 @@ components:
       properties:
         expires_in_seconds:
           type: integer
-          description: How long a requested code remains valid for, once sent. Present identically whether or not the CNIC actually resolved to a candidate.
+          description: How long a requested code remains valid for, once sent. Defaults to 600 seconds (10 minutes); configurable through OTP_EXPIRY_SECONDS. Returned only for a registered active candidate.
         resend_after_seconds:
           type: integer
           description: Minimum time before another code may be requested for the same CNIC.
@@ -696,6 +725,10 @@ components:
           enum: [application/pdf, image/jpeg, image/png]
         file_size:
           type: integer
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateDocumentFile'
         uploaded_at:
           type: string
           format: date-time
@@ -724,9 +757,41 @@ components:
         rejection_reason:
           type: string
           description: Present only when this document's current status is `rejected`.
-      required: [id, file_name, content_type, file_size, uploaded_at]
+      required: [id, file_name, content_type, file_size, uploaded_at, files]
+    CandidateDocumentFile:
+      type: object
+      description: One file of a document's file set. Fetch its content through the document access endpoint with `file_id`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        side_code:
+          anyOf:
+            - $ref: '#/components/schemas/DocumentSideCode'
+            - type: 'null'
+        position:
+          type: integer
+          minimum: 1
+        file_name:
+          type: string
+        content_type:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png]
+        file_size:
+          type: integer
+      required: [id, side_code, position, file_name, content_type, file_size]
+    DocumentSideCode:
+      type: string
+      description: >-
+        Which part of a document a file is: `combined` (one PDF with every part), `front`/`back`,
+        `page_1`/`page_2`, or `certificate` (repeatable). Allowed values per requirement come from
+        its `allowed_side_codes`; null for documents that use no labels.
+      enum: [combined, front, back, page_1, page_2, certificate]
     CandidateDocumentChecklistItem:
       type: object
+      description: >-
+        One backend-decided checklist entry for the candidate's assignment (country, project and
+        craft), in `display_position` order, with the rules an upload must satisfy.
       properties:
         requirement_code:
           type: string
@@ -735,6 +800,33 @@ components:
           type: string
         required:
           type: boolean
+        display_position:
+          type: integer
+        instructions:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Localized to the request locale.
+        minimum_files:
+          type: integer
+          minimum: 1
+        maximum_files:
+          type: integer
+          minimum: 1
+        combined_pdf_allowed:
+          type: boolean
+        allowed_side_codes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSideCode'
+        accepted_content_types:
+          type: array
+          items:
+            type: string
+            enum: [application/pdf, image/jpeg, image/png]
+        maximum_file_size:
+          type: integer
+          description: Per-file limit in bytes.
         status:
           type: string
           enum: [missing, uploaded, pending_review, verified, rejected]
@@ -744,20 +836,43 @@ components:
           anyOf:
             - $ref: '#/components/schemas/CandidateDocumentMetadata'
             - type: 'null'
-      required: [requirement_code, name, required, status, replacement_allowed, document]
+      required: [requirement_code, name, required, display_position, instructions, minimum_files, maximum_files,
+        combined_pdf_allowed, allowed_side_codes, accepted_content_types, maximum_file_size, status,
+        replacement_allowed, document]
     CandidateDocumentUploadRequest:
       type: object
       properties:
         candidate_document:
           type: object
-          required: [requirement_code, file]
+          description: >-
+            Send the document's file set as `files[]` (e.g. `candidate_document[files][][file]` and
+            `candidate_document[files][][side_code]`). The set must satisfy the checklist item's rules:
+            file count, accepted types (detected from file content, not the declared type) and size,
+            and side labels -- both of a front/back or page_1/page_2 pair, labels not repeated
+            (except `certificate`), and `combined` only as a single PDF. A missing label is filled in
+            when only one reading is possible. The single `file` field is still accepted as a one-file
+            upload for older clients.
+          required: [requirement_code]
           properties:
             requirement_code:
               type: string
               example: passport
+            files:
+              type: array
+              items:
+                type: object
+                required: [file]
+                properties:
+                  file:
+                    type: string
+                    format: binary
+                  side_code:
+                    $ref: '#/components/schemas/DocumentSideCode'
             file:
               type: string
               format: binary
+              deprecated: true
+              description: Legacy single-file upload; use `files`.
             issued_on:
               type: string
               format: date
@@ -787,8 +902,37 @@ components:
         name:
           type: string
       required: [code, name]
+    MobilizationProcessActionType:
+      type: string
+      description: >-
+        What kind of action moves a candidate into this stage. Clients choose the form or
+        screen to show from this value alone -- never from the destination country.
+      enum: [none, document_submission, nomination, medical_appointment, medical_outcome, payment, e_number_processing, e_number_request, e_number_received, biometric_completion, visa_case_preparation, visa_case_submission, qvc_appointment, qvc_outcome, visa_processing, visa_decision, protection_call, protection_appearance, ticket_handover, flight_details, mobilization]
+    CandidateMobilizationProcess:
+      type: object
+      description: >-
+        The mobilization process version the candidate's assignment follows, fixed when the
+        assignment was created. `provisional` marks the common process used for countries
+        whose requirements are not yet confirmed.
+      properties:
+        code:
+          type: string
+          example: qatar_mobilization
+        version:
+          type: integer
+          minimum: 1
+        provisional:
+          type: boolean
+        country_code:
+          anyOf:
+            - type: string
+            - type: 'null'
+      required: [code, version, provisional, country_code]
     CandidateWorkflowTimelineStage:
       type: object
+      description: >-
+        One stage of the candidate's own mobilization process. `position` is the stage's place
+        within that process (1-based), not a global order.
       properties:
         code:
           type: string
@@ -796,6 +940,10 @@ components:
           type: string
         position:
           type: integer
+        action_type:
+          $ref: '#/components/schemas/MobilizationProcessActionType'
+        required:
+          type: boolean
         status:
           type: string
           enum: [completed, current, pending]
@@ -809,7 +957,7 @@ components:
             - type: string
               format: date-time
             - type: 'null'
-      required: [code, name, position, status]
+      required: [code, name, position, action_type, required, status]
     WorkflowTransitionEvidence:
       type: object
       additionalProperties: false
@@ -826,10 +974,35 @@ components:
         visa_outcome_date:
           type: string
           format: date
-        appeared_for_protection_on:
+        medical_appointment_date:
           type: string
           format: date
-        protected_on:
+        medical_outcome_code:
+          type: string
+          enum: [fit, unfit]
+        medical_result_date:
+          type: string
+          format: date
+        e_number:
+          type: string
+        e_number_received_on:
+          type: string
+          format: date
+        biometric_completed_on:
+          type: string
+          format: date
+        protection_call_status:
+          type: string
+          enum: [scheduled, completed]
+        protection_call_on:
+          type: string
+          format: date
+        ticket_handed_over_on:
+          type: string
+          format: date
+        ticket_reference:
+          type: string
+        appeared_for_protection_on:
           type: string
           format: date
         flight_reference:
@@ -858,10 +1031,35 @@ components:
         visa_outcome_date:
           type: string
           format: date
-        appeared_for_protection_on:
+        medical_appointment_date:
           type: string
           format: date
-        protected_on:
+        medical_outcome_code:
+          type: string
+          enum: [fit, unfit]
+        medical_result_date:
+          type: string
+          format: date
+        e_number:
+          type: string
+        e_number_received_on:
+          type: string
+          format: date
+        biometric_completed_on:
+          type: string
+          format: date
+        protection_call_status:
+          type: string
+          enum: [scheduled, completed]
+        protection_call_on:
+          type: string
+          format: date
+        ticket_handed_over_on:
+          type: string
+          format: date
+        ticket_reference:
+          type: string
+        appeared_for_protection_on:
           type: string
           format: date
         flight_reference:
@@ -1216,6 +1414,10 @@ components:
             - type: 'null'
         candidate_status:
           type: string
+        mobilization_process:
+          anyOf:
+            - $ref: '#/components/schemas/CandidateMobilizationProcess'
+            - type: 'null'
         current_stage:
           anyOf:
             - $ref: '#/components/schemas/CandidateWorkflowTimelineStage'
@@ -1232,6 +1434,21 @@ components:
           anyOf:
             - $ref: '#/components/schemas/CandidateProtectionRecord'
             - type: 'null'
+        outcomes:
+          type: object
+          description: >-
+            The latest medical result and visa decision. A negative one (unfit/rejected) means the
+            candidate is held at that outcome stage until staff record a new, positive decision.
+          properties:
+            medical:
+              anyOf:
+                - $ref: '#/components/schemas/CandidateMedicalResult'
+                - type: 'null'
+            visa:
+              anyOf:
+                - $ref: '#/components/schemas/CandidateVisaDecision'
+                - type: 'null'
+          required: [medical, visa]
         completed_count:
           type: integer
         total_count:
@@ -1243,8 +1460,8 @@ components:
             - type: string
               format: date-time
             - type: 'null'
-      required: [candidate_id, assignment_id, candidate_status, current_stage, timeline, qvc_attempts, protection,
-        completed_count, total_count, progress_percentage, updated_at]
+      required: [candidate_id, assignment_id, candidate_status, mobilization_process, current_stage, timeline,
+        qvc_attempts, protection, outcomes, completed_count, total_count, progress_percentage, updated_at]
     CandidateWorkflowHistoryItem:
       type: object
       properties:
@@ -1353,6 +1570,9 @@ components:
       required: [candidate_workflow_transition]
     AdminAllowedWorkflowTransition:
       type: object
+      description: >-
+        The next stage of the candidate's own mobilization process (never a stage from another
+        country's process); `position` is its place within that process.
       properties:
         code:
           type: string
@@ -1360,17 +1580,45 @@ components:
           type: string
         position:
           type: integer
+        action_type:
+          $ref: '#/components/schemas/MobilizationProcessActionType'
+        required:
+          type: boolean
         required_fields:
           type: array
           items:
             type: string
+        fields:
+          type: array
+          description: Every evidence field this transition accepts -- enough to build its form.
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [iso_date, iso_datetime, string, enum]
+              required:
+                type: boolean
+              values:
+                type: array
+                items:
+                  type: string
+                description: Present for enum fields.
+            required: [name, type, required]
         allowed:
           type: boolean
         blocking_reasons:
           type: array
+          description: >-
+            Stable codes, e.g. `documents_required`, `required_documents_not_verified`, `expired_pcc`,
+            `payment_required`, `medical_fit_required` (held by an unfit latest medical result),
+            `visa_issued_required` (held by a rejected latest visa decision), `qvc_approval_required`,
+            `qvc_rejected`, or `<field>_required` for missing evidence.
           items:
             type: string
-      required: [code, name, position, required_fields, allowed, blocking_reasons]
+      required: [code, name, position, action_type, required, required_fields, fields, allowed, blocking_reasons]
     CandidateQvcAttempt:
       type: object
       properties:
@@ -1649,10 +1897,95 @@ components:
             - type: 'null'
         visa_copy_attached:
           type: boolean
+        re_decision:
+          type: boolean
+          description: True for a decision recorded while the candidate was held at the visa stage (no transition).
         created_at:
           type: string
           format: date-time
-      required: [id, outcome_code, decision_date, rejection_reason_code, visa_copy_attached, created_at]
+      required: [id, outcome_code, decision_date, rejection_reason_code, visa_copy_attached, re_decision, created_at]
+    CandidateMedicalResult:
+      type: object
+      description: One medical result. The latest decides whether the candidate may leave the medical-outcome stage.
+      properties:
+        id:
+          type: string
+          format: uuid
+        outcome_code:
+          type: string
+          enum: [fit, unfit]
+        result_date:
+          type: string
+          format: date
+        re_decision:
+          type: boolean
+          description: True for a result recorded while the candidate was held at the medical-outcome stage.
+        created_at:
+          type: string
+          format: date-time
+      required: [id, outcome_code, result_date, re_decision, created_at]
+    AdminMedicalResult:
+      allOf:
+        - $ref: '#/components/schemas/CandidateMedicalResult'
+        - type: object
+          properties:
+            note:
+              anyOf:
+                - type: string
+                - type: 'null'
+            recorded_by:
+              $ref: '#/components/schemas/AdminReviewer'
+          required: [note, recorded_by]
+    AdminMedicalResultRequest:
+      type: object
+      properties:
+        candidate_medical_result:
+          type: object
+          required: [outcome_code, result_date, expected_current_stage_code]
+          properties:
+            outcome_code:
+              type: string
+              enum: [fit, unfit]
+            result_date:
+              type: string
+              format: date
+            note:
+              type: string
+            expected_current_stage_code:
+              type: string
+              description: Required for stale-state protection.
+          additionalProperties: false
+      required: [candidate_medical_result]
+    AdminMedicalResultResult:
+      type: object
+      properties:
+        workflow:
+          $ref: '#/components/schemas/CandidateWorkflowState'
+        medical_result:
+          $ref: '#/components/schemas/AdminMedicalResult'
+      required: [workflow, medical_result]
+    AdminCandidateMedicalResultsCollection:
+      type: object
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        assignment_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        medical_results:
+          type: array
+          description: Newest first.
+          items:
+            $ref: '#/components/schemas/AdminMedicalResult'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required: [candidate_id, assignment_id, medical_results, updated_at]
     AdminVisaDecision:
       allOf:
         - $ref: '#/components/schemas/CandidateVisaDecision'
@@ -1882,6 +2215,9 @@ components:
         name:
           type: string
           description: Localized per the request's X-Locale/Accept-Language.
+        is_driver:
+          type: boolean
+          description: Present on crafts only.
       required: [code, name]
     ReferenceDataCreateRequest:
       type: object
@@ -1897,6 +2233,9 @@ components:
               type: string
             name_ur:
               type: string
+            is_driver:
+              type: boolean
+              description: Crafts only -- marks a driver craft, which receives driver-only document requirements (e.g. the Qatar driving licence).
           additionalProperties: false
       required: [reference_data]
     ReferenceDataUpdateRequest:
@@ -1912,6 +2251,9 @@ components:
             expected_updated_at:
               type: string
               format: date-time
+            is_driver:
+              type: boolean
+              description: Crafts only -- marks a driver craft, which receives driver-only document requirements (e.g. the Qatar driving licence).
           additionalProperties: false
       required: [reference_data]
     AdminCandidateAssignmentSummary:
@@ -2192,6 +2534,11 @@ components:
           enum: [application/pdf, image/jpeg, image/png]
         file_size:
           type: integer
+        files:
+          type: array
+          description: The whole file set staff review together; the single-file fields describe its representative file.
+          items:
+            $ref: '#/components/schemas/CandidateDocumentFile'
         uploaded_at:
           type: string
           format: date-time
@@ -2235,6 +2582,7 @@ components:
         - file_name
         - content_type
         - file_size
+        - files
         - uploaded_at
         - status
     AdminDocumentSubmissionDetail:
@@ -2263,12 +2611,16 @@ components:
         document_id:
           type: string
           format: uuid
+        file_id:
+          type: string
+          format: uuid
+          description: The file this URL serves (the requested `file_id`, or the representative file).
         url:
           type: string
         expires_at:
           type: string
           format: date-time
-      required: [document_id, url, expires_at]
+      required: [document_id, file_id, url, expires_at]
     AdminDocumentReviewDecision:
       type: object
       properties:
@@ -2963,7 +3315,7 @@ paths:
                   summary: English response
                   value:
                     data:
-                      expires_in_seconds: 300
+                      expires_in_seconds: 600
                       resend_after_seconds: 60
                       mobile_last_four: '4821'
                     meta:
@@ -2973,7 +3325,7 @@ paths:
                   summary: Urdu response
                   value:
                     data:
-                      expires_in_seconds: 300
+                      expires_in_seconds: 600
                       resend_after_seconds: 60
                       mobile_last_four: '4821'
                     meta:
@@ -3015,7 +3367,7 @@ paths:
                   value:
                     errors:
                       - code: candidate_cnic_not_found
-                        message: We couldn't find your record with this CNIC.
+                        message: Sorry, you are not registered for the current mobilization.
                     request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                     timestamp: '2026-08-23T09:00:08Z'
         '429':
@@ -3385,7 +3737,10 @@ paths:
       summary: Fetch payment eligibility and latest candidate payment
       description: >-
         Returns the authenticated candidate's authoritative onboarding-fee eligibility,
-        stable blocking reasons, and latest safe hosted-checkout payment state.
+        stable blocking reasons, and latest safe hosted-checkout payment state. Payment opens
+        only once the candidate reaches the `fee_pending` stage of their own mobilization
+        process (its place differs per country); before that the blocking reason is
+        `payment_stage_not_reached`, and after `fee_paid` it is `payment_already_completed`.
       security:
         - candidateBearerAuth: []
       parameters:
@@ -4019,8 +4374,21 @@ paths:
                         message: The idempotency key does not match the original request.
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
+        '503':
+          description: >-
+            `malware_scan_unavailable` -- no malware scanner is available, so the upload is refused rather
+            than accepted unscanned (production fails closed until a real scanning provider is configured).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '422':
-          description: Validation failure for missing file, invalid requirement, unsupported content type, empty file, oversized file, or forbidden replacement
+          description: >-
+            Validation failure for missing file, invalid requirement, unsupported content type, empty file,
+            oversized file, forbidden replacement, a file set that breaks the requirement's rules
+            (`invalid_document_files` with `details.reason` one of too_few_files, too_many_files,
+            side_code_required, side_code_not_allowed, duplicate_side_code, incomplete_side_pair,
+            combined_must_be_alone, combined_requires_pdf), or a file rejected by scanning (`malware_detected`)
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -4043,6 +4411,17 @@ paths:
                     errors:
                       - code: invalid_requirement
                         message: درست دستاویز کی شرط منتخب کریں۔
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+                incompleteSidePair:
+                  value:
+                    errors:
+                      - code: invalid_document_files
+                        message: Upload both sides (front and back, or page 1 and page 2) of this document.
+                        field: candidate_document.files
+                        details:
+                          reason: incomplete_side_pair
+                          missing_side_code: back
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
                 unsupportedFileType:
@@ -4112,6 +4491,13 @@ paths:
       security:
         - candidateBearerAuth: []
       parameters:
+        - name: file_id
+          in: query
+          required: false
+          description: Which file of a multi-file document to serve; defaults to its representative file. Unknown ids return 404.
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - in: path
@@ -4135,6 +4521,10 @@ paths:
                     `inline` opens the document for viewing in the browser; `attachment`
                     prompts the device to download and save it. Defaults to `inline` when
                     omitted.
+                file_id:
+                  type: string
+                  format: uuid
+                  description: Same as the `file_id` query parameter.
               additionalProperties: false
             examples:
               viewRequest:
@@ -4255,10 +4645,12 @@ paths:
                           - code: registered
                             name: Registered
                             position: 1
+                            action_type: none
+                            required: true
                             status: current
                             started_at: '2026-08-26T12:00:00Z'
                         completed_count: 0
-                        total_count: 15
+                        total_count: 19
                         progress_percentage: 0
                         updated_at: '2026-08-26T12:00:00Z'
                       documents:
@@ -4284,13 +4676,9 @@ paths:
                       candidate_status: registered
                       current_workflow_stage: null
                       workflow:
-                        timeline:
-                          - code: registered
-                            name: رجسٹرڈ
-                            position: 1
-                            status: pending
+                        timeline: []
                         completed_count: 0
-                        total_count: 15
+                        total_count: 0
                         progress_percentage: 0
                         updated_at: null
                       documents:
@@ -4322,16 +4710,20 @@ paths:
                           - code: registered
                             name: Registered
                             position: 1
+                            action_type: none
+                            required: true
                             status: completed
                             completed_at: '2026-08-28T11:00:00Z'
                           - code: documents_pending
                             name: Documents Pending
                             position: 2
+                            action_type: document_submission
+                            required: true
                             status: current
                             started_at: '2026-08-28T11:00:00Z'
                         completed_count: 1
-                        total_count: 15
-                        progress_percentage: 6
+                        total_count: 19
+                        progress_percentage: 5
                         updated_at: '2026-08-28T12:00:00Z'
                       documents:
                         required_total: 1
@@ -4393,24 +4785,33 @@ paths:
                         code: documents_pending
                         name: Documents Pending
                         position: 2
+                        action_type: document_submission
+                        required: true
                         status: current
                         started_at: '2026-08-29T09:00:00Z'
                       timeline:
                         - code: registered
                           name: Registered
                           position: 1
+                          action_type: none
+                          required: true
                           status: completed
                           completed_at: '2026-08-29T09:00:00Z'
                         - code: documents_pending
                           name: Documents Pending
                           position: 2
+                          action_type: document_submission
+                          required: true
                           status: current
                           started_at: '2026-08-29T09:00:00Z'
                       qvc_attempts: []
                       protection: null
+                      outcomes:
+                        medical: null
+                        visa: null
                       completed_count: 1
-                      total_count: 15
-                      progress_percentage: 6
+                      total_count: 19
+                      progress_percentage: 5
                       updated_at: '2026-08-29T09:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -4892,7 +5293,7 @@ paths:
       description: >-
         Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports
         partial matching. `meta.summary` returns a zero-filled count per canonical workflow stage
-        (the same 15 stages as `filter[status]`), scoped by every active filter except `filter[status]`.
+        (every catalog stage, the same set as `filter[status]`), scoped by every active filter except `filter[status]`.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: search
@@ -5498,11 +5899,11 @@ paths:
                         - from_stage:
                             code: fee_paid
                             name: Fee Paid
-                            position: 7
+                            position: 10
                           to_stage:
                             code: documents_shared_with_qatar_bu
                             name: Documents Shared with Qatar BU
-                            position: 8
+                            position: 11
                           occurred_at: '2026-08-30T09:00:00Z'
                           reason_code: qatar_bu_shared
                           details: null
@@ -5560,7 +5961,10 @@ paths:
                         - code: documents_uploaded
                           name: Documents Uploaded
                           position: 3
+                          action_type: document_submission
+                          required: true
                           required_fields: []
+                          fields: []
                           allowed: true
                           blocking_reasons: []
                 blockedTransition:
@@ -5570,10 +5974,16 @@ paths:
                       updated_at: '2026-08-29T12:00:00Z'
                       allowed_next_transitions:
                         - code: qvc_appointment_booked
-                          name: QVC Appointment Booked
-                          position: 9
+                          name: QVC Appointment
+                          position: 12
+                          action_type: qvc_appointment
+                          required: true
                           required_fields:
                             - appointment_date
+                          fields:
+                            - name: appointment_date
+                              type: iso_date
+                              required: true
                           allowed: false
                           blocking_reasons:
                             - appointment_date_required
@@ -5589,8 +5999,11 @@ paths:
                       allowed_next_transitions:
                         - code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
+                          action_type: none
+                          required: true
                           required_fields: []
+                          fields: []
                           allowed: false
                           blocking_reasons:
                             - payment_required
@@ -5604,6 +6017,11 @@ paths:
           description: Not authorized to view workflow transitions
     post:
       summary: Transition a candidate to the next allowed workflow stage
+      description: >-
+        Applies an ordinary JSON workflow transition. Stages with dedicated
+        command resources cannot be entered here. In particular,
+        visa_issued_or_rejected must use the candidate visa-decisions endpoint
+        so issued visas cannot bypass the required private visa-copy upload.
       security:
         - bearerAuth: []
       parameters:
@@ -5653,40 +6071,51 @@ paths:
                         current_stage:
                           code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
+                          action_type: none
+                          required: true
                           status: current
                           started_at: '2026-08-30T09:00:00Z'
                         timeline:
                           - code: registered
                             name: Registered
                             position: 1
+                            action_type: none
+                            required: true
                             status: completed
                             completed_at: '2026-08-29T09:00:00Z'
                           - code: fee_paid
                             name: Fee Paid
-                            position: 7
+                            position: 10
+                            action_type: payment
+                            required: true
                             status: completed
                             completed_at: '2026-08-30T09:00:00Z'
                           - code: documents_shared_with_qatar_bu
                             name: Documents Shared with Qatar BU
-                            position: 8
+                            position: 11
+                            action_type: none
+                            required: true
                             status: current
                             started_at: '2026-08-30T09:00:00Z'
                         qvc_attempts: []
                         protection: null
-                        completed_count: 7
-                        total_count: 15
-                        progress_percentage: 46
+                        outcomes:
+                          medical: null
+                          visa: null
+                        completed_count: 10
+                        total_count: 19
+                        progress_percentage: 52
                         updated_at: '2026-08-30T09:00:00Z'
                       transition:
                         from_stage:
                           code: fee_paid
                           name: Fee Paid
-                          position: 7
+                          position: 10
                         to_stage:
                           code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
                         occurred_at: '2026-08-30T09:00:00Z'
                         reason_code: qatar_bu_shared
                         actor:
@@ -5746,6 +6175,7 @@ paths:
                         details:
                           to_stage_code: documents_shared_with_qatar_bu
                           required_fields: []
+                          fields: []
                           blocking_reasons:
                             - payment_required
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -5759,6 +6189,7 @@ paths:
                         details:
                           to_stage_code: documents_shared_with_qatar_bu
                           required_fields: []
+                          fields: []
                           blocking_reasons:
                             - expired_pcc
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -6226,8 +6657,10 @@ paths:
                         candidate_status: qvc_appointment_booked
                         current_stage:
                           code: qvc_appointment_booked
-                          name: QVC Appointment Booked
-                          position: 9
+                          name: QVC Appointment
+                          position: 12
+                          action_type: qvc_appointment
+                          required: true
                           status: current
                           started_at: '2026-09-01T10:00:00Z'
                         timeline: []
@@ -6240,19 +6673,22 @@ paths:
                             outcome_recorded_at: null
                             status: scheduled
                         protection: null
-                        completed_count: 8
-                        total_count: 15
-                        progress_percentage: 53
+                        outcomes:
+                          medical: null
+                          visa: null
+                        completed_count: 11
+                        total_count: 19
+                        progress_percentage: 57
                         updated_at: '2026-09-01T10:00:00Z'
                       transition:
                         from_stage:
                           code: documents_shared_with_qatar_bu
                           name: Documents Shared with Qatar BU
-                          position: 8
+                          position: 11
                         to_stage:
                           code: qvc_appointment_booked
-                          name: QVC Appointment Booked
-                          position: 9
+                          name: QVC Appointment
+                          position: 12
                         occurred_at: '2026-09-01T10:00:00Z'
                         actor:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6334,7 +6770,9 @@ paths:
                         current_stage:
                           code: qvc_completed_outcome_received
                           name: QVC Completed / Outcome Received
-                          position: 10
+                          position: 13
+                          action_type: qvc_outcome
+                          required: true
                           status: current
                           started_at: '2026-09-02T12:00:00Z'
                         timeline: []
@@ -6347,19 +6785,22 @@ paths:
                             outcome_recorded_at: '2026-09-02T12:00:00Z'
                             status: approved
                         protection: null
-                        completed_count: 9
-                        total_count: 15
-                        progress_percentage: 60
+                        outcomes:
+                          medical: null
+                          visa: null
+                        completed_count: 12
+                        total_count: 19
+                        progress_percentage: 63
                         updated_at: '2026-09-02T12:00:00Z'
                       transition:
                         from_stage:
                           code: qvc_appointment_booked
-                          name: QVC Appointment Booked
-                          position: 9
+                          name: QVC Appointment
+                          position: 12
                         to_stage:
                           code: qvc_completed_outcome_received
                           name: QVC Completed / Outcome Received
-                          position: 10
+                          position: 13
                         occurred_at: '2026-09-02T12:00:00Z'
                         actor:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6376,6 +6817,81 @@ paths:
           description: Idempotency conflict or stale request
         '422':
           description: Invalid outcome, conflicting no-show payload, or closed attempt
+  /api/v1/admin/candidates/{candidate_id}/medical_results:
+    get:
+      summary: List a candidate's medical results (newest first)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Medical results retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminCandidateMedicalResultsCollection'
+        '403':
+          description: Staff user cannot view this candidate's workflow
+        '404':
+          description: Candidate not found
+    post:
+      summary: Record a medical result (fit/unfit)
+      description: >-
+        When the candidate's next process stage is the medical-outcome stage (e.g. Medical Completed,
+        Medical Completed and Fit, GAMCA/Wafid Medical Completed), this moves them into it and records
+        the result. An `unfit` result holds them there: leaving the stage is blocked with
+        `medical_fit_required`. Calling this again while held (with the outcome stage as
+        `expected_current_stage_code`) records a re-decision without a transition; a `fit` latest
+        result lets the candidate continue. Any other position returns `invalid_workflow_transition`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMedicalResultRequest'
+      responses:
+        '201':
+          description: Medical result recorded or replayed idempotently
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminMedicalResultResult'
+        '403':
+          description: Staff user lacks manage_workflow
+        '409':
+          description: Stale `expected_current_stage_code`, or an idempotency conflict
+        '422':
+          description: Invalid outcome or date, or the candidate is not at or next to a medical-outcome stage
   /api/v1/admin/candidates/{candidate_id}/visa_decisions:
     get:
       summary: List structured visa decisions for a candidate
@@ -6420,6 +6936,7 @@ paths:
                           decision_date: '2026-09-05'
                           rejection_reason_code: null
                           visa_copy_attached: true
+                          re_decision: false
                           created_at: '2026-09-05T10:00:00Z'
                           recorded_by:
                             id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6436,15 +6953,19 @@ paths:
     post:
       summary: Record a visa decision (issued or rejected)
       description: >-
-        Records the outcome of a candidate's visa application, moving the
-        candidate from `qvc_completed_outcome_received` to
-        `visa_issued_or_rejected` through the canonical workflow transition
-        service. An `issued` outcome requires a private visa copy upload and
-        a decision date; a `rejected` outcome requires a structured
-        rejection reason and a decision date. The transition is blocked
-        (`workflow_transition_prerequisite_missing`) unless the candidate's
-        latest completed QVC attempt outcome is `approved`. Existing
-        workflow history is never rewritten.
+        Records the outcome of a candidate's visa application. The first
+        decision moves the candidate into their process's visa stage
+        (`visa_issued_or_rejected`) through the canonical workflow transition
+        service; it is blocked (`workflow_transition_prerequisite_missing`)
+        unless the fee is paid (`payment_required`) and, in processes with a
+        QVC step, the latest QVC outcome is `approved`. A `rejected` decision
+        holds the candidate at the visa stage; calling this again while held
+        (with `expected_current_stage_code: visa_issued_or_rejected`) records a
+        re-decision (`re_decision: true`) without a transition, and only an
+        `issued` latest decision lets the candidate continue. An `issued`
+        outcome requires a private visa copy upload; a `rejected` outcome
+        requires a structured rejection reason. Existing workflow history is
+        never rewritten.
       security:
         - bearerAuth: []
       parameters:
@@ -6494,15 +7015,20 @@ paths:
                         current_stage:
                           code: visa_issued_or_rejected
                           name: Visa Issued / Visa Rejected
-                          position: 11
+                          position: 14
+                          action_type: visa_decision
+                          required: true
                           status: current
                           started_at: '2026-09-05T10:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 10
-                        total_count: 15
-                        progress_percentage: 66
+                        outcomes:
+                          medical: null
+                          visa: null
+                        completed_count: 13
+                        total_count: 19
+                        progress_percentage: 68
                         updated_at: '2026-09-05T10:00:00Z'
                       visa_decision:
                         id: 9b8a5883-70d5-4040-8823-424f4b4b669b
@@ -6510,6 +7036,7 @@ paths:
                         decision_date: '2026-09-05'
                         rejection_reason_code: null
                         visa_copy_attached: true
+                        re_decision: false
                         created_at: '2026-09-05T10:00:00Z'
                         recorded_by:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -6668,7 +7195,7 @@ paths:
       description: >-
         Records airline, flight number, sector, flight date/time, and a
         private ticket upload, moving the candidate from
-        `protected_ready_to_fly` to `flight_details_uploaded` through the
+        `ticket_handover` to `flight_details_uploaded` through the
         canonical workflow transition service. Exactly one flight detail
         record exists per assignment.
       security:
@@ -6720,15 +7247,20 @@ paths:
                         current_stage:
                           code: flight_details_uploaded
                           name: Flight Details Uploaded
-                          position: 14
+                          position: 18
+                          action_type: flight_details
+                          required: true
                           status: current
                           started_at: '2026-09-15T10:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 13
-                        total_count: 15
-                        progress_percentage: 86
+                        outcomes:
+                          medical: null
+                          visa: null
+                        completed_count: 17
+                        total_count: 19
+                        progress_percentage: 89
                         updated_at: '2026-09-15T10:00:00Z'
                       flight_detail:
                         id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -6815,14 +7347,19 @@ paths:
                         current_stage:
                           code: mobilized
                           name: Mobilized
-                          position: 15
+                          position: 19
+                          action_type: mobilization
+                          required: true
                           status: completed
                           completed_at: '2026-09-21T09:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 15
-                        total_count: 15
+                        outcomes:
+                          medical: null
+                          visa: null
+                        completed_count: 19
+                        total_count: 19
                         progress_percentage: 100
                         updated_at: '2026-09-21T09:00:00Z'
                       flight_detail:
@@ -7057,6 +7594,7 @@ paths:
                           decision_date: '2026-09-05'
                           rejection_reason_code: null
                           visa_copy_attached: true
+                          re_decision: false
                           created_at: '2026-09-05T10:00:00Z'
                     meta:
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
@@ -7556,15 +8094,20 @@ paths:
                         current_stage:
                           code: fee_pending
                           name: Fee Pending
-                          position: 6
+                          position: 9
+                          action_type: payment
+                          required: true
                           status: current
                           started_at: '2026-08-31T09:00:00Z'
                         timeline: []
                         qvc_attempts: []
                         protection: null
-                        completed_count: 5
-                        total_count: 15
-                        progress_percentage: 33
+                        outcomes:
+                          medical: null
+                          visa: null
+                        completed_count: 8
+                        total_count: 19
+                        progress_percentage: 42
                         updated_at: '2026-08-31T09:07:00Z'
                     meta:
                       request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
@@ -9046,9 +9589,13 @@ paths:
                       workflow_stage_queue:
                         - code: registered
                           position: 1
+                          action_type: none
+                          required: true
                           count: 12
                         - code: verified
                           position: 5
+                          action_type: none
+                          required: true
                           count: 40
                       document_review_queue:
                         pending_review: 6
@@ -9134,7 +9681,9 @@ paths:
         Pipeline/status queues, delayed and critical case counts, craft-wise and
         country/project-wise mobilization summaries, the mobilization trend, the conversion
         funnel (the same data `GET /api/v1/admin/dashboard` returns), and the single most
-        recently mobilized candidate. Requires the active `view_mps_dashboard` permission.
+        recently mobilized candidate. attention_candidates returns up to eight oldest delayed non-terminal
+        current assignments in the same filter scope (candidate name/public ID, reference, stage code,
+        integer days_waiting, and severity critical/delayed). Critical is included in delayed. Requires the active `view_mps_dashboard` permission.
         "Delayed" (>= 7 days in the current stage) and "critical" (>= 14 days) are documented
         implementation defaults, not a stakeholder-set threshold; `critical` cases are also
         included in `delayed`. `latest_mobilization` is `null` when no assignment in scope has
@@ -9182,10 +9731,19 @@ paths:
                       workflow_stage_queue:
                         - code: registered
                           position: 1
+                          action_type: none
+                          required: true
                           count: 12
                       delayed_cases:
                         delayed: 9
                         critical: 2
+                      attention_candidates:
+                        - candidate_full_name: Sample Candidate
+                          candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
+                          reference_number: REF-000123
+                          workflow_stage_code: documents_pending
+                          days_waiting: 18
+                          severity: critical
                       craft_summary:
                         - code: electrician
                           name: Electrician
@@ -9391,9 +9949,13 @@ paths:
                     data:
                       - code: registered
                         position: 1
+                        action_type: none
+                        required: true
                         count: 12
                       - code: verified
                         position: 5
+                        action_type: none
+                        required: true
                         count: 40
                     meta:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
@@ -9461,6 +10023,13 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - name: file_id
+          in: query
+          required: false
+          description: Which file of a multi-file document to serve; defaults to its representative file. Unknown ids return 404.
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - in: path
@@ -10293,3 +10862,196 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '429':
           description: Invitation acceptance rate limited
+
+  /api/v1/admin/onboarding_fee_setting:
+    get:
+      summary: Read default onboarding fee
+      description: Requires view_payments or manage_payments. Default changes apply to candidates without overrides, excluding amounts already committed to active or paid bills.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      summary: Update default onboarding fee
+      description: Requires manage_payments; changes are audited with actor and reason. Default changes apply to candidates without overrides, excluding amounts already committed to active or paid bills.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingFeeUpdate"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: stale_fee or fee_locked; reload before retrying
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid amount, reason, version, or no_current_assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/admin/candidates/{candidate_id}/fee:
+    parameters:
+      - name: candidate_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Read candidate fee
+      description: Requires view_payments or manage_payments and candidate-view permission. Override is scoped to the current assignment. Active checkouts and paid fees are locked.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      summary: Update candidate fee
+      description: Requires manage_payments; changes are audited with actor and reason and candidate-view permission. Override is scoped to the current assignment. Active checkouts and paid fees are locked.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingFeeUpdate"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: stale_fee or fee_locked; reload before retrying
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid amount, reason, version, or no_current_assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"

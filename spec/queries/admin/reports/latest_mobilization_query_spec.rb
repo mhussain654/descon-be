@@ -21,7 +21,7 @@ RSpec.describe Admin::Reports::LatestMobilizationQuery do
   end
 
   it 'returns the most recently mobilized candidate, enriched with country/project/craft' do
-    country = create(:country)
+    country = process_country(:qatar)
     project = create(:project)
     craft = create(:craft)
     assignment = create(:candidate_assignment, country:, project:, craft:)
@@ -43,8 +43,7 @@ RSpec.describe Admin::Reports::LatestMobilizationQuery do
   end
 
   it 'scopes to the given candidate scope' do
-    country = create(:country)
-    matching_assignment = create(:candidate_assignment, country:)
+    matching_assignment = create(:candidate_assignment)
     mobilization_event(assignment: matching_assignment, occurred_at: 2.days.ago)
     other_assignment = create(:candidate_assignment)
     mobilization_event(assignment: other_assignment, occurred_at: 1.day.ago)

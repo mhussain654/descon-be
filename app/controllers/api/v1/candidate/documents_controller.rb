@@ -13,8 +13,10 @@ module Api
           render_success(data: checklist_items.map { |item| ::Candidates::DocumentSerializer.new(item).as_json })
         end
 
-        # Uploads a document against a checklist requirement; idempotent per Idempotency-Key,
-        # fingerprinted on the file/requirement/issue date to detect a differing retried request.
+        # Uploads a document -- one or more files (`files[]`, each with an optional
+        # `side_code`) -- against a checklist requirement; idempotent per Idempotency-Key,
+        # fingerprinted on the files/side codes/requirement/issue date to detect a differing
+        # retried request. The legacy single `file` field is still accepted as a one-file upload.
         def create
           authorize current_candidate, policy_class: ::Candidates::DocumentPolicy
 
@@ -46,22 +48,38 @@ module Api
 
           ::Candidates::Documents::UploadFingerprint.call(
             request:,
-            uploaded_file: document_params[:file],
+            uploaded_files:,
             requirement_code: document_params[:requirement_code],
             issued_on: document_params[:issued_on]
           )
         end
 
-        # Strong-params the document upload fields (requirement code, file, and validity dates).
+        # Strong-params the document upload fields (requirement code, files with their side
+        # codes or the legacy single file, and validity dates).
         def document_params
-          params.expect(candidate_document: %i[requirement_code file issued_on expires_on])
+          @document_params ||= params.expect(
+            candidate_document: [:requirement_code, :file, :issued_on, :expires_on, { files: [%i[file side_code]] }]
+          )
+        end
+
+        # The uploaded file set as `{ file:, side_code: }` entries, from `files[]` or, for
+        # older clients, the single `file` field.
+        def uploaded_files
+          @uploaded_files ||=
+            if document_params[:files].present?
+              document_params[:files].map { |entry| { file: entry[:file], side_code: entry[:side_code] } }
+            elsif document_params[:file].present?
+              [{ file: document_params[:file], side_code: nil }]
+            else
+              []
+            end
         end
 
         # Builds the argument hash passed to the document upload service.
         def upload_service_arguments
           {
             candidate: current_candidate,
-            uploaded_file: document_params[:file],
+            uploaded_files:,
             requirement_code: document_params[:requirement_code],
             request_id: request.request_id,
             pcc_attributes:

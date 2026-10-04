@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 # Records the outcome of a candidate assignment's visa application (issued or rejected),
-# including the rejection reason when applicable.
+# including the rejection reason when applicable. The first decision comes with the transition
+# into the visa stage (linked to that stage-history entry); while a rejected candidate is held
+# there, staff record later decisions (re-application/appeal) with no history link. The latest
+# decision decides whether the candidate may move on.
 class CandidateVisaDecision < ApplicationRecord
   OUTCOME_CODES = %w[issued rejected].freeze
   REJECTION_REASON_CODES = %w[
@@ -14,11 +17,13 @@ class CandidateVisaDecision < ApplicationRecord
   ].freeze
 
   belongs_to :candidate_assignment
-  belongs_to :candidate_stage_history
+  belongs_to :candidate_stage_history, optional: true
   belongs_to :recorded_by, class_name: 'User'
   has_one_attached :visa_copy
 
   before_validation :assign_public_id, on: :create
+
+  scope :latest_first, -> { order(created_at: :desc, id: :desc) }
 
   validates :public_id, presence: true, uniqueness: true
   validates :outcome_code, inclusion: { in: OUTCOME_CODES }

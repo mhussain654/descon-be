@@ -26,11 +26,26 @@ RSpec.describe 'API V1 MPS Dashboard', type: :request do
       data = response.parsed_body['data']
       expect(data.keys).to contain_exactly(
         'workflow_stage_queue', 'delayed_cases', 'craft_summary', 'mobilization', 'mobilization_trend',
-        'conversion_funnel', 'latest_mobilization'
+        'conversion_funnel', 'latest_mobilization', 'attention_candidates'
       )
       expect(data.fetch('conversion_funnel').pluck('code')).to contain_exactly('documents_uploaded', 'verified',
                                                                                'mobilized')
       expect(data.fetch('latest_mobilization')).to be_nil
+    end
+
+    it 'returns scoped delayed candidates with backend stage age and priority' do
+      mps = create(:user, role: 'mps')
+      country = create(:country)
+      assignment = create(:candidate_assignment, country:, created_at: 20.days.ago)
+      create(:candidate_assignment, created_at: 30.days.ago)
+
+      get '/api/v1/admin/mps_dashboard', params: { filter: { country_code: country.code } }, headers: auth_headers(mps)
+
+      expect(response).to have_http_status(:ok)
+      rows = response.parsed_body.dig('data', 'attention_candidates')
+      expect(rows.size).to eq(1)
+      expect(rows.first).to include('candidate_public_id' => assignment.candidate.public_id,
+                                    'days_waiting' => 20, 'severity' => 'critical')
     end
 
     it 'accepts a granularity param for the trend section' do

@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 # Reference data: a trade/occupation (craft) a candidate is recruited for, used to scope
-# candidate assignments and document requirements.
+# candidate assignments and document requirements. `is_driver` (admin-managed) marks driver
+# crafts, which receive driver-only document requirements such as the Qatar driving licence.
 class Craft < ApplicationRecord
   include HasLocalizedName
 
@@ -12,5 +13,5 @@ class Craft < ApplicationRecord
 
   validates :code, presence: true, uniqueness: true, format: { with: /\A[a-z0-9_]+\z/ }
   validates :name_en, :name_ur, presence: true
-  validates :active, inclusion: { in: [true, false] }
+  validates :active, :is_driver, inclusion: { in: [true, false] }
 end

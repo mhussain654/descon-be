@@ -18,6 +18,7 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateVisaDecision.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
@@ -37,6 +38,7 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateVisaDecision.delete_all
+    CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
@@ -69,7 +71,14 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
                                                current_workflow_stage: workflow_stage('qvc_completed_outcome_received'),
                                                qvc_outcome_code: 'approved', qvc_outcome_date: Date.current)
     create_approved_qvc_attempt(assignment)
+    create_paid_payment(assignment)
     [candidate, assignment]
+  end
+
+  # Every process requires the fee to be paid before a visa decision.
+  def create_paid_payment(assignment)
+    create(:payment, candidate_assignment: assignment, status_code: 'paid', paid_at: Time.current,
+                     external_reference: "PAY-#{SecureRandom.hex(4)}")
   end
 
   def create_approved_qvc_attempt(assignment)
@@ -180,6 +189,35 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     expect(assignment.reload.current_workflow_stage.code).to eq('visa_issued_or_rejected')
   end
 
+  it 'records a re-decision for a held, rejected candidate without moving or re-entering the stage' do
+    actor = create(:user, role: 'mps')
+    candidate, assignment = candidate_at_qvc_approved
+    token = access_token_for(actor)
+    post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
+         params: { candidate_visa_decision: {
+           outcome_code: 'rejected', rejection_reason_code: 'embassy_rejection', decision_date: '2026-09-05',
+           expected_current_stage_code: 'qvc_completed_outcome_received'
+         } },
+         headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'visa-redecide-1' }
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
+         params: { candidate_visa_decision: {
+           outcome_code: 'issued', decision_date: '2026-09-20',
+           visa_copy: fixture_upload('test.pdf', 'application/pdf'),
+           expected_current_stage_code: 'visa_issued_or_rejected'
+         } },
+         headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'visa-redecide-2' }
+
+    expect(response).to have_http_status(:created)
+    expect(response.parsed_body.dig('data', 'visa_decision')).to include('outcome_code' => 'issued',
+                                                                         're_decision' => true)
+    expect(response.parsed_body.dig('data', 'workflow', 'outcomes', 'visa', 'outcome_code')).to eq('issued')
+    expect(assignment.reload.current_workflow_stage.code).to eq('visa_issued_or_rejected')
+    expect(assignment.candidate_visa_decisions.count).to eq(2)
+    expect(assignment.candidate_stage_histories.joins(:to_workflow_stage)
+                     .where(workflow_stages: { code: 'visa_issued_or_rejected' }).count).to eq(1)
+  end
+
   it 'requires a visa copy for an issued outcome' do
     actor = create(:user, role: 'mps')
     candidate, = candidate_at_qvc_approved
@@ -237,6 +275,7 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     create(:candidate_qvc_attempt, candidate_assignment: assignment, outcome_code: 'rejected',
                                    outcome_recorded_at: Time.current, outcome_recorded_by: assignment.created_by,
                                    scheduled_by: assignment.created_by)
+    create_paid_payment(assignment)
 
     post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
          params: {

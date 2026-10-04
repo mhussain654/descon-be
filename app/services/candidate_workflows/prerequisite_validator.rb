@@ -7,14 +7,23 @@ module CandidateWorkflows
     'fee_pending' => :verified_documents_result,
     'verified' => :verified_documents_result,
     'fee_paid' => :fee_paid_result,
-    'documents_shared_with_qatar_bu' => :fee_paid_result,
-    'visa_issued_or_rejected' => :qvc_approved_result,
-    'appeared_for_protection' => :appeared_for_protection_result,
-    'protected_ready_to_fly' => :protected_ready_to_fly_result
+    'documents_shared_with_qatar_bu' => :qatar_bu_sharing_result,
+    'visa_stamping_case_sent' => :paid_with_evidence_result,
+    'visa_issued_or_rejected' => :visa_decision_result
   }.freeze
 
+  # Decides whether a candidate may move into `destination_stage`: its evidence
+  # must be valid, the stage they're leaving must not be holding them (an
+  # outcome stage whose latest decision is unfit/rejected), and the
+  # destination's own prerequisites must be met.
   # rubocop:disable Metrics/ClassLength
   class PrerequisiteValidator < ApplicationService
+    # The outcome a candidate needs before leaving a stage of this action type.
+    OUTCOME_GATES = {
+      'medical_outcome' => :medical_fit_gate,
+      'visa_decision' => :visa_issued_gate
+    }.freeze
+
     def initialize(candidate:, assignment:, destination_stage:, evidence:)
       @candidate = candidate
       @assignment = assignment
@@ -25,10 +34,32 @@ module CandidateWorkflows
     def call
       EvidenceValidator.call(destination_stage: @destination_stage, evidence: @evidence)
 
+      gate_result = outcome_gate_result
+      return gate_result unless gate_result.allowed
+
       stage_result
     end
 
     private
+
+    # A negative outcome holds the candidate at their outcome stage until staff
+    # record a new, positive decision there.
+    def outcome_gate_result
+      gate = OUTCOME_GATES[@assignment.current_mobilization_process_stage&.action_type]
+      gate ? send(gate) : allowed_result
+    end
+
+    def medical_fit_gate
+      return allowed_result if latest_medical_result&.fit?
+
+      blocked_result(field: 'candidate_workflow_transition.to_stage_code', blocking_reasons: ['medical_fit_required'])
+    end
+
+    def visa_issued_gate
+      return allowed_result if latest_visa_decision&.issued?
+
+      blocked_result(field: 'candidate_workflow_transition.to_stage_code', blocking_reasons: ['visa_issued_required'])
+    end
 
     def stage_result
       send(::CandidateWorkflows::STAGE_RESULT_METHODS.fetch(@destination_stage.code, :evidence_result))
@@ -131,29 +162,27 @@ module CandidateWorkflows
       missing_qvc_approval_result
     end
 
-    def appeared_for_protection_result
-      qvc_result = qvc_approved_result
-      return qvc_result unless qvc_result.allowed
+    # Every process requires the fee to be paid before a visa decision; QVC
+    # approval is required too where the process has a QVC step (Qatar).
+    def visa_decision_result
+      paid = payment_result
+      return paid unless paid.allowed
 
-      unless latest_visa_outcome_code == 'issued'
-        return blocked_result(
-          field: 'candidate_workflow_transition.to_stage_code',
-          blocking_reasons: ['visa_issued_required']
-        )
-      end
-
-      evidence_result
+      qvc_process? ? qvc_approved_result : evidence_result
     end
 
-    def protected_ready_to_fly_result
-      if protection_record&.appeared_on.blank?
-        return blocked_result(
-          field: 'candidate_workflow_transition.to_stage_code',
-          blocking_reasons: ['protection_appearance_required']
-        )
-      end
+    # Qatar BU receives a candidate's file only once documents are verified,
+    # the fee is paid and the candidate is medically fit.
+    def qatar_bu_sharing_result
+      fee_result = fee_paid_result
+      return fee_result unless fee_result.allowed
 
-      evidence_result
+      medical_fit_gate
+    end
+
+    def paid_with_evidence_result
+      paid = payment_result
+      paid.allowed ? evidence_result : paid
     end
 
     def evidence_result
@@ -185,20 +214,16 @@ module CandidateWorkflows
       @assignment.candidate_qvc_attempts.where.not(outcome_recorded_at: nil).latest_first
     end
 
-    def latest_visa_outcome_code
-      latest_visa_history_entry&.metadata&.[]('visa_outcome_code')
+    def latest_visa_decision
+      @latest_visa_decision ||= @assignment.candidate_visa_decisions.latest_first.first
     end
 
-    def latest_visa_history_entry
-      @latest_visa_history_entry ||= @assignment.candidate_stage_histories
-                                                .joins(:to_workflow_stage)
-                                                .where(workflow_stages: { code: 'visa_issued_or_rejected' })
-                                                .order(occurred_at: :desc, id: :desc)
-                                                .first
+    def latest_medical_result
+      @latest_medical_result ||= @assignment.candidate_medical_results.latest_first.first
     end
 
-    def protection_record
-      @protection_record ||= @assignment.candidate_protection_record
+    def qvc_process?
+      @assignment.mobilization_process.includes_stage_code?('qvc_completed_outcome_received')
     end
 
     def evidence_field(field_name)

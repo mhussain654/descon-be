@@ -26,7 +26,7 @@ RSpec.describe Admin::DocumentReviews::AccessService do
       'actor_public_id' => actor.public_id,
       'document_public_id' => document.public_id
     )
-    expect(event.metadata.to_json).not_to include(document.checksum_sha256.to_s)
+    expect(event.metadata.to_json).not_to include(document.files.first.checksum_sha256.to_s)
   end
 
   it 'rejects documents whose attachment is missing' do
@@ -34,7 +34,7 @@ RSpec.describe Admin::DocumentReviews::AccessService do
     document = create(:candidate_document, status_code: 'under_verification')
     submission = create(:candidate_document_submission, candidate_assignment: document.candidate_assignment)
     create(:candidate_document_submission_item, candidate_document_submission: submission, candidate_document: document)
-    document.file.purge
+    document.files.first.file.purge
 
     expect do
       described_class.call(actor:, document:, request_id: 'doc-access-2')

@@ -56,6 +56,31 @@ RSpec.describe Admin::Reports::DelayedCasesQuery do
     expect(described_class.call(reference_time: now)).to eq(delayed: 1, critical: 1)
   end
 
+  it 'returns a bounded oldest-first work queue using the same stage-entry age and scope as totals' do
+    old = create(:candidate_assignment, current_workflow_stage: verified_stage, created_at: now - 30.days)
+    recent = create(:candidate_assignment, current_workflow_stage: verified_stage, created_at: now - 40.days)
+    create(:candidate_stage_history, candidate_assignment: recent, to_workflow_stage: verified_stage,
+                                     occurred_at: now - 10.days)
+    query = described_class.new(reference_time: now)
+
+    expect(query.attention_candidates).to contain_exactly(
+      hash_including(candidate_public_id: old.candidate.public_id, days_waiting: 30, severity: 'critical'),
+      hash_including(candidate_public_id: recent.candidate.public_id, days_waiting: 10, severity: 'delayed')
+    )
+    expect(query.attention_candidates.first.fetch(:candidate_public_id)).to eq(old.candidate.public_id)
+    scoped = described_class.new(reference_time: now, scope: Candidate.where(id: recent.candidate_id))
+    ids = scoped.attention_candidates.map { |row| row.fetch(:candidate_public_id) }
+    expect(ids).to eq([recent.candidate.public_id])
+  end
+
+  it 'limits attention rows and excludes terminal and recently moved cases' do
+    9.times { create(:candidate_assignment, current_workflow_stage: verified_stage, created_at: now - 20.days) }
+    create(:candidate_assignment, current_workflow_stage: mobilized_stage, created_at: now - 30.days)
+    create(:candidate_assignment, current_workflow_stage: verified_stage, created_at: now - 1.day)
+
+    expect(described_class.new(reference_time: now).attention_candidates.size).to eq(8)
+  end
+
   describe 'stage re-entry robustness' do
     # A security review flagged that joining every candidate_stage_histories
     # row matching (candidate_assignment_id, to_workflow_stage_id) and

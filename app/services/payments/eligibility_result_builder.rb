@@ -45,7 +45,7 @@ module Payments
 
     def payment_attributes
       {
-        amount: @params.configuration.amount,
+        amount: Payments::FeeResolver.amount(@params.assignment),
         currency_code: @params.configuration.currency_code
       }
     end

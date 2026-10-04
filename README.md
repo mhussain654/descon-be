@@ -1,6 +1,6 @@
-# Descon Manpower API
+# MPS Connect API
 
-Rails 8.1 API for the Descon Manpower application, based on the reusable Rails API foundation.
+Rails 8.1 API for the MPS Connect application, based on the reusable Rails API foundation.
 
 - Devise staff authentication
 - Candidate CNIC + OTP authentication (SMS-delivered, provider-adapter based)
@@ -124,7 +124,9 @@ Commonly adjusted per machine or environment:
 - `CANDIDATE_ACCESS_TOKEN_TTL_MINUTES`
 - `CANDIDATE_REFRESH_TOKEN_EXPIRY_DAYS` -- sliding window: each refresh issues a new token valid for this many days
 - `CANDIDATE_REFRESH_RATE_LIMIT_PER_MINUTE`
-- `CANDIDATE_DOCUMENT_MAX_BYTES`
+- `CANDIDATE_DOCUMENT_MAX_BYTES` -- bank-detail proof uploads (checklist documents use each requirement's `maximum_file_size`)
+- `APP_ENV` -- deployment environment (`development`, `test`, `staging`, `production`); decides whether a deployment is live, since staging may run with `RAILS_ENV=production`
+- `DOCUMENT_MALWARE_SCANNER` -- see "Malware scanning" below
 - `SEED_DEMO_DATA` -- set to `true` only in development when you want demo candidates and the demo administrator created by `db:seed`
 - `OTP_CODE_LENGTH`
 - `OTP_EXPIRY_SECONDS`
@@ -298,13 +300,21 @@ Checklist behavior:
 - If no current document exists for a requirement, the API returns `status: missing`
 - Uploaded documents expose only safe metadata: public document ID, original filename, detected content type, file size, and upload timestamp
 
+Malware scanning:
+
+- Every candidate document file is scanned before anything is stored, by the scanner named in `DOCUMENT_MALWARE_SCANNER`. There is no default: when it is unset, document uploads are refused with `503 malware_scan_unavailable` (fail closed).
+- `mock` flags only the standard EICAR test signature and scans nothing else. It must be enabled explicitly and is allowed only when `APP_ENV` is `development`, `test` or `staging`; every scan logs a warning that the mock is active.
+- A live deployment (`APP_ENV=production`, or `RAILS_ENV=production` with no `APP_ENV`, or any unrecognized `APP_ENV`) refuses to boot with `DOCUMENT_MALWARE_SCANNER=mock`, and refuses uploads if it is somehow active.
+- No real scanning provider is integrated yet -- a required, separately tracked dependency before the production release. Until then production fails closed. To integrate one, add an adapter responding to `infected?(io:, filename:)` to `MalwareScanning::Configuration::PROVIDERS` and set `DOCUMENT_MALWARE_SCANNER` to its code.
+- Local development: set `APP_ENV=development` and `DOCUMENT_MALWARE_SCANNER=mock` in `.env.development` to upload documents locally.
+
 Upload behavior:
 
-- Requires `candidate_document[requirement_code]` and `candidate_document[file]`
+- Requires `candidate_document[requirement_code]` and the document's file set as `candidate_document[files][]` (each a `file` plus an optional `side_code`); the legacy single `candidate_document[file]` is still accepted as a one-file upload
 - `candidate_document[issued_on]` is additionally required when `requirement_code=police_character`
-- Supports PDF, JPEG, and PNG only
-- Detects actual content type server-side instead of trusting the filename extension alone
-- Enforces `CANDIDATE_DOCUMENT_MAX_BYTES`
+- Accepts only the requirement's `accepted_content_types` (PDF, JPEG, PNG), detected from each file's own signature -- never the filename or declared type
+- Enforces the requirement's file count, per-file `maximum_file_size` and side-label rules (front/back and page 1/page 2 pairs, one combined PDF)
+- Scans every file before storing anything (see "Malware scanning")
 - Rejects any client-supplied `candidate_document[expires_on]`; PCC expiry is always calculated server-side as `issued_on.advance(months: 6)`
 - Supports safe retries with `Idempotency-Key`
 - Reusing the same idempotency key with the same file and requirement replays the original success response

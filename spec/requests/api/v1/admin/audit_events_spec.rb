@@ -5,6 +5,9 @@ require 'rails_helper'
 RSpec.describe 'API V1 Admin Audit Events', type: :request do
   before do
     ensure_staff_authorization_reference_data!
+    # db:prepare may persist reference-data seed audits before the suite.
+    # Isolate audit fixtures within this example's rolled-back transaction.
+    AuditEvent.delete_all
   end
 
   def login_as(user)

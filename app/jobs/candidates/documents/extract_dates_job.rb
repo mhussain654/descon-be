@@ -2,8 +2,8 @@
 
 module Candidates
   module Documents
-    # Runs OCR extraction (MPS-404) for a just-uploaded passport/CNIC
-    # front/back/next-of-kin-CNIC document. Idempotent: the partial unique
+    # Runs OCR extraction (MPS-404) for a just-uploaded passport/CNIC/
+    # next-of-kin-CNIC document. Idempotent: the partial unique
     # index on document_extractions (candidate_document_id where status is
     # pending/succeeded) means a duplicate job run for the same document
     # simply finds no row to create and returns -- a fresh attempt is still
@@ -34,7 +34,9 @@ module Candidates
       end
 
       def run_extraction(document, extraction)
-        result = DocumentOcr::TextractAdapter.new.extract(bytes: document.file.download)
+        # The dates live on the representative file (passport page 1 / CNIC
+        # front, or the combined PDF).
+        result = DocumentOcr::TextractAdapter.new.extract(bytes: document.primary_file.file.download)
         extraction.update!(success_attributes(result))
       rescue DocumentOcr::TransientError => e
         extraction.update!(failure_attributes(e))

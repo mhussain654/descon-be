@@ -17,9 +17,12 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
+    CandidateVisaDecision.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     DocumentRequirement.delete_all
     DocumentType.delete_all
@@ -38,9 +41,12 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     RefreshToken.delete_all
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
+    CandidateMedicalResult.delete_all
+    CandidateVisaDecision.delete_all
     CandidateStageHistory.delete_all
     CandidateDocumentSubmissionItem.delete_all
     CandidateDocumentSubmission.delete_all
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     DocumentRequirement.delete_all
     DocumentType.delete_all
@@ -132,6 +138,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
         external_reference: "PAY-QA-REQ-#{SecureRandom.hex(4)}"
       }.merge(payment_attributes)
     )
+    create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'fit')
 
     [candidate, assignment]
   end
@@ -370,6 +377,35 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     expect(IdempotencyKey.find_by(key_digest: Digest::SHA256.hexdigest('wf-bad-visa'))).to be_nil
   end
 
+  it 'requires visa decisions to use the dedicated endpoint' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate)
+    create(:candidate_assignment, candidate:)
+
+    transition_request(
+      candidate:,
+      token: access_token_for(actor),
+      headers: { 'Idempotency-Key' => 'wf-direct-visa' },
+      body: {
+        candidate_workflow_transition: {
+          to_stage_code: 'visa_issued_or_rejected',
+          evidence: {
+            visa_outcome_code: 'issued',
+            visa_outcome_date: '2026-09-10'
+          }
+        }
+      }
+    )
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_workflow_transition')
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_workflow_transition.to_stage_code')
+    expect(response.parsed_body.dig('errors', 0, 'details', 'required_endpoint')).to eq(
+      'candidate_visa_decisions'
+    )
+    expect(CandidateVisaDecision.where(candidate_assignment: candidate.current_assignment)).to be_empty
+  end
+
   it 'prevents concurrent or stale duplicate transitions from overwriting the winning state' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate)
@@ -450,6 +486,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     token = access_token_for(actor)
 
     candidate_missing_document, _assignment_missing_document = prepare_fee_paid_candidate
+    CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
 
     transition_request(
@@ -712,10 +749,10 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     dense_assignment = create(
       :candidate_assignment,
       candidate: dense_candidate,
-      current_workflow_stage: workflow_stage('protected_ready_to_fly')
+      current_workflow_stage: workflow_stage('ticket_handover')
     )
     previous_stage = workflow_stage('registered')
-    WorkflowStage.order(:position).limit(13).offset(1).each do |stage|
+    dense_assignment.mobilization_process.stages.map(&:workflow_stage).drop(1).take(16).each do |stage|
       create(
         :candidate_stage_history,
         candidate_assignment: dense_assignment,

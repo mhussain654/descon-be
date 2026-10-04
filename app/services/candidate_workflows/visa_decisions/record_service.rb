@@ -2,6 +2,10 @@
 
 module CandidateWorkflows
   module VisaDecisions
+    # Records a visa decision. The first one moves the candidate into their
+    # process's visa stage; while a rejected candidate is held there, the same
+    # call records a re-decision (re-application/appeal) without a transition.
+    # Only an issued latest decision lets the candidate move on.
     # rubocop:disable Metrics/ClassLength
     class RecordService < ApplicationService
       Params = Struct.new(
@@ -100,10 +104,49 @@ module CandidateWorkflows
       def rejected? = @params.outcome_code == 'rejected'
 
       def record_decision!
+        return record_re_decision! if held_at_visa_stage?
+
         result = transition_to_visa_issued_or_rejected
         decision = locate_decision(result.fetch(:history_entry))
         attach_visa_copy!(decision)
         decision_result(decision, result.fetch(:snapshot))
+      end
+
+      def held_at_visa_stage?
+        locked_assignment&.current_mobilization_process_stage&.action_type == 'visa_decision'
+      end
+
+      def locked_assignment
+        return @locked_assignment if defined?(@locked_assignment)
+
+        candidate = Candidate.lock.find(@params.candidate.id)
+        raise InactiveAccountError unless candidate.active?
+
+        assignment_id = candidate.current_assignment&.id
+        @locked_assignment = assignment_id && CandidateAssignment.lock.find(assignment_id)
+      end
+
+      def record_re_decision!
+        ExpectedStageValidator.call(current_stage: locked_assignment.current_workflow_stage,
+                                    expected_current_stage_code: @params.expected_current_stage_code)
+        decision = locked_assignment.candidate_visa_decisions.create!(re_decision_attributes)
+        attach_visa_copy!(decision)
+        locked_assignment.update!(updated_at: Time.current)
+        audit_re_decision!(decision)
+        decision_result(decision, StateSnapshotService.call(candidate: @params.candidate))
+      end
+
+      def audit_re_decision!(decision)
+        VisaDecisionAuditRecorder.call(actor: @params.actor, request_id: @params.request_id,
+                                       context: { candidate: @params.candidate, assignment: locked_assignment,
+                                                  decision: })
+      end
+
+      def re_decision_attributes
+        {
+          recorded_by: @params.actor, outcome_code: @params.outcome_code,
+          decision_date: Date.iso8601(@params.decision_date), rejection_reason_code: @params.rejection_reason_code
+        }
       end
 
       def transition_to_visa_issued_or_rejected
