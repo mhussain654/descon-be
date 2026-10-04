@@ -102,7 +102,7 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
            headers: { 'X-Locale' => 'ur' }
 
       expect(response).to have_http_status(:ok)
-      expect(delivered_body).to start_with('آپ کا ڈیسکون مین پاور تصدیقی کوڈ ')
+      expect(delivered_body).to start_with('آپ کا ایم پی ایس کنیکٹ تصدیقی کوڈ ')
     end
 
     it 'uses English for the OTP SMS when X-Locale is en' do
@@ -117,7 +117,7 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
            headers: { 'X-Locale' => 'en' }
 
       expect(response).to have_http_status(:ok)
-      expect(delivered_body).to start_with('Your Descon Manpower verification code is ')
+      expect(delivered_body).to start_with('Your MPS Connect verification code is ')
     end
 
     it "returns the not-found error in the request's selected locale for an unknown CNIC" do

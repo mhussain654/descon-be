@@ -1,6 +1,6 @@
-# Descon Manpower API
+# MPS Connect API
 
-Rails 8.1 API for the Descon Manpower application, based on the reusable Rails API foundation.
+Rails 8.1 API for the MPS Connect application, based on the reusable Rails API foundation.
 
 - Devise staff authentication
 - Candidate CNIC + OTP authentication (SMS-delivered, provider-adapter based)

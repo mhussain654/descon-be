@@ -71,7 +71,7 @@ en:
       already_submitted: "The current documents have already been submitted for review."
       document_submission_not_found: "Document submission not found."
       candidate_document_not_found: "Candidate document not found."
-      candidate_cnic_not_found: "We couldn't find your record with this CNIC: %{cnic}"
+      candidate_cnic_not_found: "Sorry, you are not registered for the current mobilization."
       document_not_pending_review: "This document is not pending review."
       document_already_reviewed: "This document has already been reviewed."
       rejection_reason_required: "Enter a rejection reason."
@@ -149,7 +149,7 @@ en:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."
       logout_succeeded: "Session revoked."
-      otp_sms_body: "Your Descon Manpower verification code is %{code}. It expires in %{expiry_minutes} minutes. Do not share this code with anyone."
+      otp_sms_body: "Your MPS Connect verification code is %{code}. It expires in %{expiry_minutes} minutes. Do not share this code with anyone."
     users:
       invitation_created: "Staff user invited successfully."
       updated: "Staff user updated successfully."

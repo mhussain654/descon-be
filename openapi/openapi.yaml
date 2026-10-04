@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Descon Manpower API
+  title: MPS Connect API
   version: 1.0.0
 components:
   parameters:
@@ -439,7 +439,7 @@ components:
       properties:
         expires_in_seconds:
           type: integer
-          description: How long a requested code remains valid for, once sent. Present identically whether or not the CNIC actually resolved to a candidate.
+          description: How long a requested code remains valid for, once sent. Defaults to 600 seconds (10 minutes); configurable through OTP_EXPIRY_SECONDS. Returned only for a registered active candidate.
         resend_after_seconds:
           type: integer
           description: Minimum time before another code may be requested for the same CNIC.
@@ -3286,7 +3286,7 @@ paths:
                   summary: English response
                   value:
                     data:
-                      expires_in_seconds: 300
+                      expires_in_seconds: 600
                       resend_after_seconds: 60
                       mobile_last_four: '4821'
                     meta:
@@ -3296,7 +3296,7 @@ paths:
                   summary: Urdu response
                   value:
                     data:
-                      expires_in_seconds: 300
+                      expires_in_seconds: 600
                       resend_after_seconds: 60
                       mobile_last_four: '4821'
                     meta:
@@ -3338,7 +3338,7 @@ paths:
                   value:
                     errors:
                       - code: candidate_cnic_not_found
-                        message: We couldn't find your record with this CNIC.
+                        message: Sorry, you are not registered for the current mobilization.
                     request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                     timestamp: '2026-08-23T09:00:08Z'
         '429':

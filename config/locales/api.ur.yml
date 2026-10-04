@@ -70,7 +70,7 @@ ur:
       already_submitted: "موجودہ دستاویزات پہلے ہی جانچ کے لیے جمع کرائی جا چکی ہیں۔"
       document_submission_not_found: "دستاویز جمع کرانے کا ریکارڈ نہیں ملا۔"
       candidate_document_not_found: "امیدوار کی دستاویز نہیں ملی۔"
-      candidate_cnic_not_found: "ہمیں اس شناختی کارڈ نمبر سے آپ کا ریکارڈ نہیں ملا: %{cnic}"
+      candidate_cnic_not_found: "معذرت، آپ موجودہ موبلائزیشن کے لیے رجسٹرڈ نہیں ہیں۔"
       document_not_pending_review: "یہ دستاویز جانچ کے انتظار میں نہیں ہے۔"
       document_already_reviewed: "اس دستاویز کا جائزہ پہلے ہی لیا جا چکا ہے۔"
       rejection_reason_required: "مسترد کرنے کی وجہ درج کریں۔"
@@ -148,7 +148,7 @@ ur:
       login_succeeded: "لاگ اِن کامیاب رہا۔"
       refresh_succeeded: "سیشن تازہ کر دیا گیا ہے۔"
       logout_succeeded: "سیشن منسوخ کر دیا گیا ہے۔"
-      otp_sms_body: "آپ کا ڈیسکون مین پاور تصدیقی کوڈ %{code} ہے۔ اس کی میعاد %{expiry_minutes} منٹ میں ختم ہو جائے گی۔ یہ کوڈ کسی سے شیئر نہ کریں۔"
+      otp_sms_body: "آپ کا ایم پی ایس کنیکٹ تصدیقی کوڈ %{code} ہے۔ اس کی میعاد %{expiry_minutes} منٹ میں ختم ہو جائے گی۔ یہ کوڈ کسی سے شیئر نہ کریں۔"
     users:
       invitation_created: "عملے کے صارف کو کامیابی سے مدعو کر دیا گیا ہے۔"
       updated: "عملے کے صارف کو کامیابی سے اپ ڈیٹ کر دیا گیا ہے۔"

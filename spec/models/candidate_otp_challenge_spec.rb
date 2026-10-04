@@ -49,6 +49,16 @@ RSpec.describe CandidateOtpChallenge, type: :model do
       end
     end
 
+    it 'keeps the code usable for nine minutes and expires it after ten minutes' do
+      freeze_time do
+        challenge = described_class.generate_for(candidate: create(:candidate)).fetch(:challenge)
+        travel 9.minutes
+        expect(challenge.expired?).to be(false)
+        travel 1.minute + 1.second
+        expect(challenge.expired?).to be(true)
+      end
+    end
+
     it 'never writes the raw code to stdout or the Rails logger' do
       result = nil
       expect { result = described_class.generate_for(candidate: create(:candidate)) }.not_to output.to_stdout
