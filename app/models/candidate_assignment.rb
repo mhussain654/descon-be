@@ -43,6 +43,7 @@ class CandidateAssignment < ApplicationRecord
   before_validation :normalize_reference_number
   before_validation :normalize_qvc_outcome_code
 
+  validates :onboarding_fee_amount, numericality: { greater_than: 0, less_than: 100_000_000 }, allow_nil: true
   validates :public_id, presence: true, uniqueness: true
   validates :reference_number, presence: true, uniqueness: true
   validates :qvc_outcome_code, format: { with: CODE_FORMAT }, allow_blank: true

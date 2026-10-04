@@ -74,6 +74,7 @@ Rails.application.routes.draw do
           resources :corrections, only: :create, controller: 'payments/corrections'
         end
         resources :candidates, only: [] do
+          resource :fee, only: %i[show update], controller: :candidate_fees
           resource :workflow_state, only: :show, controller: :candidate_workflow_states
           resource :workflow_history, only: :show, controller: :candidate_workflow_histories
           resources :workflow_transitions, only: %i[index create], controller: :candidate_workflow_transitions
@@ -101,6 +102,7 @@ Rails.application.routes.draw do
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resource :ai_call_operational_settings, only: %i[show update]
         resource :training_setting, only: %i[show update]
+        resource :onboarding_fee_setting, only: %i[show update]
         resource :support_setting, only: %i[show update]
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses

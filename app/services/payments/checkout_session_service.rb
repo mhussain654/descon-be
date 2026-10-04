@@ -64,8 +64,8 @@ module Payments
         payment:,
         candidate:,
         assignment:,
-        amount: @configuration.amount,
-        currency_code: @configuration.currency_code
+        amount: payment.amount,
+        currency_code: payment.currency_code
       )
     end
 
@@ -73,7 +73,7 @@ module Payments
       assignment.payments.create!(
         payment_type_code: 'onboarding_fee',
         status_code: 'checkout_pending',
-        amount: @configuration.amount,
+        amount: Payments::FeeResolver.amount(assignment),
         currency_code: @configuration.currency_code,
         provider_code: provider.provider_code,
         provider_order_id: generated_order_id(assignment)

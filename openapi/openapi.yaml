@@ -157,6 +157,35 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    AdminOnboardingFee:
+      type: object
+      required: [default_amount, override_amount, effective_amount, currency_code, version, assignment_id, locked, updated_at]
+      properties:
+        default_amount: { type: string, example: '26800.00' }
+        override_amount:
+          anyOf: [{ type: string, example: '25000.00' }, { type: 'null' }]
+        effective_amount: { type: string, example: '25000.00' }
+        currency_code: { type: string, example: PKR }
+        version: { type: integer, minimum: 0 }
+        assignment_id:
+          anyOf: [{ type: string, format: uuid }, { type: 'null' }]
+        locked: { type: boolean }
+        updated_at: { type: string, format: date-time }
+    OnboardingFeeUpdate:
+      type: object
+      required: [fee]
+      properties:
+        fee:
+          type: object
+          required: [amount, expected_version, reason]
+          properties:
+            amount:
+              description: Positive decimal string below 100000000 with at most two decimal places. Null removes a candidate override; null is invalid for the default.
+              anyOf:
+                - { type: string, pattern: '^\d{1,8}(\.\d{1,2})?$', example: '26800.00' }
+                - { type: 'null' }
+            expected_version: { type: integer, minimum: 0 }
+            reason: { type: string, minLength: 1, maxLength: 500 }
     EnvelopeMeta:
       type: object
       properties:
@@ -10824,3 +10853,196 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '429':
           description: Invitation acceptance rate limited
+
+  /api/v1/admin/onboarding_fee_setting:
+    get:
+      summary: Read default onboarding fee
+      description: Requires view_payments or manage_payments. Default changes apply to candidates without overrides, excluding amounts already committed to active or paid bills.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      summary: Update default onboarding fee
+      description: Requires manage_payments; changes are audited with actor and reason. Default changes apply to candidates without overrides, excluding amounts already committed to active or paid bills.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingFeeUpdate"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: stale_fee or fee_locked; reload before retrying
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid amount, reason, version, or no_current_assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/admin/candidates/{candidate_id}/fee:
+    parameters:
+      - name: candidate_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Read candidate fee
+      description: Requires view_payments or manage_payments and candidate-view permission. Override is scoped to the current assignment. Active checkouts and paid fees are locked.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      summary: Update candidate fee
+      description: Requires manage_payments; changes are audited with actor and reason and candidate-view permission. Override is scoped to the current assignment. Active checkouts and paid fees are locked.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/XLocaleHeader"
+        - $ref: "#/components/parameters/AcceptLanguageHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingFeeUpdate"
+      responses:
+        "200":
+          description: Current fee settings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminOnboardingFee"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: stale_fee or fee_locked; reload before retrying
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid amount, reason, version, or no_current_assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"

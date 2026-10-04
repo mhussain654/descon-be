@@ -1,6 +1,10 @@
 en:
   activemodel:
     errors:
+      stale_fee: "The fee changed while you were editing. Reload and try again."
+      fee_locked: "The fee cannot be changed during an active checkout or after payment."
+      fee_amount_invalid: "Enter an amount greater than zero, below 100,000,000, with up to two decimal places."
+      fee_reason_required: "Enter a reason for the fee change (up to 500 characters)."
       messages:
         record_invalid: "Validation failed: %{errors}"
   api:

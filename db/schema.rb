@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -218,7 +218,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
     t.bigint "created_by_id", null: false
     t.bigint "current_mobilization_process_stage_id", null: false
     t.bigint "current_workflow_stage_id", null: false
+    t.integer "fee_version", default: 0, null: false
     t.bigint "mobilization_process_id", null: false
+    t.decimal "onboarding_fee_amount", precision: 10, scale: 2
     t.bigint "project_id", null: false
     t.string "public_id", null: false
     t.string "qvc_outcome_code"
@@ -238,6 +240,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
     t.index ["project_id"], name: "index_candidate_assignments_on_project_id"
     t.index ["public_id"], name: "index_candidate_assignments_on_public_id", unique: true
     t.index ["reference_number"], name: "index_candidate_assignments_on_reference_number", unique: true
+    t.check_constraint "onboarding_fee_amount IS NULL OR onboarding_fee_amount > 0::numeric", name: "candidate_onboarding_fee_positive"
     t.check_constraint "qvc_outcome_code IS NULL AND qvc_outcome_date IS NULL OR qvc_outcome_code IS NOT NULL AND qvc_outcome_date IS NOT NULL", name: "candidate_assignments_qvc_pair"
     t.check_constraint "qvc_outcome_code IS NULL OR qvc_outcome_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_assignments_qvc_outcome_code_format"
   end
@@ -836,6 +839,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
     t.check_constraint "version > 0", name: "mobilization_processes_version_positive"
   end
 
+  create_table "onboarding_fee_settings", force: :cascade do |t|
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.boolean "singleton_guard", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.index ["singleton_guard"], name: "index_onboarding_fee_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_onboarding_fee_settings_on_updated_by_id"
+    t.check_constraint "amount > 0::numeric", name: "onboarding_fee_positive"
+    t.check_constraint "singleton_guard = true", name: "onboarding_fee_singleton"
+  end
+
   create_table "payment_events", force: :cascade do |t|
     t.bigint "actor_id"
     t.bigint "candidate_assignment_id", null: false
@@ -1182,6 +1198,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
   add_foreign_key "mobilization_processes", "countries"
   add_foreign_key "mobilization_processes", "users", column: "created_by_id"
   add_foreign_key "mobilization_processes", "users", column: "published_by_id"
+  add_foreign_key "onboarding_fee_settings", "users", column: "updated_by_id"
   add_foreign_key "payment_events", "candidate_assignments"
   add_foreign_key "payment_events", "payments"
   add_foreign_key "payment_events", "users", column: "actor_id"

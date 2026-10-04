@@ -8,7 +8,7 @@ module Payments
     def provider_code = 'kuickpay'
 
     def amount
-      BigDecimal(ENV.fetch('ONBOARDING_FEE_AMOUNT', '1500.00'))
+      OnboardingFeeSetting.current.amount
     end
 
     def currency_code
