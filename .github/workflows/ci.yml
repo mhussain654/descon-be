@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [ main ]
+  # Reused by deploy-production.yml so the commit that is deployed is the
+  # commit these checks ran on, in the same workflow run.
+  workflow_call:
 
 env:
   RAILS_ENV: test
@@ -117,3 +120,32 @@ jobs:
 
       - name: OpenAPI validation
         run: bundle exec rails openapi:validate
+
+  deployment_tooling:
+    name: Deployment tooling (shellcheck, env loader, nginx routing, deploy rehearsal)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: ShellCheck
+        run: shellcheck deploy/bin/* deploy/rehearsal/* deploy/test/*.sh
+
+      - name: Environment loader behaviour
+        run: deploy/test/with_env_test.sh
+
+      - name: Nginx routing
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx
+          sudo systemctl stop nginx
+          deploy/test/nginx_routing_test.sh
+
+      - name: Capistrano rehearsal (release, rollback, lock)
+        run: deploy/rehearsal/run

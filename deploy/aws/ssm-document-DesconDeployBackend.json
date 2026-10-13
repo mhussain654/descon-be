@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Deploy a descon-be commit that is already on origin/main to this instance (runs deploy/bin/descon-deploy-backend as the deploy user).",
+  "parameters": {
+    "commitSha": {
+      "type": "String",
+      "description": "Full 40-character lowercase commit SHA.",
+      "allowedPattern": "^[0-9a-f]{40}$"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "deployBackend",
+      "inputs": {
+        "timeoutSeconds": "1800",
+        "runCommand": [
+          "runuser -u deploy -- /usr/local/sbin/descon-deploy-backend {{ commitSha }}"
+        ]
+      }
+    }
+  ]
+}

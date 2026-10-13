@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Continuous-delivery entry point for the backend, run ON the instance as the
+# deploy user -- started by AWS SSM Run Command from GitHub Actions, so no
+# inbound SSH is needed:
+#
+#   runuser -u deploy -- /usr/local/sbin/descon-deploy-backend <40-char commit SHA>
+#
+# Install it root-owned and not writable by deploy (the runbook shows how), so
+# the code SSM runs cannot be changed by the account it runs as.
+#
+# What it does: refuses anything that is not a full SHA already merged to
+# origin/main, checks that exact commit out in a tooling clone, and runs the
+# same `cap production deploy` an administrator runs from a laptop, with
+# Capistrano's Local backend and REVISION pinned to that SHA. A failure leaves
+# the previous release serving (see config/deploy.rb, deploy:activate).
+set -euo pipefail
+
+readonly REPO_URL='git@github-mps-backend:mhussain654/descon-be.git'
+readonly TOOLING_DIR="${HOME}/deploy-tooling/descon-be"
+
+die() {
+  echo "descon-deploy-backend: $*" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || die 'usage: descon-deploy-backend <40-character commit SHA>'
+sha="$1"
+[[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die 'argument must be a full 40-character lowercase commit SHA'
+
+# Noninteractive: nothing relies on a shell profile.
+export RBENV_ROOT="${HOME}/.rbenv"
+export PATH="${RBENV_ROOT}/shims:${RBENV_ROOT}/bin:/usr/local/bin:/usr/bin:/bin"
+
+mkdir -p "$(dirname "$TOOLING_DIR")"
+if [[ ! -d "$TOOLING_DIR/.git" ]]; then
+  git clone --quiet "$REPO_URL" "$TOOLING_DIR"
+fi
+
+cd "$TOOLING_DIR"
+git fetch --quiet --prune origin
+git cat-file -e "${sha}^{commit}" 2>/dev/null || die "commit $sha is not in the repository"
+git merge-base --is-ancestor "$sha" origin/main || die "commit $sha is not on origin/main; refusing to deploy it"
+git checkout --quiet --detach --force "$sha"
+
+# Only Capistrano's own gems are needed to run the deploy tooling here.
+bundle config set --local only deploy
+bundle install --quiet
+
+echo "descon-deploy-backend: deploying ${sha}"
+DEPLOY_LOCAL=1 REVISION="$sha" bundle exec cap production deploy

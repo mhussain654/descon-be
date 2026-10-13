@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Stand-in for the readiness probe in the local rehearsal stage.
+set -euo pipefail
+[[ ! -f "${REHEARSAL_ROOT:?}/unhealthy" ]]

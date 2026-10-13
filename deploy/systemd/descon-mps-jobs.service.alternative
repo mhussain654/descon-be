@@ -1,0 +1,48 @@
+# ALTERNATIVE to running Solid Queue inside Puma. Do NOT install this together
+# with SOLID_QUEUE_IN_PUMA -- two supervisors would both run every job.
+#
+# Use it only if the measured trade-off in the runbook ("Where Solid Queue
+# runs") says so: for example CPU-bound candidate imports or OCR visibly slow
+# API responses because they share Puma's process. To switch:
+#   1. remove SOLID_QUEUE_IN_PUMA and SOLID_QUEUE_MODE from the environment file
+#   2. install this file as /etc/systemd/system/descon-mps-jobs.service
+#   3. systemctl daemon-reload && systemctl enable --now descon-mps-jobs
+#   4. systemctl restart descon-mps-api
+#
+# PartOf= makes `systemctl restart descon-mps-api.service` -- the single
+# command Capistrano is allowed to run -- restart this unit too.
+[Unit]
+Description=Descon MPS background jobs (Solid Queue)
+After=network-online.target descon-mps-api.service
+Wants=network-online.target
+PartOf=descon-mps-api.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/var/www/descon-mps-api/current
+EnvironmentFile=/var/www/descon-mps-api/shared/.env
+Environment=RAILS_ENV=production
+Environment=RBENV_ROOT=/home/deploy/.rbenv
+Environment=RBENV_VERSION=3.4.7
+Environment=PATH=/usr/lib/postgresql/17/bin:/home/deploy/.rbenv/shims:/home/deploy/.rbenv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=MALLOC_ARENA_MAX=2
+# `fork` is Solid Queue's default and isolates workers from the dispatcher;
+# `async` keeps everything in this one process (smaller). One worker thread
+# pool either way (config/queue.yml, JOB_CONCURRENCY).
+Environment=SOLID_QUEUE_SUPERVISOR_MODE=async
+ExecStart=/home/deploy/.rbenv/bin/rbenv exec bundle exec bin/jobs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+MemoryHigh=500M
+MemoryMax=700M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/www/descon-mps-api
+
+[Install]
+WantedBy=multi-user.target

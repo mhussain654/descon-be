@@ -1,0 +1,9 @@
+# Install to /etc/sudoers.d/descon-mps-deploy, mode 0440, and validate with
+#   sudo visudo -cf /etc/sudoers.d/descon-mps-deploy
+#
+# The deploy user has no general sudo. This grants exactly one command with
+# its exact arguments: restart the API unit. Capistrano calls it as
+#   sudo -n /usr/bin/systemctl restart descon-mps-api.service
+Cmnd_Alias DESCON_MPS_API_RESTART = /usr/bin/systemctl restart descon-mps-api.service
+
+deploy ALL=(root) NOPASSWD: DESCON_MPS_API_RESTART

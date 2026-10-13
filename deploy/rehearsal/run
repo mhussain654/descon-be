@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# Rehearses the real Capistrano deployment (config/deploy.rb + hooks) against a
+# temporary directory on this machine and asserts the behavior that matters on
+# a server: a normal release, a second release, a release that fails its
+# health check (the previous release must keep serving, the failed one must be
+# removed), lock contention, a manual rollback, and recovery afterwards.
+#
+#   deploy/rehearsal/run          # from the repository root
+#
+# Needs: bundler (the :deploy group installed) and network access to
+# rubygems.org (the rehearsed release installs its own bundle, as a server
+# would). Touches nothing outside a mktemp directory. Takes a few minutes.
+set -uo pipefail
+
+repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$repo_root" || exit 1
+
+root="$(mktemp -d)"
+trap 'rm -rf "$root"' EXIT
+export REHEARSAL_ROOT="$root"
+app="$root/var-www/descon-mps-api"
+failures=0
+
+check() { # description, command...
+  local description="$1"
+  shift
+  if "$@"; then
+    echo "  PASS  $description"
+  else
+    echo "  FAIL  $description"
+    failures=$((failures + 1))
+  fi
+}
+
+# The release under test is whatever HEAD is; fetched into a throwaway
+# repository so a detached HEAD (CI) deploys exactly like a branch.
+git init -q "$root/source"
+git -C "$root/source" fetch -q "$repo_root" HEAD
+git -C "$root/source" branch rehearsal FETCH_HEAD
+export DEPLOY_REPO_URL="file://$root/source" BRANCH=rehearsal
+
+deploy_exit=0
+cap() {
+  deploy_exit=0
+  bundle exec cap rehearsal "$@" > "$root/last.log" 2>&1 || deploy_exit=$?
+}
+current_release() { basename "$(readlink "$app/current")"; }
+release_count() { find "$app/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' '; }
+lock_held() { [[ -d "$root/locks/descon-mps.lock" ]]; }
+lock_free() { ! lock_held; }
+log_has() { grep -q -- "$1" "$root/last.log"; }
+
+"$repo_root/deploy/rehearsal/prepare" > /dev/null
+
+echo "1. first deploy"
+cap deploy
+check "exits 0" test "$deploy_exit" -eq 0
+check "current points at a release" test -L "$app/current"
+check "the lock is released" lock_free
+first="$(current_release)"
+
+echo "2. second deploy keeps the previous release on disk"
+sleep 1
+cap deploy
+check "exits 0" test "$deploy_exit" -eq 0
+check "current moved to a new release" test "$(current_release)" != "$first"
+check "two releases are kept" test "$(release_count)" -eq 2
+second="$(current_release)"
+
+echo "3. a release that fails its health check"
+touch "$root/make-next-restart-unhealthy"
+sleep 1
+cap deploy
+check "exits non-zero" test "$deploy_exit" -ne 0
+check "the previously serving release is restored" test "$(current_release)" = "$second"
+check "the failed release directory is removed" test "$(release_count)" -eq 2
+check "the outcome says restored and healthy" log_has "was restored and is healthy"
+check "the lock is released" lock_free
+
+echo "4. lock held by another deployment"
+mkdir -p "$root/locks/descon-mps.lock"
+echo "descon-fe-web by someone at 2026-01-01T00:00:00Z" > "$root/locks/descon-mps.lock/owner"
+before="$(release_count)"
+cap deploy
+check "exits non-zero" test "$deploy_exit" -ne 0
+check "names the holder" log_has "Another deployment holds"
+check "creates no release" test "$(release_count)" -eq "$before"
+check "does not release a lock it did not take" lock_held
+rm -rf "$root/locks/descon-mps.lock"
+
+echo "5. manual rollback"
+sleep 1
+cap deploy
+third="$(current_release)"
+cap deploy:rollback
+check "exits 0" test "$deploy_exit" -eq 0
+check "current is back on the previous release" test "$(current_release)" = "$second"
+check "the lock is released" lock_free
+
+echo "6. a normal deploy still works afterwards"
+sleep 1
+cap deploy
+check "exits 0" test "$deploy_exit" -eq 0
+check "current is a new release" test "$(current_release)" != "$third"
+
+echo
+if [[ "$failures" -eq 0 ]]; then
+  echo "Rehearsal passed."
+else
+  echo "Rehearsal FAILED: $failures check(s). Last Capistrano output:"
+  tail -40 "$root/last.log"
+  exit 1
+fi
