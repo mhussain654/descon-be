@@ -20,6 +20,10 @@ Metrics/BlockLength:
     - config/environments/*.rb
     - config/routes.rb
     - spec/**/*.rb
+    # Capistrano's DSL puts every task body inside one `namespace` block;
+    # splitting a namespace across files only to satisfy a line count would
+    # hide the deploy flow rather than clarify it.
+    - lib/capistrano/tasks/*.rake
 
 Metrics/MethodLength:
   Exclude:

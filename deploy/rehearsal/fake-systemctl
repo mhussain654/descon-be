@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Stand-in for `sudo systemctl restart descon-mps-api.service` in the local
+# rehearsal stage. Records the restart and -- when a one-shot marker file asks
+# for it -- makes the "service" unhealthy for that single restart, so the
+# rollback path (which restarts again onto the previous release) can be
+# exercised.
+set -euo pipefail
+root="${REHEARSAL_ROOT:?}"
+echo "restart $(date -u +%FT%TZ) -> $(readlink "${root}/var-www/descon-mps-api/current")" >> "${root}/restarts.log"
+if [[ -f "${root}/make-next-restart-unhealthy" ]]; then
+  rm -f "${root}/make-next-restart-unhealthy"
+  : > "${root}/unhealthy"
+else
+  rm -f "${root}/unhealthy"
+fi

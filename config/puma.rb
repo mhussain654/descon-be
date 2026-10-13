@@ -37,7 +37,20 @@ port ENV.fetch('PORT', 3000)
 plugin :tmp_restart
 
 # Run the Solid Queue supervisor inside of Puma for single-server deployments.
-plugin :solid_queue if ENV['SOLID_QUEUE_IN_PUMA']
+# A bare presence check would also enable it for `SOLID_QUEUE_IN_PUMA=` or
+# `SOLID_QUEUE_IN_PUMA=false` (any string is truthy in Ruby), so those mean off.
+#
+# SOLID_QUEUE_MODE picks how: `fork` (the Solid Queue default and recommended
+# mode) gives the supervisor, workers, dispatcher and scheduler their own
+# processes; `async` runs them as threads inside this one process, which uses
+# far less memory on a small host at the cost of isolation from request
+# handling. See docs/deployment/aws-ec2-runbook.md for the measured trade-off.
+solid_queue_flag = ENV.fetch('SOLID_QUEUE_IN_PUMA', '').strip.downcase
+solid_queue_off = solid_queue_flag.empty? || %w[0 false no off].any?(solid_queue_flag)
+unless solid_queue_off
+  plugin :solid_queue
+  solid_queue_mode ENV.fetch('SOLID_QUEUE_MODE', 'fork').to_sym
+end
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.

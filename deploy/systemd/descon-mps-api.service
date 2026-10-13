@@ -1,0 +1,56 @@
+# Install to /etc/systemd/system/descon-mps-api.service (see
+# docs/deployment/aws-ec2-runbook.md). Puma serves HTTP on loopback only;
+# Solid Queue runs inside Puma (SOLID_QUEUE_IN_PUMA=1 and SOLID_QUEUE_MODE=async
+# in the environment file) so a 2 GiB instance carries one Ruby process. The
+# alternative -- a separate jobs unit -- is descon-mps-jobs.service.alternative.
+[Unit]
+Description=Descon MPS API (Puma + Solid Queue)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/var/www/descon-mps-api/current
+
+# Protected KEY=value file (mode 0600, owned by deploy) -- the same file
+# deploy/bin/with-env loads for Capistrano's database commands.
+EnvironmentFile=/var/www/descon-mps-api/shared/.env
+Environment=RAILS_ENV=production
+Environment=RBENV_ROOT=/home/deploy/.rbenv
+# Keep in step with .ruby-version.
+Environment=RBENV_VERSION=3.4.7
+# PostgreSQL 17 client tools first: Backups::CreateDatabaseBackupJob runs pg_dump.
+Environment=PATH=/usr/lib/postgresql/17/bin:/home/deploy/.rbenv/shims:/home/deploy/.rbenv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=MALLOC_ARENA_MAX=2
+
+# `-b` replaces the `port` line in config/puma.rb, so Puma listens on
+# 127.0.0.1:3000 only; Nginx is the sole public entry point.
+ExecStart=/home/deploy/.rbenv/bin/rbenv exec bundle exec puma -C config/puma.rb -b tcp://127.0.0.1:3000
+
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+LimitNOFILE=65535
+
+# A runaway process is restarted inside its own cgroup instead of taking the
+# whole 2 GiB host (and sshd, nginx) down with it. Tune from the measured
+# figures in the runbook.
+MemoryHigh=1300M
+MemoryMax=1600M
+
+# Sandboxing: read-only system, no new privileges, private /tmp (pg_dump
+# scratch files), writes only under the application tree.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/www/descon-mps-api
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

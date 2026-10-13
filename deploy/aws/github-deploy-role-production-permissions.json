@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StartOnlyThisDeployDocumentOnThisInstance",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:ap-southeast-1:304019241192:document/DesconDeployBackend",
+        "arn:aws:ec2:ap-southeast-1:304019241192:instance/i-0834da05a4ff8aefe"
+      ]
+    },
+    {
+      "Sid": "ReadTheResultOfADeploy",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetCommandInvocation",
+        "ssm:ListCommandInvocations"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

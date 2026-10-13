@@ -4,6 +4,16 @@ on:
   pull_request:
   push:
     branches: [ main ]
+  # Reused by deploy.yml so the commit that is deployed is the commit these
+  # checks ran on, in the same workflow run. `ref` is that commit; empty means
+  # the event's own commit (normal pull_request/push behavior).
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit SHA to check out and test
+        type: string
+        required: false
+        default: ''
 
 env:
   RAILS_ENV: test
@@ -38,6 +48,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -56,6 +68,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -71,6 +85,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -102,6 +118,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -117,3 +135,37 @@ jobs:
 
       - name: OpenAPI validation
         run: bundle exec rails openapi:validate
+
+  deployment_tooling:
+    name: Deployment tooling (shellcheck, env loader, nginx routing, deploy rehearsal)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: ShellCheck
+        run: shellcheck deploy/bin/* deploy/rehearsal/* deploy/test/*.sh
+
+      - name: Environment loader behaviour
+        run: deploy/test/with_env_test.sh
+
+      - name: Which commits a deploy may take
+        run: deploy/test/commit_policy_test.sh
+
+      - name: Nginx routing
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx
+          sudo systemctl stop nginx
+          deploy/test/nginx_routing_test.sh
+
+      - name: Capistrano rehearsal (release, rollback, lock)
+        run: deploy/rehearsal/run

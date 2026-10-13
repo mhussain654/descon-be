@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Runs a command with the variables from the protected environment file
+# (default: /var/www/descon-mps-api/shared/.env) exported -- the same file the
+# systemd unit loads with EnvironmentFile=. Used so Capistrano's database and
+# check commands see exactly the environment the running service sees.
+#
+# The file format is KEY=value, one per line, no quotes, no `export`, no
+# expansion: values are taken literally (never evaluated by a shell), so a
+# password containing $ or ` is safe. Lines starting with # are ignored.
+# A variable already set in the calling environment wins, which is how a
+# single command overrides a value (for example DB_STATEMENT_TIMEOUT_MS=0
+# for migrations). Within the files, DESCON_ENV_OVERRIDE_FILE (if set) is read
+# first and therefore wins over the main file.
+set -euo pipefail
+
+env_file="${DESCON_ENV_FILE:-/var/www/descon-mps-api/shared/.env}"
+# Optional file loaded FIRST, so its values win over env_file's: used to run
+# migrations as a separate, more privileged database role without that
+# password ever being on a command line (docs/deployment, "Database roles").
+override_file="${DESCON_ENV_OVERRIDE_FILE:-}"
+
+load_env_file() {
+  local file="$1" line key value
+  if [[ ! -r "$file" ]]; then
+    echo "with-env: cannot read $file" >&2
+    exit 78
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+      echo "with-env: ignoring a malformed line in $file" >&2
+      continue
+    fi
+    key="${line%%=*}"
+    value="${line#*=}"
+    [[ -n "${!key+x}" ]] && continue
+    export "$key=$value"
+  done < "$file"
+}
+
+[[ -n "$override_file" ]] && load_env_file "$override_file"
+load_env_file "$env_file"
+
+exec "$@"
