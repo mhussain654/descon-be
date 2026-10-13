@@ -33,7 +33,9 @@ module Admin
         row_plan = row_builder.call(row:, row_number:)
 
         return result.record_failed(row_number:, errors: [{ field: 'row', code: 'blank_row' }]) if row_plan.blank?
-        return result.record_failed(row_number:, errors: row_plan.errors) if row_plan.invalid?
+        if row_plan.invalid?
+          return result.record_failed(row_number:, errors: row_plan.errors, source_values: row_plan.source_values)
+        end
 
         record_duplicate_or_schedule(row_plan:, duplicate_tracker:, result:)
       end
@@ -49,7 +51,10 @@ module Admin
 
       def record_duplicate_or_schedule(row_plan:, duplicate_tracker:, result:)
         duplicate_error = duplicate_tracker.register(row_plan)
-        return result.record_failed(row_number: row_plan.row_number, errors: [duplicate_error]) if duplicate_error
+        if duplicate_error
+          return result.record_failed(row_number: row_plan.row_number, errors: [duplicate_error],
+                                      source_values: row_plan.source_values)
+        end
 
         result.schedule(row_plan)
       end

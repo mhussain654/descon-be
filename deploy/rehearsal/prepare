@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Builds the throwaway directory a local deploy rehearsal runs in: a fake rbenv
+# that simply execs the current Ruby (so the real rbenv/bundler plugin chain in
+# config/deploy.rb is exercised) and the lock/log locations.
+#
+#   export REHEARSAL_ROOT="$(mktemp -d)"
+#   deploy/rehearsal/prepare
+#   DEPLOY_REPO_URL=file://$PWD BRANCH=<branch> bundle exec cap rehearsal deploy
+set -euo pipefail
+root="${REHEARSAL_ROOT:?set REHEARSAL_ROOT to an empty temporary directory}"
+ruby_version="$(sed -e 's/^ruby-//' .ruby-version)"
+
+mkdir -p "$root/rbenv/bin" "$root/rbenv/versions/$ruby_version" "$root/var-www" "$root/locks"
+cat > "$root/rbenv/bin/rbenv" <<'RBENV'
+#!/usr/bin/env bash
+# Rehearsal stand-in: `rbenv exec <cmd...>` just runs <cmd...> with the Ruby
+# already on PATH.
+[[ "${1:-}" == "exec" ]] && shift
+exec "$@"
+RBENV
+chmod +x "$root/rbenv/bin/rbenv"
+
+# The rehearsal "environment file" the with-env wrapper loads.
+cat > "$root/shared.env" <<ENVFILE
+REHEARSAL_MARKER=loaded-from-env-file
+ENVFILE
+echo "rehearsal root prepared at $root"

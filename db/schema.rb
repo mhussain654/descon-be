@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -407,7 +407,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_090000) do
     t.string "request_id"
     t.integer "skipped_rows", default: 0, null: false
     t.string "source_filename", null: false
-    t.string "status", default: "queued", null: false
+    t.string "status", default: "awaiting_confirmation", null: false
     t.string "template_version", null: false
     t.string "token_digest", null: false
     t.integer "total_rows", default: 0, null: false
@@ -420,7 +420,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_090000) do
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
     t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
+    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying::text, 'queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_import_row_results", force: :cascade do |t|
@@ -428,6 +428,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_090000) do
     t.datetime "created_at", null: false
     t.string "error_code"
     t.string "error_field"
+    t.string "error_value"
     t.integer "row_number", null: false
     t.string "status", null: false
     t.datetime "updated_at", null: false
@@ -643,7 +644,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_090000) do
     t.string "next_of_kin_name"
     t.string "next_of_kin_relationship"
     t.string "passport_number"
-    t.string "preferred_locale", default: "en", null: false
+    t.string "preferred_locale"
     t.string "public_id", null: false
     t.string "source_code", null: false
     t.string "status_code", default: "registered", null: false

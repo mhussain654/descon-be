@@ -86,8 +86,11 @@ module Admin
           nil
         end
 
+        # Blank is allowed: the candidate chooses a language when they first use
+        # the app (recorded at sign-in). Anything else must be en or ur.
         def validated_locale(raw_value, row_errors:)
           locale = raw_value.downcase
+          return nil if locale.blank?
           return locale if ::Candidate::PREFERRED_LOCALES.include?(locale)
 
           row_errors << { field: 'preferred_locale', code: 'invalid_preferred_locale' }
@@ -95,7 +98,7 @@ module Admin
         end
 
         def validated_status_code(raw_value, row_errors:)
-          value = raw_value.to_s.strip.downcase
+          value = RegisteredStage.normalize(raw_value)
           return value if value.match?(::Candidate::STATUS_CODE_FORMAT)
 
           row_errors << { field: 'candidate_status', code: 'invalid_candidate_status' }

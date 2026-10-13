@@ -19,7 +19,7 @@ module Admin
         def cleanup_batch(batch)
           CandidateImportBatch.transaction do
             batch.lock!
-            next if batch.preflight_payload.blank? || !batch.expired? || batch.processing?
+            next if batch.preflight_payload.blank? || !batch.expired? || batch.queued? || batch.processing?
 
             batch.update!(cleanup_attributes(batch))
           end

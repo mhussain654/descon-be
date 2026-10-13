@@ -63,7 +63,8 @@ RSpec.describe 'API V1 Admin Candidate Import History', type: :request do
       candidate_import_batch: batch,
       status: 'rejected',
       error_field: 'cnic',
-      error_code: 'invalid_cnic'
+      error_code: 'invalid_cnic',
+      error_value: '42**********-1'
     )
 
     get "/api/v1/admin/candidate_imports/#{batch.public_id}", headers: headers_for(actor)
@@ -71,7 +72,8 @@ RSpec.describe 'API V1 Admin Candidate Import History', type: :request do
     expect(response).to have_http_status(:ok)
     detail = response.parsed_body['data']
     expect(detail.fetch('row_results')).to include(
-      hash_including('row_number' => row_result.row_number, 'error_code' => 'invalid_cnic')
+      hash_including('row_number' => row_result.row_number, 'error_code' => 'invalid_cnic',
+                     'error_value' => '42**********-1')
     )
     expect(detail).not_to have_key('preflight_payload')
     expect(response.body).not_to include(batch.token_digest)
@@ -82,6 +84,19 @@ RSpec.describe 'API V1 Admin Candidate Import History', type: :request do
     expect(response.headers['Content-Type']).to include('text/csv')
     expect(response.headers['Content-Disposition']).to include("candidate-import-#{batch.public_id}-errors.csv")
     expect(response.body).to include(I18n.t('api.candidate_imports.row_errors.invalid_cnic', locale: :ur))
+    expect(CSV.parse(response.body, headers: true).first.to_h)
+      .to include('field' => 'cnic', 'value' => '42**********-1', 'code' => 'invalid_cnic')
+  end
+
+  it 'reports how many accepted rows the import job has not processed yet, for progress' do
+    actor = create(:user, role: 'hr', password: 'Password123!')
+    batch = create(:candidate_import_batch, actor:, status: 'processing', accepted_rows: 3)
+    create_list(:candidate_import_row_result, 2, candidate_import_batch: batch, status: 'accepted')
+    create(:candidate_import_row_result, candidate_import_batch: batch, status: 'committed')
+
+    get "/api/v1/admin/candidate_imports/#{batch.public_id}", headers: headers_for(actor)
+
+    expect(response.parsed_body['data']).to include('status' => 'processing', 'accepted_rows' => 3, 'pending_rows' => 2)
   end
 
   it 'prevents access to another actor batch and unauthorized staff' do

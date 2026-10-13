@@ -1,0 +1,201 @@
+name: EC2 Deploy
+
+# Deploys a chosen commit of this repository to the EC2 instance through AWS
+# Systems Manager Run Command. Run it from the Actions tab ("Run workflow") and
+# pick what to deploy:
+#
+#   source = main          the tip of main                       -> `production` environment
+#   source = branch        any branch of this repository         -> `preview` environment
+#   source = pull_request  the head of an open same-repo PR      -> `preview` environment
+#
+# A push to main deploys main automatically (still behind the `production`
+# environment's approval).
+#
+# What makes this safe is NOT this file but three controls that a branch cannot
+# edit: (1) the GitHub environment (`production` is limited to main and needs a
+# reviewer; `preview` needs a reviewer too), (2) the AWS role each environment
+# can assume through OIDC, and (3) the SSM document that role may start --
+# `DesconDeployBackend` only accepts commits already on origin/main,
+# `DesconDeployBackendPreview` accepts any pushed branch commit. Fork PRs are
+# refused here and cannot be fetched by the instance. See
+# docs/deployment/aws-ec2-runbook.md ("Continuous delivery").
+#
+# Inert until the repository variable EC2_INSTANCE_ID and the environments'
+# AWS_DEPLOY_ROLE_ARN variables exist.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: What to deploy
+        type: choice
+        options: [main, branch, pull_request]
+        default: main
+      branch:
+        description: "Branch name (when source = branch)"
+        type: string
+        required: false
+      pull_request:
+        description: "Pull request number (when source = pull_request; same-repository PRs only)"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve what to deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      environment: ${{ steps.resolve.outputs.environment }}
+      description: ${{ steps.resolve.outputs.description }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the commit
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
+          SOURCE: ${{ inputs.source }}
+          BRANCH: ${{ inputs.branch }}
+          PR_NUMBER: ${{ inputs.pull_request }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+
+          source="${SOURCE:-main}"
+          [[ "$EVENT_NAME" == "push" ]] && source=main
+
+          case "$source" in
+            main)
+              if [[ "$EVENT_NAME" == "push" ]]; then
+                sha="$EVENT_SHA"
+              else
+                sha="$(git rev-parse origin/main)"
+              fi
+              environment=production
+              description="main @ ${sha:0:12}"
+              ;;
+            branch)
+              [[ -n "$BRANCH" ]] || fail "Enter a branch name."
+              [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "That is not a valid branch name."
+              sha="$(git rev-parse --verify --quiet "refs/remotes/origin/${BRANCH}^{commit}")" \
+                || fail "Branch '${BRANCH}' does not exist in this repository."
+              environment=preview
+              description="branch ${BRANCH} @ ${sha:0:12}"
+              ;;
+            pull_request)
+              [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || fail "Enter a pull request number."
+              IFS=$'\t' read -r state head_sha head_repo title < <(
+                gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
+                  --jq '[.state, .head.sha, (.head.repo.full_name // "deleted-fork"), .title] | @tsv'
+              )
+              [[ "$state" == "open" ]] || fail "Pull request #${PR_NUMBER} is ${state}, not open."
+              [[ "$head_repo" == "$REPO" ]] \
+                || fail "Pull request #${PR_NUMBER} comes from '${head_repo}', not from this repository. Fork pull requests are never deployed."
+              sha="$head_sha"
+              environment=preview
+              description="PR #${PR_NUMBER} (${title}) @ ${sha:0:12}"
+              ;;
+            *)
+              fail "Unknown source '${source}'."
+              ;;
+          esac
+
+          {
+            echo "sha=${sha}"
+            echo "environment=${environment}"
+            echo "description=${description}"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Deploy backend"
+            echo "- **What:** ${description}"
+            echo "- **Commit:** \`${sha}\`"
+            echo "- **Environment:** ${environment}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  ci:
+    name: Checks on that commit
+    needs: resolve
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  deploy:
+    name: Deploy ${{ needs.resolve.outputs.description }}
+    needs: [resolve, ci]
+    # Skipped (not failed) until the instance id is configured.
+    if: ${{ vars.EC2_INSTANCE_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ needs.resolve.outputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Assume this environment's deploy role (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-1
+          role-session-name: descon-be-deploy-${{ github.run_id }}
+
+      - name: Deploy the exact commit on the instance
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          COMMIT_SHA: ${{ needs.resolve.outputs.sha }}
+          ENVIRONMENT: ${{ needs.resolve.outputs.environment }}
+          DESCRIPTION: ${{ needs.resolve.outputs.description }}
+        run: |
+          set -euo pipefail
+          # Two documents, each with a fixed command and one pattern-validated
+          # parameter. Each environment's role may start only its own, so a
+          # branch deploy cannot be turned into a production-policy deploy.
+          if [[ "$ENVIRONMENT" == "production" ]]; then
+            document=DesconDeployBackend
+          else
+            document=DesconDeployBackendPreview
+          fi
+
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "$document" \
+            --parameters "commitSha=${COMMIT_SHA}" \
+            --comment "descon-be ${COMMIT_SHA}" \
+            --query Command.CommandId --output text)"
+          echo "SSM document ${document}, command ${command_id}"
+
+          status=Pending
+          for _ in $(seq 1 180); do
+            sleep 10
+            status="$(aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2> /dev/null || echo Pending)"
+            case "$status" in
+              Success | Failed | Cancelled | TimedOut) break ;;
+            esac
+          done
+
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query '{stdout: StandardOutputContent, stderr: StandardErrorContent}' --output text || true
+          echo "Final status: ${status}"
+          {
+            echo "- **Result:** ${status} (${DESCRIPTION})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "$status" == "Success" ]]

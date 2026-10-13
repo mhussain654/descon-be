@@ -11,9 +11,10 @@ module Admin
 
       def to_csv
         CSV.generate(encoding: Encoding::UTF_8, row_sep: "\r\n") do |csv|
-          csv << %w[row_number status field code message]
+          csv << %w[row_number status field value code message]
           @batch.row_results.where(status: %w[rejected skipped]).order(:row_number).find_each do |row|
-            csv << [row.row_number, row.status, row.error_field, row.error_code, localized_message(row.error_code)]
+            csv << [row.row_number, row.status, row.error_field, row.error_value, row.error_code,
+                    localized_message(row.error_code)]
           end
         end
       end

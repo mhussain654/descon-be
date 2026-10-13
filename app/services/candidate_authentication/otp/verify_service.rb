@@ -107,11 +107,22 @@ module CandidateAuthentication
         raise InactiveAccountError unless candidate.active_for_authentication?
 
         challenge.consume!
+        record_preferred_locale!(candidate)
         candidate_session = candidate.candidate_sessions.create!(user_agent: @user_agent, ip_address: @ip_address)
         refresh_token = RefreshTokenIssuer.call(candidate_session:)
         access_token = TokenIssuer.call(candidate:, candidate_session:)
 
         { candidate:, candidate_session:, access_token:, refresh_token: }
+      end
+
+      # A candidate with no saved language (e.g. imported without one) keeps
+      # the language they chose in the app for this sign-in (the request's
+      # X-Locale). A language that's already set is never overwritten here.
+      def record_preferred_locale!(candidate)
+        return if candidate.preferred_locale.present?
+
+        locale = I18n.locale.to_s
+        candidate.update!(preferred_locale: locale) if Candidate::PREFERRED_LOCALES.include?(locale)
       end
 
       def challenge_state_error(challenge)

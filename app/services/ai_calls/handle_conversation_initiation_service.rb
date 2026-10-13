@@ -64,7 +64,7 @@ module AiCalls
         direction_code: 'inbound',
         status_code: 'in_progress',
         candidate_assignment: assignment,
-        locale: candidate&.preferred_locale || 'en',
+        locale: call_locale(candidate),
         recipient_masked: PhoneNumbers::Masker.call(caller_number)
       )
     end
@@ -78,10 +78,13 @@ module AiCalls
     def identity_attributes(candidate:, assignment:)
       {
         candidate:, candidate_assignment: assignment, direction: 'inbound', call_reason: 'general_helpline',
-        language_code: candidate&.preferred_locale || 'en', status: 'in_progress', verification_status: 'pending',
+        language_code: call_locale(candidate), status: 'in_progress', verification_status: 'pending',
         started_at: Time.current, answered_at: Time.current
       }
     end
+
+    # An unmatched caller, or a candidate who hasn't chosen a language yet, is answered in the default.
+    def call_locale(candidate) = candidate&.communication_locale || Candidate::DEFAULT_COMMUNICATION_LOCALE
 
     def provider_attributes(caller_number:, conversation_id:)
       {

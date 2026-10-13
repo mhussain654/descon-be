@@ -136,11 +136,26 @@ Commonly adjusted per machine or environment:
 - `OTP_IDENTITY_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_IMPORT_MAX_BYTES`
 - `CANDIDATE_IMPORT_MAX_ROWS`
-- `SMS_PROVIDER` -- `test` is the only implementation available until a real vendor adapter is added (see `app/services/sms/`); never set to anything else in production until one exists
+- `SMS_PROVIDER` -- `test` (no network call, delivers nothing, never returns or logs the code) or `sendpk` (real delivery through send.pk; needs `sendpk.<env>.api_key` in encrypted credentials plus `SENDPK_SENDER_ID` and the approved `OTP_TEMPLATE_ID`/`OTP_TEMPLATE_ID_UR`); see `app/services/sms/`
 - `ACTIVE_STORAGE_SERVICE`
 - `FORCE_SSL`
 - `RAILS_LOG_LEVEL`
 - `JOB_CONCURRENCY`
+- `SOLID_QUEUE_IN_PUMA` / `SOLID_QUEUE_MODE` -- run Solid Queue inside Puma (`fork`, the default, or `async` threads in the one process); empty, `0`, `false`, `no` and `off` disable it. See `docs/deployment/aws-ec2-runbook.md` ("Where Solid Queue runs")
+- `PGSSLMODE` / `PGSSLROOTCERT` -- libpq TLS settings, read by the application and `pg_dump`; use `verify-full` with the RDS CA bundle against RDS
+- `DB_POOL` -- connection pool per database per process (default 15; the single-instance deployment uses 10)
+
+## Deployment
+
+The first AWS deployment (one Ubuntu EC2 instance, Nginx, private RDS and S3,
+Capistrano) is documented in
+[`docs/deployment/aws-ec2-runbook.md`](docs/deployment/aws-ec2-runbook.md):
+one-time server setup, `cap production deploy`, rollback, the
+`deployment:preflight` / `deployment:queue_status` /
+`deployment:storage_round_trip` checks, backups and restore, continuous
+delivery through GitHub OIDC and SSM, and an explicit list of what is and is
+not verified. Capistrano lives in the `:deploy` Bundler group and is excluded
+from the production bundle.
 
 ## Quality
 
@@ -246,6 +261,12 @@ Required CSV headers:
 - `craft_code`
 - `active`
 
+Column values:
+
+- `preferred_locale` may be blank: the candidate is stored without a language and the language they sign in with is recorded on their first OTP sign-in. Otherwise it must be `en` or `ur`.
+- `candidate_status` and `workflow_stage_code` may be blank or a "Not Registered" label (any case; spaces, underscores or hyphens; the "Not Registred" spelling too); both import as `registered`.
+- `craft_code` matches a craft's code or its English name, ignoring case and extra spaces (e.g. `HSE Assistant`). Anything else, including a misspelt title, fails the row with `unknown_craft_code`.
+
 Example import:
 
 ```bash
@@ -261,6 +282,7 @@ Safe sample CSV:
 full_name,cnic,mobile_number,reference_number,preferred_locale,candidate_status,workflow_stage_code,country_code,project_code,craft_code,active
 Ahmed Ali,42101-1234567-1,+923001234567,DES-001001,en,registered,registered,qatar,qatar_infrastructure,electrician,true
 Fatima Noor,42102-1234567-2,+923001234568,DES-001002,ur,registered,documents_pending,uae,qatar_energy,welder,false
+Bilal Khan,42103-1234567-3,+923001234569,DES-001003,,Not Registered,,qatar,qatar_infrastructure,HSE Assistant,true
 ```
 
 ## Candidate profile API

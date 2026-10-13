@@ -177,7 +177,21 @@ end
   { code: 'mason', name_en: 'Mason', name_ur: 'مستری' },
   { code: 'steel_fixer', name_en: 'Steel Fixer', name_ur: 'اسٹیل فکسر' },
   { code: 'driver', name_en: 'Driver', name_ur: 'ڈرائیور', is_driver: true },
-  { code: 'heavy_vehicle_driver', name_en: 'Heavy Vehicle Driver', name_ur: 'ہیوی گاڑی ڈرائیور', is_driver: true }
+  { code: 'heavy_vehicle_driver', name_en: 'Heavy Vehicle Driver', name_ur: 'ہیوی گاڑی ڈرائیور', is_driver: true },
+  # Trades from the client's candidate files (matched on import by English name too).
+  { code: 'engineer', name_en: 'Engineer', name_ur: 'انجینئر' },
+  { code: 'lead_mechanical', name_en: 'Lead Mechanical', name_ur: 'لیڈ مکینیکل' },
+  { code: 'supervisor_mechanical', name_en: 'Supervisor Mechanical', name_ur: 'سپروائزر مکینیکل' },
+  { code: 'fabricator', name_en: 'Fabricator', name_ur: 'فیبریکیٹر' },
+  { code: 'technician', name_en: 'Technician', name_ur: 'ٹیکنیشن' },
+  { code: 'hse_assistant', name_en: 'HSE Assistant', name_ur: 'ایچ ایس ای اسسٹنٹ' },
+  { code: 'ptw_coordinator', name_en: 'PTW Coordinator', name_ur: 'پی ٹی ڈبلیو کوآرڈینیٹر' },
+  { code: 'fitter', name_en: 'Fitter', name_ur: 'فٹر' },
+  { code: 'rigger', name_en: 'Rigger', name_ur: 'رگر' },
+  { code: 'scaffolder', name_en: 'Scaffolder', name_ur: 'اسکیفولڈر' },
+  { code: 'crane_operator', name_en: 'Crane Operator', name_ur: 'کرین آپریٹر' },
+  { code: 'painter', name_en: 'Painter', name_ur: 'پینٹر' },
+  { code: 'shut_down_manager', name_en: 'Shut Down Manager', name_ur: 'شٹ ڈاؤن مینیجر' }
 ].each do |attributes|
   craft = Craft.find_or_initialize_by(code: attributes.fetch(:code))
   craft.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true,

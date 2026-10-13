@@ -52,6 +52,16 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
     expect(call_record.candidate_ai_call_events.sole.event_source).to eq('admin_trigger')
   end
 
+  it 'calls in English when the candidate has not chosen a language yet' do
+    candidate.update!(preferred_locale: nil)
+    stub_successful_call
+
+    call_record = service.call
+
+    expect(call_record.language_code).to eq('en')
+    expect(call_record.communication.locale).to eq('en')
+  end
+
   it "syncs the call's Communication status_code and provider_reference once queued" do
     stub_successful_call
 

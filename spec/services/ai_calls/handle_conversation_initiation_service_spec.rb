@@ -42,6 +42,18 @@ RSpec.describe AiCalls::HandleConversationInitiationService do
     expect(call_record.candidate_assignment).to eq(candidate.current_assignment)
   end
 
+  it 'answers in English for a matched candidate who has not chosen a language yet' do
+    candidate = create(:candidate, preferred_locale: nil)
+    create(:candidate_assignment, candidate:)
+
+    call_record = service(
+      params: { data: { conversation_id: 'conversation-locale', caller_id: candidate.mobile_number } }
+    ).call
+
+    expect(call_record.language_code).to eq('en')
+    expect(call_record.communication.locale).to eq('en')
+  end
+
   it 'never persists the raw caller number outside the dedicated column' do
     candidate = create(:candidate)
     call_record = service(

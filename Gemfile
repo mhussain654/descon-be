@@ -52,3 +52,14 @@ group :test do
   gem 'vcr'
   gem 'webmock'
 end
+
+# Deployment tooling only (Capistrano, run from an administrator's machine or
+# from the deploy user on the server). Never installed in the production
+# bundle: config/deploy.rb sets `bundle_without` to include `deploy`.
+group :deploy do
+  gem 'bcrypt_pbkdf', '>= 1.0', '< 2.0', require: false
+  gem 'capistrano', '~> 3.20', require: false
+  gem 'capistrano-bundler', '~> 2.2', require: false
+  gem 'capistrano-rbenv', '~> 2.2', require: false
+  gem 'ed25519', '>= 1.2', '< 2.0', require: false
+end
