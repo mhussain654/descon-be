@@ -22,8 +22,8 @@ module Admin
         private
 
         def current_workflow_stage(attributes, row_errors:)
-          referenced_record(WorkflowStage.where(active: true), attributes.fetch('workflow_stage_code'),
-                            field: 'workflow_stage_code', row_errors:)
+          stage_code = RegisteredStage.normalize(attributes.fetch('workflow_stage_code'))
+          referenced_record(WorkflowStage.where(active: true), stage_code, field: 'workflow_stage_code', row_errors:)
         end
 
         def country(attributes, row_errors:)
@@ -44,8 +44,16 @@ module Admin
           )
         end
 
+        # Matched by code, or -- since client files carry job titles -- by the
+        # craft's English name, ignoring case and extra spaces (e.g. "HSE Assistant").
         def craft(attributes, row_errors:)
-          referenced_record(Craft.where(active: true), attributes.fetch('craft_code'), field: 'craft_code', row_errors:)
+          crafts = Craft.where(active: true)
+          value = attributes.fetch('craft_code').to_s.squish.downcase
+          record = crafts.find_by(code: value) || (value.present? && crafts.find_by('LOWER(name_en) = ?', value))
+          return record if record
+
+          row_errors << { field: 'craft_code', code: 'unknown_craft_code' }
+          nil
         end
 
         def validated_reference_number(raw_value, row_errors:)

@@ -4,6 +4,8 @@
 # progresses through one or more assignments toward overseas deployment.
 class Candidate < ApplicationRecord
   PREFERRED_LOCALES = %w[en ur].freeze
+  # Used to talk to a candidate (e.g. AI calls) before they've chosen a language.
+  DEFAULT_COMMUNICATION_LOCALE = 'en'
   SOURCE_CODES = %w[admin_ui csv_import].freeze
   STATUS_CODE_FORMAT = /\A[a-z0-9_]+\z/
   CNIC_FORMAT = /\A\d{5}-\d{7}-\d\z/
@@ -57,13 +59,17 @@ class Candidate < ApplicationRecord
             allow_blank: true,
             format: { with: PASSPORT_NUMBER_FORMAT },
             if: :passport_number?
-  validates :preferred_locale, inclusion: { in: PREFERRED_LOCALES }
+  # Blank until the candidate chooses a language (see CandidateAuthentication::Otp::VerifyService).
+  validates :preferred_locale, inclusion: { in: PREFERRED_LOCALES }, allow_nil: true
   validates :source_code, inclusion: { in: SOURCE_CODES }
   validates :status_code, presence: true, format: { with: STATUS_CODE_FORMAT }
   validate :next_of_kin_fields_are_complete
 
   # Whether Devise/Warden should treat this candidate as allowed to authenticate.
   def active_for_authentication? = active?
+
+  # The language to communicate in: the candidate's own choice, or the default until they make one.
+  def communication_locale = preferred_locale.presence || DEFAULT_COMMUNICATION_LOCALE
 
   # The candidate's most recently created assignment (uses the loaded association in memory
   # when available to avoid an extra query, otherwise queries for the newest row).

@@ -16,7 +16,7 @@ module Admin
 
         def call
           rows = CsvFileParser.call(file: @file)
-          validate_template_version!(rows)
+          # validate_template_version!(rows)
           result = Result.new(total_rows: rows.size)
           token = SecureRandom.urlsafe_base64(32)
           planned_rows = plan_rows(rows:, result:)
@@ -39,7 +39,7 @@ module Admin
           summary = result.summary
           { actor: @actor, token_digest: digest(token), source_filename: File.basename(@file.original_filename.to_s),
             file_fingerprint: file_fingerprint, template_version: Template::VERSION, request_id: @request_id,
-            status: 'queued',
+            status: 'awaiting_confirmation',
             preflight_payload: { rows: }.to_json, total_rows: summary.fetch(:total_rows),
             accepted_rows: result.persistable_rows.size,
             rejected_rows: summary.fetch(:failed_rows) + summary.fetch(:skipped_rows),
@@ -64,7 +64,7 @@ module Admin
           plan = builder.call(row:, row_number:)
           error = row_error(plan:, tracker:)
           if error
-            result.record_failed(row_number:, errors: [error])
+            result.record_failed(row_number:, errors: [error], source_values: plan.source_values)
             return
           end
 

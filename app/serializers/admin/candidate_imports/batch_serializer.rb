@@ -11,7 +11,7 @@ module Admin
       def as_json(*)
         return attributes unless @include_rows
 
-        attributes.merge(row_results: serialized_rows)
+        attributes.merge(row_results: serialized_rows, pending_rows:)
       end
 
       private
@@ -38,6 +38,10 @@ module Admin
         }
       end
 
+      # Accepted rows the import job hasn't processed yet -- drives the progress
+      # shown while a confirmed import is queued or processing.
+      def pending_rows = @batch.row_results.count { |row| row.status == 'accepted' }
+
       def serialized_rows = @batch.row_results.sort_by(&:row_number).map { |row| serialize_row(row) }
 
       def timestamp(value) = value&.utc&.iso8601
@@ -45,7 +49,7 @@ module Admin
       def serialize_row(row)
         {
           row_number: row.row_number, status: row.status, error_field: row.error_field,
-          error_code: row.error_code, message: localized_message(row.error_code)
+          error_code: row.error_code, error_value: row.error_value, message: localized_message(row.error_code)
         }.compact
       end
 

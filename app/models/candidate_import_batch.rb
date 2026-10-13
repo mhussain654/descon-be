@@ -3,12 +3,18 @@
 # A single bulk CSV import run of candidates, tracking its preflight payload, processing
 # status and lifecycle from upload through commit or invalidation.
 class CandidateImportBatch < ApplicationRecord
-  STATUSES = %w[queued processing completed partial failed invalidated].freeze
+  # awaiting_confirmation: a preflight preview the staff member hasn't
+  # confirmed yet -- not an import, so it never appears in import history.
+  STATUSES = %w[awaiting_confirmation queued processing completed partial failed invalidated].freeze
 
   belongs_to :actor, class_name: 'User'
   has_many :row_results, class_name: 'CandidateImportRowResult', dependent: :restrict_with_exception
 
   encrypts :preflight_payload
+
+  # Batches the staff member actually confirmed (committed), i.e. real
+  # imports -- excludes previews, including abandoned ones later invalidated.
+  scope :submitted, -> { where.not(enqueued_at: nil) }
 
   before_validation :assign_public_id, on: :create
 
@@ -19,9 +25,9 @@ class CandidateImportBatch < ApplicationRecord
 
   # Whether the batch's preflight window has passed and it can no longer be committed.
   def expired? = expires_at <= Time.current
-  # Whether the batch has only been preflighted (validated) and not yet committed.
-  def preflighted? = queued?
-  # Whether the batch is preflighted and awaiting a decision to commit.
+  # Whether the batch has only been preflighted (validated) and not yet confirmed.
+  def awaiting_confirmation? = status == 'awaiting_confirmation'
+  # Whether the batch was confirmed and is waiting for the import job to run.
   def queued? = status == 'queued'
   # Whether the batch is currently being committed.
   def processing? = status == 'processing'

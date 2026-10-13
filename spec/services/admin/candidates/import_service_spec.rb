@@ -147,10 +147,54 @@ RSpec.describe Admin::Candidates::ImportService do
       expect(result[:failed_rows]).to eq(2)
       expect(result[:skipped_rows]).to eq(2)
       expect(result[:errors]).to include(
-        include(row: 2, field: 'cnic', code: 'invalid_cnic'),
-        include(row: 4, field: 'cnic', code: 'duplicate_cnic_in_file'),
-        include(row: 5, field: 'cnic', code: 'duplicate_candidate'),
-        include(row: 6, field: 'reference_number', code: 'duplicate_reference_number')
+        include(row: 2, field: 'cnic', code: 'invalid_cnic', value: 'ba****ic'),
+        include(row: 4, field: 'cnic', code: 'duplicate_cnic_in_file', value: '42104-*******-4'),
+        include(row: 5, field: 'cnic', code: 'duplicate_candidate', value: '42103-*******-3'),
+        include(row: 6, field: 'reference_number', code: 'duplicate_reference_number', value: 'DES-009999')
+      )
+      expect(result[:errors].pluck(:value).join).not_to include('1234567')
+    end
+
+    it 'imports a client-style file: blank language, "Not Registered" labels, and craft job titles' do
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(
+            ['Client Blank', '42131-1234567-1', '923001234567', 'DES-001030', '', '', '', 'qatar',
+             'qatar_infrastructure', 'Electrician', 'TRUE'],
+            ['Client Misspelt', '42132-1234567-2', '923001234568', 'DES-001031', ' ', 'Not Registred', 'Not Registred', 'qatar',
+             'qatar_infrastructure', '  welder ', 'TRUE'],
+            ['Client Code', '42133-1234567-3', '923001234569', 'DES-001032', 'UR', 'NOT_REGISTERED', 'not registered', 'qatar',
+             'qatar_infrastructure', 'electrician', 'TRUE']
+          )
+        ),
+        request_id: 'req-import-client-file'
+      )
+
+      expect(result).to include(successful_rows: 3, failed_rows: 0)
+      candidates = Candidate.where(cnic: %w[42131-1234567-1 42132-1234567-2 42133-1234567-3]).index_by(&:cnic)
+      expect(candidates.transform_values(&:preferred_locale))
+        .to eq('42131-1234567-1' => nil, '42132-1234567-2' => nil, '42133-1234567-3' => 'ur')
+      # Imported as registered, which auto-advances straight to documents_pending.
+      expect(candidates.values.map(&:status_code)).to all(eq('documents_pending'))
+      assignments = CandidateAssignment.where(candidate: candidates.values).includes(:craft, :current_workflow_stage)
+      expect(assignments.map { |assignment| assignment.current_workflow_stage.code }).to all(eq('documents_pending'))
+      expect(assignments.map { |assignment| assignment.craft.code }).to contain_exactly('electrician', 'welder', 'electrician')
+    end
+
+    it 'rejects a craft that matches neither a code nor an English craft name' do
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(['Typo Craft', '42134-1234567-4', '923001234570', 'DES-001033', '', '', '', 'qatar',
+                       'qatar_infrastructure', 'Electricain', 'TRUE'])
+        ),
+        request_id: 'req-import-craft-typo'
+      )
+
+      expect(result).to include(successful_rows: 0, failed_rows: 1)
+      expect(result[:errors]).to contain_exactly(
+        include(row: 2, field: 'craft_code', code: 'unknown_craft_code', value: 'Electricain')
       )
     end
 

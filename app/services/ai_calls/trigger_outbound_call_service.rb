@@ -77,7 +77,7 @@ module AiCalls
         status_code: 'requested',
         candidate_assignment: assignment,
         initiated_by: @actor,
-        locale: candidate.preferred_locale,
+        locale: candidate.communication_locale,
         recipient_masked: PhoneNumbers::Masker.call(candidate.mobile_number)
       )
     end
@@ -90,7 +90,7 @@ module AiCalls
       {
         candidate:, candidate_assignment: assignment, triggered_by: @actor,
         direction: 'outbound', call_reason: @plan.call_reason, workflow_stage_code: @plan.workflow_stage_code,
-        language_code: candidate.preferred_locale, status: 'requested', verification_status: 'not_applicable'
+        language_code: candidate.communication_locale, status: 'requested', verification_status: 'not_applicable'
       }
     end
 

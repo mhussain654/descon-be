@@ -518,6 +518,10 @@ components:
         preferred_locale:
           type: string
           enum: [en, ur]
+          description: >-
+            Always set for a signed-in candidate: one created without a language
+            (e.g. imported with a blank preferred_locale) gets the language they
+            signed in with (the OTP verify request's X-Locale) on first sign-in.
         candidate_status:
           type: string
           example: registered
@@ -2318,6 +2322,11 @@ components:
         preferred_locale:
           type: string
           enum: [en, ur]
+          nullable: true
+          description: >-
+            Null until the candidate chooses a language -- e.g. imported with a
+            blank preferred_locale. Recorded from the language they sign in with
+            on their first OTP sign-in; never overwritten there once set.
         candidate_status:
           type: string
         active:
@@ -2650,6 +2659,16 @@ components:
       required: [rejection]
     CandidateImportRequest:
       type: object
+      description: >-
+        CSV with the headers full_name, cnic, mobile_number, reference_number,
+        preferred_locale, candidate_status, workflow_stage_code, country_code,
+        project_code, craft_code, active. preferred_locale may be blank (the
+        candidate then picks a language on first sign-in) or en/ur.
+        candidate_status and workflow_stage_code may be blank or a "Not
+        Registered" label (any case, spaces/underscores/hyphens, including the
+        "Not Registred" spelling) and then import as registered. craft_code
+        matches a craft's code or its English name, ignoring case and extra
+        spaces (e.g. "HSE Assistant").
       properties:
         candidate_import:
           type: object
@@ -2668,9 +2687,18 @@ components:
           type: string
         code:
           type: string
+        value:
+          type: string
+          nullable: true
+          description: >-
+            The rejected cell from this error's column only (never the rest of
+            the row), so staff can see what to fix. CNIC, mobile and passport
+            numbers are masked, including malformed ones. Null for row-level
+            errors (field `row`) and blank cells.
+          example: Crane Opereator
         message:
           type: string
-      required: [row, field, code, message]
+      required: [row, field, code, value, message]
     CandidateImportResult:
       type: object
       properties:
@@ -2721,13 +2749,29 @@ components:
         status: { type: string, enum: [accepted, rejected, skipped, committed] }
         error_field: { type: string, nullable: true }
         error_code: { type: string, nullable: true }
+        error_value:
+          type: string
+          nullable: true
+          description: >-
+            The rejected cell from error_field's column only (never the rest of
+            the row); CNIC, mobile and passport numbers are masked. Absent for
+            row-level errors, blank cells, and rows recorded before this field
+            existed.
+          example: Crane Opereator
         message: { type: string, nullable: true }
       required: [row_number, status]
     CandidateImportHistoryBatch:
       type: object
       properties:
         id: { type: string, format: uuid }
-        status: { type: string, enum: [queued, processing, completed, partial, failed, invalidated] }
+        status:
+          type: string
+          enum: [awaiting_confirmation, queued, processing, completed, partial, failed, invalidated]
+          description: >-
+            awaiting_confirmation is a preflight preview the staff member has not
+            confirmed yet. It is only ever seen on the detail endpoint (history
+            lists confirmed imports only). queued means confirmed and waiting
+            for the import job.
         source_filename: { type: string }
         template_version: { type: string, example: v1 }
         total_rows: { type: integer }
@@ -2744,7 +2788,14 @@ components:
         created_at: { type: string, format: date-time }
         row_results:
           type: array
+          description: Detail endpoint only.
           items: { $ref: '#/components/schemas/CandidateImportRowResult' }
+        pending_rows:
+          type: integer
+          description: >-
+            Detail endpoint only. Accepted rows the import job has not processed
+            yet; with accepted_rows this gives the progress of a queued or
+            processing import (processed = accepted_rows - pending_rows).
       required: [id, status, source_filename, template_version, total_rows, accepted_rows, rejected_rows, skipped_rows, committed_rows, imported_rows, expires_at, created_at]
     HostedCheckoutNotificationRequest:
       type: object
@@ -5037,7 +5088,9 @@ paths:
     get:
       summary: List the authenticated staff actor's candidate import history
       description: >-
-        `meta.summary` returns a zero-filled count per batch status
+        Lists confirmed imports only: a preflight preview that was never
+        confirmed (awaiting_confirmation, or later invalidated on expiry) is
+        not an import and never appears here. `meta.summary` returns a zero-filled count per batch status
         (queued/processing/completed/partial/failed/invalidated), scoped by
         every active filter except `filter[status]`.
       security: [{ bearerAuth: [] }]
@@ -5170,10 +5223,12 @@ paths:
                         - row: 2
                           field: cnic
                           code: invalid_cnic
+                          value: 42**********-1
                           message: Enter a valid CNIC in the format 00000-0000000-0.
                         - row: 3
                           field: reference_number
                           code: duplicate_reference_number
+                          value: DES-001002
                           message: A candidate assignment with this reference number already exists.
                     meta:
                       request_id: 915c82bc-5f8f-4ce8-90d8-fafc418ea0df
@@ -5251,7 +5306,10 @@ paths:
         - $ref: '#/components/parameters/XLocaleHeader'
       responses:
         '200':
-          description: Safe error report containing row number, status, field, code, and localized message only.
+          description: >-
+            Safe error report with columns row_number, status, field, value, code
+            and localized message. value is only the rejected cell of that field
+            (CNIC, mobile and passport numbers masked), never the rest of the row.
           content:
             text/csv:
               schema: { type: string, format: binary }

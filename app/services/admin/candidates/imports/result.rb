@@ -9,8 +9,12 @@ module Admin
           :candidate_attributes,
           :assignment_attributes,
           :errors,
-          :blank
+          :blank,
+          :source_values
         ) do
+          # source_values: the row's raw CSV cells, used only to show the
+          # rejected cell alongside a row error (see RejectedValue).
+          def initialize(source_values: {}, **) = super
           def blank? = blank
           def invalid? = errors.any?
           def cnic = candidate_attributes.fetch(:cnic)
@@ -38,14 +42,14 @@ module Admin
           @successful_rows += 1
         end
 
-        def record_failed(row_number:, errors:)
+        def record_failed(row_number:, errors:, source_values: {})
           @failed_rows += 1
-          append_errors(row_number:, errors:)
+          append_errors(row_number:, errors:, source_values:)
         end
 
-        def record_skipped(row_number:, field:, code:)
+        def record_skipped(row_number:, field:, code:, source_values: {})
           @skipped_rows += 1
-          append_errors(row_number:, errors: [{ field:, code: }])
+          append_errors(row_number:, errors: [{ field:, code: }], source_values:)
         end
 
         def summary
@@ -63,12 +67,14 @@ module Admin
 
         private
 
-        def append_errors(row_number:, errors:)
+        def append_errors(row_number:, errors:, source_values:)
           errors.each do |error|
+            field = error.fetch(:field)
             @errors << {
               row: row_number,
-              field: error.fetch(:field),
+              field:,
               code: error.fetch(:code),
+              value: RejectedValue.call(field:, source_values:),
               message: I18n.t("api.candidate_imports.row_errors.#{error.fetch(:code)}")
             }
           end

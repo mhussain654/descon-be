@@ -246,6 +246,12 @@ Required CSV headers:
 - `craft_code`
 - `active`
 
+Column values:
+
+- `preferred_locale` may be blank: the candidate is stored without a language and the language they sign in with is recorded on their first OTP sign-in. Otherwise it must be `en` or `ur`.
+- `candidate_status` and `workflow_stage_code` may be blank or a "Not Registered" label (any case; spaces, underscores or hyphens; the "Not Registred" spelling too); both import as `registered`.
+- `craft_code` matches a craft's code or its English name, ignoring case and extra spaces (e.g. `HSE Assistant`). Anything else, including a misspelt title, fails the row with `unknown_craft_code`.
+
 Example import:
 
 ```bash
@@ -261,6 +267,7 @@ Safe sample CSV:
 full_name,cnic,mobile_number,reference_number,preferred_locale,candidate_status,workflow_stage_code,country_code,project_code,craft_code,active
 Ahmed Ali,42101-1234567-1,+923001234567,DES-001001,en,registered,registered,qatar,qatar_infrastructure,electrician,true
 Fatima Noor,42102-1234567-2,+923001234568,DES-001002,ur,registered,documents_pending,uae,qatar_energy,welder,false
+Bilal Khan,42103-1234567-3,+923001234569,DES-001003,,Not Registered,,qatar,qatar_infrastructure,HSE Assistant,true
 ```
 
 ## Candidate profile API

@@ -18,4 +18,21 @@ RSpec.describe Admin::Candidates::Imports::ExpiredPreflightCleanupService do
     expect(row_result.reload).to be_present
     expect(audit_event.reload).to be_present
   end
+
+  it 'invalidates an expired preview that was never confirmed' do
+    batch = create(:candidate_import_batch, :awaiting_confirmation, expires_at: 1.minute.ago)
+
+    described_class.call
+
+    expect(batch.reload).to have_attributes(status: 'invalidated', preflight_payload: nil)
+  end
+
+  it 'leaves a confirmed import that is still waiting for its job untouched' do
+    batch = create(:candidate_import_batch, status: 'queued', expires_at: 1.minute.ago)
+
+    described_class.call
+
+    expect(batch.reload).to have_attributes(status: 'queued')
+    expect(batch.preflight_payload).to be_present
+  end
 end

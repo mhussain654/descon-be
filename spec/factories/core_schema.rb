@@ -128,11 +128,18 @@ FactoryBot.define do
     public_id { SecureRandom.uuid }
     token_digest { SecureRandom.hex(32) }
     status { 'queued' }
+    enqueued_at { 1.minute.ago }
     source_filename { 'candidate-import-template-v1.csv' }
     file_fingerprint { SecureRandom.hex(32) }
     template_version { 'v1' }
     preflight_payload { { rows: [] }.to_json }
     expires_at { 30.minutes.from_now }
+
+    # A preflight preview the staff member hasn't confirmed yet.
+    trait :awaiting_confirmation do
+      status { 'awaiting_confirmation' }
+      enqueued_at { nil }
+    end
   end
 
   factory :candidate_import_row_result do

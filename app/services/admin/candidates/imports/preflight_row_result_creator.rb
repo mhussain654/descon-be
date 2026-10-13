@@ -27,7 +27,7 @@ module Admin
           @errors.map do |error|
             {
               candidate_import_batch: @batch, row_number: error.fetch(:row), status: 'rejected',
-              error_field: error.fetch(:field), error_code: error.fetch(:code)
+              error_field: error.fetch(:field), error_code: error.fetch(:code), error_value: error[:value]
             }
           end
         end

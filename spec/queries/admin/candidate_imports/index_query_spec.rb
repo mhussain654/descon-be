@@ -26,6 +26,24 @@ RSpec.describe Admin::CandidateImports::IndexQuery do
     expect(result).to contain_exactly(matching)
   end
 
+  it 'lists confirmed imports only, never unconfirmed or abandoned previews' do
+    confirmed = create(:candidate_import_batch, status: 'queued')
+    create(:candidate_import_batch, :awaiting_confirmation)
+    create(:candidate_import_batch, :awaiting_confirmation, status: 'invalidated')
+    query = described_class.new(scope: CandidateImportBatch.all, params: params)
+
+    expect(query.call).to contain_exactly(confirmed)
+    expect(query.summary).to include({ code: 'queued', count: 1 }, { code: 'invalidated', count: 0 })
+    expect(query.summary.pluck(:code)).not_to include('awaiting_confirmation')
+  end
+
+  it 'rejects filtering history by the preview-only awaiting_confirmation status' do
+    query = described_class.new(scope: CandidateImportBatch.all,
+                                params: params(filter: { status: 'awaiting_confirmation' }))
+
+    expect { query.call }.to raise_error(InvalidQueryParameterError)
+  end
+
   it 'paginates deterministically and rejects malformed filters' do
     create_list(:candidate_import_batch, 2)
     query = described_class.new(scope: CandidateImportBatch.all, params: params(page: { number: '2', size: '1' }))

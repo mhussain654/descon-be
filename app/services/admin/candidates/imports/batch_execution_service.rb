@@ -32,18 +32,13 @@ module Admin
         def claim_batch
           CandidateImportBatch.transaction do
             batch = CandidateImportBatch.lock.find_by!(public_id: @import_id)
-            return invalidate!(batch) if batch.expired?
-            return if batch.processing? || batch.committed? || batch.invalidated?
+            # The preview expiry only limits how long a preview can wait for
+            # confirmation; a confirmed import runs whenever its job does.
             return unless batch.queued? || batch.failed?
 
             batch.update!(status: 'processing', error_code: nil, failed_at: nil)
             batch
           end
-        end
-
-        def invalidate!(batch)
-          batch.update!(status: 'invalidated', preflight_payload: nil) unless batch.invalidated?
-          nil
         end
 
         def execute_rows(batch)
@@ -57,7 +52,7 @@ module Admin
           result = Result.new(total_rows: 1)
           plan = RowBuilder.new(actor: batch.actor).call(row: row.except('row_number', 'template_version'),
                                                          row_number: row_result.row_number)
-          return update_row_result!(row_result, status: 'rejected', error: plan.errors.first) if plan.invalid?
+          return update_rejected_row!(row_result, plan) if plan.invalid?
 
           RowPersister.new.call(row_plan: plan, result:)
           update_from_result!(row_result, result)
@@ -66,17 +61,21 @@ module Admin
         def update_from_result!(row_result, result)
           outcome = result.to_h
           if outcome[:successful_rows].positive?
-            return row_result.update!(status: 'committed', error_field: nil,
-                                      error_code: nil)
+            return row_result.update!(status: 'committed', error_field: nil, error_code: nil, error_value: nil)
           end
 
-          error = outcome.fetch(:errors).first
-          update_row_result!(row_result, status: 'skipped',
-                                         error: { field: error.fetch(:field), code: error.fetch(:code) })
+          update_row_result!(row_result, status: 'skipped', error: outcome.fetch(:errors).first)
+        end
+
+        def update_rejected_row!(row_result, plan)
+          error = plan.errors.first
+          value = RejectedValue.call(field: error.fetch(:field), source_values: plan.source_values)
+          update_row_result!(row_result, status: 'rejected', error: error.merge(value:))
         end
 
         def update_row_result!(row_result, status:, error:)
-          row_result.update!(status:, error_field: error.fetch(:field), error_code: error.fetch(:code))
+          row_result.update!(status:, error_field: error.fetch(:field), error_code: error.fetch(:code),
+                             error_value: error[:value])
         end
 
         def complete!(batch)

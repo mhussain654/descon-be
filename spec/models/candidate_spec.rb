@@ -58,6 +58,17 @@ RSpec.describe Candidate, type: :model do
       expect(candidate.errors[:next_of_kin_cnic]).to be_present
     end
 
+    it 'allows an unset preferred locale until the candidate chooses one' do
+      expect(build(:candidate, preferred_locale: nil)).to be_valid
+    end
+
+    it 'rejects an unsupported preferred locale' do
+      candidate = build(:candidate, preferred_locale: 'fr')
+
+      expect(candidate).not_to be_valid
+      expect(candidate.errors[:preferred_locale]).to be_present
+    end
+
     it 'rejects malformed status codes' do
       candidate = build(:candidate, status_code: 'Needs Review')
 
@@ -97,6 +108,16 @@ RSpec.describe Candidate, type: :model do
       )
 
       expect { duplicate.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+  end
+
+  describe '#communication_locale' do
+    it "uses the candidate's chosen language" do
+      expect(build(:candidate, preferred_locale: 'ur').communication_locale).to eq('ur')
+    end
+
+    it 'falls back to English until the candidate chooses a language' do
+      expect(build(:candidate, preferred_locale: nil).communication_locale).to eq('en')
     end
   end
 

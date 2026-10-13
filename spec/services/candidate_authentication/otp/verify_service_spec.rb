@@ -50,6 +50,24 @@ RSpec.describe CandidateAuthentication::Otp::VerifyService do
         expect(outcome.fetch(:candidate_session)).to be_persisted
       end
 
+      it 'records the language chosen in the app for a candidate who has none yet' do
+        candidate = create(:candidate, preferred_locale: nil)
+        result = CandidateOtpChallenge.generate_for(candidate:)
+
+        I18n.with_locale(:ur) { call(cnic: candidate.cnic, code: result.fetch(:code)) }
+
+        expect(candidate.reload.preferred_locale).to eq('ur')
+      end
+
+      it "never overwrites a candidate's existing language" do
+        candidate = create(:candidate, preferred_locale: 'en')
+        result = CandidateOtpChallenge.generate_for(candidate:)
+
+        I18n.with_locale(:ur) { call(cnic: candidate.cnic, code: result.fetch(:code)) }
+
+        expect(candidate.reload.preferred_locale).to eq('en')
+      end
+
       it 'consumes the challenge so it cannot be replayed' do
         candidate = create(:candidate)
         result = CandidateOtpChallenge.generate_for(candidate:)

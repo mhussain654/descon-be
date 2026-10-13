@@ -41,13 +41,8 @@ module Admin
           candidate_attributes = @candidate_attributes_builder.call(attributes:, row_errors:)
           assignment_attributes = @assignment_attributes_builder.call(attributes:, row_errors:)
 
-          Result::RowPlan.new(
-            row_number:,
-            candidate_attributes:,
-            assignment_attributes:,
-            errors: row_errors,
-            blank: false
-          )
+          Result::RowPlan.new(row_number:, candidate_attributes:, assignment_attributes:, errors: row_errors,
+                              blank: false, source_values: attributes)
         end
       end
     end

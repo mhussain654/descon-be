@@ -7,14 +7,15 @@ module Admin
     class IndexQuery < ApplicationQuery
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
-      ALLOWED_STATUSES = CandidateImportBatch::STATUSES.freeze
+      ALLOWED_STATUSES = (CandidateImportBatch::STATUSES - %w[awaiting_confirmation]).freeze
       ALLOWED_SORTS = %w[created_at processed_at status].freeze
 
       attr_reader :pagination, :applied_filters
 
       def initialize(scope:, params:)
         super()
-        @scope = scope
+        # Import history lists confirmed imports only, never previews.
+        @scope = scope.submitted
         @params = params
         @pagination = {}
         @applied_filters = {}

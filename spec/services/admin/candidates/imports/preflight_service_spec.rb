@@ -56,6 +56,25 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
                                                             code: 'incomplete_next_of_kin'))
   end
 
+  it "shows each rejected row's offending cell, masking identity numbers" do
+    Candidate.find_by(cnic: '42101-1234567-1') || create(:candidate, cnic: '42101-1234567-1')
+    rows = [
+      valid_row('cnic' => '42109-1234567-9', 'mobile_number' => '+923001234569', 'reference_number' => 'DES-001009',
+                'craft_code' => 'Crane Opereator'),
+      valid_row('mobile_number' => '+923001234568', 'reference_number' => 'DES-001008', 'passport_number' => '')
+    ]
+
+    result = described_class.call(actor:, file: upload(rows), request_id: 'preflight-values')
+
+    expect(result.fetch(:errors)).to contain_exactly(
+      hash_including(row: 2, field: 'craft_code', code: 'unknown_craft_code', value: 'Crane Opereator'),
+      hash_including(row: 3, field: 'cnic', code: 'duplicate_candidate', value: '42101-*******-1')
+    )
+    batch = CandidateImportBatch.find_by!(public_id: result.fetch(:import_id))
+    expect(batch.row_results.where(status: 'rejected').order(:row_number).pluck(:error_value))
+      .to eq(['Crane Opereator', '42101-*******-1'])
+  end
+
   it 'returns the completed result for an identical commit replay without duplicating candidates' do
     preflight = described_class.call(actor:, file: upload([valid_row]),
                                      request_id: 'preflight-replay')
