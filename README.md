@@ -136,11 +136,26 @@ Commonly adjusted per machine or environment:
 - `OTP_IDENTITY_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_IMPORT_MAX_BYTES`
 - `CANDIDATE_IMPORT_MAX_ROWS`
-- `SMS_PROVIDER` -- `test` is the only implementation available until a real vendor adapter is added (see `app/services/sms/`); never set to anything else in production until one exists
+- `SMS_PROVIDER` -- `test` (no network call, delivers nothing, never returns or logs the code) or `sendpk` (real delivery through send.pk; needs `sendpk.<env>.api_key` in encrypted credentials plus `SENDPK_SENDER_ID` and the approved `OTP_TEMPLATE_ID`/`OTP_TEMPLATE_ID_UR`); see `app/services/sms/`
 - `ACTIVE_STORAGE_SERVICE`
 - `FORCE_SSL`
 - `RAILS_LOG_LEVEL`
 - `JOB_CONCURRENCY`
+- `SOLID_QUEUE_IN_PUMA` / `SOLID_QUEUE_MODE` -- run Solid Queue inside Puma (`fork`, the default, or `async` threads in the one process); empty, `0`, `false`, `no` and `off` disable it. See `docs/deployment/aws-ec2-runbook.md` ("Where Solid Queue runs")
+- `PGSSLMODE` / `PGSSLROOTCERT` -- libpq TLS settings, read by the application and `pg_dump`; use `verify-full` with the RDS CA bundle against RDS
+- `DB_POOL` -- connection pool per database per process (default 15; the single-instance deployment uses 10)
+
+## Deployment
+
+The first AWS deployment (one Ubuntu EC2 instance, Nginx, private RDS and S3,
+Capistrano) is documented in
+[`docs/deployment/aws-ec2-runbook.md`](docs/deployment/aws-ec2-runbook.md):
+one-time server setup, `cap production deploy`, rollback, the
+`deployment:preflight` / `deployment:queue_status` /
+`deployment:storage_round_trip` checks, backups and restore, continuous
+delivery through GitHub OIDC and SSM, and an explicit list of what is and is
+not verified. Capistrano lives in the `:deploy` Bundler group and is excluded
+from the production bundle.
 
 ## Quality
 
