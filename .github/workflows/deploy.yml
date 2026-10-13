@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: EC2 Deploy
 
 # Deploys a chosen commit of this repository to the EC2 instance through AWS
 # Systems Manager Run Command. Run it from the Actions tab ("Run workflow") and
