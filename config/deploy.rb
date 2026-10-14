@@ -57,6 +57,10 @@ set :service_restart_command, 'sudo -n /usr/bin/systemctl restart descon-mps-api
 set :health_check_command, %w[curl --fail --silent --max-time 5 --output /dev/null
                               http://127.0.0.1:3000/api/v1/health/ready]
 set :health_check_attempts, 30
+# Printed when a release fails its health check. `systemctl status` needs no
+# sudo; add the deploy user to the systemd-journal group (runbook section 3.4)
+# to see the log lines too.
+set :service_status_command, %w[systemctl status descon-mps-api.service --no-pager --lines=40]
 set :health_check_interval_seconds, 2
 
 before 'deploy:starting', 'deploy:acquire_lock'

@@ -111,6 +111,25 @@ namespace :deploy do
         false
       end
 
+      # Say why, so a failed first deploy does not need a separate SSH session:
+      # what the unit is doing (state, exit code, recent log lines when the
+      # deploy user may read the journal) and what the health URL answers.
+      report_unhealthy_release_diagnostics = lambda do
+        status_command = Array(fetch(:service_status_command, nil))
+        unless status_command.empty?
+          status = capture(*status_command, raise_on_non_zero_exit: false).to_s.strip
+          error "service status:\n#{status}" unless status.empty?
+        end
+
+        health_command = fetch(:health_check_command)
+        if health_command.first == 'curl'
+          # First response line (e.g. "HTTP/1.1 503 Service Unavailable") or curl's own error.
+          http = capture("curl -sS --max-time 5 -D - -o /dev/null #{health_command.last} 2>&1 | head -n 1",
+                         raise_on_non_zero_exit: false).to_s.strip
+          error "health URL answered: #{http}"
+        end
+      end
+
       reason = begin
         restart.call
         healthy.call ? nil : 'the new release did not become healthy'
@@ -120,6 +139,7 @@ namespace :deploy do
       next if reason.nil?
 
       error "deploy:activate -- #{reason}"
+      report_unhealthy_release_diagnostics.call
       raise reason if rolling_back
 
       failed_release = release_path.basename.to_s

@@ -87,6 +87,7 @@ check "exits non-zero" test "$deploy_exit" -ne 0
 check "the previously serving release is restored" test "$(current_release)" = "$second"
 check "the failed release directory is removed" test "$(release_count)" -eq 2
 check "the outcome says restored and healthy" log_has "was restored and is healthy"
+check "prints the service status when a release is unhealthy" log_has "fake-service-status"
 check "the lock is released" lock_free
 
 echo "4. lock held by another deployment"

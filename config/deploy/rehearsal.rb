@@ -24,4 +24,5 @@ fakes = File.expand_path('../../deploy/rehearsal', __dir__)
 set :service_restart_command, "#{fakes}/fake-systemctl"
 set :health_check_command, ["#{fakes}/fake-health"]
 set :health_check_attempts, 3
+set :service_status_command, %w[echo fake-service-status: inactive]
 set :health_check_interval_seconds, 0
