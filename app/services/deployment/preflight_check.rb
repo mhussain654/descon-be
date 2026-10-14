@@ -28,6 +28,11 @@ module Deployment
       s3_storage_result(service.bucket)
     rescue Aws::Errors::ServiceError, Seahorse::Client::NetworkingError => e
       CheckResult.new(name: 'storage', status: :fail, detail: "S3 unreachable (#{e.class.name})")
+    rescue StandardError => e
+      # Diagnostic boundary: a misconfigured service (for example an option
+      # the S3 client rejects) must be reported as a failed check, not abort
+      # the report. Only the class name is shown.
+      CheckResult.new(name: 'storage', status: :fail, detail: "storage service could not be built (#{e.class.name})")
     end
 
     def s3_storage_result(bucket)

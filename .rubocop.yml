@@ -92,6 +92,8 @@ RSpec/ExampleLength:
 RSpec/DescribeClass:
   Exclude:
     - spec/tasks/**/*.rb
+    # Specs of a configuration file (config/storage.yml), not of a class.
+    - spec/config/**/*.rb
 
 RSpec/BeforeAfterAll:
   Exclude:

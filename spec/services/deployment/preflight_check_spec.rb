@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
+require 'active_storage/service/disk_service' # autoloaded lazily; spec order must not matter
 
 RSpec.describe Deployment::PreflightCheck do
   def result_named(results, name) = results.find { |result| result.name == name }
@@ -59,6 +60,16 @@ RSpec.describe Deployment::PreflightCheck do
       expect(result.detail).to include('Aws::S3::Errors::AccessDenied')
     end
 
+    it 'reports a storage service that cannot be built instead of aborting the report' do
+      allow(ActiveStorage::Blob).to receive(:service).and_raise(ArgumentError, 'invalid configuration option')
+
+      result = result_named(described_class.call, 'storage')
+
+      expect(result).to be_failed
+      expect(result.detail).to include('could not be built (ArgumentError)')
+      expect(result.detail).not_to include('invalid configuration option')
+    end
+
     it 'fails on local disk in production' do
       allow(Rails).to receive(:env).and_return(production)
       allow(ActiveStorage::Blob).to receive(:service).and_return(disk_service)
@@ -74,6 +85,15 @@ RSpec.describe Deployment::PreflightCheck do
   end
 
   describe 'credentials' do
+    # A developer's .env (loaded by dotenv in test) may enable send.pk or
+    # KuickPay; these examples must not depend on it.
+    before do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('test')
+      allow(Payments::Configuration).to receive(:new)
+        .and_return(instance_double(Payments::Configuration, kuickpay_enabled?: false))
+    end
+
     it 'passes when nothing that needs a secret is enabled' do
       result = result_named(described_class.call, 'credentials')
 

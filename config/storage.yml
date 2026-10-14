@@ -21,9 +21,14 @@ amazon:
   secret_access_key: <%= ENV.fetch('AWS_SECRET_ACCESS_KEY', nil) %>
   region: <%= ENV.fetch('AWS_REGION', 'us-east-1') %>
   bucket: <%= ENV.fetch('AWS_S3_BUCKET', "descon-manpower-#{Rails.env}") %>
-  # Encrypts every object at rest (MPS-903/MPS-901's "backups are
-  # encrypted" criterion) independent of any column-level encryption.
-  server_side_encryption: <%= ENV.fetch('AWS_S3_SERVER_SIDE_ENCRYPTION', 'aws:kms') %>
+  # No per-request encryption option here on purpose. S3 encrypts every new
+  # object at rest with SSE-S3 by default, and this bucket's default encryption
+  # is set on the bucket itself, so uploads are encrypted without the
+  # application asking. (A top-level `server_side_encryption:` key would be
+  # passed to Aws::S3::Resource.new and rejected as an invalid client option;
+  # it would belong under `upload:`, and an `aws:kms` value would additionally
+  # need KMS permissions on the role.) Backups are also encrypted in transit
+  # and are only ever reachable through short-lived signed URLs.
 
 # Remember not to checkin your GCS keyfile to a repository
 # google:

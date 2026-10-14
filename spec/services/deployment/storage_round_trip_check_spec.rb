@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
+require 'active_storage/service/disk_service' # autoloaded lazily; spec order must not matter
 
 RSpec.describe Deployment::StorageRoundTripCheck do
   # A minimal in-memory stand-in for ActiveStorage's S3 service: it records
