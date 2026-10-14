@@ -61,6 +61,7 @@ set :health_check_interval_seconds, 2
 
 before 'deploy:starting', 'deploy:acquire_lock'
 after 'deploy:started', 'deploy:install_env_wrapper'
+after 'deploy:install_env_wrapper', 'deploy:check_env_file'
 before 'deploy:updated', 'deploy:preflight'
 before 'deploy:updated', 'deploy:db_prepare'
 before 'deploy:symlink:release', 'deploy:remember_serving_release'

@@ -19,6 +19,7 @@ set :deploy_lock_dir, "#{root}/locks/descon-mps.lock"
 set :default_env, { 'RAILS_ENV' => 'production' }
 
 set :rehearsal, true
+set :env_file_path, "#{root}/shared.env"
 fakes = File.expand_path('../../deploy/rehearsal', __dir__)
 set :service_restart_command, "#{fakes}/fake-systemctl"
 set :health_check_command, ["#{fakes}/fake-health"]

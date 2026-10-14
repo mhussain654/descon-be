@@ -45,12 +45,24 @@ cap() {
   bundle exec cap rehearsal "$@" > "$root/last.log" 2>&1 || deploy_exit=$?
 }
 current_release() { basename "$(readlink "$app/current")"; }
-release_count() { find "$app/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' '; }
+release_count() { find "$app/releases" -mindepth 1 -maxdepth 1 -type d 2> /dev/null | wc -l | tr -d ' '; }
 lock_held() { [[ -d "$root/locks/descon-mps.lock" ]]; }
 lock_free() { ! lock_held; }
 log_has() { grep -q -- "$1" "$root/last.log"; }
 
 "$repo_root/deploy/rehearsal/prepare" > /dev/null
+
+echo "0. environment file that lacks required values"
+cp "$root/shared.env" "$root/shared.env.good"
+grep -v -e '^JWT_SECRET=' -e '^DB_HOST=' "$root/shared.env.good" > "$root/shared.env"
+echo 'DB_HOST=localhost' >> "$root/shared.env"
+cap deploy
+check "exits non-zero" test "$deploy_exit" -ne 0
+check "names a missing variable" log_has "  - JWT_SECRET"
+check "treats DB_HOST=localhost as missing" log_has "  - DB_HOST"
+check "builds no release" test "$(release_count)" -eq 0
+check "the lock is released" lock_free
+cp "$root/shared.env.good" "$root/shared.env"
 
 echo "1. first deploy"
 cap deploy

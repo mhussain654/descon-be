@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../required_env_names'
+
 # Release steps specific to this application: protected environment loading,
 # readiness checks, database preparation, and a health-gated activation that
 # restores the previous release if the new one does not come up.
@@ -14,9 +16,41 @@ namespace :deploy do
     end
   end
 
+  desc 'Fail early, by variable name, if the environment file lacks values the application needs'
+  task :check_env_file do
+    next if fetch(:skip_env_check, false)
+
+    on primary(:app) do
+      file = fetch(:env_file_path).to_s
+      unless test('[', '-f', file, ']')
+        raise "#{file} does not exist on the server. Create it from deploy/shared.env.example " \
+              '(mode 0600, owned by deploy) and run the deploy again.'
+      end
+
+      # Names only: grep keeps lines with a non-empty value and `cut` drops the
+      # value, so no secret is ever read into this process or printed. A
+      # DB_HOST of localhost is treated as unset (it is the silent default).
+      listing = capture(
+        "grep -E '^[A-Za-z_][A-Za-z0-9_]*=.' #{file.shellescape} " \
+        "| grep -vE '^DB_HOST=(localhost|127\\.0\\.1|::1)$' | cut -d= -f1",
+        raise_on_non_zero_exit: false
+      )
+      missing = DesconDeploy::REQUIRED_ENV_NAMES - listing.split
+      next if missing.empty?
+
+      raise "The environment file #{file} on the server is missing or has empty values for:\n" \
+            "#{missing.map { |name| "  - #{name}" }.join("\n")}\n" \
+            '(DB_HOST also counts as missing when it is localhost.) ' \
+            'Add them (see deploy/shared.env.example) and run the deploy again; nothing was changed on the server.'
+    end
+  end
+
   # Rails commands run by Capistrano get the same protected environment file
-  # the systemd unit uses, without relying on any shell profile.
+  # the systemd unit uses, without relying on any shell profile. The file is
+  # named explicitly so the wrapper can never read a different one than
+  # `deploy:check_env_file` just verified.
   task :map_env_wrapper do
+    SSHKit.config.default_env[:descon_env_file] = fetch(:env_file_path).to_s
     %i[rake rails].each do |command|
       SSHKit.config.command_map.prefix[command].unshift(fetch(:env_wrapper_path).to_s)
     end
