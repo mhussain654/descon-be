@@ -17,7 +17,7 @@ host-wide deploy lock described below.
 Internet ──443──► Nginx (only public listener; 80 serves just the ACME challenge + redirect)
                     ├─ /api/v1/…                 → Puma   127.0.0.1:3000   (Rails API + Solid Queue)
                     ├─ /rails/active_storage/…   → Puma   (signed, short-lived file URLs)
-                    └─ everything else           → /var/www/descon-mps-web/current  (static admin SPA)
+                    └─ everything else           → /home/deploy/descon-mps-web/current  (static admin SPA)
 
 Puma ──TLS (verify-full)──► RDS PostgreSQL 17  (4 databases: primary, cache, queue, cable)
 Puma ──instance role──────► S3 bucket (private, SSE-S3)
@@ -103,10 +103,10 @@ psql "host=descon-mps-db.czkga408o68a.ap-southeast-1.rds.amazonaws.com port=5432
 ### 3.3 Protected environment file
 
 ```bash
-sudo -iu deploy bash -c 'install -d -m 0755 /var/www/descon-mps-api/shared && install -d -m 0755 /var/www/descon-mps-api/shared/bin'
-# copy deploy/shared.env.example to /var/www/descon-mps-api/shared/.env, fill it in, then:
-sudo chown deploy:deploy /var/www/descon-mps-api/shared/.env
-sudo chmod 0600 /var/www/descon-mps-api/shared/.env
+sudo -iu deploy bash -c 'install -d -m 0755 /home/deploy/descon-mps-api/shared && install -d -m 0755 /home/deploy/descon-mps-api/shared/bin'
+# copy deploy/shared.env.example to /home/deploy/descon-mps-api/shared/.env, fill it in, then:
+sudo chown deploy:deploy /home/deploy/descon-mps-api/shared/.env
+sudo chmod 0600 /home/deploy/descon-mps-api/shared/.env
 ```
 
 Generate the secrets on the instance (they never need to exist anywhere else):
@@ -317,9 +317,9 @@ from the process environment of one shell, never from argv or history):
 
 ```bash
 sudo -iu deploy
-cd /var/www/descon-mps-api/current
+cd /home/deploy/descon-mps-api/current
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-/var/www/descon-mps-api/shared/bin/with-env env RAILS_ENV=production \
+/home/deploy/descon-mps-api/shared/bin/with-env env RAILS_ENV=production \
   RBENV_ROOT=$HOME/.rbenv RBENV_VERSION=3.4.7 PATH=$HOME/.rbenv/bin:$PATH \
   rbenv exec bundle exec rails runner \
   "User.create!(email: 'admin@your-domain', password: ENV.fetch('ADMIN_PASSWORD'), role: 'admin', active: true)"
@@ -691,3 +691,17 @@ nginx 1.24, certificate issuance and renewal, RDS TLS with the
 RDS bundle, S3 operations (`deployment:storage_round_trip` against the real
 bucket), the OIDC/SSM delivery path, reboot recovery, rollback on the real
 host, SMS, KuickPay and email delivery.
+
+
+### Nginx access to releases under `/home/deploy`
+
+The web release is under the deploy user’s home. Give Nginx (`www-data`) traverse access to the home directory and read access to the web releases only; keep the API shared secrets private:
+
+```bash
+sudo apt-get install -y acl
+sudo -iu deploy install -d -m 0755 /home/deploy/descon-mps-web/releases
+sudo setfacl -m u:www-data:--x /home/deploy
+sudo setfacl -m u:www-data:rx,d:u:www-data:rx /home/deploy/descon-mps-web /home/deploy/descon-mps-web/releases
+```
+
+After the first web deployment, check `sudo -u www-data test -r /home/deploy/descon-mps-web/current/index.html`. Do not grant `www-data` access to `/home/deploy/descon-mps-api/shared` or its `.env`.

@@ -60,7 +60,7 @@ upstream_pid=$!
 for _ in $(seq 1 50); do curl -fs "http://127.0.0.1:$upstream_port/ready" > /dev/null 2>&1 && break; sleep 0.1; done
 
 # The production site file with its absolute paths and ports pointed at $work.
-sed -e "s#/var/www/descon-mps-web/current#$work/web#g" \
+sed -e "s#/home/deploy/descon-mps-web/current#$work/web#g" \
     -e "s#/var/www/acme#$work/acme#g" \
     -e "s#/etc/nginx/tls/current#$work/tls#g" \
     -e "s#/etc/nginx/snippets#$work/snippets#g" \
