@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs a command with the variables from the protected environment file
-# (default: /var/www/descon-mps-api/shared/.env) exported -- the same file the
+# (default: /home/deploy/descon-mps-api/shared/.env) exported -- the same file the
 # systemd unit loads with EnvironmentFile=. Used so Capistrano's database and
 # check commands see exactly the environment the running service sees.
 #
@@ -12,8 +12,7 @@
 # for migrations). Within the files, DESCON_ENV_OVERRIDE_FILE (if set) is read
 # first and therefore wins over the main file.
 set -euo pipefail
-
-env_file="${DESCON_ENV_FILE:-/var/www/descon-mps-api/shared/.env}"
+env_file="${DESCON_ENV_FILE:-/home/deploy/descon-mps-api/shared/.env}"
 # Optional file loaded FIRST, so its values win over env_file's: used to run
 # migrations as a separate, more privileged database role without that
 # password ever being on a command line (docs/deployment, "Database roles").
