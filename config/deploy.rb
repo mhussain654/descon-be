@@ -16,7 +16,7 @@ raise 'REVISION must be a full 40-character commit SHA' if revision && !revision
 
 set :branch, revision || ENV.fetch('BRANCH', 'main')
 
-set :deploy_to, '/var/www/descon-mps-api'
+set :deploy_to, '/home/deploy/descon-mps-api'
 set :keep_releases, 5
 set :pty, false
 set :log_level, :info
