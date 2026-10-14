@@ -104,21 +104,34 @@ RSpec.describe Deployment::PreflightCheck do
     it 'fails when send.pk is selected but its production api key is missing' do
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('sendpk')
+      allow(Rails.application.credentials).to receive(:config).and_return({ readable: true })
 
       result = result_named(described_class.call, 'credentials')
 
       expect(result).to be_failed
-      expect(result.detail).to include('sendpk.test.api_key')
+      expect(result.detail).to include('sendpk.test.api_key', 'the file decrypts')
+    end
+
+    it 'says the credentials could not be decrypted when the file reads as empty' do
+      allow(Payments::Configuration).to receive(:new)
+        .and_return(instance_double(Payments::Configuration, kuickpay_enabled?: true))
+      allow(Rails.application.credentials).to receive(:config).and_return({})
+
+      result = result_named(described_class.call, 'credentials')
+
+      expect(result).to be_failed
+      expect(result.detail).to include('could not be decrypted', 'RAILS_MASTER_KEY', 'kuickpay.test.secured_key')
     end
 
     it 'fails when KuickPay is enabled but its secured key is missing' do
       allow(Payments::Configuration).to receive(:new).and_return(instance_double(Payments::Configuration,
                                                                                  kuickpay_enabled?: true))
+      allow(Rails.application.credentials).to receive(:config).and_return({ readable: true })
 
       result = result_named(described_class.call, 'credentials')
 
       expect(result).to be_failed
-      expect(result.detail).to include('kuickpay.test.secured_key')
+      expect(result.detail).to include('kuickpay.test.secured_key', 'the file decrypts')
     end
 
     it 'passes and never prints the secret when both are present' do

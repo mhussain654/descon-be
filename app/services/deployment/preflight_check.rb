@@ -58,10 +58,24 @@ module Deployment
     def credentials_result
       missing = missing_required_credentials
       return CheckResult.new(name: 'credentials', status: :pass, detail: credentials_detail) if missing.empty?
+      return credentials_unreadable_result(missing) if credentials_unreadable?
 
       CheckResult.new(name: 'credentials', status: :fail,
-                      detail: "missing from encrypted credentials: #{missing.join(', ')}")
+                      detail: "missing from encrypted credentials: #{missing.join(', ')} " \
+                              '(the file decrypts, so add them with `bin/rails credentials:edit`)')
     end
+
+    # Empty means config/credentials.yml.enc could not be decrypted -- most
+    # often RAILS_MASTER_KEY is unset or belongs to a different file -- which
+    # looks identical to "every key is missing" unless it is said out loud.
+    def credentials_unreadable_result(missing)
+      CheckResult.new(name: 'credentials', status: :fail,
+                      detail: 'the encrypted credentials are empty or could not be decrypted: check that ' \
+                              'RAILS_MASTER_KEY is the key for config/credentials.yml.enc ' \
+                              "(needed for: #{missing.join(', ')})")
+    end
+
+    def credentials_unreadable? = Rails.application.credentials.config.blank?
 
     def missing_required_credentials
       missing = []
