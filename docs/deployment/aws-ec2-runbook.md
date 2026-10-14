@@ -103,10 +103,10 @@ psql "host=descon-mps-db.czkga408o68a.ap-southeast-1.rds.amazonaws.com port=5432
 ### 3.3 Protected environment file
 
 ```bash
-sudo -iu deploy bash -c 'install -d -m 0755 /var/www/descon-mps-api/shared && install -d -m 0755 /var/www/descon-mps-api/shared/bin'
-# copy deploy/shared.env.example to /var/www/descon-mps-api/shared/.env, fill it in, then:
-sudo chown deploy:deploy /var/www/descon-mps-api/shared/.env
-sudo chmod 0600 /var/www/descon-mps-api/shared/.env
+sudo -iu deploy bash -c 'install -d -m 0755 /home/deploy/descon-mps-api/shared && install -d -m 0755 /home/deploy/descon-mps-api/shared/bin'
+# copy deploy/shared.env.example to /home/deploy/descon-mps-api/shared/.env, fill it in, then:
+sudo chown deploy:deploy /home/deploy/descon-mps-api/shared/.env
+sudo chmod 0600 /home/deploy/descon-mps-api/shared/.env
 ```
 
 Generate the secrets on the instance (they never need to exist anywhere else):
@@ -317,9 +317,9 @@ from the process environment of one shell, never from argv or history):
 
 ```bash
 sudo -iu deploy
-cd /var/www/descon-mps-api/current
+cd /home/deploy/descon-mps-api/current
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
-/var/www/descon-mps-api/shared/bin/with-env env RAILS_ENV=production \
+/home/deploy/descon-mps-api/shared/bin/with-env env RAILS_ENV=production \
   RBENV_ROOT=$HOME/.rbenv RBENV_VERSION=3.4.7 PATH=$HOME/.rbenv/bin:$PATH \
   rbenv exec bundle exec rails runner \
   "User.create!(email: 'admin@your-domain', password: ENV.fetch('ADMIN_PASSWORD'), role: 'admin', active: true)"
