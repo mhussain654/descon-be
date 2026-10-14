@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
-require_relative '../required_env_names'
+# Kept under deploy/, not lib/: Rails autoloads and eager-loads lib/, and a plain
+# Ruby file there that does not define the constant Zeitwerk expects stops Puma
+# from booting.
+require_relative '../../../deploy/lib/required_env_names'
 
 # Release steps specific to this application: protected environment loading,
 # readiness checks, database preparation, and a health-gated activation that

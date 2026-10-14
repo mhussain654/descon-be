@@ -22,7 +22,7 @@ chmod +x "$root/rbenv/bin/rbenv"
 
 # The rehearsal "environment file": every name deploy:check_env_file requires,
 # with placeholder values, so a normal rehearsal deploy passes that check.
-ruby -r"$(pwd)/lib/capistrano/required_env_names" \
+ruby -r"$(pwd)/deploy/lib/required_env_names" \
   -e 'puts DesconDeploy::REQUIRED_ENV_NAMES.map { |name| "#{name}=placeholder" }' > "$root/shared.env"
 echo 'DB_HOST=db.example.invalid' >> "$root/shared.env"
 echo "rehearsal root prepared at $root"

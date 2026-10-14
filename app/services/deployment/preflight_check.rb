@@ -15,10 +15,21 @@ module Deployment
     STORAGE_SENTINEL_KEY = 'deployment-preflight/does-not-exist'
 
     def call
-      [*DatabaseReadinessCheck.call, storage_result, credentials_result, scanner_result]
+      [application_code_result, *DatabaseReadinessCheck.call, storage_result, credentials_result, scanner_result]
     end
 
     private
+
+    # Puma eager-loads every file under app/ and lib/ at boot; a rake task does
+    # not. Without this, a file that Zeitwerk cannot load passes every other
+    # check and then keeps the service crash-looping after the switch.
+    def application_code_result
+      Zeitwerk::Loader.eager_load_all
+      CheckResult.new(name: 'application code', status: :pass, detail: 'every file under app/ and lib/ loads')
+    rescue StandardError, ScriptError => e
+      CheckResult.new(name: 'application code', status: :fail,
+                      detail: "failed to load (#{e.class.name}: #{e.message.lines.first.to_s.strip})")
+    end
 
     def storage_result
       service = ActiveStorage::Blob.service

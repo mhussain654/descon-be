@@ -11,6 +11,7 @@ RSpec.describe Deployment::PreflightCheck do
 
   before do
     allow(Deployment::DatabaseReadinessCheck).to receive(:call).and_return([])
+    allow(Zeitwerk::Loader).to receive(:eager_load_all)
   end
 
   describe '.call' do
@@ -19,6 +20,30 @@ RSpec.describe Deployment::PreflightCheck do
       allow(Deployment::DatabaseReadinessCheck).to receive(:call).and_return([database_result])
 
       expect(described_class.call).to include(database_result)
+    end
+  end
+
+  describe 'application code' do
+    it 'passes when every file loads' do
+      result = result_named(described_class.call, 'application code')
+
+      expect(result.status).to eq(:pass)
+    end
+
+    it 'fails, naming the file, when Zeitwerk cannot load one' do
+      message = 'expected file lib/x.rb to define constant X, but didn\'t'
+      allow(Zeitwerk::Loader).to receive(:eager_load_all).and_raise(Zeitwerk::NameError, message)
+
+      result = result_named(described_class.call, 'application code')
+
+      expect(result).to be_failed
+      expect(result.detail).to include('Zeitwerk::NameError', 'lib/x.rb')
+    end
+
+    it 'fails on a missing require as well' do
+      allow(Zeitwerk::Loader).to receive(:eager_load_all).and_raise(LoadError, 'cannot load such file -- faker')
+
+      expect(result_named(described_class.call, 'application code')).to be_failed
     end
   end
 
