@@ -1,5 +1,21 @@
 # AWS EC2 deployment runbook (backend)
 
+> **Domain transition (October 2026).** The public origin is now
+> `https://descon-mps.com` (web at `/`, Rails at `/api/v1/`). Section 3.6
+> records the original IP certificate setup. After these PRs merge, confirm
+> the domain A record points to `52.221.51.231`, then on the instance issue
+> `sudo /snap/bin/certbot certonly --webroot --webroot-path /var/www/acme -d descon-mps.com --deploy-hook "systemctl reload nginx"`. Point
+> `/etc/nginx/tls/current` at `/etc/letsencrypt/live/descon-mps.com`, run
+> `sudo nginx -t && sudo systemctl reload nginx`, and test
+> `curl -fsSI https://descon-mps.com/` and `sudo /snap/bin/certbot renew --dry-run`.
+> Update `/home/deploy/descon-mps-api/shared/.env` with the three public URLs
+> in `deploy/shared.env.example` and restart Rails. Set the frontend GitHub
+> `PUBLIC_ORIGIN` variable to `https://descon-mps.com` and rebuild/redeploy it.
+> The template and merged code do not change server secrets or existing builds.
+> Keep SSH/Capistrano on the Elastic IP. Register the new KuickPay return URL
+> before enabling payments.
+
+
 First production-shaped deployment of the Rails API to one Ubuntu 24.04 EC2
 instance in `ap-southeast-1`, with Nginx as the only public entry point, a
 private RDS PostgreSQL database and a private S3 bucket. The admin web app is
