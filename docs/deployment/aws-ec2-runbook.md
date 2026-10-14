@@ -1,5 +1,12 @@
 # AWS EC2 deployment runbook (backend)
 
+> **Preview shares the live test host.** Both GitHub environments deploy the Rails API
+> to `/home/deploy/descon-mps-api/current` on the same EC2 instance and use
+> the same RDS databases and S3 bucket. A branch or PR preview replaces the
+> currently served API and may migrate shared databases. Deploying `main`
+> later replaces its code, but rollback cannot undo migrations. Use a
+> separate host and data stores before treating preview as isolated staging.
+
 First production-shaped deployment of the Rails API to one Ubuntu 24.04 EC2
 instance in `ap-southeast-1`, with Nginx as the only public entry point, a
 private RDS PostgreSQL database and a private S3 bucket. The admin web app is
