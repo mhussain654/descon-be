@@ -21,7 +21,10 @@ Bundler.require(*Rails.groups)
 module DesconBackend
   class Application < Rails::Application
     config.load_defaults 8.1
-    config.autoload_lib(ignore: %w[assets tasks])
+    # lib/dev_data needs factory_bot and faker, which are development/test-only gems. It is
+    # loaded explicitly by lib/tasks/dev_data.rake, never autoloaded, so a production boot
+    # (which eager-loads lib/) does not try to require a gem that is not in the bundle.
+    config.autoload_lib(ignore: %w[assets tasks dev_data])
     config.api_only = true
     config.time_zone = 'UTC'
     config.active_record.default_timezone = :utc
