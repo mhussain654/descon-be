@@ -20,8 +20,7 @@ name: EC2 Deploy
 # refused here and cannot be fetched by the instance. See
 # docs/deployment/aws-ec2-runbook.md ("Continuous delivery").
 #
-# Inert until the repository variable EC2_INSTANCE_ID and the environments'
-# AWS_DEPLOY_ROLE_ARN variables exist.
+# Missing EC2_INSTANCE_ID or AWS_DEPLOY_ROLE_ARN fails the deploy job visibly.
 
 on:
   push:
@@ -141,8 +140,6 @@ jobs:
   deploy:
     name: Deploy ${{ needs.resolve.outputs.description }}
     needs: [resolve, ci]
-    # Skipped (not failed) until the instance id is configured.
-    if: ${{ vars.EC2_INSTANCE_ID != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: ${{ needs.resolve.outputs.environment }}
@@ -150,6 +147,18 @@ jobs:
       id-token: write
       contents: read
     steps:
+      - name: Check deployment configuration
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          for name in INSTANCE_ID DEPLOY_ROLE_ARN; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing ${name} deployment configuration. Check repository and environment variables."
+              exit 1
+            fi
+
       - name: Assume this environment's deploy role (OIDC)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
