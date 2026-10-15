@@ -147,15 +147,80 @@ Commonly adjusted per machine or environment:
 
 ## Deployment
 
-The first AWS deployment (one Ubuntu EC2 instance, Nginx, private RDS and S3,
-Capistrano) is documented in
-[`docs/deployment/aws-ec2-runbook.md`](docs/deployment/aws-ec2-runbook.md):
-one-time server setup, `cap production deploy`, rollback, the
-`deployment:preflight` / `deployment:queue_status` /
-`deployment:storage_round_trip` checks, backups and restore, continuous
-delivery through GitHub OIDC and SSM, and an explicit list of what is and is
-not verified. Capistrano lives in the `:deploy` Bundler group and is excluded
-from the production bundle.
+The Rails API runs on the shared EC2 instance behind Nginx, using private RDS
+and S3. Capistrano publishes releases under `/home/deploy/descon-mps-api`.
+The `:deploy` Bundler group is for the machine running Capistrano and is
+excluded from the application bundle on EC2.
+
+### Deploy from your machine
+
+Use Ruby 3.4.7, Bundler, a committed checkout, and an SSH key authorized for
+`deploy@52.221.51.231`. Your IP must be allowed by the EC2 SSH security
+group, and you must trust the instance host key. Configure the key in
+`~/.ssh/config` or your SSH agent. The server's repository keys, production
+environment file and AWS credentials stay on the server.
+
+```bash
+git switch main
+git pull --ff-only origin main
+bundle install                         # includes the deploy group locally
+bundle exec cap production deploy:check
+bundle exec cap production deploy      # main by default
+```
+
+For a different branch, push it to this repository first and run
+`BRANCH=<branch-name> bundle exec cap production deploy`. To pin one pushed
+commit, use `REVISION=<full-40-character-sha> bundle exec cap production deploy`.
+The deploy runs preflight and database preparation, restarts Puma/Solid Queue,
+and checks readiness. Rollback restores the previous **code release**, but
+does not reverse database migrations:
+
+```bash
+bundle exec cap production deploy:rollback
+bundle exec cap production deploy:queue_status
+curl -fsS https://descon-mps.com/api/v1/health/ready
+```
+
+### Deploy from GitHub Actions
+
+Open this repository's **Actions → EC2 Deploy → Run workflow**. Select the
+workflow's branch (`main` for production), then choose `source`:
+
+| Source | Additional input | GitHub environment | Result |
+| --- | --- | --- | --- |
+| `main` | None | `production` | Latest `main` commit |
+| `branch` | Existing branch name | `preview` | Tip of that branch |
+| `pull_request` | Open PR number from this repository | `preview` | Head commit of that PR; fork PRs are refused |
+
+A push or merge to `main` also starts EC2 Deploy automatically. It runs CI
+for the selected commit, then waits for the `production` environment reviewer
+before AWS OIDC/SSM delivery. A branch push or PR opening does **not** deploy
+automatically; start those with **Run workflow** and obtain `preview`
+approval. Inspect the **Deploy** job and its final SSM status: green checks
+alone do not mean that EC2 changed. The repository needs `EC2_INSTANCE_ID`,
+and each GitHub environment needs its own `AWS_DEPLOY_ROLE_ARN`. No AWS static
+keys or inbound GitHub runner SSH access are required.
+
+**Preview runs branch code and migrations against this same EC2/RDS/S3.** It
+replaces the publicly served API, not an isolated staging environment. After
+a preview, deploy `main` again if you need the main API restored; migrations
+are not undone. Backend and frontend deploy independently but share a
+server-side lock.
+
+### Pause or resume GitHub deployments
+
+To stop **both** automatic and manual GitHub deployments, open **Actions →
+EC2 Deploy → ⋯ → Disable workflow**. Use **Enable workflow** on that page to
+resume. Cancel an already running deployment separately; disabling does not
+undo an installed release. Local Capistrano remains available. To retain
+manual deployments but stop automatic `main` deployments, make a reviewed PR
+that removes the `push` trigger from `.github/workflows/deploy.yml`, leaving
+`workflow_dispatch`; restore the trigger in another PR to re-enable it. Do
+not remove environment approvals to pause deployments.
+
+For one-time server setup, protected configuration, database checks, storage,
+backups and recovery, see
+[`docs/deployment/aws-ec2-runbook.md`](docs/deployment/aws-ec2-runbook.md).
 
 ## Quality
 
