@@ -1783,18 +1783,36 @@ components:
                 and AI_VOICE_HUMAN_TRANSFER_ENABLED is on.
           additionalProperties: false
       required: [ai_call_operational_setting]
-    AdminTrainingSettingRequest:
+    TrainingVideo:
       type: object
+      required: [id, title_en, title_ur, position, published, content_type, byte_size, playback_url]
       properties:
-        training_setting:
-          type: object
-          properties:
-            url:
-              type: string
-              format: uri
-          additionalProperties: false
-          required: [url]
-      required: [training_setting]
+        id: { type: integer }
+        title_en: { type: string }
+        title_ur: { type: string }
+        description_en: { type: [string, 'null'] }
+        description_ur: { type: [string, 'null'] }
+        position: { type: integer, minimum: 0 }
+        published: { type: boolean }
+        content_type: { type: string, enum: [video/mp4] }
+        byte_size: { type: integer, maximum: 262144000 }
+        playback_url:
+          type: string
+          format: uri
+          description: Private S3 signed playback URL, valid for five minutes. Never cache or log.
+    TrainingVideoInput:
+      type: object
+      required: [title_en, title_ur, file]
+      properties:
+        title_en: { type: string, maxLength: 150 }
+        title_ur: { type: string, maxLength: 150 }
+        description_en: { type: string }
+        description_ur: { type: string }
+        position: { type: integer, minimum: 0 }
+        published: { type: boolean, default: false }
+        file:
+          type: string
+          description: Signed ID from the direct upload ticket, after uploading the MP4 to S3.
     AdminSupportSettingRequest:
       type: object
       properties:
@@ -3723,7 +3741,7 @@ paths:
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
               properties:
@@ -7719,49 +7737,161 @@ paths:
           description: Visa decision not found (including one belonging to another candidate)
         '422':
           description: Visa decision exists but has no attached visa copy (a rejected decision)
-  /api/v1/candidate/training_setting:
+  /api/v1/candidate/training_videos:
     get:
-      summary: Read the one shared training link
-      description: >-
-        Returns the single link (e.g. a YouTube channel/playlist) where all
-        training documents and videos live -- not per-candidate content, so
-        any authenticated, active candidate can read it.
+      summary: List published training videos for an authenticated candidate
       security:
         - candidateBearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XLocaleHeader'
-        - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
         '200':
-          description: The current training link
-          headers:
-            Content-Language:
-              $ref: '#/components/headers/ContentLanguageHeader'
-            Cache-Control:
-              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
-            ETag:
-              $ref: '#/components/headers/EntityTagHeader'
-            Vary:
-              $ref: '#/components/headers/VaryLanguageHeaders'
-            X-Request-Id:
-              $ref: '#/components/headers/RequestIdHeader'
+          description: At most 100 videos, ordered by position then ID. Each includes a five minute signed playback URL.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
+              schema: { $ref: '#/components/schemas/SuccessEnvelope' }
               examples:
-                setting:
+                videos:
                   value:
-                    data:
-                      url: https://www.youtube.com/@DesconManpower
-                    meta:
-                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
-                      timestamp: '2026-09-12T10:00:00Z'
+                    data: [{ id: 1, title_en: 'At the airport', title_ur: 'ہوائی اڈے پر', description_en: null, description_ur: null, position: 0, published: true, content_type: video/mp4, byte_size: 1234, playback_url: 'https://private-s3.example/video?signature=temporary' }]
+                    meta: { request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363 }
                     errors: []
-        '401':
-          description: Missing, invalid, expired, or revoked candidate session
-        '403':
-          description: Candidate account inactive
+        '401': { description: Missing or expired candidate access token }
+        '403': { description: Consent missing or candidate inactive }
+  /api/v1/admin/training_videos:
+    get:
+      summary: List all training videos including unpublished drafts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: At most 100 videos, with five minute private signed preview URLs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+              examples:
+                videos:
+                  value:
+                    data: [{ id: 1, title_en: 'At the airport', title_ur: 'ہوائی اڈے پر', description_en: null, description_ur: null, position: 0, published: false, content_type: video/mp4, byte_size: 1234, playback_url: 'https://private-s3.example/video?signature=temporary' }]
+                    meta: { request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363 }
+                    errors: []
+        '401': { description: Missing or expired staff token }
+        '403': { description: Missing manage_training_settings permission }
+    post:
+      summary: Register a directly uploaded private MP4 training video
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [training_video]
+              properties:
+                training_video: { $ref: '#/components/schemas/TrainingVideoInput' }
+      responses:
+        '201':
+          description: Uploaded video, private by default
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+              examples:
+                video:
+                  value:
+                    data: { id: 1, title_en: 'At the airport', title_ur: 'ہوائی اڈے پر', description_en: null, description_ur: null, position: 0, published: false, content_type: video/mp4, byte_size: 1234, playback_url: 'https://private-s3.example/video?signature=temporary' }
+                    meta: { request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363 }
+                    errors: []
+        '401': { description: Missing or expired staff token }
+        '403': { description: Missing manage_training_settings permission }
+        '422': { description: Invalid signed blob, title, MIME, size, or MP4 signature }
+  /api/v1/admin/training_videos/upload:
+    post:
+      summary: Issue an authenticated direct S3 upload ticket for an MP4 video
+      description: The client computes Base64 MD5, PUTs the file to upload_url using upload_headers, then registers the returned signed_id. Ticket is valid for 15 minutes; registration accepts blobs from the same staff user for two hours. Maximum size 250 MiB.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [training_video_upload]
+              properties:
+                training_video_upload:
+                  type: object
+                  required: [filename, byte_size, content_type, checksum]
+                  properties:
+                    filename: { type: string }
+                    byte_size: { type: integer, minimum: 1, maximum: 262144000 }
+                    content_type: { type: string, enum: [video/mp4] }
+                    checksum: { type: string, description: Base64 encoded MD5 of the complete file }
+      responses:
+        '201':
+          description: One-use upload ticket
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+              examples:
+                ticket:
+                  value:
+                    data: { signed_id: 'opaque-signed-id', upload_url: 'https://private-s3.example/upload', upload_headers: { Content-Type: video/mp4 } }
+                    meta: { request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363 }
+                    errors: []
+        '401': { description: Missing or expired staff token }
+        '403': { description: Missing manage_training_settings permission }
+        '422': { description: Invalid metadata or size }
+  /api/v1/admin/training_videos/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    patch:
+      summary: Update metadata or published status
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [training_video]
+              properties:
+                training_video:
+                  type: object
+                  properties:
+                    title_en: { type: string }
+                    title_ur: { type: string }
+                    description_en: { type: string }
+                    description_ur: { type: string }
+                    position: { type: integer }
+                    published: { type: boolean }
+      responses:
+        '200':
+          description: Updated video
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+              examples:
+                video:
+                  value:
+                    data: { id: 1, title_en: 'At the airport', title_ur: 'ہوائی اڈے پر', position: 0, published: true, content_type: video/mp4, byte_size: 1234, playback_url: 'https://private-s3.example/video?signature=temporary' }
+                    meta: { request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363 }
+                    errors: []
+        '401': { description: Missing or expired staff token }
+        '403': { description: Missing manage_training_settings permission }
+        '404': { description: Video not found }
+        '422': { description: Invalid metadata }
+    delete:
+      summary: Delete a training video and purge its object asynchronously
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Deleted }
+        '401': { description: Missing or expired staff token }
+        '403': { description: Missing manage_training_settings permission }
+        '404': { description: Video not found }
   /api/v1/candidate/support_setting:
     get:
       summary: Read the shared support/helpline number
@@ -9292,99 +9422,6 @@ paths:
           description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
         '422':
           description: A knob is out of its valid range (e.g. calling_hours_start > 23)
-  /api/v1/admin/training_setting:
-    get:
-      summary: Read the training-link singleton
-      description: >-
-        Returns the single admin-editable TrainingSetting row -- the one
-        external link (e.g. a YouTube channel/playlist) candidates are sent
-        to for all training documents and videos; the content itself is
-        managed entirely off-platform. Requires the
-        `manage_training_settings` permission -- admin-only by default.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XLocaleHeader'
-        - $ref: '#/components/parameters/AcceptLanguageHeader'
-      responses:
-        '200':
-          description: The current training link
-          headers:
-            Content-Language:
-              $ref: '#/components/headers/ContentLanguageHeader'
-            Vary:
-              $ref: '#/components/headers/VaryLanguageHeaders'
-            X-Request-Id:
-              $ref: '#/components/headers/RequestIdHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-              examples:
-                setting:
-                  value:
-                    data:
-                      url: https://www.youtube.com/@DesconManpower
-                      updated_by: null
-                      updated_at: '2026-09-12T09:00:00Z'
-                    meta:
-                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
-                      timestamp: '2026-09-12T09:00:01Z'
-                    errors: []
-        '401':
-          description: Missing, invalid, expired, or revoked staff access token
-        '403':
-          description: Authenticated staff user lacks manage_training_settings, or is inactive
-    patch:
-      summary: Edit the training-link singleton
-      description: >-
-        Updates the training link. Requires the `manage_training_settings`
-        permission; a change is recorded as an AuditEvent carrying the actor
-        and the before/after value.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XLocaleHeader'
-        - $ref: '#/components/parameters/AcceptLanguageHeader'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminTrainingSettingRequest'
-      responses:
-        '200':
-          description: Training link updated
-          headers:
-            Content-Language:
-              $ref: '#/components/headers/ContentLanguageHeader'
-            Vary:
-              $ref: '#/components/headers/VaryLanguageHeaders'
-            X-Request-Id:
-              $ref: '#/components/headers/RequestIdHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-              examples:
-                updated:
-                  value:
-                    data:
-                      url: https://www.youtube.com/@DesconManpowerTraining
-                      updated_by:
-                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
-                        role: admin
-                      updated_at: '2026-09-12T09:05:00Z'
-                    meta:
-                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
-                      timestamp: '2026-09-12T09:05:01Z'
-                    errors: []
-        '401':
-          description: Missing, invalid, expired, or revoked staff access token
-        '403':
-          description: Authenticated staff user lacks manage_training_settings, or is inactive
-        '422':
-          description: url is missing, blank, or not a valid http(s) URL
   /api/v1/admin/support_setting:
     get:
       summary: Read the support-number singleton
