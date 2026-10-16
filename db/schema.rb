@@ -420,7 +420,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
     t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying::text, 'queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
+    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying, 'queued'::character varying, 'processing'::character varying, 'completed'::character varying, 'partial'::character varying, 'failed'::character varying, 'invalidated'::character varying]::text[])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_import_row_results", force: :cascade do |t|
@@ -1051,8 +1051,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
   end
 
   create_table "training_videos", force: :cascade do |t|
-    t.bigint "created_by_id", null: false
     t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
     t.text "description_en"
     t.text "description_ur"
     t.integer "position", default: 0, null: false
@@ -1062,7 +1062,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.datetime "updated_at", null: false
     t.index ["created_by_id"], name: "index_training_videos_on_created_by_id"
     t.index ["published", "position", "id"], name: "index_training_videos_on_published_and_position_and_id"
-    t.check_constraint "position >= 0", name: "training_videos_position_nonnegative"
+    t.check_constraint "\"position\" >= 0", name: "training_videos_position_nonnegative"
   end
 
   create_table "users", force: :cascade do |t|
