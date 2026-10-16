@@ -4,6 +4,8 @@ ur:
       messages:
         record_invalid: "توثیق ناکام ہوگئی: %{errors}"
   api:
+    training_videos:
+      invalid_file: "۲۵۰ ایم بی تک کی MP4 ویڈیو اپ لوڈ کریں۔"
     messages:
       health:
         ok: "ایپلیکیشن فعال ہے۔"
