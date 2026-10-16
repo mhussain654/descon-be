@@ -41,7 +41,7 @@ Rails.application.routes.draw do
         resources :visa_decisions, only: :index do
           resource :visa_copy_access, only: :create, controller: :visa_decision_visa_copy_accesses
         end
-        resource :training_setting, only: :show
+        resources :training_videos, only: :index
         resource :support_setting, only: :show
       end
 
@@ -101,7 +101,9 @@ Rails.application.routes.draw do
         end
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resource :ai_call_operational_settings, only: %i[show update]
-        resource :training_setting, only: %i[show update]
+        resources :training_videos, only: %i[index create update destroy] do
+          post :upload, on: :collection
+        end
         resource :onboarding_fee_setting, only: %i[show update]
         resource :support_setting, only: %i[show update]
         resources :system_database_backups, only: :index do
