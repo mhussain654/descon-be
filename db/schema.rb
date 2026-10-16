@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -420,7 +420,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
     t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying::text, 'queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
+    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying, 'queued'::character varying, 'processing'::character varying, 'completed'::character varying, 'partial'::character varying, 'failed'::character varying, 'invalidated'::character varying]::text[])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_import_row_results", force: :cascade do |t|
@@ -1050,14 +1050,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
     t.check_constraint "status_code::text = ANY (ARRAY['in_progress'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])", name: "system_database_backups_status_code_allowed"
   end
 
-  create_table "training_settings", force: :cascade do |t|
+  create_table "training_videos", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.boolean "singleton_guard", default: true, null: false
+    t.bigint "created_by_id", null: false
+    t.text "description_en"
+    t.text "description_ur"
+    t.integer "position", default: 0, null: false
+    t.boolean "published", default: false, null: false
+    t.string "title_en", null: false
+    t.string "title_ur", null: false
     t.datetime "updated_at", null: false
-    t.bigint "updated_by_id"
-    t.string "url", null: false
-    t.index ["singleton_guard"], name: "index_training_settings_on_singleton_guard", unique: true
-    t.index ["updated_by_id"], name: "index_training_settings_on_updated_by_id"
+    t.index ["created_by_id"], name: "index_training_videos_on_created_by_id"
+    t.index ["published", "position", "id"], name: "index_training_videos_on_published_and_position_and_id"
+    t.check_constraint "\"position\" >= 0", name: "training_videos_position_nonnegative"
   end
 
   create_table "users", force: :cascade do |t|
@@ -1215,7 +1220,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
   add_foreign_key "role_permissions", "roles", on_delete: :cascade
   add_foreign_key "sessions", "users"
   add_foreign_key "support_settings", "users", column: "updated_by_id"
-  add_foreign_key "training_settings", "users", column: "updated_by_id"
+  add_foreign_key "training_videos", "users", column: "created_by_id"
   add_foreign_key "users", "roles", column: "role", primary_key: "code"
   add_foreign_key "users", "users", column: "invited_by_id"
   add_foreign_key "workflow_stage_call_scripts", "users", column: "updated_by_id"

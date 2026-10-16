@@ -126,13 +126,6 @@ end
 # ENV-driven AiCalls::Configuration defaults unchanged.
 AiCallOperationalSetting.current
 
-# --- Training link setting ---------------------------------------------------
-# Seeds the singleton row up front (with its placeholder default URL --
-# TrainingSetting::DEFAULT_URL) so both the admin settings screen and the
-# candidate Training page are never empty before the client provides their
-# real training link.
-TrainingSetting.current
-
 # --- Support number setting --------------------------------------------------
 # Seeds the (blank) singleton row so the admin settings screen always has a
 # record to edit; the candidate "Help & support" action stays unavailable

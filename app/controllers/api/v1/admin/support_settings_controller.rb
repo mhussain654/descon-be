@@ -5,7 +5,7 @@ module Api
     module Admin
       # Lets staff view and edit the singleton SupportSetting row -- the
       # helpline number candidates call from "Help & support". Singleton
-      # show+update only, mirroring TrainingSettingsController.
+      # show+update only, for the support-number singleton.
       class SupportSettingsController < ProtectedStaffController
         def show
           authorize ::SupportSetting, policy_class: ::Admin::SupportSettingPolicy

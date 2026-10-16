@@ -5,7 +5,7 @@ module Api
     module Candidate
       # Lets any authenticated candidate read the shared support number for
       # the app's "Help & support" action -- no ownership scoping, mirroring
-      # TrainingSettingsController.
+      # other candidate settings controllers.
       class SupportSettingsController < ProtectedController
         def show
           authorize current_candidate, policy_class: ::Candidates::SupportSettingPolicy

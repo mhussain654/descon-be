@@ -2,7 +2,7 @@
 
 # The single admin-editable row holding the support/helpline phone number
 # candidates can call from the app's "Help & support" action. Same singleton
-# shape as TrainingSetting -- #current is the only supported way to obtain
+# singleton shape used by the support-number settings -- #current is the only supported way to obtain
 # the row. Unlike the training link there is no placeholder default: a
 # made-up number would put candidates through to the wrong line, so the row
 # starts blank and the candidate action stays unavailable until staff set it.

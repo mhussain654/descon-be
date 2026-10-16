@@ -4,7 +4,7 @@ require 'rails_helper'
 
 RSpec.describe SupportSetting do
   # db:seed creates this singleton for real against a freshly prepared test
-  # database (see TrainingSetting's spec), so start each example empty.
+  # database (see the lazy singleton creation spec), so start each example empty.
   before { described_class.delete_all }
 
   describe '.current' do

@@ -4,6 +4,8 @@ en:
       messages:
         record_invalid: "Validation failed: %{errors}"
   api:
+    training_videos:
+      invalid_file: "Upload an MP4 video up to 250 MB."
     messages:
       fallback_example: "English fallback message."
       health:

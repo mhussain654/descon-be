@@ -2,7 +2,7 @@
 
 module Candidates
   # Candidate-facing shape -- just the number (null until staff set one). No
-  # `updated_by`, same rationale as TrainingSettingSerializer.
+  # `updated_by`, internal actor should not be exposed to candidates.
   class SupportSettingSerializer
     def initialize(setting)
       @setting = setting

@@ -2,7 +2,7 @@
 
 module Candidates
   # The support number isn't per-candidate (one shared line), so -- like
-  # TrainingSettingPolicy -- any authenticated, active candidate may view it.
+  # other candidate settings policies -- any authenticated, active candidate may view it.
   class SupportSettingPolicy < ApplicationPolicy
     def show?
       candidate_authenticated?
