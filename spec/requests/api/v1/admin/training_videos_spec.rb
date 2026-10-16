@@ -38,6 +38,26 @@ RSpec.describe 'Training videos', type: :request do
   end
 
 
+  it 'lists every video, including unpublished ones, for authorized staff and refuses everyone else' do
+    admin = create(:user, role: 'admin')
+    hr = create(:user, role: 'hr')
+    blob = uploaded_blob(admin)
+    post '/api/v1/admin/training_videos',
+         params: { training_video: { title_en: 'Airport', title_ur: 'ہوائی اڈہ', file: blob.signed_id } },
+         headers: staff_headers(admin)
+
+    get '/api/v1/admin/training_videos', headers: staff_headers(admin)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig('data', 0, 'title_en')).to eq('Airport')
+    expect(response.parsed_body.dig('data', 0, 'published')).to be(false)
+    expect(response.parsed_body.dig('data', 0, 'playback_url')).to start_with('http')
+
+    get '/api/v1/admin/training_videos', headers: staff_headers(hr)
+
+    expect(response).to have_http_status(:forbidden)
+  end
+
   it 'issues a bounded direct upload ticket to authorized staff' do
     admin = create(:user, role: 'admin')
     post '/api/v1/admin/training_videos/upload',

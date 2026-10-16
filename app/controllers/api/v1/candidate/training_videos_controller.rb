@@ -8,7 +8,7 @@ module Api
         def index
           authorize ::TrainingVideo, policy_class: ::Candidates::TrainingVideoPolicy
           response.set_header('Cache-Control', 'private, no-store')
-          videos = ::TrainingVideo.published.with_attached_file.ordered.limit(100)
+          videos = ::TrainingVideo.published.includes(file_attachment: :blob).ordered.limit(100)
           render_success(data: videos.map { |video| ::TrainingVideos::VideoSerializer.new(video, include_access: true).as_json })
         end
 

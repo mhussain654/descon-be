@@ -68,7 +68,8 @@ module Api
         end
 
         def videos
-          ::TrainingVideo.with_attached_file.ordered.limit(100)
+          policy_scope(::TrainingVideo, policy_scope_class: ::Admin::TrainingVideoPolicy::Scope)
+            .includes(file_attachment: :blob).ordered.limit(100)
         end
 
         def attributes
