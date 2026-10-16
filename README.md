@@ -192,9 +192,10 @@ workflow's branch (`main` for production), then choose `source`:
 | `branch` | Existing branch name | `preview` | Tip of that branch |
 | `pull_request` | Open PR number from this repository | `preview` | Head commit of that PR; fork PRs are refused |
 
-A push or merge to `main` also starts EC2 Deploy automatically. It runs CI
-for the selected commit, then waits for the `production` environment reviewer
-before AWS OIDC/SSM delivery. A branch push or PR opening does **not** deploy
+A push or merge to `main` also starts EC2 Deploy automatically. It does not
+re-run CI (tests, RuboCop, security scans run on every pull request and push, so
+make CI a required check on `main`); it waits for the `production` environment
+reviewer before AWS OIDC/SSM delivery. A branch push or PR opening does **not** deploy
 automatically; start those with **Run workflow** and obtain `preview`
 approval. Inspect the **Deploy** job and its final SSM status: green checks
 alone do not mean that EC2 changed. The repository needs `EC2_INSTANCE_ID`,

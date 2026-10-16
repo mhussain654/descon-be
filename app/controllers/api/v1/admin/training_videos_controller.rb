@@ -12,37 +12,16 @@ module Api
 
         def create
           authorize ::TrainingVideo, policy_class: ::Admin::TrainingVideoPolicy
-          blob = ::ActiveStorage::Blob.find_signed(attributes.fetch(:file))
-          return render_api_error(ValidationError.new(field: 'file', message: t('api.training_videos.invalid_file'))) unless blob
-          unless blob.metadata['training_video_owner_id'].to_s == current_user.id.to_s &&
-                 blob.created_at > 2.hours.ago && !blob.attachments.exists? &&
-                 blob.content_type == 'video/mp4' && blob.byte_size.between?(1, ::TrainingVideo::MAX_BYTES) &&
-                 blob.service.exist?(blob.key) &&
-                 blob.download_chunk(0..11).byteslice(4, 4) == 'ftyp'
-            return render_api_error(ValidationError.new(field: 'file', message: t('api.training_videos.invalid_file')))
-          end
-          video = ::TrainingVideo.new(attributes.except(:file).merge(created_by: current_user))
-          video.file.attach(blob)
-          video.save!
+          video = ::TrainingVideos::CreateService.call(creator: current_user, attributes: attributes.except(:file),
+                                                       signed_blob_id: attributes.fetch(:file))
           audit!(video, 'training_video_created')
           render_success(data: serialize(video), status: :created)
         end
 
         def upload
           authorize ::TrainingVideo, :create?, policy_class: ::Admin::TrainingVideoPolicy
-          input = params.expect(training_video_upload: %i[filename byte_size content_type checksum])
-          size = Integer(input.fetch(:byte_size), exception: false)
-          unless size&.between?(1, ::TrainingVideo::MAX_BYTES) && input[:content_type] == 'video/mp4' &&
-                 input[:checksum].to_s.match?(/\A[A-Za-z0-9+\/]{22}==\z/)
-            return render_api_error(ValidationError.new(field: 'file', message: t('api.training_videos.invalid_file')))
-          end
-          blob = ::ActiveStorage::Blob.create_before_direct_upload!(
-            filename: input.fetch(:filename), byte_size: size, checksum: input.fetch(:checksum),
-            content_type: 'video/mp4', metadata: { training_video_owner_id: current_user.id }
-          )
-          render_success(data: { signed_id: blob.signed_id(expires_in: 2.hours),
-                                 upload_url: blob.service_url_for_direct_upload(expires_in: 15.minutes),
-                                 upload_headers: blob.service_headers_for_direct_upload }, status: :created)
+          ticket = ::TrainingVideos::DirectUploadTicketService.call(owner: current_user, **upload_params)
+          render_success(data: ticket, status: :created)
         end
 
         def update
@@ -70,6 +49,10 @@ module Api
         def videos
           policy_scope(::TrainingVideo, policy_scope_class: ::Admin::TrainingVideoPolicy::Scope)
             .includes(file_attachment: :blob).ordered.limit(100)
+        end
+
+        def upload_params
+          params.expect(training_video_upload: %i[filename byte_size content_type checksum]).to_h.symbolize_keys
         end
 
         def attributes

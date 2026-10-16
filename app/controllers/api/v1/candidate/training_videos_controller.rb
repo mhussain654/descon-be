@@ -9,10 +9,14 @@ module Api
           authorize ::TrainingVideo, policy_class: ::Candidates::TrainingVideoPolicy
           response.set_header('Cache-Control', 'private, no-store')
           videos = ::TrainingVideo.published.includes(file_attachment: :blob).ordered.limit(100)
-          render_success(data: videos.map { |video| ::TrainingVideos::VideoSerializer.new(video, include_access: true).as_json })
+          render_success(data: videos.map { |video| serialize(video) })
         end
 
         private
+
+        def serialize(video)
+          ::TrainingVideos::VideoSerializer.new(video, include_access: true).as_json
+        end
 
         def configure_storage_url
           ::ActiveStorage::Current.url_options = { protocol: request.protocol, host: request.host, port: request.port }

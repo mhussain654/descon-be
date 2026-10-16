@@ -17,26 +17,30 @@ RSpec.describe 'Training videos', type: :request do
   end
 
   def uploaded_blob(owner, content = "\0\0\0\x18ftypisom".b)
-    ActiveStorage::Blob.create_and_upload!(io: StringIO.new(content), filename: 'airport.mp4',
-                                           content_type: 'video/mp4', metadata: { training_video_owner_id: owner.id }, identify: false)
+    ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new(content), filename: 'airport.mp4', content_type: 'video/mp4',
+      metadata: { training_video_owner_id: owner.id }, identify: false
+    )
   end
 
   it 'requires the training permission and does not reveal unpublished videos to candidates' do
     admin = create(:user, role: 'admin')
     candidate = create(:candidate)
     blob = uploaded_blob(admin)
-    post '/api/v1/admin/training_videos', params: { training_video: { title_en: 'Airport', title_ur: 'ہوائی اڈہ', file: blob.signed_id } }, headers: staff_headers(admin)
+    post '/api/v1/admin/training_videos', headers: staff_headers(admin),
+                                          params: { training_video: { title_en: 'Airport', title_ur: 'ہوائی اڈہ',
+                                                                      file: blob.signed_id } }
     expect(response).to have_http_status(:created)
     id = response.parsed_body.dig('data', 'id')
     get '/api/v1/candidate/training_videos', headers: candidate_headers(candidate)
     expect(response.parsed_body['data']).to eq([])
-    patch "/api/v1/admin/training_videos/#{id}", params: { training_video: { published: true } }, headers: staff_headers(admin)
+    patch "/api/v1/admin/training_videos/#{id}", headers: staff_headers(admin),
+                                                 params: { training_video: { published: true } }
     expect(response).to have_http_status(:ok)
     get '/api/v1/candidate/training_videos', headers: candidate_headers(candidate)
     expect(response.parsed_body.dig('data', 0, 'title_en')).to eq('Airport')
     expect(response.parsed_body.dig('data', 0, 'playback_url')).to start_with('http')
   end
-
 
   it 'lists every video, including unpublished ones, for authorized staff and refuses everyone else' do
     admin = create(:user, role: 'admin')
@@ -56,6 +60,25 @@ RSpec.describe 'Training videos', type: :request do
     get '/api/v1/admin/training_videos', headers: staff_headers(hr)
 
     expect(response).to have_http_status(:forbidden)
+  end
+
+  it 'deletes a video with an audit trail, and refuses staff without the training permission' do
+    admin = create(:user, role: 'admin')
+    hr = create(:user, role: 'hr')
+    post '/api/v1/admin/training_videos', headers: staff_headers(admin),
+                                          params: { training_video: { title_en: 'Airport', title_ur: 'ہوائی اڈہ',
+                                                                      file: uploaded_blob(admin).signed_id } }
+    id = response.parsed_body.dig('data', 'id')
+
+    delete "/api/v1/admin/training_videos/#{id}", headers: staff_headers(hr)
+    expect(response).to have_http_status(:forbidden)
+    expect(TrainingVideo.exists?(id)).to be(true)
+
+    delete "/api/v1/admin/training_videos/#{id}", headers: staff_headers(admin)
+    expect(response).to have_http_status(:no_content)
+    expect(TrainingVideo.exists?(id)).to be(false)
+    expect(AuditEvent.where(entity_type: 'TrainingVideo', entity_id: id,
+                            action_code: 'training_video_deleted')).to exist
   end
 
   it 'issues a bounded direct upload ticket to authorized staff' do
@@ -90,9 +113,10 @@ RSpec.describe 'Training videos', type: :request do
     admin = create(:user, role: 'admin')
     hr = create(:user, role: 'hr')
     fake = uploaded_blob(admin, 'not an mp4')
-    post '/api/v1/admin/training_videos', params: { training_video: { title_en: 'Bad', title_ur: 'خراب', file: fake.signed_id } }, headers: staff_headers(admin)
+    bad_video = { training_video: { title_en: 'Bad', title_ur: 'خراب', file: fake.signed_id } }
+    post '/api/v1/admin/training_videos', params: bad_video, headers: staff_headers(admin)
     expect(response).to have_http_status(:unprocessable_content)
-    post '/api/v1/admin/training_videos', params: { training_video: { title_en: 'Bad', title_ur: 'خراب', file: fake.signed_id } }, headers: staff_headers(hr)
+    post '/api/v1/admin/training_videos', params: bad_video, headers: staff_headers(hr)
     expect(response).to have_http_status(:forbidden)
     expect(TrainingVideo.count).to eq(0)
   end

@@ -601,12 +601,12 @@ For every run `.github/workflows/deploy.yml`:
 
 1. **resolves** the selection to one commit SHA (a fork PR, a closed PR or an
    unknown branch fails here, and the SHA is printed in the run summary);
-2. runs this repository's **CI on exactly that commit** (the same reusable
-   `ci.yml`, with `ref` set), so the commit that is deployed is the commit that
-   was tested, in the same run;
-3. assumes the environment's AWS role through GitHub OIDC (no AWS key is stored
-   in GitHub) and starts that environment's SSM document on the one instance;
-4. on the instance `/usr/local/sbin/descon-deploy-backend` checks the commit
+2. assumes the environment's AWS role through GitHub OIDC (no AWS key is stored
+   in GitHub) and starts that environment's SSM document on the one instance.
+   **No tests, lint or security scans run in this workflow**: CI already ran
+   them on the pull request and on the push, and `main` should require CI as a
+   status check so only tested code is deployed;
+3. on the instance `/usr/local/sbin/descon-deploy-backend` checks the commit
    out in a tooling clone and runs the same `cap production deploy` an
    administrator runs, with Capistrano's local backend, so the shared lock,
    preflight, health gate and rollback apply unchanged. A failure leaves the
