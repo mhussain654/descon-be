@@ -666,8 +666,9 @@ One-time setup (**none of it has been done or exercised**):
      variable `AWS_DEPLOY_ROLE_ARN` = the production role's ARN.
    * `preview`: deployment branches = all branches; required reviewer;
      variable `AWS_DEPLOY_ROLE_ARN` = the preview role's ARN.
-   * Repository variable `EC2_INSTANCE_ID` = `i-0834da05a4ff8aefe`. Until it
-     exists the deploy job is skipped, not failed.
+   * Repository variable `EC2_INSTANCE_ID` = `i-0834da05a4ff8aefe`. If it or
+     the selected environment's role ARN is absent, the deploy job fails with
+     a configuration error; checks alone cannot make EC2 Deploy green.
 
 `deploy/test/commit_policy_test.sh` (8 checks) exercises the script's own
 commit-policy function against a throwaway origin: main-only accepts only
