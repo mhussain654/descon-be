@@ -104,7 +104,7 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
            headers: { 'X-Locale' => 'ur' }
 
       expect(response).to have_http_status(:ok)
-      expect(delivered_body).to start_with('آپ کا ایم پی ایس کنیکٹ تصدیقی کوڈ ')
+      expect(delivered_body).to start_with('آپ کا MPS Connect تصدیقی کوڈ ')
     end
 
     it 'uses English for the OTP SMS when X-Locale is en' do

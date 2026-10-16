@@ -212,7 +212,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
         described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
       end
 
-      expect(delivered_body).to start_with('آپ کا ایم پی ایس کنیکٹ تصدیقی کوڈ ')
+      expect(delivered_body).to start_with('آپ کا MPS Connect تصدیقی کوڈ ')
       expect(delivered_body).not_to start_with('Your MPS Connect verification code is ')
     end
 

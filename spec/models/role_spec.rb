@@ -13,7 +13,7 @@ RSpec.describe Role, type: :model do
   it_behaves_like 'a localized reference model' do
     let(:record) { build(:role, code: 'admin') }
     let(:expected_english_name) { 'Administrator' }
-    let(:expected_urdu_name) { 'منتظم' }
+    let(:expected_urdu_name) { 'ایڈمنسٹریٹر' }
   end
 
   def system_role_for(code)
