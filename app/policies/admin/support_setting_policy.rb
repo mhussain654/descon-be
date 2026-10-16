@@ -2,7 +2,7 @@
 
 module Admin
   # Authorizes viewing/editing the support-number singleton -- a dedicated
-  # `manage_support_settings` permission, mirroring TrainingSettingPolicy.
+  # `manage_support_settings` permission, requiring the dedicated support permission.
   class SupportSettingPolicy < ApplicationPolicy
     def show? = permission_granted?('manage_support_settings')
     def update? = permission_granted?('manage_support_settings')
