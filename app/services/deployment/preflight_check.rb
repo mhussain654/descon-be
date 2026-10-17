@@ -12,6 +12,8 @@ module Deployment
   #
   # Usage: Deployment::PreflightCheck.call -> [Deployment::CheckResult]
   class PreflightCheck < ApplicationService
+    DISABLED_SCANNER_DETAIL = 'scanning DISABLED (DOCUMENT_MALWARE_SCANNER=none): uploads are NOT scanned for ' \
+                              'malware -- accepted risk, see the runbook'
     STORAGE_SENTINEL_KEY = 'deployment-preflight/does-not-exist'
 
     def call
@@ -112,6 +114,7 @@ module Deployment
       configuration = MalwareScanning::Configuration.new
       return scanner_check(:fail, 'mock scanner on a live deployment (the application will not boot)') if
         configuration.prohibited_mock?
+      return scanner_check(:warn, DISABLED_SCANNER_DETAIL) if configuration.disabled?
       return scanner_check(:warn, mock_scanner_detail(configuration)) if configuration.mock?
       return scanner_check(:pass, "provider #{configuration.scanner_code}") if configuration.provider
 

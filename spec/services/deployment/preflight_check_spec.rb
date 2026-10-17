@@ -175,7 +175,7 @@ RSpec.describe Deployment::PreflightCheck do
 
   describe 'malware scanner' do
     def stub_scanner(**attributes)
-      defaults = { prohibited_mock?: false, mock?: false, provider: nil, scanner_code: nil,
+      defaults = { prohibited_mock?: false, mock?: false, disabled?: false, provider: nil, scanner_code: nil,
                    deployment_environment: 'staging' }
       allow(MalwareScanning::Configuration).to receive(:new)
         .and_return(instance_double(MalwareScanning::Configuration, defaults.merge(attributes)))
@@ -188,6 +188,15 @@ RSpec.describe Deployment::PreflightCheck do
 
       expect(result.status).to eq(:warn)
       expect(result.detail).to include('MOCK scanner', 'NOT scanned', 'APP_ENV=staging')
+    end
+
+    it 'warns, without failing the deploy, that scanning is deliberately disabled' do
+      stub_scanner(disabled?: true, provider: Object.new, scanner_code: 'none', deployment_environment: 'production')
+
+      result = result_named(described_class.call, 'malware scanner')
+
+      expect(result.status).to eq(:warn)
+      expect(result.detail).to include('DISABLED', 'NOT scanned')
     end
 
     it 'fails a mock scanner on a live deployment' do

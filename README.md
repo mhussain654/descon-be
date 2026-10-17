@@ -393,7 +393,8 @@ Malware scanning:
 - Every candidate document file is scanned before anything is stored, by the scanner named in `DOCUMENT_MALWARE_SCANNER`. There is no default: when it is unset, document uploads are refused with `503 malware_scan_unavailable` (fail closed).
 - `mock` flags only the standard EICAR test signature and scans nothing else. It must be enabled explicitly and is allowed only when `APP_ENV` is `development`, `test` or `staging`; every scan logs a warning that the mock is active.
 - A live deployment (`APP_ENV=production`, or `RAILS_ENV=production` with no `APP_ENV`, or any unrecognized `APP_ENV`) refuses to boot with `DOCUMENT_MALWARE_SCANNER=mock`, and refuses uploads if it is somehow active.
-- No real scanning provider is integrated yet -- a required, separately tracked dependency before the production release. Until then production fails closed. To integrate one, add an adapter responding to `infected?(io:, filename:)` to `MalwareScanning::Configuration::PROVIDERS` and set `DOCUMENT_MALWARE_SCANNER` to its code.
+- `none` is the explicit opt-out: files are accepted **without any scan**, on any deployment including production. Production runs this way by a recorded decision (the client has not asked for scanning); it warns at boot, on every upload and in `deployment:preflight`, and an unset scanner still refuses uploads. See the runbook, "Malware scanning".
+- No real scanning provider is integrated yet. To integrate one later, add an adapter responding to `infected?(io:, filename:)` to `MalwareScanning::Configuration::PROVIDERS` and set `DOCUMENT_MALWARE_SCANNER` to its code.
 - Local development: set `APP_ENV=development` and `DOCUMENT_MALWARE_SCANNER=mock` in `.env.development` to upload documents locally.
 
 Upload behavior:

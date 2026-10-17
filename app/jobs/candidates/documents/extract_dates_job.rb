@@ -34,15 +34,21 @@ module Candidates
       end
 
       def run_extraction(document, extraction)
-        # The dates live on the representative file (passport page 1 / CNIC
-        # front, or the combined PDF).
-        result = DocumentOcr::TextractAdapter.new.extract(bytes: document.primary_file.file.download)
+        result = DocumentOcr::DateExtractor.call(sources: file_bytes(document))
         extraction.update!(success_attributes(result))
       rescue DocumentOcr::TransientError => e
         extraction.update!(failure_attributes(e))
         raise
       rescue DocumentOcr::PermanentError => e
         extraction.update!(failure_attributes(e))
+      end
+
+      # The representative file first (combined PDF / passport page 1 / CNIC
+      # front), then the others (e.g. the CNIC back). Downloaded lazily, so a
+      # file is only fetched if the earlier ones did not give both dates.
+      def file_bytes(document)
+        ordered = [document.primary_file, *document.files.sort_by(&:position)].uniq
+        ordered.lazy.map { |file| file.file.download }
       end
 
       # Only the approved issue/expiry dates and their confidence scores --

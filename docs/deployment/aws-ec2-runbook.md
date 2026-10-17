@@ -29,7 +29,7 @@ deployed by the `descon-fe` repository onto the same instance and shares the
 host-wide deploy lock described below.
 
 > **Status.** This is a *test-environment* deployment. It is not production
-> ready: no real malware scanner, no email (SES deferred), the mock SMS
+> ready: malware scanning deliberately off (see §5), no email (SES deferred), the mock SMS
 > provider unless send.pk credentials are added, KuickPay disabled, and a
 > short-lived IP-address certificate. See [What is and is not verified](#what-is-and-is-not-verified).
 
@@ -367,7 +367,37 @@ curl -fsS https://52.221.51.231/api/v1/health/ready      # through Nginx/TLS, fr
 bundle exec cap production deploy:storage_round_trip     # S3 upload/read/sign/refuse-unsigned/delete
 ```
 
-## 5. Malware scanning in the test environment
+## 5. Malware scanning
+
+### Production decision: scanning is deliberately off
+
+**Decision (2026-10-17).** Production runs **without malware scanning**. The
+client has not asked for it, and a scanner costs RAM (ClamAV needs about
+1-1.5 GB) or a second server. It will be added when the client requests it.
+
+```
+APP_ENV=production
+DOCUMENT_MALWARE_SCANNER=none
+```
+
+* `none` is an explicit opt-out and is never the default. With the variable
+  **unset**, every document upload is still refused (`503
+  malware_scan_unavailable`).
+* Every file is accepted unscanned. What still applies: allowed file types and
+  size limits, private S3 storage, time-limited signed URLs, and the staff
+  permission checks.
+* The application warns at boot, on each upload and in `deployment:preflight`
+  (`[WARN] malware scanner: scanning DISABLED ...`). The warning does not stop
+  a deploy.
+* **Accepted risk:** an infected file uploaded by a candidate would be opened
+  by HR staff on their own computers. Nothing in the database marks a file as
+  scanned or unscanned.
+* **To turn scanning on later:** add a provider (for example ClamAV on a
+  separate small server, or GuardDuty Malware Protection for S3), register it in
+  `MalwareScanning::Configuration::PROVIDERS`, set `DOCUMENT_MALWARE_SCANNER` to
+  its code, and run the acceptance test at the end of this section.
+
+### Test environment (the mock scanner)
 
 **Current state of the code.** `MalwareScanning::Configuration` accepts only
 the `mock` provider, and only when `APP_ENV` is `development`, `test` or
@@ -558,7 +588,13 @@ separately against throwaway local databases (see the PR description).
   `AnalyzeDocument` Queries (issue/expiry date), because `AnalyzeID` only
   supports US documents and cannot read a Pakistani CNIC. Queries read a real
   CNIC correctly in the console; passport quality must still be tested with
-  real samples. Enabling it needs `textract:AnalyzeDocument` on the instance
+  real samples. Extraction runs once, in a background job right after the
+  upload, and the result is stored in `document_extractions`; HR's screen reads
+  that stored row and never calls Textract. Textract's synchronous mode reads
+  one page per PDF, so `DocumentOcr::PdfPageSplitter` cuts the first two pages
+  of a multi-page PDF, and `DocumentOcr::DateExtractor` tries the front, then
+  the back image or next page, stopping when both dates are found (at most 3
+  Textract calls per document). Enabling it needs `textract:AnalyzeDocument` on the instance
   role (no resource-level scoping) and `DOCUMENT_OCR_ENABLED=true`.
 * **Frontend mock-only screens.** The admin web app has prototype Hono routes
   (`src/app/api/**`, in-memory data) that no screen calls; see the

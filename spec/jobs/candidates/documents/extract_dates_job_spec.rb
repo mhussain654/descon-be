@@ -52,7 +52,8 @@ RSpec.describe Candidates::Documents::ExtractDatesJob, type: :job do
   it 'allows a fresh attempt after a prior extraction failed' do
     document = passport_document
     create(:document_extraction, :failed, candidate_document: document)
-    result = { issued_on: nil, expires_on: nil, confidence_issued_on: nil, confidence_expires_on: nil }
+    result = { issued_on: Date.new(2020, 1, 1), expires_on: nil, confidence_issued_on: 90.0,
+               confidence_expires_on: nil }
     adapter = instance_double(DocumentOcr::TextractAdapter, extract: result)
     allow(DocumentOcr::TextractAdapter).to receive(:new).and_return(adapter)
 
