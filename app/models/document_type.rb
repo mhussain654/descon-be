@@ -12,7 +12,7 @@ class DocumentType < ApplicationRecord
   # business rule with no admin-configurable UI, not runtime-editable
   # reference data. PCC also `requires_expiry` but must never trigger OCR,
   # so this is intentionally independent of that column.
-  OCR_EXTRACTION_DOCUMENT_TYPE_CODES = %w[passport cnic next_of_kin_cnic].freeze
+  OCR_EXTRACTION_DOCUMENT_TYPE_CODES = %w[passport cnic cnic_front cnic_back next_of_kin_cnic].freeze
 
   has_many :document_requirements, dependent: :restrict_with_exception
   has_many :candidate_documents, dependent: :restrict_with_exception
