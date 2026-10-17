@@ -554,10 +554,12 @@ separately against throwaway local databases (see the PR description).
   are not registered with KuickPay, and nothing has run from this host. Treat
   payments as **not ready** until a sandbox round trip is run from the
   deployed host over trusted HTTPS.
-* **OCR.** `DOCUMENT_OCR_ENABLED=false`; Textract `AnalyzeID` is documented for
-  passports and some national IDs, not Pakistani CNICs, so extraction quality
-  must be tested with real samples (synthetic is not representative) before
-  relying on it. The instance role has no Textract permission today.
+* **OCR.** `DOCUMENT_OCR_ENABLED=false`; the adapter uses Textract
+  `AnalyzeDocument` Queries (issue/expiry date), because `AnalyzeID` only
+  supports US documents and cannot read a Pakistani CNIC. Queries read a real
+  CNIC correctly in the console; passport quality must still be tested with
+  real samples. Enabling it needs `textract:AnalyzeDocument` on the instance
+  role (no resource-level scoping) and `DOCUMENT_OCR_ENABLED=true`.
 * **Frontend mock-only screens.** The admin web app has prototype Hono routes
   (`src/app/api/**`, in-memory data) that no screen calls; see the
   `descon-fe` PR. Nothing here is "mock-only" at the API level.
