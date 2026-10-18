@@ -187,6 +187,20 @@ RSpec.describe AiCalls::Configuration do
     end
   end
 
+  describe '#voice_provider' do
+    it 'is robocall by default, accepts elevenlabs, and falls back to robocall for anything else' do
+      with_env('AI_VOICE_PROVIDER' => nil) do
+        expect(described_class.new.voice_provider).to eq('robocall')
+        expect(described_class.new).to be_robocall
+      end
+      with_env('AI_VOICE_PROVIDER' => ' ElevenLabs ') do
+        expect(described_class.new.voice_provider).to eq('elevenlabs')
+        expect(described_class.new).not_to be_robocall
+      end
+      with_env('AI_VOICE_PROVIDER' => 'twilio') { expect(described_class.new.voice_provider).to eq('robocall') }
+    end
+  end
+
   describe '#human_transfer_phone_number' do
     before { AiCallOperationalSetting.delete_all }
 

@@ -36,4 +36,14 @@ RSpec.describe AiCalls::ReconcileStuckCallsJob do
     expect(captured_request_ids.size).to eq(2)
     expect(captured_request_ids.uniq.size).to eq(1)
   end
+
+  it 'leaves RoboCall calls to their own polling job' do
+    create(:candidate_ai_call, provider_code: 'robocall', robocall_call_id: '9', status: 'ringing',
+                               updated_at: 5.minutes.ago)
+    allow(AiCalls::ReconcileCallService).to receive(:new)
+
+    described_class.perform_now
+
+    expect(AiCalls::ReconcileCallService).not_to have_received(:new)
+  end
 end

@@ -41,7 +41,7 @@ RSpec.describe AiCalls::OutcomeMapper do
     expect(result.outcome_reason).to eq('agent_escalation')
   end
 
-  %w[busy no_answer voicemail provider_failure].each do |reason|
+  %w[busy no_answer voicemail provider_failure hangup].each do |reason|
     it "maps telephony_outcome #{reason} to not_answered" do
       result = described_class.call(telephony_outcome: reason)
 

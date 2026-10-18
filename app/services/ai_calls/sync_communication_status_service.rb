@@ -40,7 +40,8 @@ module AiCalls
     private
 
     def provider_reference
-      (@candidate_ai_call.elevenlabs_conversation_id || @candidate_ai_call.twilio_call_sid).presence ||
+      (@candidate_ai_call.elevenlabs_conversation_id || @candidate_ai_call.twilio_call_sid ||
+       @candidate_ai_call.robocall_call_id).presence ||
         @communication.provider_reference
     end
 

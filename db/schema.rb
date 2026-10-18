@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -172,11 +172,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.string "prompt_template_version"
     t.string "provider_code", default: "elevenlabs", null: false
     t.string "provider_status"
+    t.string "provider_voice_id"
     t.string "public_id", null: false
     t.text "review_notes"
     t.string "review_resolution"
     t.datetime "reviewed_at"
     t.bigint "reviewed_by_id"
+    t.string "robocall_call_id"
     t.datetime "started_at"
     t.string "status", default: "requested", null: false
     t.text "summary"
@@ -194,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.index ["elevenlabs_conversation_id"], name: "index_candidate_ai_calls_on_elevenlabs_conversation_id", unique: true, where: "(elevenlabs_conversation_id IS NOT NULL)"
     t.index ["public_id"], name: "index_candidate_ai_calls_on_public_id", unique: true
     t.index ["reviewed_by_id"], name: "index_candidate_ai_calls_on_reviewed_by_id"
+    t.index ["robocall_call_id"], name: "index_candidate_ai_calls_on_robocall_call_id", unique: true, where: "(robocall_call_id IS NOT NULL)"
     t.index ["status", "updated_at"], name: "index_candidate_ai_calls_on_status_and_updated_at"
     t.index ["triggered_by_id"], name: "index_candidate_ai_calls_on_triggered_by_id"
     t.index ["twilio_call_sid"], name: "index_candidate_ai_calls_on_twilio_call_sid", unique: true, where: "(twilio_call_sid IS NOT NULL)"
@@ -1099,11 +1102,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
 
   create_table "workflow_stage_call_scripts", force: :cascade do |t|
     t.boolean "active", default: false, null: false
-    t.text "announcement_en", null: false
+    t.text "announcement_en"
     t.text "announcement_ur"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "updated_by_id"
+    t.string "voice_id"
     t.string "workflow_stage_code", null: false
     t.index ["updated_by_id"], name: "index_workflow_stage_call_scripts_on_updated_by_id"
     t.index ["workflow_stage_code"], name: "index_workflow_stage_call_scripts_on_workflow_stage_code", unique: true

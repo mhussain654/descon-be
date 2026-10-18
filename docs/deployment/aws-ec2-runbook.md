@@ -451,6 +451,61 @@ silently.
    (fail closed) and nothing is stored.
 6. Setting `DOCUMENT_MALWARE_SCANNER=mock` with `APP_ENV=production` stops boot.
 
+## 5a. Automatic voice calls (RoboCall)
+
+Calls are placed by **RoboCall.pk**, which plays a fixed pre-recorded voice. The
+app sends only a `voice_id` and the candidate's number; there are no variables
+and no live conversation.
+
+* **Credentials.** `robocall.production.api_key` in the encrypted credentials
+  (`bin/rails credentials:edit`). `deployment:preflight` fails if the key is
+  missing while `AI_VOICE_OUTBOUND_ENABLED=true`.
+* **Environment.** `AI_VOICE_PROVIDER=robocall` (the default) and
+  `AI_VOICE_OUTBOUND_ENABLED=true` to start. Switching the flag off stops every
+  new call at once (kill switch). Calling hours, the daily cap and the cooldown
+  are edited in the admin app (AI call settings).
+* **What triggers a call.** A candidate entering a workflow stage whose row
+  (admin app, **Automatic calls**) is active and has a voice ID. At most one
+  call per candidate per stage; a stage with no voice places no call.
+* **Results.** RoboCall has no webhook, so `AiCalls::PollRobocallCallsJob`
+  (every minute) reads each open call's status. Status 2 answered, 3
+  congestion, 4 busy, 5 no answer, 6 hangup. A key press of 3 is recorded as
+  "callback required". RoboCall retries unanswered calls on its own (Call
+  Settings panel: retry delay and count; we use a 5-10 minute delay), so a
+  not-answered status only counts as final after
+  `ROBOCALL_RETRY_WINDOW_MINUTES` (default 30; set it to retry delay x
+  retries plus a few minutes). A call with no final result 15 minutes after
+  that window goes to manual review.
+* **Check before going live** (read-only except `call`):
+
+  ```
+  bin/rails ai_calls:robocall:check                       # key valid + balance
+  bin/rails "ai_calls:robocall:call[VOICE_ID,923001234567]"   # ONE real, charged call
+  bin/rails "ai_calls:robocall:status[CALL_ID]"           # status code + key press
+  ```
+* **What is sent.** Only the destination number and the `voice_id` (GET
+  `https://portal.robocall.pk/api/calls`, the URL shown in the RoboCall portal;
+  `ROBOCALL_BASE_URL` overrides it). RoboCall's portal documentation marks
+  `amount`, `key1`, `key2`, `text1` and `text2` as required while its public
+  page lists them as optional. We send none of them, by decision (the voices
+  are fixed recordings). If RoboCall answers a call with a bad-request error,
+  `ai_calls:robocall:call` shows it on the first test and these fields would
+  need adding in `AiCalls::Providers::RobocallAdapter#initiate_call`.
+* **Call id.** The portal's sample response shows `order_id` where the written
+  docs say `call_id`; the adapter accepts either. If RoboCall accepts a call
+  but returns neither, the call is kept and sent to manual review (never rolled
+  back, which would call the candidate twice).
+* **Bulk.** RoboCall also has `/api/mutliple_calls` (their spelling;
+  comma-separated numbers in `caller_id`), but its response for several numbers
+  is not documented. `bin/rails "ai_calls:robocall:multiple[VOICE_ID,923001234567 923007654321]"`
+  places REAL calls to those numbers and prints the raw response, to see
+  whether it returns one id per number before anything depends on it.
+* **The api key travels in the query string** (RoboCall's design). The adapter
+  never logs a URL and raises only fixed messages; keep it that way, and do not
+  enable HTTP request logging for this host.
+* The ElevenLabs provider is still in the code and is selected with
+  `AI_VOICE_PROVIDER=elevenlabs`; it is not used.
+
 ## 6. Backups: what exists and how to restore
 
 `Backups::CreateDatabaseBackupJob` runs from `config/recurring.yml` at

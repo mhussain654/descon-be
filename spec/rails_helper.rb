@@ -6,6 +6,8 @@ ENV['RAILS_ENV'] ||= 'test'
 # see MalwareScanning::Configuration). Specs that need another setup override it.
 ENV['APP_ENV'] ||= 'test'
 ENV['DOCUMENT_MALWARE_SCANNER'] ||= 'mock'
+# Existing AI-call specs exercise the ElevenLabs path; RoboCall specs set the provider themselves.
+ENV['AI_VOICE_PROVIDER'] ||= 'elevenlabs'
 require_relative '../config/environment'
 # Prevent database truncation if the environment is production
 abort('The Rails environment is running in production mode!') if Rails.env.production?

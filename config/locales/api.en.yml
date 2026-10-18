@@ -116,6 +116,7 @@ en:
       payment_notification_conflict: "The payment was already finalized with different provider data."
       ai_call_provider_unavailable: "The voice calling service is not available right now."
       ai_call_provider_request_failed: "The voice calling provider request failed."
+      ai_call_voice_not_configured: "No voice is set up for this call."
       ai_call_signature_invalid: "The webhook signature is invalid."
       ai_call_tool_secret_invalid: "The tool request could not be authenticated."
       ai_call_outbound_disabled: "Outbound AI voice calling is currently disabled."

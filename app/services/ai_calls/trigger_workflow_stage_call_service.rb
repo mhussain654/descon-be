@@ -36,11 +36,18 @@ module AiCalls
 
       script = WorkflowStageCallScript.active.find_by(workflow_stage_code: @workflow_stage_code)
       return if script.blank?
+      return if skip_for_missing_voice?(script)
 
       ActiveRecord::Base.transaction { execute_trigger(script) }
     end
 
     private
+
+    # RoboCall plays a fixed voice, so a stage with no voice set up has
+    # nothing to play: skipped, never an error.
+    def skip_for_missing_voice?(script)
+      @configuration.robocall? && script.voice_id.blank?
+    end
 
     def execute_trigger(script)
       assignment = CandidateAssignment.lock.find(@candidate_assignment_id)

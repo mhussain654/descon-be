@@ -1734,9 +1734,19 @@ components:
           properties:
             announcement_en:
               type: string
+              nullable: true
+              description: Opening line for the ElevenLabs provider; required only when no voice_id is set.
             announcement_ur:
               type: string
               nullable: true
+            voice_id:
+              type: string
+              nullable: true
+              maxLength: 32
+              pattern: '^[A-Za-z0-9_-]+$'
+              description: >-
+                The RoboCall voice played for this stage (letters, digits, underscore, hyphen).
+                A stage with no voice places no call while RoboCall is the voice provider.
             active:
               type: boolean
           additionalProperties: false
@@ -9237,6 +9247,7 @@ paths:
                       - workflow_stage_code: verified
                         announcement_en: "Hello {{candidate_name}}, this is Descon Manpower calling -- your documents have been verified."
                         announcement_ur: "السلام علیکم {{candidate_name}}، یہ ڈیسکون مین پاور کی کال ہے -- آپ کی دستاویزات کی تصدیق ہو گئی ہے۔"
+                        voice_id: '102'
                         active: false
                         updated_by: null
                         updated_at: '2026-09-11T09:00:00Z'
@@ -9252,8 +9263,8 @@ paths:
     patch:
       summary: Edit one workflow stage's AI call script
       description: >-
-        Updates the English/Urdu opening-announcement text and/or active flag for one canonical
-        workflow stage's automated call script. The actual call always speaks in the candidate's
+        Updates the RoboCall voice_id, the English/Urdu opening-announcement text (ElevenLabs
+        provider only) and/or active flag for one canonical workflow stage's automated call. The actual call always speaks in the candidate's
         own preferred language, selecting between announcement_en/announcement_ur at call time
         (falling back to announcement_en if the Urdu wording isn't ready yet) -- only the
         announcement text is admin-editable content, the underlying call guardrails/tool-use
@@ -9296,6 +9307,7 @@ paths:
                       workflow_stage_code: verified
                       announcement_en: Approved wording.
                       announcement_ur: منظور شدہ عبارت۔
+                      voice_id: '102'
                       active: true
                       updated_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
@@ -9312,7 +9324,7 @@ paths:
         '404':
           description: No script row for this workflow_stage_code
         '422':
-          description: Invalid announcement or language_code
+          description: Invalid announcement, voice_id or language_code
   /api/v1/admin/ai_call_operational_settings:
     get:
       summary: Read the AI call rate-limit / calling-hours singleton

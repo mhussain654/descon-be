@@ -9,7 +9,8 @@ module AiCalls
   # `telephony_outcome` is a normalized value the caller derives from the raw
   # Twilio/ElevenLabs status strings before calling this mapper (this class
   # owns the outcome TABLE, not provider-specific status parsing):
-  # 'answered' | 'busy' | 'no_answer' | 'voicemail' | 'provider_failure'.
+  # 'answered' | 'busy' | 'no_answer' | 'voicemail' | 'provider_failure' |
+  # 'hangup' (RoboCall status 6, the line was dropped).
   #
   # `extraction` (only consulted when `telephony_outcome == 'answered'`) is the
   # structured post-call extraction hash: {human_answered:, callback_requested:,
@@ -33,7 +34,7 @@ module AiCalls
   module OutcomeMapper
     Result = Struct.new(:outcome, :outcome_reason, keyword_init: true)
 
-    NOT_ANSWERED_REASONS = %w[busy no_answer voicemail provider_failure].freeze
+    NOT_ANSWERED_REASONS = %w[busy no_answer voicemail provider_failure hangup].freeze
     MANUAL_REVIEW = Result.new(outcome: nil, outcome_reason: 'needs_manual_review').freeze
     TRANSFERRED_TO_HUMAN = Result.new(outcome: 'answered', outcome_reason: 'transferred_to_human').freeze
 

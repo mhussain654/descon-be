@@ -107,6 +107,30 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
+    it 'sets and returns the RoboCall voice id, which replaces the need for announcement text' do
+      admin = create(:user, role: 'admin')
+      create(:workflow_stage_call_script, workflow_stage_code: 'verified', active: false)
+
+      patch '/api/v1/admin/workflow_stage_call_scripts/verified',
+            params: { workflow_stage_call_script: { voice_id: '102', announcement_en: nil, active: true } }.to_json,
+            headers: auth_headers(admin).merge('Content-Type' => 'application/json')
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'voice_id')).to eq('102')
+      expect(response.parsed_body.dig('data', 'active')).to be(true)
+    end
+
+    it 'rejects a malformed voice id' do
+      admin = create(:user, role: 'admin')
+      create(:workflow_stage_call_script, workflow_stage_code: 'verified')
+
+      patch '/api/v1/admin/workflow_stage_call_scripts/verified',
+            params: { workflow_stage_call_script: { voice_id: 'bad id!' } }.to_json,
+            headers: auth_headers(admin).merge('Content-Type' => 'application/json')
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
     it 'rejects an invalid update (blank announcement_en)' do
       admin = create(:user, role: 'admin')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified')
