@@ -26,6 +26,16 @@ module AiCalls
       raise AiCallDailyLimitReachedError if daily_limit_reached?
     end
 
+    # A bulk batch must fit in what is left of today's account-wide budget;
+    # refused up front rather than failing halfway through.
+    def ensure_capacity_for!(count)
+      raise AiCallDailyLimitReachedError if remaining_daily_capacity < count
+    end
+
+    def remaining_daily_capacity
+      [@configuration.daily_outbound_call_limit - calls_placed_today, 0].max
+    end
+
     # Time-windowed, per-(assignment, call_reason) cooldown -- meaningful
     # only for the admin-triggered flow's 4 distinct call reasons. The
     # workflow-stage-triggered flow enforces its own, stronger, permanent
@@ -53,8 +63,11 @@ module AiCalls
     end
 
     def daily_limit_reached?
-      CandidateAiCall.outbound.where(created_at: Time.current.beginning_of_day..).count >=
-        @configuration.daily_outbound_call_limit
+      calls_placed_today >= @configuration.daily_outbound_call_limit
+    end
+
+    def calls_placed_today
+      CandidateAiCall.outbound.where(created_at: Time.current.beginning_of_day..).count
     end
 
     def within_cooldown?(candidate_assignment:, call_reason:)

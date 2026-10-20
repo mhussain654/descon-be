@@ -500,6 +500,44 @@ and no live conversation.
   is not documented. `bin/rails "ai_calls:robocall:multiple[VOICE_ID,923001234567 923007654321]"`
   places REAL calls to those numbers and prints the raw response, to see
   whether it returns one id per number before anything depends on it.
+* **Bulk calls** (admin app: *Bulk calls*, `/admin/bulk-calls`). An admin picks one
+  workflow stage and one **call type** (a named RoboCall voice, kept in
+  `robocall_voices`; adding or editing one needs `manage_ai_call_scripts`), sees
+  who at that stage is still to be called, and starts a batch for the next few.
+  Using the page and starting a batch need `trigger_ai_calls`.
+  * **Where the voices live.** Call types are database rows, not code. The first
+    approved ones (536 medical date and center added, 537 medical report received,
+    538 upload documents) are installed by a migration from the single list in
+    `AiCalls::InstallStarterRobocallVoicesService`, and each is also set as the
+    voice of its stage (`medical_appointment`, `medical_completed`,
+    `documents_pending`) with the stage left **off**. **To add the next voice:**
+    *Bulk calls* > *Call types* > *Add call type* (name, Urdu name, RoboCall voice
+    ID); to have it called automatically, open *Automatic calls*, put the same
+    voice ID on the stage and switch the stage on. No deploy needed.
+  * **One batch, at most `ROBOCALL_BULK_BATCH_LIMIT` candidates** (default 200),
+    enforced by the backend as well as the page. Start it again for the rest:
+    anyone already called with that voice, or still queued in a batch, is
+    skipped, so each run takes the next group.
+  * **"Already called"** means a call with that voice exists for the candidate's
+    current assignment (from a bulk batch or an automatic stage call), or one is
+    still queued. Candidates who were skipped (moved stage, inactive, outside
+    hours, daily limit) or failed (RoboCall could not take it) are picked up again
+    by a later batch.
+  * **Sending.** Starting a batch only records it (`bulk_call_batches`, one
+    `bulk_call_batch_items` row per candidate) and queues one job each, spaced
+    `ROBOCALL_BULK_CALL_SPACING_SECONDS` apart (default 2), because RoboCall
+    documents no rate limit. Each call goes through the same safety controls as
+    any outbound call.
+  * **Refused up front, nothing queued:** outbound calling off, outside the
+    calling hours, a limit above the ceiling, a switched-off call type, nobody
+    left to call, or a batch larger than what remains of today's daily call limit
+    (raise it in AI call settings for a big batch: the default is 200 a day).
+  * **A batch counts as one admin action**, so the per-admin hourly limit does
+    not apply to its calls, and the per-reason cooldown is replaced by the
+    per-voice "already called" rule.
+  * **Results** (`/admin/bulk-calls/<id>`) show each candidate's result and call
+    outcome and refresh while calls are waiting. RoboCall's own retries and the
+    retry window above apply to every call in a batch.
 * **The api key travels in the query string** (RoboCall's design). The adapter
   never logs a URL and raises only fixed messages; keep it that way, and do not
   enable HTTP request logging for this host.

@@ -105,4 +105,26 @@ RSpec.describe AiCalls::OutboundCallGuard do
       end.not_to raise_error
     end
   end
+
+  describe '#ensure_capacity_for! and #remaining_daily_capacity' do
+    before do
+      allow(configuration).to receive(:daily_outbound_call_limit).and_return(5)
+      2.times { create(:candidate_ai_call, created_at: Time.current) }
+    end
+
+    it 'reports what is left of today\'s budget, never below zero' do
+      expect(guard.remaining_daily_capacity).to eq(3)
+
+      allow(configuration).to receive(:daily_outbound_call_limit).and_return(1)
+      expect(guard.remaining_daily_capacity).to eq(0)
+    end
+
+    it 'accepts a batch that fits, even one that uses the whole remainder' do
+      expect { guard.ensure_capacity_for!(3) }.not_to raise_error
+    end
+
+    it 'refuses a batch larger than what is left' do
+      expect { guard.ensure_capacity_for!(4) }.to raise_error(AiCallDailyLimitReachedError)
+    end
+  end
 end
