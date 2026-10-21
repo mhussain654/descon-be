@@ -101,6 +101,10 @@ Rails.application.routes.draw do
         end
         resources :workflow_stage_call_scripts, only: %i[index update], param: :workflow_stage_code
         resource :ai_call_operational_settings, only: %i[show update]
+        resources :robocall_voices, only: %i[index create update]
+        resources :bulk_calls, only: %i[index show create] do
+          get :candidates, on: :collection
+        end
         resources :training_videos, only: %i[index create update destroy] do
           post :upload, on: :collection
         end

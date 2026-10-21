@@ -25,4 +25,28 @@ RSpec.describe AiCalls::OutboundCallPlan do
       expect(plan.prompt_source).to be_a(AiCalls::Prompts::WorkflowStageAnnouncementPrompt)
     end
   end
+
+  describe '.for_voice' do
+    it "is an admin's single call with just a voice, and is not a bulk call" do
+      plan = described_class.for_voice(voice_id: '538')
+
+      expect(plan).to have_attributes(call_reason: 'voice_call', voice_id: '538', prompt_source: nil,
+                                      workflow_stage_code: nil)
+      expect(plan).not_to be_bulk
+    end
+  end
+
+  describe '.for_bulk' do
+    it 'is a bulk call with just a voice: no scenario text and no workflow stage' do
+      plan = described_class.for_bulk(voice_id: '102')
+
+      expect(plan).to have_attributes(call_reason: 'bulk_voice_call', voice_id: '102', prompt_source: nil,
+                                      workflow_stage_code: nil)
+      expect(plan).to be_bulk
+    end
+
+    it 'marks no other plan as bulk' do
+      expect(described_class.for_admin_scenario('missing_documents')).not_to be_bulk
+    end
+  end
 end

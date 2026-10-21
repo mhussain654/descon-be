@@ -53,6 +53,7 @@ module AiCalls
       assignment = CandidateAssignment.lock.find(@candidate_assignment_id)
       return if already_called?(assignment)
       return unless still_at_relevant_stage?(assignment)
+      return if unfit_medical_result?(assignment)
 
       candidate = Candidate.find(assignment.candidate_id)
       return unless candidate.active?
@@ -71,6 +72,16 @@ module AiCalls
     # late call.
     def still_at_relevant_stage?(assignment)
       assignment.current_workflow_stage&.code == @workflow_stage_code
+    end
+
+    # A call set on a medical-result stage announces good news ("your report is
+    # in, pay the fee"), so it is placed only for a fit result. An unfit
+    # candidate is held at that stage and hears nothing automatically.
+    def unfit_medical_result?(assignment)
+      return false unless MobilizationProcesses::Definitions.action_type_for(@workflow_stage_code) == 'medical_outcome'
+
+      latest = assignment.candidate_medical_results.latest_first.first
+      latest.present? && !latest.fit?
     end
 
     def already_called?(assignment)

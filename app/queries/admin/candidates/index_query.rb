@@ -25,7 +25,13 @@ module Admin
       end
 
       def call
-        paginate(apply_sort(apply_filters(apply_search(preloaded_scope))))
+        paginate(apply_sort(filtered_scope))
+      end
+
+      # Every active filter and the search applied, but neither sorted nor
+      # paginated -- for callers (the bulk-call page) that add their own.
+      def filtered_scope
+        apply_filters(apply_search(preloaded_scope))
       end
 
       # Zero-filled counts per `candidates.status_code`, scoped by every

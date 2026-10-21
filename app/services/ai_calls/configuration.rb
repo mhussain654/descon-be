@@ -110,11 +110,11 @@ module AiCalls
     # column, not a missing table row.
     def outbound_trigger_cooldown_minutes
       operational_setting.outbound_trigger_cooldown_minutes ||
-        ENV.fetch('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 60).to_i
+        ENV.fetch('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 15).to_i
     end
 
     def daily_outbound_call_limit
-      operational_setting.daily_outbound_call_limit || ENV.fetch('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 200).to_i
+      operational_setting.daily_outbound_call_limit || ENV.fetch('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 1000).to_i
     end
 
     def admin_trigger_rate_limit_per_hour

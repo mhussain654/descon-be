@@ -23,7 +23,8 @@ module AiCalls
     end
 
     def call
-      @guard.ensure_allowed!(actor: @actor)
+      # A bulk call is one admin action, so the per-admin hourly limit does not apply to each of its calls.
+      @guard.ensure_allowed!(actor: @plan.bulk? ? nil : @actor)
       raise AiCallVoiceNotConfiguredError if @configuration.robocall? && @plan.voice_id.blank?
 
       CandidateAssignment.transaction { execute_trigger }
@@ -39,19 +40,28 @@ module AiCalls
       # cooldown -- the workflow-stage-triggered flow (@actor nil) already
       # enforces its own, stronger, permanent per-stage dedup at the caller
       # (see AiCalls::OutboundCallGuard#ensure_cooldown_elapsed!).
-      @guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: @plan.call_reason) if @actor
+      if cooldown_applies?
+        @guard.ensure_cooldown_elapsed!(candidate_assignment: assignment,
+                                        call_reason: @plan.call_reason, voice_id: @plan.voice_id)
+      end
 
       call_record = create_call_record!(candidate:, assignment:)
       initiate_provider_call!(call_record)
       call_record.reload
     end
 
+    # Only the admin-triggered scenarios use the per-reason cooldown; a bulk
+    # call is deduplicated per voice by the batch itself.
+    def cooldown_applies? = @actor.present? && !@plan.bulk?
+
     # Serializes concurrent triggers for the same candidate+reason so two
     # near-simultaneous requests can't both pass the cooldown check below
     # before either has committed -- the second waits for the first to
     # finish, then sees its just-created row and is correctly rejected.
     def lock_trigger!
-      Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: "#{@candidate.id}:#{@plan.call_reason}")
+      Database::AdvisoryTransactionLock.call(
+        scope: LOCK_SCOPE, key: [@candidate.id, @plan.call_reason, @plan.voice_id].compact.join(':')
+      )
     end
 
     def locked_candidate_and_assignment

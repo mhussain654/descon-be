@@ -125,6 +125,10 @@ WorkflowStage::CANONICAL_STAGES.each do |stage|
   WorkflowStageCallScript.find_or_create_by!(workflow_stage_code: stage.fetch(:code)) { |script| script.active = false }
 end
 
+# The approved RoboCall voices: call types for bulk calls, and each one's stage
+# voice (stage stays off until an admin turns it on).
+AiCalls::InstallStarterRobocallVoicesService.call
+
 # --- AI call operational settings (MPS-712) ---------------------------------
 # Seeds the singleton row up front so it's visible to an admin immediately,
 # rather than only appearing on first lazy access. Every column stays nil

@@ -1719,13 +1719,67 @@ components:
       properties:
         candidate_ai_call:
           type: object
-          required: [call_reason]
+          required: [robocall_voice_id]
           properties:
-            call_reason:
+            robocall_voice_id:
               type: string
-              enum: [missing_documents, protection_appearance_reminder, urgent_compliance_action, flight_information]
+              format: uuid
+              description: The id of an active call type (see /api/v1/admin/robocall_voices).
           additionalProperties: false
       required: [candidate_ai_call]
+    AdminRobocallVoiceRequest:
+      type: object
+      properties:
+        robocall_voice:
+          type: object
+          properties:
+            name_en:
+              type: string
+              description: The call type's name, for example "Visa approved". Unique, ignoring case.
+            name_ur:
+              type: string
+              nullable: true
+            voice_id:
+              type: string
+              maxLength: 32
+              pattern: '^[A-Za-z0-9_-]+$'
+              description: The RoboCall voice that is played. Unique.
+            active:
+              type: boolean
+          additionalProperties: false
+      required: [robocall_voice]
+    AdminBulkCallRequest:
+      type: object
+      properties:
+        bulk_call:
+          type: object
+          properties:
+            robocall_voice_id:
+              type: string
+              format: uuid
+              description: The call type (from /admin/robocall_voices) to play to every candidate.
+            workflow_stage_code:
+              type: string
+              description: The one workflow stage whose candidates are called.
+            limit:
+              type: integer
+              minimum: 1
+              description: How many of the not-yet-called candidates to call, at most the batch ceiling (200 by default).
+            search:
+              type: string
+            filter:
+              type: object
+              properties:
+                country_code:
+                  type: string
+                project_code:
+                  type: string
+                craft_code:
+                  type: string
+              additionalProperties: false
+          additionalProperties: false
+          required: [robocall_voice_id, workflow_stage_code, limit]
+      required: [bulk_call]
     AdminWorkflowStageCallScriptRequest:
       type: object
       properties:
@@ -6282,12 +6336,14 @@ paths:
                     timestamp: '2026-08-30T12:00:00Z'
   /api/v1/admin/candidates/{candidate_id}/ai_calls:
     get:
-      summary: List a candidate's admin-triggered AI voice call history
+      summary: List a candidate's voice call history
       description: >-
-        Read-only, most-recent-first list of admin-triggered outbound AI voice calls for
-        this candidate. Requires the `trigger_ai_calls` permission. Inbound helpline calls
-        and workflow-stage-triggered calls are not included here -- see
-        GET /api/v1/admin/communications for the full cross-channel log.
+        Read-only, most-recent-first list (at most 50) of every outbound voice call this
+        candidate has had: calls an admin placed by hand, automatic calls placed when the
+        candidate entered a workflow stage, and bulk calls. `trigger` says which
+        (`manual`, `automatic` or `bulk`) and `voice` names the recorded voice that was
+        played. Requires the `trigger_ai_calls` permission. Inbound calls are not included
+        -- see GET /api/v1/admin/communications for the full cross-channel log.
       security:
         - bearerAuth: []
       parameters:
@@ -6301,7 +6357,7 @@ paths:
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
         '200':
-          description: Admin-triggered AI call history
+          description: The candidate's outbound call history
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -6319,7 +6375,13 @@ paths:
                     data:
                       - id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
                         direction: outbound
-                        call_reason: missing_documents
+                        call_reason: voice_call
+                        trigger: manual
+                        workflow_stage_code: null
+                        voice:
+                          voice_id: '538'
+                          name_en: Upload documents
+                          name_ur: دستاویزات اپ لوڈ کریں
                         language_code: en
                         status: queued
                         candidate:
@@ -6349,12 +6411,13 @@ paths:
         '403':
           description: Authenticated staff user lacks trigger_ai_calls, or is inactive
     post:
-      summary: Trigger an admin-initiated outbound AI voice call
+      summary: Place a call to a candidate with a call type
       description: >-
-        Places a real two-way ElevenLabs conversational AI call to the candidate for one
-        of 4 reasons. Subject to the outbound feature flag, allowed calling hours, a
-        per-admin hourly rate limit, a daily account-wide cap, and a per-candidate+reason
-        cooldown (see AiCalls::OutboundCallGuard). Requires the `trigger_ai_calls`
+        Plays one active call type (a recorded RoboCall voice, see
+        /api/v1/admin/robocall_voices) to the candidate. Subject to the outbound feature
+        flag, allowed calling hours, a per-admin hourly rate limit, a daily account-wide
+        cap, and a per-candidate+call type cooldown (15 minutes by default, editable in AI
+        call settings; see AiCalls::OutboundCallGuard). Requires the `trigger_ai_calls`
         permission and an Idempotency-Key header.
       security:
         - bearerAuth: []
@@ -6396,7 +6459,13 @@ paths:
                     data:
                       id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
                       direction: outbound
-                      call_reason: missing_documents
+                      call_reason: voice_call
+                      trigger: manual
+                      workflow_stage_code: null
+                      voice:
+                        voice_id: '538'
+                        name_en: Upload documents
+                        name_ur: دستاویزات اپ لوڈ کریں
                       language_code: en
                       status: queued
                       candidate:
@@ -6431,12 +6500,12 @@ paths:
           description: Candidate not found
         '422':
           description: >-
-            Unknown call_reason, candidate has no current assignment, candidate is
-            inactive, or the call is outside allowed calling hours
+            Unknown or switched-off call type, candidate has no current assignment,
+            candidate is inactive, or the call is outside allowed calling hours
         '429':
-          description: Admin rate limit, daily account limit, or per-candidate+reason cooldown exceeded
+          description: Admin rate limit, daily account limit, or per-candidate+call type cooldown exceeded
         '502':
-          description: The ElevenLabs provider request failed
+          description: The call provider request failed
         '503':
           description: Outbound AI calling is disabled, or the provider is not configured
   /api/v1/admin/ai_calls:
@@ -9325,6 +9394,384 @@ paths:
           description: No script row for this workflow_stage_code
         '422':
           description: Invalid announcement, voice_id or language_code
+  /api/v1/admin/robocall_voices:
+    get:
+      summary: List the call types (named RoboCall voices)
+      description: >-
+        Every call type, by name, active or not. Requires `trigger_ai_calls` or
+        `manage_ai_call_scripts`. A call type is switched off with `active: false`, never deleted,
+        so past bulk batches keep their history.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The call types
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                voices:
+                  value:
+                    data:
+                      - id: 5c1f6f0e-4f0e-4c53-a0c3-1d2f0f3b9c11
+                        name_en: Visa approved
+                        name_ur: ویزا منظور
+                        voice_id: '205'
+                        active: true
+                        updated_at: '2026-10-18T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-10-18T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls and manage_ai_call_scripts, or is inactive
+    post:
+      summary: Add a call type
+      description: >-
+        Adds a named RoboCall voice. Requires `manage_ai_call_scripts`; recorded as an AuditEvent.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRobocallVoiceRequest'
+      responses:
+        '201':
+          description: Call type added
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_scripts, or is inactive
+        '422':
+          description: Missing name, malformed or duplicate voice_id, or duplicate name
+  /api/v1/admin/robocall_voices/{id}:
+    patch:
+      summary: Rename, re-point or switch off a call type
+      description: >-
+        Updates the name and/or voice_id and/or the active flag. Requires `manage_ai_call_scripts`;
+        recorded as an AuditEvent.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRobocallVoiceRequest'
+      responses:
+        '200':
+          description: Call type updated
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_ai_call_scripts, or is inactive
+        '404':
+          description: No such call type
+        '422':
+          description: Malformed or duplicate voice_id or name
+  /api/v1/admin/bulk_calls/candidates:
+    get:
+      summary: Candidates at one workflow stage, with whether each was already called with a call type
+      description: >-
+        The bulk-call page's list. `filter[status]` (the workflow stage) and `robocall_voice_id` are
+        required. A candidate counts as already called when a call with that voice exists for their
+        current assignment, or one is still queued in a bulk batch. `called` is `not_called` (the
+        default), `called` or `all`. `meta.summary` gives how many match, were called, and remain;
+        `meta.batch_limit` is the most one batch may call. Requires `trigger_ai_calls`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: robocall_voice_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: filter[status]
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: filter[country_code]
+          in: query
+          schema:
+            type: string
+        - name: filter[project_code]
+          in: query
+          schema:
+            type: string
+        - name: filter[craft_code]
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: called
+          in: query
+          schema:
+            type: string
+            enum: [not_called, called, all]
+            default: not_called
+        - name: page[number]
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: page[size]
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: One page of candidates
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                candidates:
+                  value:
+                    data:
+                      - id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        full_name: Ahmed Khan
+                        reference_number: DES-1A2B3C4D5E6F
+                        mobile_number_masked: '+92300*****12'
+                        call_state: not_called
+                        last_call: null
+                    meta:
+                      summary:
+                        matching: 340
+                        called: 140
+                        remaining: 200
+                      batch_limit: 200
+                      applied_filters:
+                        status: verified
+                      pagination:
+                        page: 1
+                        per_page: 25
+                        total_count: 200
+                        total_pages: 8
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-10-18T09:00:01Z'
+                    errors: []
+        '400':
+          description: Missing workflow stage or invalid query parameter
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+        '404':
+          description: No such call type
+  /api/v1/admin/bulk_calls:
+    get:
+      summary: Recent bulk-call batches
+      description: >-
+        The 50 most recent batches, newest first, each with its per-status item counts
+        (`queued`, `placed`, `skipped`, `failed`). Requires `trigger_ai_calls`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Recent batches
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+    post:
+      summary: Start a bulk call
+      description: >-
+        Takes the first `limit` candidates at the stage who have not yet been called with the chosen
+        call type, records them as a batch, and queues one call each in the background, a couple of
+        seconds apart. Requires `trigger_ai_calls` and an `Idempotency-Key`. Refused before anything
+        is recorded when: outbound calling is off or RoboCall is not the provider, it is outside the
+        allowed calling hours (the whole batch is refused, nothing is queued for later), `limit` is
+        above the batch ceiling (200 by default), the call type is switched off, nobody is left to
+        call, or the batch is larger than what remains of today's account-wide call budget. Call the
+        endpoint again to call the next group; candidates already called or queued are skipped.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBulkCallRequest'
+      responses:
+        '201':
+          description: Batch started; its calls are queued
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                started:
+                  value:
+                    data:
+                      id: 9d3a2b9e-4a5c-4f3b-8c64-0a7f6d1f2e10
+                      voice:
+                        id: 5c1f6f0e-4f0e-4c53-a0c3-1d2f0f3b9c11
+                        name: Visa approved
+                      workflow_stage_code: verified
+                      filters: {}
+                      requested_limit: 200
+                      selected_count: 200
+                      counts:
+                        queued: 200
+                        placed: 0
+                        skipped: 0
+                        failed: 0
+                      created_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      created_at: '2026-10-18T09:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-10-18T09:00:01Z'
+                    errors: []
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+        '404':
+          description: No such call type
+        '422':
+          description: >-
+            Invalid limit or workflow stage, call type switched off, no candidate left to call, or it is
+            outside the allowed calling hours
+        '429':
+          description: The batch is larger than what remains of today's daily call limit
+        '503':
+          description: Outbound calling is disabled
+  /api/v1/admin/bulk_calls/{id}:
+    get:
+      summary: One bulk-call batch with each candidate's result
+      description: >-
+        The batch, its counts, and one item per candidate: `queued` until the call is placed, then
+        `placed` (with the call's status and outcome) or `skipped` (with a reason such as
+        `stage_changed`, `outside_calling_hours`, `daily_limit_reached`) or `failed` (the provider
+        could not take it). Skipped and failed candidates are eligible for a later batch. Requires
+        `trigger_ai_calls`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The batch with its items
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks trigger_ai_calls, or is inactive
+        '404':
+          description: No such batch
   /api/v1/admin/ai_call_operational_settings:
     get:
       summary: Read the AI call rate-limit / calling-hours singleton

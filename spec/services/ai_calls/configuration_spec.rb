@@ -57,8 +57,8 @@ RSpec.describe AiCalls::Configuration do
     expect(configuration.inbound_enabled?).to be(false)
     expect(configuration.recording_enabled?).to be(false)
     expect(configuration.human_transfer_enabled?).to be(false)
-    expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
-    expect(configuration.daily_outbound_call_limit).to eq(200)
+    expect(configuration.outbound_trigger_cooldown_minutes).to eq(15)
+    expect(configuration.daily_outbound_call_limit).to eq(1000)
     expect(configuration.admin_trigger_rate_limit_per_hour).to eq(50)
     expect(configuration.calling_hours_start).to eq(9)
     expect(configuration.calling_hours_end).to eq(19)
@@ -143,8 +143,8 @@ RSpec.describe AiCalls::Configuration do
 
       configuration = described_class.new
 
-      expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
-      expect(configuration.daily_outbound_call_limit).to eq(200)
+      expect(configuration.outbound_trigger_cooldown_minutes).to eq(15)
+      expect(configuration.daily_outbound_call_limit).to eq(1000)
       expect(configuration.admin_trigger_rate_limit_per_hour).to eq(50)
       expect(configuration.calling_hours_start).to eq(9)
       expect(configuration.calling_hours_end).to eq(19)
@@ -175,7 +175,7 @@ RSpec.describe AiCalls::Configuration do
       configuration = described_class.new
 
       expect(configuration.daily_outbound_call_limit).to eq(5)
-      expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
+      expect(configuration.outbound_trigger_cooldown_minutes).to eq(15)
     end
 
     it 'lazily creates the AiCallOperationalSetting row if none exists yet' do

@@ -7,12 +7,16 @@
 # result, since RoboCall has no webhooks) and the voice that was played.
 class AddRobocallSupportToAiCalls < ActiveRecord::Migration[8.1]
   def change
-    add_column :workflow_stage_call_scripts, :voice_id, :string
-    change_column_null :workflow_stage_call_scripts, :announcement_en, true
+    change_table :workflow_stage_call_scripts, bulk: true do |t|
+      t.string :voice_id
+      t.change_null :announcement_en, true
+    end
 
-    add_column :candidate_ai_calls, :robocall_call_id, :string
-    add_column :candidate_ai_calls, :provider_voice_id, :string
-    add_index :candidate_ai_calls, :robocall_call_id, unique: true, where: 'robocall_call_id IS NOT NULL',
-                                                       name: 'index_candidate_ai_calls_on_robocall_call_id'
+    change_table :candidate_ai_calls, bulk: true do |t|
+      t.string :robocall_call_id
+      t.string :provider_voice_id
+      t.index :robocall_call_id, unique: true, where: 'robocall_call_id IS NOT NULL',
+                                 name: 'index_candidate_ai_calls_on_robocall_call_id'
+    end
   end
 end

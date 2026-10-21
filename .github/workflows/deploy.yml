@@ -5,7 +5,7 @@ name: EC2 Deploy
 # pick what to deploy:
 #
 #   source = main          the tip of main                       -> `production` environment
-#   source = branch        any branch of this repository         -> `preview` environment
+#   source = branch        the branch picked in "Use workflow from" -> `preview` environment
 #   source = pull_request  the head of an open same-repo PR      -> `preview` environment
 #
 # A push to main deploys main automatically (still behind the `production`
@@ -33,14 +33,10 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: What to deploy
+        description: "What to deploy. For 'branch', pick the branch in 'Use workflow from' above"
         type: choice
         options: [main, branch, pull_request]
         default: main
-      branch:
-        description: "Branch name (when source = branch)"
-        type: string
-        required: false
       pull_request:
         description: "Pull request number (when source = pull_request; same-repository PRs only)"
         type: string
@@ -76,7 +72,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_SHA: ${{ github.sha }}
           SOURCE: ${{ inputs.source }}
-          BRANCH: ${{ inputs.branch }}
+          BRANCH: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
           PR_NUMBER: ${{ inputs.pull_request }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -98,7 +95,8 @@ jobs:
               description="main @ ${sha:0:12}"
               ;;
             branch)
-              [[ -n "$BRANCH" ]] || fail "Enter a branch name."
+              [[ "$REF_TYPE" == "branch" ]] || fail "Pick a branch in 'Use workflow from'."
+              [[ "$BRANCH" != "main" ]] || fail "main is deployed with source = main. To deploy another branch, pick it in 'Use workflow from'."
               [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "That is not a valid branch name."
               sha="$(git rev-parse --verify --quiet "refs/remotes/origin/${BRANCH}^{commit}")" \
                 || fail "Branch '${BRANCH}' does not exist in this repository."

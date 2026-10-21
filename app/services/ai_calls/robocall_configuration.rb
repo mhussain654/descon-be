@@ -24,6 +24,18 @@ module AiCalls
       ENV.fetch('ROBOCALL_RETRY_WINDOW_MINUTES', 30).to_i
     end
 
+    # The most candidates one bulk call may include. This is our own ceiling,
+    # kept at what RoboCall can take in one run; the admin page shows it too.
+    def bulk_batch_limit
+      ENV.fetch('ROBOCALL_BULK_BATCH_LIMIT', 200).to_i
+    end
+
+    # Pause between two calls of one bulk batch, so a few hundred requests do
+    # not hit RoboCall at once (no rate limit is documented).
+    def bulk_call_spacing_seconds
+      ENV.fetch('ROBOCALL_BULK_CALL_SPACING_SECONDS', 2).to_i
+    end
+
     def open_timeout
       ENV.fetch('ROBOCALL_OPEN_TIMEOUT_SECONDS', 5).to_i
     end
