@@ -21,6 +21,11 @@ module AiCalls
     # A bulk call: one RoboCall voice, no scenario text and no stage.
     def bulk? = call_reason == 'bulk_voice_call'
 
+    # An admin's single call to one candidate with a named call type.
+    def self.for_voice(voice_id:)
+      new(call_reason: 'voice_call', prompt_source: nil, workflow_stage_code: nil, voice_id:)
+    end
+
     def self.for_bulk(voice_id:)
       new(call_reason: 'bulk_voice_call', prompt_source: nil, workflow_stage_code: nil, voice_id:)
     end

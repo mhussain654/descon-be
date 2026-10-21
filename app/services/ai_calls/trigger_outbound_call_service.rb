@@ -42,7 +42,7 @@ module AiCalls
       # (see AiCalls::OutboundCallGuard#ensure_cooldown_elapsed!).
       if cooldown_applies?
         @guard.ensure_cooldown_elapsed!(candidate_assignment: assignment,
-                                        call_reason: @plan.call_reason)
+                                        call_reason: @plan.call_reason, voice_id: @plan.voice_id)
       end
 
       call_record = create_call_record!(candidate:, assignment:)
@@ -59,7 +59,9 @@ module AiCalls
     # before either has committed -- the second waits for the first to
     # finish, then sees its just-created row and is correctly rejected.
     def lock_trigger!
-      Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: "#{@candidate.id}:#{@plan.call_reason}")
+      Database::AdvisoryTransactionLock.call(
+        scope: LOCK_SCOPE, key: [@candidate.id, @plan.call_reason, @plan.voice_id].compact.join(':')
+      )
     end
 
     def locked_candidate_and_assignment

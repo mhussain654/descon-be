@@ -1719,11 +1719,12 @@ components:
       properties:
         candidate_ai_call:
           type: object
-          required: [call_reason]
+          required: [robocall_voice_id]
           properties:
-            call_reason:
+            robocall_voice_id:
               type: string
-              enum: [missing_documents, protection_appearance_reminder, urgent_compliance_action, flight_information]
+              format: uuid
+              description: The id of an active call type (see /api/v1/admin/robocall_voices).
           additionalProperties: false
       required: [candidate_ai_call]
     AdminRobocallVoiceRequest:
@@ -6335,12 +6336,14 @@ paths:
                     timestamp: '2026-08-30T12:00:00Z'
   /api/v1/admin/candidates/{candidate_id}/ai_calls:
     get:
-      summary: List a candidate's admin-triggered AI voice call history
+      summary: List a candidate's voice call history
       description: >-
-        Read-only, most-recent-first list of admin-triggered outbound AI voice calls for
-        this candidate. Requires the `trigger_ai_calls` permission. Inbound helpline calls
-        and workflow-stage-triggered calls are not included here -- see
-        GET /api/v1/admin/communications for the full cross-channel log.
+        Read-only, most-recent-first list (at most 50) of every outbound voice call this
+        candidate has had: calls an admin placed by hand, automatic calls placed when the
+        candidate entered a workflow stage, and bulk calls. `trigger` says which
+        (`manual`, `automatic` or `bulk`) and `voice` names the recorded voice that was
+        played. Requires the `trigger_ai_calls` permission. Inbound calls are not included
+        -- see GET /api/v1/admin/communications for the full cross-channel log.
       security:
         - bearerAuth: []
       parameters:
@@ -6354,7 +6357,7 @@ paths:
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
         '200':
-          description: Admin-triggered AI call history
+          description: The candidate's outbound call history
           headers:
             Content-Language:
               $ref: '#/components/headers/ContentLanguageHeader'
@@ -6372,7 +6375,13 @@ paths:
                     data:
                       - id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
                         direction: outbound
-                        call_reason: missing_documents
+                        call_reason: voice_call
+                        trigger: manual
+                        workflow_stage_code: null
+                        voice:
+                          voice_id: '538'
+                          name_en: Upload documents
+                          name_ur: دستاویزات اپ لوڈ کریں
                         language_code: en
                         status: queued
                         candidate:
@@ -6402,12 +6411,13 @@ paths:
         '403':
           description: Authenticated staff user lacks trigger_ai_calls, or is inactive
     post:
-      summary: Trigger an admin-initiated outbound AI voice call
+      summary: Place a call to a candidate with a call type
       description: >-
-        Places a real two-way ElevenLabs conversational AI call to the candidate for one
-        of 4 reasons. Subject to the outbound feature flag, allowed calling hours, a
-        per-admin hourly rate limit, a daily account-wide cap, and a per-candidate+reason
-        cooldown (see AiCalls::OutboundCallGuard). Requires the `trigger_ai_calls`
+        Plays one active call type (a recorded RoboCall voice, see
+        /api/v1/admin/robocall_voices) to the candidate. Subject to the outbound feature
+        flag, allowed calling hours, a per-admin hourly rate limit, a daily account-wide
+        cap, and a per-candidate+call type cooldown (15 minutes by default, editable in AI
+        call settings; see AiCalls::OutboundCallGuard). Requires the `trigger_ai_calls`
         permission and an Idempotency-Key header.
       security:
         - bearerAuth: []
@@ -6449,7 +6459,13 @@ paths:
                     data:
                       id: 2a6f9c4e-9a3e-4f0e-9a0a-5a6f9c4e9a3e
                       direction: outbound
-                      call_reason: missing_documents
+                      call_reason: voice_call
+                      trigger: manual
+                      workflow_stage_code: null
+                      voice:
+                        voice_id: '538'
+                        name_en: Upload documents
+                        name_ur: دستاویزات اپ لوڈ کریں
                       language_code: en
                       status: queued
                       candidate:
@@ -6484,12 +6500,12 @@ paths:
           description: Candidate not found
         '422':
           description: >-
-            Unknown call_reason, candidate has no current assignment, candidate is
-            inactive, or the call is outside allowed calling hours
+            Unknown or switched-off call type, candidate has no current assignment,
+            candidate is inactive, or the call is outside allowed calling hours
         '429':
-          description: Admin rate limit, daily account limit, or per-candidate+reason cooldown exceeded
+          description: Admin rate limit, daily account limit, or per-candidate+call type cooldown exceeded
         '502':
-          description: The ElevenLabs provider request failed
+          description: The call provider request failed
         '503':
           description: Outbound AI calling is disabled, or the provider is not configured
   /api/v1/admin/ai_calls:

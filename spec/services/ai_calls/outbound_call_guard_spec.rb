@@ -71,8 +71,9 @@ RSpec.describe AiCalls::OutboundCallGuard do
   describe '#ensure_cooldown_elapsed!' do
     let(:assignment) { create(:candidate_assignment) }
 
-    def call_for(assignment, call_reason: 'missing_documents')
-      create(:candidate_ai_call, communication: create(:communication, candidate_assignment: assignment), call_reason:)
+    def call_for(assignment, call_reason: 'missing_documents', provider_voice_id: nil)
+      create(:candidate_ai_call, communication: create(:communication, candidate_assignment: assignment), call_reason:,
+                                 provider_voice_id:)
     end
 
     it 'passes when outside the cooldown window' do
@@ -94,6 +95,17 @@ RSpec.describe AiCalls::OutboundCallGuard do
 
       expect do
         guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'flight_information')
+      end.not_to raise_error
+    end
+
+    it 'counts a call with a voice per voice: the same voice is refused, another is not' do
+      call_for(assignment, call_reason: 'voice_call', provider_voice_id: '538')
+
+      expect do
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'voice_call', voice_id: '538')
+      end.to raise_error(AiCallTriggerCooldownError)
+      expect do
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'voice_call', voice_id: '537')
       end.not_to raise_error
     end
 

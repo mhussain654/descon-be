@@ -37,15 +37,16 @@ module AiCalls
     end
 
     # Time-windowed, per-(assignment, call_reason) cooldown -- meaningful
-    # only for the admin-triggered flow's 4 distinct call reasons. The
+    # only for the admin-triggered flow. A call with a voice is counted per
+    # voice, so a different call type can be placed straight away. The
     # workflow-stage-triggered flow enforces its own, stronger, permanent
     # per-stage dedup instead (every stage-triggered call shares one
     # call_reason, so this cooldown would otherwise block a genuinely
     # different stage's call). Call inside the caller's transaction, after
     # acquiring the per-candidate+reason advisory lock, so a concurrent
     # trigger can't race past this.
-    def ensure_cooldown_elapsed!(candidate_assignment:, call_reason:)
-      raise AiCallTriggerCooldownError if within_cooldown?(candidate_assignment:, call_reason:)
+    def ensure_cooldown_elapsed!(candidate_assignment:, call_reason:, voice_id: nil)
+      raise AiCallTriggerCooldownError if within_cooldown?(candidate_assignment:, call_reason:, voice_id:)
     end
 
     private
@@ -70,10 +71,12 @@ module AiCalls
       CandidateAiCall.outbound.where(created_at: Time.current.beginning_of_day..).count
     end
 
-    def within_cooldown?(candidate_assignment:, call_reason:)
+    def within_cooldown?(candidate_assignment:, call_reason:, voice_id:)
       window = @configuration.outbound_trigger_cooldown_minutes.minutes.ago
-      CandidateAiCall.outbound.exists?(candidate_assignment_id: candidate_assignment.id, call_reason:,
-                                       created_at: window..)
+      recent = CandidateAiCall.outbound.where(candidate_assignment_id: candidate_assignment.id, call_reason:,
+                                              created_at: window..)
+      recent = recent.where(provider_voice_id: voice_id) if voice_id.present?
+      recent.exists?
     end
   end
 end

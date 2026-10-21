@@ -15,7 +15,7 @@ module AiCalls
       { voice_id: '538', name_en: 'Upload documents', name_ur: 'دستاویزات اپ لوڈ کریں',
         stage_code: 'documents_pending' },
       { voice_id: '537', name_en: 'Medical report received', name_ur: 'میڈیکل رپورٹ موصول ہو گئی',
-        stage_code: 'medical_completed' },
+        stage_code: 'medical_fit' },
       { voice_id: '536', name_en: 'Medical date and center added', name_ur: 'میڈیکل کی تاریخ اور مرکز',
         stage_code: 'medical_appointment' }
     ].freeze

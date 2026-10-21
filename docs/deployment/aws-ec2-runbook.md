@@ -500,6 +500,13 @@ and no live conversation.
   is not documented. `bin/rails "ai_calls:robocall:multiple[VOICE_ID,923001234567 923007654321]"`
   places REAL calls to those numbers and prints the raw response, to see
   whether it returns one id per number before anything depends on it.
+* **Calling one candidate** (admin app: candidate page > **AI calls** tab, needs
+  `trigger_ai_calls`). The dropdown lists only the **active** call types (the same
+  library as Bulk calls). The same call type can be placed to the same candidate
+  again after the cooldown (default 15 minutes; AI call settings or
+  `AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES`); a different call type can be placed
+  at once. The tab's history lists every call the candidate had: manual, automatic
+  (stage) and bulk, with the call type name and the result.
 * **Bulk calls** (admin app: *Bulk calls*, `/admin/bulk-calls`). An admin picks one
   workflow stage and one **call type** (a named RoboCall voice, kept in
   `robocall_voices`; adding or editing one needs `manage_ai_call_scripts`), sees
@@ -509,7 +516,7 @@ and no live conversation.
     approved ones (536 medical date and center added, 537 medical report received,
     538 upload documents) are installed by a migration from the single list in
     `AiCalls::InstallStarterRobocallVoicesService`, and each is also set as the
-    voice of its stage (`medical_appointment`, `medical_completed`,
+    voice of its stage (`medical_appointment`, `medical_fit`,
     `documents_pending`) with the stage left **off**. **To add the next voice:**
     *Bulk calls* > *Call types* > *Add call type* (name, Urdu name, RoboCall voice
     ID); to have it called automatically, open *Automatic calls*, put the same
@@ -531,7 +538,7 @@ and no live conversation.
   * **Refused up front, nothing queued:** outbound calling off, outside the
     calling hours, a limit above the ceiling, a switched-off call type, nobody
     left to call, or a batch larger than what remains of today's daily call limit
-    (raise it in AI call settings for a big batch: the default is 200 a day).
+    (the default is 1000 a day, so several batches of up to 200 fit in a day; change it in AI call settings).
   * **A batch counts as one admin action**, so the per-admin hourly limit does
     not apply to its calls, and the per-reason cooldown is replaced by the
     per-voice "already called" rule.
