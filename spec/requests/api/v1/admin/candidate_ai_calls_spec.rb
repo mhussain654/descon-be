@@ -16,7 +16,9 @@ RSpec.describe 'API V1 Admin Candidate AI Calls', type: :request do
     ENV.replace(original_env)
   end
 
+  # db:seed (run when CI prepares the test database) installs the starter call types for real.
   before do
+    RobocallVoice.delete_all
     ensure_staff_authorization_reference_data!
   end
 

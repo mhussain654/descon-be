@@ -27,7 +27,7 @@ RSpec.describe Admin::BulkCalls::EligibleCandidatesQuery do
   it 'narrows by the candidate list filters (country, project, craft)' do
     qatar, = candidate_at('verified')
     other, other_assignment = candidate_at('verified')
-    other_assignment.update!(country: create(:country, code: 'oman'))
+    other_assignment.update!(country: Country.find_by(code: 'oman') || create(:country, code: 'oman'))
 
     result = query(filter: { status: 'verified', country_code: 'oman' }).call
 

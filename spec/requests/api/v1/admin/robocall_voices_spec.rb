@@ -3,7 +3,11 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 Admin Robocall Voices', type: :request do
-  before { ensure_staff_authorization_reference_data! }
+  # db:seed (run when CI prepares the test database) installs the starter call types for real.
+  before do
+    RobocallVoice.delete_all
+    ensure_staff_authorization_reference_data!
+  end
 
   def auth_headers(user)
     post '/api/v1/auth/login', params: { auth: { email: user.email, password: 'Password123!' } }

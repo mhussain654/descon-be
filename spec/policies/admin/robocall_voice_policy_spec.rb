@@ -3,7 +3,11 @@
 require 'rails_helper'
 
 RSpec.describe Admin::RobocallVoicePolicy do
-  before { ensure_staff_authorization_reference_data! }
+  # db:seed (run when CI prepares the test database) installs the starter call types for real.
+  before do
+    RobocallVoice.delete_all
+    ensure_staff_authorization_reference_data!
+  end
 
   let(:admin) { create(:user, role: 'admin') }
   let(:finance) { create(:user, role: 'finance') }

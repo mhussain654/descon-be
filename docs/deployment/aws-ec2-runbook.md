@@ -724,12 +724,14 @@ deployment depends on the public hostname.
 
 CD does not use SSH (GitHub-hosted runners have no fixed IP and SSH is limited
 to one address). **Actions → "Deploy backend" → Run workflow** lets you choose
-what to deploy:
+what to deploy. To deploy a branch, pick it in the **Use workflow from** list (GitHub
+lists the branches itself, so there is no name to type) and set `source` to `branch`;
+the branch must contain this workflow file:
 
 | `source` | What is deployed | Environment | Commit accepted by the instance |
 |---|---|---|---|
 | `main` (default) | the tip of `main` | `production` | only a commit already on `origin/main` |
-| `branch` + branch name | the tip of that branch | `preview` | any commit on a branch of this repository |
+| `branch` | the tip of the branch picked in **Use workflow from** (not `main`) | `preview` | any commit on a branch of this repository |
 | `pull_request` + number | the head of that **open, same-repository** PR | `preview` | same as above |
 
 A push to `main` runs the `main` path automatically (still behind the

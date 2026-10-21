@@ -5,6 +5,12 @@ require 'rails_helper'
 RSpec.describe AiCalls::InstallStarterRobocallVoicesService do
   let(:starter) { described_class::STARTER_VOICES }
 
+  # db:seed (run when CI prepares the test database) installs the starter call types for real.
+  before do
+    RobocallVoice.delete_all
+    WorkflowStageCallScript.delete_all
+  end
+
   it 'adds every starter voice as a call type and sets it, switched off, on its stage' do
     described_class.call
 

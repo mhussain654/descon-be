@@ -3,6 +3,9 @@
 require 'rails_helper'
 
 RSpec.describe RobocallVoice do
+  # db:seed (run when CI prepares the test database) installs the starter call types for real.
+  before { described_class.delete_all }
+
   it 'has a valid factory and assigns a public id' do
     voice = create(:robocall_voice)
 
