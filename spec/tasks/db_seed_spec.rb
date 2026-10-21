@@ -40,12 +40,18 @@ RSpec.describe 'db:seed rake task' do
   it 'seeds a default, inactive, bilingual AI call script only for the plausible stages (MPS-708)' do
     Rake::Task['db:seed'].invoke
 
-    expected_stages = %w[verified fee_paid qvc_completed_outcome_received visa_issued_or_rejected
-                         appeared_for_protection mobilized]
+    expected_stages = WorkflowStage::CANONICAL_STAGES.map { |stage| stage.fetch(:code) }
     expect(WorkflowStageCallScript.pluck(:workflow_stage_code)).to match_array(expected_stages)
     expect(WorkflowStageCallScript.distinct.pluck(:active)).to eq([false])
-    expect(WorkflowStageCallScript.pluck(:announcement_en)).to all(be_present)
-    expect(WorkflowStageCallScript.pluck(:announcement_ur)).to all(be_present)
+    # Only the stages of the approved starter voices have a voice, and they are still switched off.
+    starter = AiCalls::InstallStarterRobocallVoicesService::STARTER_VOICES
+    expect(WorkflowStageCallScript.where.not(voice_id: nil).pluck(:workflow_stage_code, :voice_id))
+      .to match_array(starter.map { |entry| [entry.fetch(:stage_code), entry.fetch(:voice_id)] })
+    expect(RobocallVoice.pluck(:voice_id)).to match_array(starter.pluck(:voice_id))
+    with_wording = %w[verified fee_paid qvc_completed_outcome_received visa_issued_or_rejected
+                      appeared_for_protection mobilized]
+    expect(WorkflowStageCallScript.where(workflow_stage_code: with_wording).pluck(:announcement_en)).to all(be_present)
+    expect(WorkflowStageCallScript.where(workflow_stage_code: with_wording).pluck(:announcement_ur)).to all(be_present)
   end
 
   it 'does not clobber an admin-edited AI call script on a second seed run' do

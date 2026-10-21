@@ -24,7 +24,12 @@ RSpec.describe 'API V1 Admin Reference Data', type: :request do
     ]
   end
 
+  # This spec commits real rows (it is not transactional), so the audit events
+  # its create/update requests write would otherwise outlive it and break any
+  # later spec that counts audit events or deletes users (an audit event holds
+  # an FK to its actor). Only the ReferenceData events are removed, never other suites' rows.
   def clean_reference_test_data!
+    AuditEvent.where(entity_type: 'ReferenceData').delete_all
     Country.where(code: reference_test_codes).delete_all
     Project.where(code: reference_test_codes).delete_all
     Craft.where(code: reference_test_codes).delete_all

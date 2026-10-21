@@ -6,6 +6,18 @@ module AiCalls
   # that knows the env var names, so providers/services never touch ENV
   # directly.
   class Configuration
+    # Which voice provider places calls: `robocall` (RoboCall.pk, a fixed
+    # pre-recorded voice per call -- the default) or `elevenlabs` (a live AI
+    # agent). An unrecognised value falls back to the default.
+    VOICE_PROVIDERS = %w[robocall elevenlabs].freeze
+
+    def voice_provider
+      value = ENV.fetch('AI_VOICE_PROVIDER', 'robocall').strip.downcase
+      VOICE_PROVIDERS.include?(value) ? value : 'robocall'
+    end
+
+    def robocall? = voice_provider == 'robocall'
+
     def elevenlabs_api_key
       ENV['ELEVENLABS_API_KEY'].to_s.strip.presence
     end
@@ -98,11 +110,11 @@ module AiCalls
     # column, not a missing table row.
     def outbound_trigger_cooldown_minutes
       operational_setting.outbound_trigger_cooldown_minutes ||
-        ENV.fetch('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 60).to_i
+        ENV.fetch('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 15).to_i
     end
 
     def daily_outbound_call_limit
-      operational_setting.daily_outbound_call_limit || ENV.fetch('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 200).to_i
+      operational_setting.daily_outbound_call_limit || ENV.fetch('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 1000).to_i
     end
 
     def admin_trigger_rate_limit_per_hour

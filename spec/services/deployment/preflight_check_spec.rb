@@ -159,6 +159,30 @@ RSpec.describe Deployment::PreflightCheck do
       expect(result.detail).to include('kuickpay.test.secured_key', 'the file decrypts')
     end
 
+    it 'fails when RoboCall is the provider with outbound calling on but its api key is missing' do
+      allow(Rails.application.credentials).to receive(:config).and_return({ readable: true })
+
+      result = with_env('AI_VOICE_PROVIDER' => 'robocall', 'AI_VOICE_OUTBOUND_ENABLED' => 'true') do
+        result_named(described_class.call, 'credentials')
+      end
+
+      expect(result).to be_failed
+      expect(result.detail).to include('robocall.test.api_key')
+    end
+
+    it 'does not require the RoboCall key while outbound calling is off, and never prints it' do
+      allow(Rails.application.credentials).to receive(:dig).and_call_original
+      allow(Rails.application.credentials).to receive(:dig).with(:robocall, :test, :api_key).and_return('rc-secret')
+
+      result = with_env('AI_VOICE_PROVIDER' => 'robocall', 'AI_VOICE_OUTBOUND_ENABLED' => 'false') do
+        result_named(described_class.call, 'credentials')
+      end
+
+      expect(result.status).to eq(:pass)
+      expect(result.detail).to include('RoboCall api_key present=true', 'provider=robocall')
+      expect(result.detail).not_to include('rc-secret')
+    end
+
     it 'passes and never prints the secret when both are present' do
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('sendpk')

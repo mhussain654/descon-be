@@ -12,6 +12,7 @@ module Admin
           workflow_stage_code: @script.workflow_stage_code,
           announcement_en: @script.announcement_en,
           announcement_ur: @script.announcement_ur,
+          voice_id: @script.voice_id,
           active: @script.active,
           updated_by: serialized_updated_by,
           updated_at: @script.updated_at.utc.iso8601

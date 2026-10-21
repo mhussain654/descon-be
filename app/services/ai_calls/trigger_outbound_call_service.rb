@@ -20,11 +20,12 @@ module AiCalls
       @request_id = request_id
       @configuration = configuration
       @guard = OutboundCallGuard.new(configuration:)
-      @adapter = Providers::ElevenlabsAdapter.new(configuration:)
     end
 
     def call
-      @guard.ensure_allowed!(actor: @actor)
+      # A bulk call is one admin action, so the per-admin hourly limit does not apply to each of its calls.
+      @guard.ensure_allowed!(actor: @plan.bulk? ? nil : @actor)
+      raise AiCallVoiceNotConfiguredError if @configuration.robocall? && @plan.voice_id.blank?
 
       CandidateAssignment.transaction { execute_trigger }
     end
@@ -39,19 +40,28 @@ module AiCalls
       # cooldown -- the workflow-stage-triggered flow (@actor nil) already
       # enforces its own, stronger, permanent per-stage dedup at the caller
       # (see AiCalls::OutboundCallGuard#ensure_cooldown_elapsed!).
-      @guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: @plan.call_reason) if @actor
+      if cooldown_applies?
+        @guard.ensure_cooldown_elapsed!(candidate_assignment: assignment,
+                                        call_reason: @plan.call_reason, voice_id: @plan.voice_id)
+      end
 
       call_record = create_call_record!(candidate:, assignment:)
       initiate_provider_call!(call_record)
       call_record.reload
     end
 
+    # Only the admin-triggered scenarios use the per-reason cooldown; a bulk
+    # call is deduplicated per voice by the batch itself.
+    def cooldown_applies? = @actor.present? && !@plan.bulk?
+
     # Serializes concurrent triggers for the same candidate+reason so two
     # near-simultaneous requests can't both pass the cooldown check below
     # before either has committed -- the second waits for the first to
     # finish, then sees its just-created row and is correctly rejected.
     def lock_trigger!
-      Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: "#{@candidate.id}:#{@plan.call_reason}")
+      Database::AdvisoryTransactionLock.call(
+        scope: LOCK_SCOPE, key: [@candidate.id, @plan.call_reason, @plan.voice_id].compact.join(':')
+      )
     end
 
     def locked_candidate_and_assignment
@@ -95,6 +105,8 @@ module AiCalls
     end
 
     def provider_attributes(candidate:)
+      return robocall_attributes(candidate:) if @configuration.robocall?
+
       {
         provider_code: 'elevenlabs',
         elevenlabs_agent_id: @configuration.elevenlabs_outbound_agent_id,
@@ -106,39 +118,28 @@ module AiCalls
       }
     end
 
-    def initiate_provider_call!(call_record)
-      prompt = @plan.prompt_source.build(candidate: call_record.candidate, language_code: call_record.language_code)
-      result = @adapter.initiate_outbound_call(outbound_call_request(call_record:, prompt:))
-      # A 2xx response missing a conversation_id is otherwise indistinguishable
-      # from a real one -- without this check the call would be marked
-      # 'queued' with no way to ever look it up again (reconciliation's
-      # Twilio/ElevenLabs cross-check both key off these ids), leaving it
-      # stuck in 'queued' forever, past every reconciliation threshold.
-      raise AiCallProviderRequestError if result.conversation_id.blank?
-
-      call_record.update!(elevenlabs_conversation_id: result.conversation_id, twilio_call_sid: result.twilio_call_sid,
-                          status: 'queued')
-      SyncCommunicationStatusService.call(call_record)
-      record_trigger_event!(call_record)
+    # RoboCall plays a fixed voice: nothing but the voice id and the number is
+    # sent, and none of the ElevenLabs agent/prompt fields apply.
+    def robocall_attributes(candidate:)
+      {
+        provider_code: 'robocall', provider_voice_id: @plan.voice_id, prompt_template_code: @plan.call_reason,
+        caller_number_masked: PhoneNumbers::Masker.call(candidate.mobile_number)
+      }
     end
 
-    def outbound_call_request(call_record:, prompt:)
-      Providers::OutboundCallRequest.new(
-        agent_id: call_record.elevenlabs_agent_id,
-        agent_phone_number_id: call_record.elevenlabs_agent_phone_number_id,
-        to_number: call_record.candidate.mobile_number,
-        dynamic_variables: prompt.dynamic_variables,
-        conversation_config_override: prompt.conversation_config_override,
-        recording_enabled: @configuration.recording_enabled?
-      )
+    def initiate_provider_call!(call_record)
+      ProviderCallInitiator.call(call_record:, plan: @plan, configuration: @configuration)
+      SyncCommunicationStatusService.call(call_record)
+      record_trigger_event!(call_record)
     end
 
     def record_trigger_event!(call_record)
       event_source = @actor.present? ? 'admin_trigger' : 'workflow_stage_trigger'
       call_record.candidate_ai_call_events.create!(
-        actor: @actor, provider_code: 'elevenlabs', event_source:, event_type: 'call_initiated',
+        actor: @actor, provider_code: call_record.provider_code, event_source:, event_type: 'call_initiated',
         event_key: "#{event_source}:#{call_record.id}", occurred_at: Time.current, request_id: @request_id,
-        payload: { call_reason: @plan.call_reason, conversation_id: call_record.elevenlabs_conversation_id }.compact
+        payload: { call_reason: @plan.call_reason, conversation_id: call_record.elevenlabs_conversation_id,
+                   robocall_call_id: call_record.robocall_call_id }.compact
       )
     end
   end

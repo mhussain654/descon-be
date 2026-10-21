@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# The header/lifecycle row for one AI voice call (ElevenLabs + Twilio),
+# The header/lifecycle row for one voice call (RoboCall, or ElevenLabs + Twilio),
 # outbound (admin-triggered) or inbound (candidate helpline). Genuinely
 # mutable -- a call progresses through `status` as it happens and `outcome`
 # is resolved once known (a call can be `completed` while its `outcome` is

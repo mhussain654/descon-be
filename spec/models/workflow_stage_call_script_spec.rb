@@ -60,6 +60,25 @@ RSpec.describe WorkflowStageCallScript do
     expect(script.announcement_en).to eq('Hi')
   end
 
+  describe 'voice_id' do
+    it 'accepts a RoboCall voice id and then needs no announcement text' do
+      script = build(:workflow_stage_call_script, voice_id: ' 102 ', announcement_en: nil, announcement_ur: nil)
+
+      expect(script).to be_valid
+      expect(script.voice_id).to eq('102')
+    end
+
+    it 'still requires an announcement when there is no voice id' do
+      expect(build(:workflow_stage_call_script, voice_id: '', announcement_en: nil)).not_to be_valid
+    end
+
+    it 'rejects a voice id with unsafe characters or excessive length' do
+      ['10 2', '102;drop', 'a' * 33, 'ہوا'].each do |bad|
+        expect(build(:workflow_stage_call_script, voice_id: bad)).not_to be_valid, "expected #{bad.inspect} invalid"
+      end
+    end
+  end
+
   describe '.active' do
     it 'scopes to scripts marked active' do
       active = create(:workflow_stage_call_script, workflow_stage_code: 'verified', active: true)

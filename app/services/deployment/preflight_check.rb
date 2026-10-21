@@ -94,13 +94,22 @@ module Deployment
       missing = []
       missing << "sendpk.#{Rails.env}.api_key" if sms_provider == 'sendpk' && !credential?(:sendpk, :api_key)
       missing << "kuickpay.#{Rails.env}.secured_key" if kuickpay_enabled? && !credential?(:kuickpay, :secured_key)
+      missing << "robocall.#{Rails.env}.api_key" if robocall_required? && !credential?(:robocall, :api_key)
       missing
     end
 
     def credentials_detail
       "send.pk api_key present=#{credential?(:sendpk, :api_key)} (SMS_PROVIDER=#{sms_provider}); " \
-        "KuickPay secured_key present=#{credential?(:kuickpay, :secured_key)} (enabled=#{kuickpay_enabled?})"
+        "KuickPay secured_key present=#{credential?(:kuickpay, :secured_key)} (enabled=#{kuickpay_enabled?}); " \
+        "RoboCall api_key present=#{credential?(:robocall, :api_key)} (provider=#{voice_configuration.voice_provider})"
     end
+
+    # The key is only required once outbound calling is switched on with RoboCall as the provider.
+    def robocall_required?
+      voice_configuration.robocall? && voice_configuration.outbound_enabled?
+    end
+
+    def voice_configuration = @voice_configuration ||= AiCalls::Configuration.new
 
     def credential?(integration, key)
       Rails.application.credentials.dig(integration, Rails.env.to_sym, key).present?

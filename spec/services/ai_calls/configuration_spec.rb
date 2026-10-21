@@ -57,8 +57,8 @@ RSpec.describe AiCalls::Configuration do
     expect(configuration.inbound_enabled?).to be(false)
     expect(configuration.recording_enabled?).to be(false)
     expect(configuration.human_transfer_enabled?).to be(false)
-    expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
-    expect(configuration.daily_outbound_call_limit).to eq(200)
+    expect(configuration.outbound_trigger_cooldown_minutes).to eq(15)
+    expect(configuration.daily_outbound_call_limit).to eq(1000)
     expect(configuration.admin_trigger_rate_limit_per_hour).to eq(50)
     expect(configuration.calling_hours_start).to eq(9)
     expect(configuration.calling_hours_end).to eq(19)
@@ -143,8 +143,8 @@ RSpec.describe AiCalls::Configuration do
 
       configuration = described_class.new
 
-      expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
-      expect(configuration.daily_outbound_call_limit).to eq(200)
+      expect(configuration.outbound_trigger_cooldown_minutes).to eq(15)
+      expect(configuration.daily_outbound_call_limit).to eq(1000)
       expect(configuration.admin_trigger_rate_limit_per_hour).to eq(50)
       expect(configuration.calling_hours_start).to eq(9)
       expect(configuration.calling_hours_end).to eq(19)
@@ -175,7 +175,7 @@ RSpec.describe AiCalls::Configuration do
       configuration = described_class.new
 
       expect(configuration.daily_outbound_call_limit).to eq(5)
-      expect(configuration.outbound_trigger_cooldown_minutes).to eq(60)
+      expect(configuration.outbound_trigger_cooldown_minutes).to eq(15)
     end
 
     it 'lazily creates the AiCallOperationalSetting row if none exists yet' do
@@ -184,6 +184,20 @@ RSpec.describe AiCalls::Configuration do
       described_class.new.daily_outbound_call_limit
 
       expect(AiCallOperationalSetting.count).to eq(1)
+    end
+  end
+
+  describe '#voice_provider' do
+    it 'is robocall by default, accepts elevenlabs, and falls back to robocall for anything else' do
+      with_env('AI_VOICE_PROVIDER' => nil) do
+        expect(described_class.new.voice_provider).to eq('robocall')
+        expect(described_class.new).to be_robocall
+      end
+      with_env('AI_VOICE_PROVIDER' => ' ElevenLabs ') do
+        expect(described_class.new.voice_provider).to eq('elevenlabs')
+        expect(described_class.new).not_to be_robocall
+      end
+      with_env('AI_VOICE_PROVIDER' => 'twilio') { expect(described_class.new.voice_provider).to eq('robocall') }
     end
   end
 

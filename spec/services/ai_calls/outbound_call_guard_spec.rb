@@ -71,8 +71,9 @@ RSpec.describe AiCalls::OutboundCallGuard do
   describe '#ensure_cooldown_elapsed!' do
     let(:assignment) { create(:candidate_assignment) }
 
-    def call_for(assignment, call_reason: 'missing_documents')
-      create(:candidate_ai_call, communication: create(:communication, candidate_assignment: assignment), call_reason:)
+    def call_for(assignment, call_reason: 'missing_documents', provider_voice_id: nil)
+      create(:candidate_ai_call, communication: create(:communication, candidate_assignment: assignment), call_reason:,
+                                 provider_voice_id:)
     end
 
     it 'passes when outside the cooldown window' do
@@ -97,12 +98,45 @@ RSpec.describe AiCalls::OutboundCallGuard do
       end.not_to raise_error
     end
 
+    it 'counts a call with a voice per voice: the same voice is refused, another is not' do
+      call_for(assignment, call_reason: 'voice_call', provider_voice_id: '538')
+
+      expect do
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'voice_call', voice_id: '538')
+      end.to raise_error(AiCallTriggerCooldownError)
+      expect do
+        guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'voice_call', voice_id: '537')
+      end.not_to raise_error
+    end
+
     it 'does not raise once the cooldown window has elapsed' do
       travel_to(2.hours.ago) { call_for(assignment, call_reason: 'missing_documents') }
 
       expect do
         guard.ensure_cooldown_elapsed!(candidate_assignment: assignment, call_reason: 'missing_documents')
       end.not_to raise_error
+    end
+  end
+
+  describe '#ensure_capacity_for! and #remaining_daily_capacity' do
+    before do
+      allow(configuration).to receive(:daily_outbound_call_limit).and_return(5)
+      2.times { create(:candidate_ai_call, created_at: Time.current) }
+    end
+
+    it 'reports what is left of today\'s budget, never below zero' do
+      expect(guard.remaining_daily_capacity).to eq(3)
+
+      allow(configuration).to receive(:daily_outbound_call_limit).and_return(1)
+      expect(guard.remaining_daily_capacity).to eq(0)
+    end
+
+    it 'accepts a batch that fits, even one that uses the whole remainder' do
+      expect { guard.ensure_capacity_for!(3) }.not_to raise_error
+    end
+
+    it 'refuses a batch larger than what is left' do
+      expect { guard.ensure_capacity_for!(4) }.to raise_error(AiCallDailyLimitReachedError)
     end
   end
 end

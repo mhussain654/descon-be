@@ -15,6 +15,7 @@ RSpec.describe AiCalls::TriggerWorkflowStageCallService do
     instance_double(
       AiCalls::Configuration,
       outbound_enabled?: true,
+      robocall?: false,
       calling_hours_start: 0,
       calling_hours_end: 24,
       admin_trigger_rate_limit_per_hour: 50,
@@ -145,5 +146,58 @@ RSpec.describe AiCalls::TriggerWorkflowStageCallService do
     allow(configuration).to receive(:outbound_enabled?).and_return(false)
 
     expect { service.call }.to raise_error(AiCallOutboundDisabledError)
+  end
+
+  describe 'on a medical result stage' do
+    before do
+      assignment.update!(current_workflow_stage: WorkflowStage.find_by!(code: 'medical_fit'))
+      create(:workflow_stage_call_script, workflow_stage_code: 'medical_fit', announcement_en: 'Your report is in.')
+      stub_successful_call
+    end
+
+    it 'places the call when the latest medical result is fit' do
+      create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'fit')
+
+      expect(service(workflow_stage_code: 'medical_fit').call).to be_a(CandidateAiCall)
+    end
+
+    it 'places no call when the latest medical result is unfit' do
+      create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'unfit')
+
+      expect(service(workflow_stage_code: 'medical_fit').call).to be_nil
+      expect(CandidateAiCall.count).to eq(0)
+    end
+
+    it 'follows the latest result when staff re-decide an unfit candidate' do
+      create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'unfit',
+                                        created_at: 2.hours.ago)
+      create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'fit')
+
+      expect(service(workflow_stage_code: 'medical_fit').call).to be_a(CandidateAiCall)
+    end
+  end
+
+  describe 'when RoboCall is the voice provider' do
+    before { allow(configuration).to receive(:robocall?).and_return(true) }
+
+    it 'places no call for a stage whose script has no voice' do
+      create(:workflow_stage_call_script, workflow_stage_code: 'verified', active: true, voice_id: nil)
+
+      expect(service.call).to be_nil
+      expect(CandidateAiCall.count).to eq(0)
+    end
+
+    it 'places the call with the stage voice' do
+      create(:workflow_stage_call_script, workflow_stage_code: 'verified', active: true, voice_id: '102')
+      adapter = instance_double(AiCalls::Providers::RobocallAdapter)
+      allow(AiCalls::Providers::RobocallAdapter).to receive(:new).and_return(adapter)
+      allow(adapter).to receive(:initiate_call)
+        .and_return(AiCalls::Providers::RobocallAdapter::CallResult.new(call_id: '555'))
+
+      call_record = service.call
+
+      expect(adapter).to have_received(:initiate_call).with(voice_id: '102', to_number: candidate.mobile_number)
+      expect(call_record).to have_attributes(provider_code: 'robocall', robocall_call_id: '555')
+    end
   end
 end

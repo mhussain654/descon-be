@@ -7,6 +7,7 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
     instance_double(
       AiCalls::Configuration,
       outbound_enabled?: true,
+      robocall?: false,
       calling_hours_start: 0,
       calling_hours_end: 24,
       admin_trigger_rate_limit_per_hour: 50,
@@ -141,5 +142,72 @@ RSpec.describe AiCalls::TriggerOutboundCallService do
     service.call
 
     expect { service.call }.to raise_error(AiCallTriggerCooldownError)
+  end
+
+  describe 'when RoboCall is the voice provider' do
+    def robocall_adapter = @robocall_adapter ||= instance_double(AiCalls::Providers::RobocallAdapter)
+
+    def robocall_plan
+      script = build_stubbed(:workflow_stage_call_script, workflow_stage_code: 'verified', voice_id: '102')
+      AiCalls::OutboundCallPlan.for_workflow_stage(script)
+    end
+
+    before do
+      allow(configuration).to receive(:robocall?).and_return(true)
+      allow(AiCalls::Providers::RobocallAdapter).to receive(:new).and_return(robocall_adapter)
+    end
+
+    def robocall_service(plan: robocall_plan)
+      described_class.new(candidate:, plan:, request_id: 'req-1', configuration:)
+    end
+
+    def result(call_id) = AiCalls::Providers::RobocallAdapter::CallResult.new(call_id:)
+
+    it 'plays the stage voice to the candidate and queues the call, sending nothing else' do
+      allow(robocall_adapter).to receive(:initiate_call).and_return(result('20076'))
+
+      call_record = robocall_service.call
+
+      expect(robocall_adapter).to have_received(:initiate_call)
+        .with(voice_id: '102', to_number: candidate.mobile_number)
+      expect(call_record).to have_attributes(
+        provider_code: 'robocall', provider_voice_id: '102', robocall_call_id: '20076', status: 'queued',
+        elevenlabs_agent_id: nil, elevenlabs_conversation_id: nil, agent_config_digest: nil,
+        workflow_stage_code: 'verified', started_at: be_present
+      )
+      expect(call_record.communication).to have_attributes(status_code: 'queued', provider_reference: '20076')
+      expect(call_record.candidate_ai_call_events.sole).to have_attributes(
+        provider_code: 'robocall', event_source: 'workflow_stage_trigger',
+        payload: include('robocall_call_id' => '20076')
+      )
+    end
+
+    it 'refuses a call that has no voice, before creating anything' do
+      allow(robocall_adapter).to receive(:initiate_call)
+
+      expect { robocall_service(plan: plan).call }.to raise_error(AiCallVoiceNotConfiguredError)
+      expect(robocall_adapter).not_to have_received(:initiate_call)
+      expect(CandidateAiCall.count).to eq(0)
+    end
+
+    it 'keeps the call, for manual review, when RoboCall accepts it but returns no call id (never rolled back)' do
+      allow(robocall_adapter).to receive(:initiate_call).and_return(result(nil))
+
+      call_record = robocall_service.call
+
+      expect(call_record).to have_attributes(
+        status: 'completed', outcome: nil, outcome_reason: 'needs_manual_review', robocall_call_id: nil,
+        failure_message: include('no call id')
+      )
+      expect(call_record.communication.reload.status_code).to eq('completed')
+      expect(CandidateAiCall.count).to eq(1)
+    end
+
+    it 'rolls back when the RoboCall request fails' do
+      allow(robocall_adapter).to receive(:initiate_call).and_raise(AiCallProviderRequestError)
+
+      expect { robocall_service.call }.to raise_error(AiCallProviderRequestError)
+      expect(CandidateAiCall.count).to eq(0)
+    end
   end
 end

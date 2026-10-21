@@ -7,8 +7,13 @@ module Admin
     # beyond the summary, only the lifecycle/outcome fields staff need to
     # track a call.
     class CandidateAiCallSerializer
-      def initialize(candidate_ai_call)
+      TRIGGERS = { 'workflow_stage_notification' => 'automatic', 'bulk_voice_call' => 'bulk' }.freeze
+
+      # `voices` maps a RoboCall voice id to its RobocallVoice, so a list of
+      # calls names every voice without one query per call.
+      def initialize(candidate_ai_call, voices: {})
         @candidate_ai_call = candidate_ai_call
+        @voices = voices
       end
 
       def as_json(*)
@@ -26,6 +31,16 @@ module Admin
           status: @candidate_ai_call.status,
           candidate: serialized_candidate,
           triggered_by: serialized_triggered_by
+        }.merge(trigger_attributes)
+      end
+
+      # What started the call (manual, automatic stage call, bulk) and which
+      # recorded voice was played.
+      def trigger_attributes
+        {
+          trigger: TRIGGERS.fetch(@candidate_ai_call.call_reason, 'manual'),
+          workflow_stage_code: @candidate_ai_call.workflow_stage_code,
+          voice: serialized_voice
         }
       end
 
@@ -64,6 +79,14 @@ module Admin
         return nil if candidate.blank?
 
         { id: candidate.public_id, full_name: candidate.full_name }
+      end
+
+      def serialized_voice
+        voice_id = @candidate_ai_call.provider_voice_id
+        return nil if voice_id.blank?
+
+        voice = @voices[voice_id]
+        { voice_id:, name_en: voice&.name_en, name_ur: voice&.name_ur }
       end
 
       def serialized_triggered_by

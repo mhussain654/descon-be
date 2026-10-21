@@ -23,6 +23,10 @@ production:
     class: AiCalls::ReconcileStuckCallsJob
     queue: default
     schedule: every minute
+  poll_robocall_calls:
+    class: AiCalls::PollRobocallCallsJob
+    queue: default
+    schedule: every minute
   purge_expired_ai_call_transcripts:
     class: AiCalls::PurgeExpiredTranscriptsJob
     queue: default

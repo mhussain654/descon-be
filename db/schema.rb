@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_20_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -110,6 +110,43 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.index ["user_id"], name: "index_authentication_events_on_user_id"
   end
 
+  create_table "bulk_call_batch_items", force: :cascade do |t|
+    t.bigint "bulk_call_batch_id", null: false
+    t.bigint "candidate_ai_call_id"
+    t.bigint "candidate_assignment_id", null: false
+    t.bigint "candidate_id", null: false
+    t.datetime "created_at", null: false
+    t.string "skip_reason"
+    t.string "status", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bulk_call_batch_id", "candidate_id"], name: "index_bulk_call_items_on_batch_and_candidate", unique: true
+    t.index ["bulk_call_batch_id"], name: "index_bulk_call_batch_items_on_bulk_call_batch_id"
+    t.index ["candidate_ai_call_id"], name: "index_bulk_call_batch_items_on_candidate_ai_call_id"
+    t.index ["candidate_assignment_id", "status"], name: "index_bulk_call_items_on_assignment_and_status"
+    t.index ["candidate_assignment_id"], name: "index_bulk_call_batch_items_on_candidate_assignment_id"
+    t.index ["candidate_id"], name: "index_bulk_call_batch_items_on_candidate_id"
+    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'placed'::character varying, 'skipped'::character varying, 'failed'::character varying]::text[])", name: "bulk_call_batch_items_status"
+  end
+
+  create_table "bulk_call_batches", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.jsonb "filters", default: {}, null: false
+    t.string "provider_voice_id", null: false
+    t.string "public_id", null: false
+    t.integer "requested_limit", null: false
+    t.bigint "robocall_voice_id", null: false
+    t.integer "selected_count", null: false
+    t.datetime "updated_at", null: false
+    t.string "voice_name", null: false
+    t.string "workflow_stage_code", null: false
+    t.index ["created_at"], name: "index_bulk_call_batches_on_created_at"
+    t.index ["created_by_id"], name: "index_bulk_call_batches_on_created_by_id"
+    t.index ["public_id"], name: "index_bulk_call_batches_on_public_id", unique: true
+    t.index ["robocall_voice_id"], name: "index_bulk_call_batches_on_robocall_voice_id"
+    t.check_constraint "requested_limit > 0 AND selected_count > 0", name: "bulk_call_batches_counts_positive"
+  end
+
   create_table "candidate_ai_call_events", force: :cascade do |t|
     t.bigint "actor_id"
     t.bigint "candidate_ai_call_id", null: false
@@ -172,11 +209,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.string "prompt_template_version"
     t.string "provider_code", default: "elevenlabs", null: false
     t.string "provider_status"
+    t.string "provider_voice_id"
     t.string "public_id", null: false
     t.text "review_notes"
     t.string "review_resolution"
     t.datetime "reviewed_at"
     t.bigint "reviewed_by_id"
+    t.string "robocall_call_id"
     t.datetime "started_at"
     t.string "status", default: "requested", null: false
     t.text "summary"
@@ -194,6 +233,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.index ["elevenlabs_conversation_id"], name: "index_candidate_ai_calls_on_elevenlabs_conversation_id", unique: true, where: "(elevenlabs_conversation_id IS NOT NULL)"
     t.index ["public_id"], name: "index_candidate_ai_calls_on_public_id", unique: true
     t.index ["reviewed_by_id"], name: "index_candidate_ai_calls_on_reviewed_by_id"
+    t.index ["robocall_call_id"], name: "index_candidate_ai_calls_on_robocall_call_id", unique: true, where: "(robocall_call_id IS NOT NULL)"
     t.index ["status", "updated_at"], name: "index_candidate_ai_calls_on_status_and_updated_at"
     t.index ["triggered_by_id"], name: "index_candidate_ai_calls_on_triggered_by_id"
     t.index ["twilio_call_sid"], name: "index_candidate_ai_calls_on_twilio_call_sid", unique: true, where: "(twilio_call_sid IS NOT NULL)"
@@ -988,6 +1028,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
     t.index ["token_digest"], name: "index_refresh_tokens_on_token_digest", unique: true
   end
 
+  create_table "robocall_voices", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.string "name_en", null: false
+    t.string "name_ur"
+    t.string "public_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.string "voice_id", null: false
+    t.index "lower((name_en)::text)", name: "index_robocall_voices_on_lower_name_en", unique: true
+    t.index ["created_by_id"], name: "index_robocall_voices_on_created_by_id"
+    t.index ["public_id"], name: "index_robocall_voices_on_public_id", unique: true
+    t.index ["updated_by_id"], name: "index_robocall_voices_on_updated_by_id"
+    t.index ["voice_id"], name: "index_robocall_voices_on_voice_id", unique: true
+  end
+
   create_table "role_permissions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "permission_id", null: false
@@ -1099,11 +1156,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
 
   create_table "workflow_stage_call_scripts", force: :cascade do |t|
     t.boolean "active", default: false, null: false
-    t.text "announcement_en", null: false
+    t.text "announcement_en"
     t.text "announcement_ur"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "updated_by_id"
+    t.string "voice_id"
     t.string "workflow_stage_code", null: false
     t.index ["updated_by_id"], name: "index_workflow_stage_call_scripts_on_updated_by_id"
     t.index ["workflow_stage_code"], name: "index_workflow_stage_call_scripts_on_workflow_stage_code", unique: true
@@ -1130,6 +1188,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
   add_foreign_key "audit_events", "users", column: "actor_id"
   add_foreign_key "authentication_events", "sessions"
   add_foreign_key "authentication_events", "users"
+  add_foreign_key "bulk_call_batch_items", "bulk_call_batches"
+  add_foreign_key "bulk_call_batch_items", "candidate_ai_calls"
+  add_foreign_key "bulk_call_batch_items", "candidate_assignments"
+  add_foreign_key "bulk_call_batch_items", "candidates"
+  add_foreign_key "bulk_call_batches", "robocall_voices"
+  add_foreign_key "bulk_call_batches", "users", column: "created_by_id"
   add_foreign_key "candidate_ai_call_events", "candidate_ai_calls"
   add_foreign_key "candidate_ai_call_events", "users", column: "actor_id"
   add_foreign_key "candidate_ai_call_transcripts", "candidate_ai_calls"
@@ -1216,6 +1280,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_001000) do
   add_foreign_key "payments", "users", column: "recorded_by_id"
   add_foreign_key "refresh_tokens", "refresh_tokens", column: "replaced_by_id"
   add_foreign_key "refresh_tokens", "sessions"
+  add_foreign_key "robocall_voices", "users", column: "created_by_id"
+  add_foreign_key "robocall_voices", "users", column: "updated_by_id"
   add_foreign_key "role_permissions", "permissions", on_delete: :cascade
   add_foreign_key "role_permissions", "roles", on_delete: :cascade
   add_foreign_key "sessions", "users"
