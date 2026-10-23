@@ -108,7 +108,7 @@ en:
       missing_account_number: "Enter the account number or IBAN."
       missing_bank_name: "Enter the bank name."
       missing_proof: "Attach a cheque or ATM proof file."
-      invalid_account_number: "Enter a valid account number or IBAN."
+      invalid_account_number: "Enter a valid account number (6 to 20 digits)."
       payment_checkout_unavailable: "Hosted checkout is not available right now."
       payment_not_eligible: "This candidate is not eligible to start payment."
       payment_signature_invalid: "The payment signature is invalid."

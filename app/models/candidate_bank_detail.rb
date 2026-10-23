@@ -4,7 +4,7 @@
 # document, superseded by a new row whenever the details are updated.
 class CandidateBankDetail < ApplicationRecord
   STATUS_CODES = %w[submitted].freeze
-  ACCOUNT_NUMBER_FORMAT = /\A[A-Z0-9]{4,34}\z/
+  ACCOUNT_NUMBER_FORMAT = /\A\d{6,20}\z/
 
   belongs_to :candidate_assignment
   belongs_to :reviewed_by, class_name: 'User', optional: true
@@ -27,7 +27,8 @@ class CandidateBankDetail < ApplicationRecord
   validates :account_title, :account_number, :bank_name, :proof_filename, :proof_content_type, presence: true
   validates :proof_byte_size, numericality: { greater_than: 0 }
   validates :submitted_at, presence: true
-  validates :account_number, format: { with: ACCOUNT_NUMBER_FORMAT }
+  # Only on create: a row saved under an older, looser format (e.g. an IBAN) must stay supersedable.
+  validates :account_number, format: { with: ACCOUNT_NUMBER_FORMAT }, on: :create
   validate :proof_attached_for_current_version
 
   # Whether this row is the active bank detail version (not yet replaced by a newer submission).
