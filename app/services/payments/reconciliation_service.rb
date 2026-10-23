@@ -7,7 +7,8 @@ module Payments
       'external_reference_missing' => :external_reference_missing?,
       'duplicate_external_reference' => :duplicate_external_reference?,
       'workflow_payment_mismatch' => :workflow_mismatch?,
-      'terminal_event_conflict' => :terminal_event_conflict?
+      'terminal_event_conflict' => :terminal_event_conflict?,
+      'duplicate_fee_payment' => :duplicate_fee_payment?
     }.freeze
 
     def initialize(run_date: Date.current, actor: nil)
@@ -74,6 +75,14 @@ module Payments
 
     def terminal_event_conflict?(payment)
       !payment.paid? && payment.payment_events.exists?(event_type: 'payment_succeeded')
+    end
+
+    # The fee was paid more than once (for example a payment code and a card checkout were both
+    # paid): both payments are flagged so finance can refund one outside the system.
+    def duplicate_fee_payment?(payment)
+      payment.paid? && Payment.where(candidate_assignment_id: payment.candidate_assignment_id, status_code: 'paid',
+                                     payment_type_code: payment.payment_type_code)
+                              .where.not(id: payment.id).exists?
     end
 
     def create_finding!(run, payment, code)

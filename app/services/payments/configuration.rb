@@ -48,6 +48,38 @@ module Payments
       ENV['FRONTEND_PAYMENT_RETURN_URL'].to_s.strip.presence
     end
 
+    # Voucher (consumer number) payments -- wallet / bank-app payment with a code. Its own
+    # kill switch, separate from the hosted card checkout's KUICKPAY_ENABLED.
+    def kuickpay_voucher_enabled?
+      ActiveModel::Type::Boolean.new.cast(ENV.fetch('KUICKPAY_VOUCHER_ENABLED', 'false'))
+    end
+
+    def kuickpay_hybrid_base_url
+      kuickpay_setting(:hybrid_base_url) || 'https://uat-adminapi.kuickpay.com'
+    end
+
+    def kuickpay_hybrid_username
+      kuickpay_setting(:hybrid_username)
+    end
+
+    def kuickpay_hybrid_password
+      kuickpay_setting(:hybrid_password)
+    end
+
+    def kuickpay_institution_id
+      kuickpay_setting(:institution_id) || kuickpay_company_id
+    end
+
+    # How long an unpaid voucher stays payable (also the due date: no late fee).
+    def voucher_valid_days
+      ENV.fetch('PAYMENT_VOUCHER_VALID_DAYS', 14).to_i
+    end
+
+    # KuickPay requires an email for every voucher; candidates have none on file.
+    def voucher_fallback_email
+      ENV.fetch('PAYMENT_VOUCHER_FALLBACK_EMAIL', 'no-reply@descon-mps.com').strip
+    end
+
     def kuickpay_open_timeout
       kuickpay_setting(:open_timeout).to_i
     end

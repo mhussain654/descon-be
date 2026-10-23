@@ -1115,11 +1115,18 @@ components:
           example: PKR
         provider:
           type: string
-          enum: [kuickpay]
+          enum: [kuickpay, kuickpay_voucher]
+          description: '`kuickpay` is the hosted card checkout; `kuickpay_voucher` is a payment code paid from a wallet or bank app.'
         checkout_url:
           anyOf:
             - type: string
             - type: 'null'
+        voucher_number:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The payment code the candidate pays from a wallet or bank app. Only for `kuickpay_voucher` payments.
+          example: '0000832249220'
         checkout_expires_at:
           anyOf:
             - type: string
@@ -1143,6 +1150,20 @@ components:
           type: boolean
         checkout_available:
           type: boolean
+        voucher_available:
+          type: boolean
+          description: True when the candidate can get a payment code (wallet or bank app) for the fee.
+        open_voucher:
+          anyOf:
+            - $ref: '#/components/schemas/CandidatePaymentRecord'
+            - type: 'null'
+          description: >-
+            The candidate's payment code (voucher) that is unpaid and not expired, with its number,
+            or null. The candidate may have this and a card checkout open at the same time and
+            chooses which to pay; the screen warns them to pay only one.
+        card_checkout_open:
+          type: boolean
+          description: True while a card checkout session has not expired.
         required_stage_code:
           type: string
           example: fee_pending
@@ -1173,6 +1194,9 @@ components:
       required:
         - eligible
         - checkout_available
+        - voucher_available
+        - open_voucher
+        - card_checkout_open
         - required_stage_code
         - current_stage_code
         - blocking_reasons
@@ -1281,7 +1305,7 @@ components:
         finding_code:
           type: string
           enum: [paid_at_missing, external_reference_missing, duplicate_external_reference, workflow_payment_mismatch,
-                 terminal_event_conflict]
+                 terminal_event_conflict, duplicate_fee_payment]
         state:
           type: string
           enum: [open, resolved]
@@ -3745,6 +3769,9 @@ paths:
                       payment:
                         eligible: false
                         checkout_available: false
+                        voucher_available: false
+                        open_voucher: null
+                        card_checkout_open: false
                         required_stage_code: fee_pending
                         current_stage_code: registered
                         blocking_reasons:
@@ -3772,6 +3799,9 @@ paths:
                       payment:
                         eligible: false
                         checkout_available: false
+                        voucher_available: false
+                        open_voucher: null
+                        card_checkout_open: false
                         required_stage_code: fee_pending
                         current_stage_code: registered
                         blocking_reasons:
@@ -3903,6 +3933,9 @@ paths:
                     data:
                       eligible: false
                       checkout_available: false
+                      voucher_available: false
+                      open_voucher: null
+                      card_checkout_open: false
                       required_stage_code: fee_pending
                       current_stage_code: documents_uploaded
                       blocking_reasons:
@@ -3919,6 +3952,9 @@ paths:
                     data:
                       eligible: true
                       checkout_available: true
+                      voucher_available: true
+                      open_voucher: null
+                      card_checkout_open: false
                       required_stage_code: fee_pending
                       current_stage_code: fee_pending
                       blocking_reasons: []
@@ -3982,6 +4018,9 @@ paths:
                       eligibility:
                         eligible: true
                         checkout_available: true
+                        voucher_available: true
+                        open_voucher: null
+                        card_checkout_open: false
                         required_stage_code: fee_pending
                         current_stage_code: fee_pending
                         blocking_reasons: []
@@ -4051,6 +4090,103 @@ paths:
                         message: Hosted checkout is not available right now.
                     request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
                     timestamp: '2026-08-31T09:00:00Z'
+  /api/v1/candidate/payment/voucher:
+    post:
+      summary: Get or replay a payment code (voucher) for the fee
+      description: >-
+        Gives the candidate a KuickPay payment code for their onboarding fee, to pay from a
+        wallet (JazzCash, Easypaisa) or a bank app. Returns the open code if one exists, never a
+        second one. Requires an `Idempotency-Key` header. It can be taken
+        while a card checkout is open, and the other way round: the candidate chooses which to pay. If both
+        are paid, reconciliation flags `duplicate_fee_payment` for finance. The code expires after `PAYMENT_VOUCHER_VALID_DAYS` (14 by default). A paid code
+        is noticed by a background job, not by this call.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      responses:
+        '201':
+          description: Code created, or the open code returned
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            ETag:
+              $ref: '#/components/headers/EntityTagHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                voucherIssued:
+                  value:
+                    data:
+                      eligibility:
+                        eligible: true
+                        checkout_available: true
+                        voucher_available: true
+                        open_voucher:
+                          id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          payment_type_code: onboarding_fee
+                          status: checkout_pending
+                          amount: '1500.0'
+                          currency_code: PKR
+                          provider: kuickpay_voucher
+                          voucher_number: '0000832249220'
+                          checkout_expires_at: '2026-11-04T18:59:59Z'
+                          updated_at: '2026-10-21T09:00:00Z'
+                        card_checkout_open: false
+                        required_stage_code: fee_pending
+                        current_stage_code: fee_pending
+                        blocking_reasons: []
+                        amount: '1500.0'
+                        currency_code: PKR
+                        latest_payment:
+                          id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          payment_type_code: onboarding_fee
+                          status: checkout_pending
+                          amount: '1500.0'
+                          currency_code: PKR
+                          provider: kuickpay_voucher
+                          voucher_number: '0000832249220'
+                          checkout_expires_at: '2026-11-04T18:59:59Z'
+                          updated_at: '2026-10-21T09:00:00Z'
+                      payment:
+                        id: 8e2dc8f4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        payment_type_code: onboarding_fee
+                        status: checkout_pending
+                        amount: '1500.0'
+                        currency_code: PKR
+                        provider: kuickpay_voucher
+                        voucher_number: '0000832249220'
+                        checkout_expires_at: '2026-11-04T18:59:59Z'
+                        updated_at: '2026-10-21T09:00:00Z'
+                    meta:
+                      request_id: 7b8b1c03-5508-4c48-b8fc-f9f61cb0fd98
+                      timestamp: '2026-10-21T09:00:00Z'
+                    errors: []
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '409':
+          description: Idempotency conflict or duplicate request currently in progress
+        '422':
+          description: Payment prerequisites are not satisfied (not at the fee stage, documents not verified, or already paid)
+        '503':
+          description: Payment codes are switched off, not configured, or KuickPay is unavailable
+
   /api/v1/candidate/consent:
     get:
       summary: Fetch the authenticated candidate's consent status

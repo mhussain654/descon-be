@@ -677,6 +677,27 @@ separately against throwaway local databases (see the PR description).
 * **Email / SES.** Deferred. Staff invitations create the user and queue
   delivery, but there is no SMTP/SES configuration, so no invitation reaches
   anyone; create staff through the first-administrator procedure or add SES.
+* **KuickPay payment codes (wallet / bank app).** The candidate can pay the fee by
+  getting a code (KuickPay voucher number) in the app and paying it from JazzCash,
+  Easypaisa or a bank app, as an alternative to the card checkout. It uses KuickPay's
+  separate "Hybrid" API (Insert Voucher, Bill Payment Bulk Inquiry), which needs its
+  own username and password (credentials `kuickpay.production.hybrid_username` and
+  `hybrid_password`) and the institution id (`KUICKPAY_INSTITUTION_ID`; falls back to
+  `KUICKPAY_COMPANY_ID`). Off until `KUICKPAY_VOUCHER_ENABLED=true`.
+  * Opening the code tab creates one code for the fee (`POST /api/v1/candidate/payment/voucher`),
+    valid `PAYMENT_VOUCHER_VALID_DAYS` days (14). No late fee: the due date is the expiry.
+  * The candidate can have a code and a card checkout open at the same time and
+    chooses which to pay; the screen tells them to pay only one. If both get paid, the
+    nightly reconciliation flags `duplicate_fee_payment` on both payments, and finance
+    refunds one outside the system and records a note on the finding.
+  * KuickPay never calls us. The job `poll_kuickpay_vouchers` (every 5 minutes, in
+    `config/recurring.yml`) asks KuickPay which codes were settled today and yesterday
+    and marks them paid; the candidate then moves to Fee Paid like a card payment. A
+    settlement with the wrong amount is logged and left unpaid for finance. An unpaid code
+    is closed a day after it expires.
+  * The fee must be a whole number of rupees (KuickPay takes integers).
+  * Not yet confirmed with KuickPay: whether a paid code shows in the inquiry at once,
+    and whether the settled amount can include a fee. Check both in the sandbox first.
 * **KuickPay.** The hosted-checkout adapter (create session, redirect, signed
   return, status check) is implemented and was exercised against KuickPay's
   sandbox from a developer machine through a tunnel. `KUICKPAY_ENABLED=false`

@@ -18,17 +18,27 @@ default: &default
   # rather than split across ENV and credentials for one integration.
   company_id: <%= ENV.fetch('KUICKPAY_COMPANY_ID', '').to_json %>
   return_url: <%= ENV.fetch('KUICKPAY_RETURN_URL', '').to_json %>
+  # Voucher (consumer number) payments use KuickPay's separate "Hybrid" API: its own
+  # host and its own username/password (credentials below), not the checkout's
+  # Company ID / SecuredKey. institution_id falls back to company_id.
+  hybrid_base_url: <%= ENV.fetch('KUICKPAY_HYBRID_BASE_URL', 'https://uat-adminapi.kuickpay.com').to_json %>
+  institution_id: <%= ENV.fetch('KUICKPAY_INSTITUTION_ID', '').to_json %>
   open_timeout: <%= ENV.fetch('KUICKPAY_OPEN_TIMEOUT_SECONDS', 5).to_i %>
   read_timeout: <%= ENV.fetch('KUICKPAY_READ_TIMEOUT_SECONDS', 10).to_i %>
 
 development:
   <<: *default
   secured_key: <%= Rails.application.credentials.dig(:kuickpay, :development, :secured_key).to_json %>
+  # Development only: ENV overrides the credentials, so script/fake_kuickpay_hybrid.ru can stand in for KuickPay.
+  hybrid_username: <%= (ENV['KUICKPAY_HYBRID_USERNAME'].presence || Rails.application.credentials.dig(:kuickpay, :development, :hybrid_username)).to_json %>
+  hybrid_password: <%= (ENV['KUICKPAY_HYBRID_PASSWORD'].presence || Rails.application.credentials.dig(:kuickpay, :development, :hybrid_password)).to_json %>
 
 # Fake value: tests never reach KuickPay.
 test:
   <<: *default
   secured_key: test-kuickpay-secured-key
+  hybrid_username: test-hybrid-user
+  hybrid_password: test-hybrid-password
 
 # Evaluated only in production: fetch raises a KeyError naming the missing
 # key, whereas the other environments must be able to render this file
@@ -36,3 +46,6 @@ test:
 production:
   <<: *default
   secured_key: <%= (Rails.env.production? ? Rails.application.credentials.fetch(:kuickpay).fetch(:production).fetch(:secured_key) : '').to_json %>
+  # Optional: the voucher feature stays off (KUICKPAY_VOUCHER_ENABLED) until these are set.
+  hybrid_username: <%= Rails.application.credentials.dig(:kuickpay, :production, :hybrid_username).to_json %>
+  hybrid_password: <%= Rails.application.credentials.dig(:kuickpay, :production, :hybrid_password).to_json %>

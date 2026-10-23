@@ -98,4 +98,41 @@ RSpec.describe Payments::Configuration do
       expect(loaded).to include(secured_key: 'test-kuickpay-secured-key', open_timeout: 5, read_timeout: 10)
     end
   end
+
+  describe 'voucher (KuickPay Hybrid) settings' do
+    it 'is off by default, with a 14-day voucher and the fixed test login' do
+      %w[KUICKPAY_VOUCHER_ENABLED KUICKPAY_HYBRID_BASE_URL KUICKPAY_INSTITUTION_ID KUICKPAY_COMPANY_ID
+         PAYMENT_VOUCHER_VALID_DAYS PAYMENT_VOUCHER_FALLBACK_EMAIL].each { |key| ENV.delete(key) }
+
+      configuration = described_class.new
+
+      expect(configuration).not_to be_kuickpay_voucher_enabled
+      expect(configuration.kuickpay_hybrid_base_url).to eq('https://uat-adminapi.kuickpay.com')
+      expect([configuration.kuickpay_hybrid_username, configuration.kuickpay_hybrid_password])
+        .to eq(%w[test-hybrid-user test-hybrid-password])
+      expect(configuration.voucher_valid_days).to eq(14)
+      expect(configuration.voucher_fallback_email).to eq('no-reply@descon-mps.com')
+    end
+
+    it 'reads the switch, institution id, validity and fallback email from the environment' do
+      ENV['KUICKPAY_VOUCHER_ENABLED'] = 'true'
+      ENV['KUICKPAY_INSTITUTION_ID'] = '00008'
+      ENV['PAYMENT_VOUCHER_VALID_DAYS'] = '7'
+      ENV['PAYMENT_VOUCHER_FALLBACK_EMAIL'] = ' fees@example.test '
+
+      configuration = described_class.new
+
+      expect(configuration).to be_kuickpay_voucher_enabled
+      expect(configuration.kuickpay_institution_id).to eq('00008')
+      expect(configuration.voucher_valid_days).to eq(7)
+      expect(configuration.voucher_fallback_email).to eq('fees@example.test')
+    end
+
+    it 'uses the company id as the institution id when none is set' do
+      ENV.delete('KUICKPAY_INSTITUTION_ID')
+      ENV['KUICKPAY_COMPANY_ID'] = '01234'
+
+      expect(described_class.new.kuickpay_institution_id).to eq('01234')
+    end
+  end
 end

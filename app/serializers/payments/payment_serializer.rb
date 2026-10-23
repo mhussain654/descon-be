@@ -18,7 +18,8 @@ module Payments
         amount: @payment.amount.to_s('F'),
         currency_code: @payment.currency_code,
         provider: @payment.provider_code,
-        checkout_url: @payment.checkout_url
+        checkout_url: @payment.checkout_url,
+        voucher_number: @payment.voucher_number
       }
     end
 

@@ -1,6 +1,11 @@
 # KuickPay OTC/wallet integration — notes (pre-implementation)
 
-Status: **not started**. This document captures what's been learned from KuickPay's
+Status: **built behind a switch (2026-10-21)** -- see `Payments::Providers::KuickpayVoucherAdapter`,
+`Payments::CreateVoucherService`, `Payments::SettleVouchersService` and the runbook (KuickPay payment codes).
+Still to verify against KuickPay's sandbox before turning `KUICKPAY_VOUCHER_ENABLED` on. The notes below are
+the original pre-implementation notes.
+
+Original status: **not started**. This document captures what's been learned from KuickPay's
 own docs and live testing so far, so implementation can start from a clear picture
 instead of re-deriving it. Nothing here has been built yet — verify every detail
 below against the live sandbox before coding against it.

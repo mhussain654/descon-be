@@ -27,6 +27,10 @@ production:
     class: AiCalls::PollRobocallCallsJob
     queue: default
     schedule: every minute
+  poll_kuickpay_vouchers:
+    class: Payments::PollVoucherSettlementsJob
+    queue: default
+    schedule: every 5 minutes
   purge_expired_ai_call_transcripts:
     class: AiCalls::PurgeExpiredTranscriptsJob
     queue: default

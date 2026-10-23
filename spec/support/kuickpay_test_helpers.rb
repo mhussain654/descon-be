@@ -115,4 +115,5 @@ end
 
 RSpec.configure do |config|
   config.include KuickpayTestHelpers, type: :request
+  config.include KuickpayTestHelpers, file_path: %r{spec/(services|jobs)/payments}
 end

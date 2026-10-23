@@ -8,6 +8,7 @@ module Payments
 
       case normalized_code
       when 'kuickpay' then Payments::Providers::KuickpayHostedCheckoutAdapter.new(configuration:)
+      when 'kuickpay_voucher' then Payments::Providers::KuickpayVoucherAdapter.new(configuration:)
       else
         raise ProviderNotConfiguredError, "Unknown payment provider: #{normalized_code.inspect}"
       end

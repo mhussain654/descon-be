@@ -10,6 +10,7 @@ module Payments
       :eligible,
       :blocking_reasons,
       :checkout_available,
+      :voucher_available,
       keyword_init: true
     )
 
@@ -32,6 +33,9 @@ module Payments
         assignment: @params.assignment,
         eligible: @params.eligible,
         checkout_available: @params.checkout_available,
+        voucher_available: @params.voucher_available == true,
+        open_voucher: Payments::OpenPayments.voucher(@params.assignment),
+        card_checkout_open: Payments::OpenPayments.card_checkout_open?(@params.assignment),
         blocking_reasons: @params.blocking_reasons
       }
     end
