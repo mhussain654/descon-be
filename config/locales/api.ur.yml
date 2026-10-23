@@ -107,7 +107,7 @@ ur:
       missing_account_number: "اکاؤنٹ نمبر یا IBAN درج کریں۔"
       missing_bank_name: "بینک کا نام درج کریں۔"
       missing_proof: "چیک یا اے ٹی ایم کا ثبوت منسلک کریں۔"
-      invalid_account_number: "درست اکاؤنٹ نمبر یا IBAN درج کریں۔"
+      invalid_account_number: "درست اکاؤنٹ نمبر درج کریں (6 سے 20 ہندسے)۔"
       payment_checkout_unavailable: "آن لائن چیک آؤٹ اس وقت دستیاب نہیں ہے۔"
       payment_not_eligible: "یہ امیدوار ادائیگی شروع کرنے کا اہل نہیں ہے۔"
       payment_signature_invalid: "ادائیگی کے دستخط درست نہیں ہیں۔"

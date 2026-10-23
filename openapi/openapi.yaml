@@ -650,7 +650,7 @@ components:
               type: string
             account_number:
               type: string
-              description: Account number or IBAN. The backend strips spaces and validates the normalized alphanumeric value.
+              description: Account number. The backend strips spaces and requires 6 to 20 digits.
             bank_name:
               type: string
             proof:
@@ -8973,7 +8973,7 @@ paths:
                         reference_number: DES-001001
                       status: submitted
                       account_title: احمد علی
-                      account_number: PK24SCBL0000001123456702
+                      account_number: 0000001123456702
                       bank_name: میزان بینک
                       proof:
                         file_name: cheque.pdf

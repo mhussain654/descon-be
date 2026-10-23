@@ -29,7 +29,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
       bank_detail = create(
         :candidate_bank_detail,
         candidate_assignment: assignment,
-        account_number: 'PK24SCBL0000001123456702'
+        account_number: '0000001123456702'
       )
 
       get '/api/v1/candidate/bank_details', headers: candidate_auth_headers(candidate)
@@ -70,7 +70,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           params: {
             bank_detail: {
               account_title: 'Ahmed Ali',
-              account_number: 'PK24 SCBL 0000001123456702',
+              account_number: '0000 0011 2345 6702',
               bank_name: 'Meezan Bank',
               proof: fixture_upload('test.pdf', 'application/pdf')
             }
@@ -87,7 +87,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
             params: {
               bank_detail: {
                 account_title: 'Ahmed Ali',
-                account_number: 'PK24 SCBL 0000001123456702',
+                account_number: '0000 0011 2345 6702',
                 bank_name: 'Meezan Bank',
                 proof: fixture_upload('test.pdf', 'application/pdf')
               }
@@ -109,7 +109,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           params: {
             bank_detail: {
               account_title: 'Ahmed Ali',
-              account_number: 'PK24SCBL0000001123456702',
+              account_number: '0000001123456702',
               bank_name: 'Meezan Bank'
             }
           },
@@ -137,7 +137,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           params: {
             bank_detail: {
               account_title: 'Ahmed Ali',
-              account_number: 'PK24SCBL0000001123456702',
+              account_number: '0000001123456702',
               bank_name: 'Meezan Bank',
               proof: fixture_upload('test.pdf', 'application/pdf')
             }
@@ -148,7 +148,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           params: {
             bank_detail: {
               account_title: 'Ahmed Ali',
-              account_number: 'PK24SCBL0000001123456703',
+              account_number: '0000001123456703',
               bank_name: 'Meezan Bank',
               proof: fixture_upload('test.pdf', 'application/pdf')
             }
@@ -167,7 +167,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           params: {
             bank_detail: {
               account_title: '',
-              account_number: 'PK24SCBL0000001123456702',
+              account_number: '0000001123456702',
               bank_name: 'Meezan Bank',
               proof: fixture_upload('test.pdf', 'application/pdf')
             }
@@ -197,7 +197,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           params: {
             bank_detail: {
               account_title: 'Ahmed Ali',
-              account_number: 'PK24SCBL0000001123456702',
+              account_number: '0000001123456702',
               bank_name: '',
               proof: fixture_upload('test.pdf', 'application/pdf')
             }
@@ -212,7 +212,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
     it 'preserves the previous record when replacement persistence fails' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      original_record = create(:candidate_bank_detail, candidate_assignment: assignment, account_number: 'PK24SCBL0001')
+      original_record = create(:candidate_bank_detail, candidate_assignment: assignment, account_number: '100001')
 
       allow(AuditEvent).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(build(:audit_event)))
 
@@ -220,7 +220,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
           params: {
             bank_detail: {
               account_title: 'Updated Name',
-              account_number: 'PK24SCBL0002',
+              account_number: '100002',
               bank_name: 'Updated Bank',
               proof: fixture_upload('test.pdf', 'application/pdf')
             }
@@ -229,7 +229,7 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(original_record.reload).to be_current_version
-      expect(original_record.account_number).to eq('PK24SCBL0001')
+      expect(original_record.account_number).to eq('100001')
       expect(assignment.candidate_bank_details.current_version.count).to eq(1)
     end
   end
