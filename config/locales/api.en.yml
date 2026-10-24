@@ -165,7 +165,7 @@ en:
       updated: "Staff user updated successfully."
       invitation_accepted: "Invitation accepted. You can now sign in."
       mailer:
-        subject: "Set up your Descon Manpower staff account"
+        subject: "Set up your MPS Connect staff account"
         greeting: "Hello %{email},"
         body: "You have been invited as a %{role} staff user. Complete setup within %{expires_in_hours} hours using the token below."
         token_label: "Invitation token"
