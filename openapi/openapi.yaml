@@ -4211,7 +4211,7 @@ paths:
       summary: Submit or replace the authenticated candidate bank details
       description: >-
         Accepts a private multipart upload for the authenticated candidate's current
-        assignment. The backend validates the account fields, requires one cheque or ATM
+        assignment. The backend validates the account fields, requires one cheque
         proof file, stores the proof privately, masks account numbers in the response,
         and replays the original result when the same authenticated candidate retries
         with the same idempotency key and payload. The stored fingerprint excludes both
@@ -4294,7 +4294,7 @@ paths:
                         account_number: '****************6702'
                         bank_name: میزان بینک
                         proof:
-                          file_name: atm-proof.png
+                          file_name: cheque.png
                           content_type: image/png
                           file_size: 123456
                           uploaded_at: '2026-08-28T12:15:00Z'
@@ -4323,7 +4323,7 @@ paths:
                     errors:
                       - code: missing_proof
                         field: bank_detail.proof
-                        message: Attach a cheque or ATM proof file.
+                        message: Attach a photo or copy of your cheque.
                     request_id: 54d0a4d8-e420-4d5f-8fc9-5e2d9cd2c927
                     timestamp: '2026-08-28T12:00:00Z'
                 invalidAccountNumberUr:
