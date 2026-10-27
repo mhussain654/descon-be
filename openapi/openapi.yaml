@@ -8156,7 +8156,7 @@ paths:
           description: Candidate account inactive
   /api/v1/payments/hosted_checkout/{provider_code}/return:
     get:
-      summary: Handle a hosted-checkout browser return (GET redirect)
+      summary: Handle a hosted-checkout browser return (GET)
       description: >-
         Handles the candidate's browser being redirected back from the hosted checkout
         page. Per KuickPay's integration guide this redirect is unsigned and carries no
@@ -8166,11 +8166,11 @@ paths:
         authoritative outcome (see `POST /checkout/api/session`'s sibling Status call --
         not a separate documented endpoint here, since it's an outbound call this
         backend makes, not one it receives). Every outcome -- a confirmed status, an
-        unknown orderid, a missing orderid, or any internal error -- redirects the
-        browser to the frontend's payment-pending page and never renders payment/
-        workflow data or error detail as JSON, since this is an unauthenticated
-        response reachable by anyone who lands on the URL. The candidate's own client
-        polls `GET /api/v1/candidate/payment` separately for the authoritative outcome.
+        unknown orderid, a missing orderid, or any internal error -- answers an empty
+        204 and never renders payment/workflow data or error detail as JSON, since
+        this is an unauthenticated response reachable by anyone who lands on the URL.
+        The mobile app closes its in-app checkout on reaching this endpoint, and the
+        candidate's own client polls `GET /api/v1/candidate/payment` separately for the authoritative outcome.
       parameters:
         - name: provider_code
           in: path
@@ -8199,26 +8199,18 @@ paths:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
-        '302':
-          description: >-
-            Always returned for this outcome (payment found and verified, orderid
-            missing/unknown, or any internal error) -- the browser is redirected to
-            FRONTEND_PAYMENT_RETURN_URL; no payment or workflow data is included.
-          headers:
-            Location:
-              description: The configured FRONTEND_PAYMENT_RETURN_URL.
-              schema:
-                type: string
-                format: uri
         '204':
-          description: FRONTEND_PAYMENT_RETURN_URL is not configured -- empty body instead of a redirect, so this never crashes.
+          description: >-
+            Always returned for every outcome (payment found and verified, orderid
+            missing/unknown, or any internal error) -- an empty body. The mobile app's
+            in-app checkout closes as soon as it reaches this endpoint and then re-reads
+            the payment status itself; no payment or workflow data is included.
     post:
-      summary: Handle a hosted-checkout browser return (POST redirect)
+      summary: Handle a hosted-checkout browser return (POST)
       description: >-
-        Same processing and redirect-only behavior as the GET operation above, for a
+        Same processing and empty-response behavior as the GET operation above, for a
         provider that returns the candidate's browser via a POST instead of a query
-        string. Uses `303 See Other` rather than `302` so the browser follows the
-        redirect with GET instead of re-submitting the provider's payload.
+        string.
       parameters:
         - name: provider_code
           in: path
@@ -8238,19 +8230,8 @@ paths:
             schema:
               $ref: '#/components/schemas/HostedCheckoutReturnRequest'
       responses:
-        '303':
-          description: >-
-            Always returned for this outcome (payment found and verified, orderid
-            missing/unknown, or any internal error) -- the browser is redirected to
-            FRONTEND_PAYMENT_RETURN_URL; no payment or workflow data is included.
-          headers:
-            Location:
-              description: The configured FRONTEND_PAYMENT_RETURN_URL.
-              schema:
-                type: string
-                format: uri
         '204':
-          description: FRONTEND_PAYMENT_RETURN_URL is not configured -- empty body instead of a redirect, so this never crashes.
+          description: Always returned for every outcome -- an empty body, same as the GET operation.
   /api/v1/ai_calls/elevenlabs/webhooks/post_call:
     post:
       summary: Receive an ElevenLabs post-call webhook delivery

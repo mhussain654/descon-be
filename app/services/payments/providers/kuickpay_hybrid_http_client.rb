@@ -6,7 +6,8 @@ module Payments
   module Providers
     # HTTP plumbing for KuickPay's "Hybrid" voucher API (Insert Voucher, Bill
     # Payment Bulk Inquiry): JSON POSTs authenticated by `username`/`password`
-    # headers, unlike the hosted checkout's Basic Auth. Never logs the request
+    # headers, unlike the hosted checkout's Basic Auth. Each call says which login
+    # to use: the two APIs can have different ones. Never logs the request
     # body (it carries the candidate's name and mobile number) or the credential
     # headers -- only the step, the URL and the response.
     class KuickpayHybridHttpClient
@@ -14,19 +15,19 @@ module Payments
         @configuration = configuration
       end
 
-      def post(path:, payload:, step:)
+      def post(path:, payload:, step:, username:, password:)
         uri = URI.join(@configuration.kuickpay_hybrid_base_url, path)
-        response = http_response_for(uri, build_request(uri, payload))
+        response = http_response_for(uri, build_request(uri, payload, username:, password:))
         log_call(step:, uri:, response:)
         response
       end
 
       private
 
-      def build_request(uri, payload)
+      def build_request(uri, payload, username:, password:)
         request = Net::HTTP::Post.new(uri)
-        request['username'] = @configuration.kuickpay_hybrid_username
-        request['password'] = @configuration.kuickpay_hybrid_password
+        request['username'] = username
+        request['password'] = password
         request.content_type = 'application/json'
         request.body = payload.to_json
         request

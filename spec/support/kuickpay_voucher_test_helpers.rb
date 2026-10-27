@@ -32,7 +32,7 @@ module KuickpayVoucherTestHelpers
   def kuickpay_hybrid_response(path, voucher_number:, settlements:, insert_code:)
     response = Net::HTTPOK.new('1.1', '200', 'OK')
     body = if path.end_with?('/insertPPMVoucher')
-             { response_Code: insert_code, response_description: voucher_number, response_detail: '234' }
+             { response_Code: insert_code, response_description: voucher_number, responseCode_Detail: '234' }
            else
              { response_Code: '00', transactionList: settlements, count: settlements.size.to_s }
            end
@@ -40,10 +40,14 @@ module KuickpayVoucherTestHelpers
     response
   end
 
+  # A row as KuickPay's UAT returns it. Right after the candidate pays, KuickPay has not settled it yet:
+  # `isSettled` is false and `settlement_Date_Time` is null; the transaction date is midnight and the time of
+  # day comes separately in `tranTime`.
   def kuickpay_settlement(consumer_number:, amount:, auth_id: '788895', settled: true)
-    { consumer_Number: consumer_number, registrationNumber: '', transaction_Date_Time: '2026-10-21T10:00:00',
-      settlement_Date_Time: '2026-10-21T10:00:05', amountTransaction: amount.to_f, authID: auth_id, bank: 'TMF',
-      isSettled: settled }
+    { consumer_Number: consumer_number, registrationNumber: '5675', transaction_Date_Time: '2026-10-21T00:00:00',
+      settlement_Date_Time: (settled ? '2026-10-22T10:00:05' : nil), amountTransaction: amount.to_f,
+      authID: auth_id, bank: 'KPY', network: 'KPDirect', isSettled: settled, tranTime: '091602', fee: 50.0,
+      amountAfterFee: amount.to_f - 50 }
   end
 end
 

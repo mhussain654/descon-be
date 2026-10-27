@@ -526,8 +526,8 @@ ever reach this app (`Payments::Providers::KuickpayHostedCheckoutAdapter`).
 - **Session creation** follows KuickPay's own "KuickPay Merchant Integration
   Guide" (hosted checkout -- distinct from their BPS biller/bill-inquiry API,
   which is a different product with a different endpoint shape and is not
-  used here): `POST {KUICKPAY_BASE_URL}/checkout/api/session`, Basic Auth
-  (`KUICKPAY_COMPANY_ID`:`KUICKPAY_SECURED_KEY`), a body of exactly
+  used here): `POST {base_url}/checkout/api/session` (`base_url` is fixed in `config/kuickpay.yml`), Basic Auth
+  (`KUICKPAY_COMPANY_ID`:`secured_key` from the encrypted credentials), a body of exactly
   `companyid`/`orderid`/`amount`/`amountPayable`/`timestamp`/
   `transactiondescription`/`returnurl`/`signature` (no other fields), an ISO
   8601 `timestamp`, and `signature` = Base64-encoded HMAC-SHA256 of
@@ -558,7 +558,7 @@ ever reach this app (`Payments::Providers::KuickpayHostedCheckoutAdapter`).
   browser back to `returnurl`, the guide is explicit that the redirect
   (`status`/`orderid`/`sessionid` query params, unsigned) is "not proof of
   payment" -- the server must independently call `POST
-  {KUICKPAY_BASE_URL}/api/status` with the persisted values above to confirm
+  {base_url}/api/status` with the persisted values above to confirm
   the outcome. The guide documents that request but shows no example
   response body, so `KuickpayHostedCheckoutAdapter#parse_notification!`
   cannot yet map a real KuickPay return into a confirmed payment -- get a

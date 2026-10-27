@@ -38,9 +38,19 @@ RSpec.describe Payments::SettleVouchersService do
     expect(AuditEvent.where(action_code: 'candidate_payment_paid').count).to eq(1)
   end
 
-  it 'does nothing the second time it sees the same settlement' do
+  it 'marks a voucher paid as soon as KuickPay lists it, before KuickPay settles it', :aggregate_failures do
+    row = kuickpay_settlement(consumer_number: '0000811111', amount: 1500, settled: false)
+
+    expect(run_with([row])).to eq(1)
+
+    expect(payment.reload.status_code).to eq('paid')
+    expect(payment.paid_at).to eq(Time.find_zone('Asia/Karachi').parse('2026-10-21 09:16:02'))
+    expect(assignment.reload.current_workflow_stage.code).to eq('fee_paid')
+  end
+
+  it 'does nothing the second time it sees the same payment, even once KuickPay has settled it' do
+    run_with([kuickpay_settlement(consumer_number: '0000811111', amount: 1500, settled: false)])
     row = kuickpay_settlement(consumer_number: '0000811111', amount: 1500)
-    run_with([row])
     payment.update!(status_code: 'checkout_pending', paid_at: nil)
 
     expect(run_with([row])).to eq(0)

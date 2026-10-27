@@ -16,10 +16,6 @@ module Payments
       # `consumer_number` is the payable voucher number; `system_voucher_number` is KuickPay's own.
       Voucher = Struct.new(:consumer_number, :system_voucher_number, :raw_response, keyword_init: true)
 
-      # One settled transaction from the bulk inquiry.
-      Settlement = Struct.new(:consumer_number, :registration_number, :amount, :auth_id, :bank, :settled_at,
-                              keyword_init: true)
-
       def initialize(configuration:)
         @configuration = configuration
         @http_client = KuickpayHybridHttpClient.new(configuration:)
@@ -27,36 +23,45 @@ module Payments
 
       def provider_code = 'kuickpay_voucher'
 
+      # Needs both logins: a voucher is only issued when we can also find out that it was paid.
       def available?
-        @configuration.kuickpay_voucher_enabled? &&
-          @configuration.kuickpay_hybrid_username.present? &&
-          @configuration.kuickpay_hybrid_password.present? &&
-          @configuration.kuickpay_institution_id.present?
+        @configuration.kuickpay_voucher_enabled? && logins_present? &&
+          [@configuration.kuickpay_institution_id, @configuration.kuickpay_hybrid_base_url].all?(&:present?)
       end
 
       def create_voucher(payment:, candidate:, expires_on:)
         raise PaymentCheckoutUnavailableError unless available?
 
-        body = perform(INSERT_VOUCHER_PATH, voucher_payload(payment:, candidate:, expires_on:), 'insert_voucher')
+        body = perform(INSERT_VOUCHER_PATH, voucher_payload(payment:, candidate:, expires_on:), 'insert_voucher',
+                       username: @configuration.kuickpay_hybrid_username,
+                       password: @configuration.kuickpay_hybrid_password)
         Voucher.new(consumer_number: body.fetch('response_description').to_s, raw_response: body,
-                    system_voucher_number: body['response_detail'].to_s.presence)
+                    system_voucher_number: system_voucher_number(body))
       rescue KeyError
         reject!('insert voucher response had no voucher number')
       end
 
-      # Every settled transaction KuickPay reports for one day (Pakistan time).
+      # Every payment KuickPay reports for one day (Pakistan time), settled or not yet.
       def settlements_on(date:)
         raise PaymentCheckoutUnavailableError unless available?
 
         body = perform(BULK_INQUIRY_PATH, { institutionID: @configuration.kuickpay_institution_id,
-                                            transactionDate: date.strftime('%Y%m%d') }, 'bulk_inquiry')
-        Array(body['transactionList']).filter_map { |row| build_settlement(row) }
+                                            transactionDate: date.strftime('%Y%m%d') }, 'bulk_inquiry',
+                       username: @configuration.kuickpay_payment_status_username,
+                       password: @configuration.kuickpay_payment_status_password)
+        Array(body['transactionList']).filter_map { |row| KuickpaySettlementParser.call(row) }
       end
 
       private
 
-      def perform(path, payload, step)
-        response = @http_client.post(path:, payload:, step:)
+      def logins_present?
+        [@configuration.kuickpay_hybrid_username, @configuration.kuickpay_hybrid_password,
+         @configuration.kuickpay_payment_status_username,
+         @configuration.kuickpay_payment_status_password].all?(&:present?)
+      end
+
+      def perform(path, payload, step, username:, password:)
+        response = @http_client.post(path:, payload:, step:, username:, password:)
         body = JSON.parse(response.body)
         return body if response.is_a?(Net::HTTPSuccess) && body['response_Code'] == SUCCESS_CODE
 
@@ -70,24 +75,9 @@ module Payments
         raise PaymentCheckoutUnavailableError
       end
 
-      def build_settlement(row)
-        return unless row['isSettled'] == true && row['consumer_Number'].present?
-
-        Settlement.new(settlement_identity(row).merge(amount: BigDecimal(row['amountTransaction'].to_s),
-                                                      settled_at: parse_time(row['settlement_Date_Time'])))
-      rescue ArgumentError
-        nil
-      end
-
-      def settlement_identity(row)
-        {
-          consumer_number: row['consumer_Number'].to_s, registration_number: row['registrationNumber'].to_s.presence,
-          auth_id: row['authID'].to_s.presence, bank: row['bank'].to_s.presence
-        }
-      end
-
-      def parse_time(value)
-        Time.zone.parse(value.to_s) || Time.current
+      # KuickPay answers `responseCode_Detail`; `response_detail` is what its PDF calls it.
+      def system_voucher_number(body)
+        (body['responseCode_Detail'].presence || body['response_detail']).to_s.presence
       end
 
       # KuickPay's voucher takes whole rupees; the due date and expiry are the same day
@@ -104,7 +94,8 @@ module Payments
 
       def identity_payload(payment:, candidate:)
         {
-          institutionID: @configuration.kuickpay_institution_id, registrationNumber: payment.provider_order_id,
+          institutionID: @configuration.kuickpay_institution_id,
+          registrationNumber: payment.provider_order_id.delete('-'),
           name: alphabetic_name(candidate.full_name), mobile: local_mobile(candidate.mobile_number),
           email: @configuration.voucher_fallback_email
         }

@@ -3,14 +3,6 @@
 require 'rails_helper'
 
 RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
-  around do |example|
-    original_env = ENV.to_h
-    ENV['FRONTEND_PAYMENT_RETURN_URL'] = 'https://app.example.test/payment/pending'
-    example.run
-  ensure
-    ENV.replace(original_env)
-  end
-
   before do
     ensure_canonical_workflow_stages!
   end
@@ -82,8 +74,7 @@ RSpec.describe 'API V1 Hosted Checkout Notifications', type: :request do
       get '/api/v1/payments/hosted_checkout/kuickpay/return', params: payload
     end
 
-    expect(response).to redirect_to('https://app.example.test/payment/pending')
-    expect(response).to have_http_status(:found)
+    expect(response).to have_http_status(:no_content)
     # +1 over the callback's single event -- the return always records its
     # own status_checked PaymentEvent (see Payments::VerifyPaymentStatusService),
     # but safely no-ops the actual payment/workflow state since it's already paid.

@@ -2,9 +2,10 @@
 
 module Payments
   # Asks KuickPay which vouchers were paid (Bill Payment Bulk Inquiry, for today and
-  # yesterday in Pakistan time, since a payment can settle after midnight) and marks
+  # yesterday in Pakistan time, since a payment can be noticed after midnight) and marks
   # the matching unpaid voucher payments paid -- through the same state applier,
-  # validation and event trail as a card payment. KuickPay never calls us, so this
+  # validation and event trail as a card payment. A voucher counts as paid as soon as it
+  # is listed -- KuickPay lists it before it settles the money to Descon. KuickPay never calls us, so this
   # is how a voucher payment is noticed. Safe to run repeatedly: a settlement already
   # recorded is skipped. A settlement that does not match (wrong amount, unknown
   # voucher) is logged and left for finance to see; it never stops the others.
@@ -65,7 +66,7 @@ module Payments
         event_key: "settled:#{settlement.consumer_number}:#{settlement.auth_id}",
         provider_order_id: payment.provider_order_id, provider_transaction_id: settlement.auth_id,
         provider_status_code: 'SUCCESS', provider_response_code: '00', amount: settlement.amount,
-        currency_code: payment.currency_code, occurred_at: settlement.settled_at || Time.current,
+        currency_code: payment.currency_code, occurred_at: settlement.paid_at || Time.current,
         payload: { consumer_number: settlement.consumer_number, auth_id: settlement.auth_id, bank: settlement.bank,
                    amount: settlement.amount.to_s('F') }
       )

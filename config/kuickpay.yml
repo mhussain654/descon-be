@@ -1,7 +1,8 @@
-# KuickPay hosted-checkout settings. The secret (SecuredKey) comes from
-# config/credentials.yml.enc (kuickpay -> <environment> -> secured_key);
-# everything else is a plain setting read from ENV. Read only through
-# Payments::Configuration.
+# KuickPay settings. Everything secret or access-related (the SecuredKey and every
+# login) comes only from config/credentials.yml.enc (kuickpay -> <environment> -> ...),
+# never from ENV. The KuickPay hosts are fixed here: sandbox/UAT for development and
+# test, the live ones for production. The remaining plain settings are read from ENV.
+# Read only through Payments::Configuration.
 #
 # Every ERB value below is rendered via `.to_json`, not interpolated raw --
 # a bare, unquoted YAML scalar is given its own implicit type (e.g. a
@@ -11,17 +12,11 @@
 # (or the bare number for the two real integer defaults), so this file's
 # values only ever come out however the app actually gave them.
 default: &default
-  base_url: <%= ENV.fetch('KUICKPAY_BASE_URL', 'https://sandbox-api.kuickpay.com').to_json %>
-  # What KuickPay's own dashboard/docs may label "Institution ID" -- same
-  # value, used as the Basic Auth username and as `companyid` in every
-  # request. Not secret on its own, but kept alongside secured_key here
-  # rather than split across ENV and credentials for one integration.
-  company_id: <%= ENV.fetch('KUICKPAY_COMPANY_ID', '').to_json %>
+  base_url: https://sandbox-api.kuickpay.com
   return_url: <%= ENV.fetch('KUICKPAY_RETURN_URL', '').to_json %>
-  # Voucher (consumer number) payments use KuickPay's separate "Hybrid" API: its own
-  # host and its own username/password (credentials below), not the checkout's
-  # Company ID / SecuredKey. institution_id falls back to company_id.
-  hybrid_base_url: <%= ENV.fetch('KUICKPAY_HYBRID_BASE_URL', 'https://uat-adminapi.kuickpay.com').to_json %>
+  hybrid_base_url: https://uat-adminapi.kuickpay.com
+
+  company_id: <%= ENV.fetch('KUICKPAY_COMPANY_ID', '').to_json %>
   institution_id: <%= ENV.fetch('KUICKPAY_INSTITUTION_ID', '').to_json %>
   open_timeout: <%= ENV.fetch('KUICKPAY_OPEN_TIMEOUT_SECONDS', 5).to_i %>
   read_timeout: <%= ENV.fetch('KUICKPAY_READ_TIMEOUT_SECONDS', 10).to_i %>
@@ -29,9 +24,11 @@ default: &default
 development:
   <<: *default
   secured_key: <%= Rails.application.credentials.dig(:kuickpay, :development, :secured_key).to_json %>
-  # Development only: ENV overrides the credentials, so script/fake_kuickpay_hybrid.ru can stand in for KuickPay.
-  hybrid_username: <%= (ENV['KUICKPAY_HYBRID_USERNAME'].presence || Rails.application.credentials.dig(:kuickpay, :development, :hybrid_username)).to_json %>
-  hybrid_password: <%= (ENV['KUICKPAY_HYBRID_PASSWORD'].presence || Rails.application.credentials.dig(:kuickpay, :development, :hybrid_password)).to_json %>
+
+  hybrid_username: <%= Rails.application.credentials.dig(:kuickpay, :development, :hybrid_username).to_json %>
+  hybrid_password: <%= Rails.application.credentials.dig(:kuickpay, :development, :hybrid_password).to_json %>
+  payment_status_username: <%= Rails.application.credentials.dig(:kuickpay, :development, :payment_status_username).to_json %>
+  payment_status_password: <%= Rails.application.credentials.dig(:kuickpay, :development, :payment_status_password).to_json %>
 
 # Fake value: tests never reach KuickPay.
 test:
@@ -39,13 +36,16 @@ test:
   secured_key: test-kuickpay-secured-key
   hybrid_username: test-hybrid-user
   hybrid_password: test-hybrid-password
+  payment_status_username: test-payment-status-user
+  payment_status_password: test-payment-status-password
 
-# Evaluated only in production: fetch raises a KeyError naming the missing
-# key, whereas the other environments must be able to render this file
-# without production secrets.
 production:
   <<: *default
+  base_url: https://api.kuickpay.com
+  hybrid_base_url: https://adminapi.kuickpay.com
   secured_key: <%= (Rails.env.production? ? Rails.application.credentials.fetch(:kuickpay).fetch(:production).fetch(:secured_key) : '').to_json %>
-  # Optional: the voucher feature stays off (KUICKPAY_VOUCHER_ENABLED) until these are set.
+
   hybrid_username: <%= Rails.application.credentials.dig(:kuickpay, :production, :hybrid_username).to_json %>
   hybrid_password: <%= Rails.application.credentials.dig(:kuickpay, :production, :hybrid_password).to_json %>
+  payment_status_username: <%= Rails.application.credentials.dig(:kuickpay, :production, :payment_status_username).to_json %>
+  payment_status_password: <%= Rails.application.credentials.dig(:kuickpay, :production, :payment_status_password).to_json %>

@@ -19,9 +19,13 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
       with_kuickpay_voucher_configured { expect(adapter).to be_available }
     end
 
-    it 'needs the hybrid login and an institution id' do
+    it 'needs the voucher login, the payment-status login and an institution id' do
       with_kuickpay_voucher_configured do
         allow(configuration).to receive(:kuickpay_hybrid_username).and_return('')
+        expect(adapter).not_to be_available
+      end
+      with_kuickpay_voucher_configured do
+        allow(configuration).to receive(:kuickpay_payment_status_password).and_return(nil)
         expect(adapter).not_to be_available
       end
       with_kuickpay_voucher_configured do
@@ -46,10 +50,23 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
       expect(request.path).to eq('/api/insertPPMVoucher')
       expect([request['username'], request['password']]).to eq(%w[test-hybrid-user test-hybrid-password])
       expect(body).to include(
-        'institutionID' => '00008', 'registrationNumber' => 'PAY-REF-1', 'head1' => 'Fee', 'amount1' => 1500,
+        'institutionID' => '00008', 'registrationNumber' => 'PAYREF1', 'head1' => 'Fee', 'amount1' => 1500,
         'totalAmount' => 1500, 'amountAfterDueDate' => 1500, 'dueDate' => '2026-11-04', 'expiryDate' => '2026-11-04',
         'name' => 'Ayesha Khan', 'mobile' => '03001234567', 'email' => 'no-reply@descon-mps.com'
       )
+    end
+
+    it 'reads the system voucher number from either name KuickPay uses for it' do
+      with_kuickpay_voucher_configured do
+        ok = Net::HTTPOK.new('1.1', '200', 'OK')
+        allow(ok).to receive(:body)
+          .and_return({ response_Code: '00', response_description: '0000832249220', response_detail: '77' }.to_json)
+        allow(Net::HTTP).to receive(:start) { |*, &block| block.call(instance_double(Net::HTTP, request: ok)) }
+
+        voucher = adapter.create_voucher(payment:, candidate:, expires_on: Date.current)
+
+        expect(voucher.system_voucher_number).to eq('77')
+      end
     end
 
     it 'refuses a fee that is not a whole number of rupees' do
@@ -100,7 +117,7 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
   end
 
   describe '#settlements_on' do
-    it "returns the day's settled transactions and ignores unsettled or malformed ones" do
+    it 'returns the day\'s paid vouchers -- settled or not yet -- and skips malformed ones' do
       requests = []
       rows = [
         kuickpay_settlement(consumer_number: '0000811111', amount: 1500),
@@ -113,10 +130,21 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
 
         result = adapter.settlements_on(date: Date.new(2026, 10, 21))
 
-        expect(result.map(&:consumer_number)).to eq(['0000811111'])
-        expect(result.first).to have_attributes(amount: BigDecimal('1500'), auth_id: '788895', bank: 'TMF')
+        expect(result.map(&:consumer_number)).to eq(%w[0000811111 0000822222])
+        expect(result.first).to have_attributes(amount: BigDecimal('1500'), auth_id: '788895', bank: 'KPY')
       end
       expect(JSON.parse(requests.first.body)).to eq('institutionID' => '00008', 'transactionDate' => '20261021')
+    end
+
+    it 'logs in with the payment-status login, not the voucher login' do
+      requests = []
+      with_kuickpay_voucher_configured do
+        stub_kuickpay_hybrid(requests:)
+
+        adapter.settlements_on(date: Date.new(2026, 10, 21))
+      end
+      expect([requests.first['username'],
+              requests.first['password']]).to eq(%w[test-payment-status-user test-payment-status-password])
     end
 
     it 'is refused when voucher payments are not configured' do
