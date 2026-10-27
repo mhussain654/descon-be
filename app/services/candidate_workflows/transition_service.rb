@@ -49,6 +49,7 @@ module CandidateWorkflows
       persist_workflow_state!(context:, transitioned_at:)
       history_entry = record_transition!(context:, transitioned_at:)
       record_post_transition_events!(history_entry:, context:, transitioned_at:)
+      FeeStageOpener.call(actor: @actor, candidate: @candidate, request_id: @request_id)
       { history_entry:, snapshot: StateSnapshotService.call(candidate: context.fetch(:candidate)) }
     end
 
