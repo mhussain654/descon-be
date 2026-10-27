@@ -80,4 +80,5 @@ end
 
 RSpec.configure do |config|
   config.include PaymentWorkflowHelpers, type: :request
+  config.include PaymentWorkflowHelpers, file_path: %r{spec/services/payments}
 end

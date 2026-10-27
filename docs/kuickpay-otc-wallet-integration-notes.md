@@ -1,6 +1,11 @@
 # KuickPay OTC/wallet integration — notes (pre-implementation)
 
-Status: **not started**. This document captures what's been learned from KuickPay's
+Status: **built behind a switch (2026-10-21)** -- see `Payments::Providers::KuickpayVoucherAdapter`,
+`Payments::CreateVoucherService`, `Payments::SettleVouchersService` and the runbook (KuickPay payment codes).
+Still to verify against KuickPay's sandbox before turning `KUICKPAY_VOUCHER_ENABLED` on. The notes below are
+the original pre-implementation notes.
+
+Original status: **not started**. This document captures what's been learned from KuickPay's
 own docs and live testing so far, so implementation can start from a clear picture
 instead of re-deriving it. Nothing here has been built yet — verify every detail
 below against the live sandbox before coding against it.
@@ -42,8 +47,8 @@ Auth: every request carries `username`/`password` as **headers** (not query para
 not a signed payload like the hosted-checkout adapter uses) — a materially different
 auth mechanism from the existing `KuickpayHostedCheckoutAdapter` (HTTP Basic Auth)
 and from the BPS guide (HMAC-SHA256 signing). Confirm during implementation whether
-this needs its own credential pair (`KUICKPAY_HYBRID_USERNAME`/`_PASSWORD`) separate
-from `KUICKPAY_COMPANY_ID`/`KUICKPAY_SECURED_KEY`.
+this needs its own credential pair (`hybrid_username`/`hybrid_password` in the encrypted credentials) separate
+from the company id and `secured_key`.
 
 ### 1. Insert Voucher — `POST {baseURL}/api/insertPPMVoucher`
 
@@ -58,8 +63,15 @@ amount), `expiryDate`, `issueDate`, `voucherMonth`, `voucherYear`, `name`, `mobi
 `email`, `branch` (optional).
 
 Response (success): `response_Code: "00"`, `response_description` = the actual
-payable voucher/consumer number (e.g. `"0000832249220"`), `response_detail` =
-KuickPay's own internal system voucher number.
+payable voucher/consumer number (e.g. `"0000832249220"`), and KuickPay's own
+internal system voucher number, which the PDF calls `response_detail` but the UAT
+returns as `responseCode_Detail` (we read either).
+
+UAT-verified (27 Oct 2026): Insert Voucher uses one login and Bill Payment Bulk
+Inquiry a different one (`User is not Active` otherwise). A paid voucher is listed by
+the inquiry at once with `isSettled: false`, `settlement_Date_Time: null`, the date at
+midnight plus `tranTime` (HHMMSS) and a flat `fee` of 50 taken out of the amount
+(`amountAfterFee`). We mark the voucher paid when it is listed.
 
 This is the number we'd show the candidate in-app (and presumably still send via
 SMS, matching how OTP/other notices already go out via `Sms::SendMessage`).

@@ -677,6 +677,36 @@ separately against throwaway local databases (see the PR description).
 * **Email / SES.** Deferred. Staff invitations create the user and queue
   delivery, but there is no SMTP/SES configuration, so no invitation reaches
   anyone; create staff through the first-administrator procedure or add SES.
+* **KuickPay payment codes (wallet / bank app).** The candidate can pay the fee by
+  getting a code (KuickPay voucher number) in the app and paying it from JazzCash,
+  Easypaisa or a bank app, as an alternative to the card checkout. It uses KuickPay's
+  separate "Hybrid" API (Insert Voucher, Bill Payment Bulk Inquiry), which needs its
+  own logins and the institution id (`KUICKPAY_INSTITUTION_ID`; falls back to
+  `KUICKPAY_COMPANY_ID`). KuickPay issued a separate login for each call, so there are
+  two pairs: `kuickpay.production.hybrid_username` / `hybrid_password` to create a
+  voucher and `payment_status_username` / `payment_status_password` to check payments (the voucher
+  login is refused by the payment-status call, so there is no fallback). Both pairs are required: the
+  codes stay off if either is missing, so no code is issued that could not be seen as paid.
+  Off until `KUICKPAY_VOUCHER_ENABLED=true`.
+  * Opening the code tab creates one code for the fee (`POST /api/v1/candidate/payment/voucher`),
+    valid `PAYMENT_VOUCHER_VALID_DAYS` days (14). No late fee: the due date is the expiry.
+  * The candidate can have a code and a card checkout open at the same time and
+    chooses which to pay; the screen tells them to pay only one. If both get paid, the
+    nightly reconciliation flags `duplicate_fee_payment` on both payments, and finance
+    refunds one outside the system and records a note on the finding.
+  * KuickPay never calls us. The job `poll_kuickpay_vouchers` (every 5 minutes, in
+    `config/recurring.yml`) asks KuickPay which codes were paid today and yesterday
+    and marks them paid; the candidate then moves to Fee Paid like a card payment. A code
+    counts as paid as soon as KuickPay lists it, before KuickPay settles the money to
+    Descon (`isSettled` turns true about a working day later). A payment with the wrong
+    amount is logged and left unpaid for finance. An unpaid code is closed a day after it
+    expires.
+  * The fee must be a whole number of rupees (KuickPay takes integers).
+  * KuickPay's own fee (a flat 50 PKR per payment in its UAT) comes out of the amount
+    paid, so Descon receives the fee minus that. The admin sets the fee including it;
+    the admin fee screen says so.
+  * UAT confirmed (27 Oct 2026): a paid code appears in the inquiry at once, unsettled.
+    The SMS to the candidate is still to be confirmed with KuickPay.
 * **KuickPay.** The hosted-checkout adapter (create session, redirect, signed
   return, status check) is implemented and was exercised against KuickPay's
   sandbox from a developer machine through a tunnel. `KUICKPAY_ENABLED=false`
@@ -707,8 +737,8 @@ separately against throwaway local databases (see the PR description).
    webroot); the short-lived IP certificate can then be dropped.
 3. `sudo ln -sfn /etc/letsencrypt/live/<name> /etc/nginx/tls/current` and
    `sudo systemctl reload nginx`. `server_name _` already matches any host.
-4. `shared/.env`: change the host in `CORS_ALLOWED_ORIGINS`,
-   `FRONTEND_PAYMENT_RETURN_URL` and `KUICKPAY_RETURN_URL`; restart the service.
+4. `shared/.env`: change the host in `CORS_ALLOWED_ORIGINS` and
+   `KUICKPAY_RETURN_URL`; restart the service.
    `action_mailer.default_url_options` becomes relevant only when emails carry
    links (they do not today).
 5. Register the new return URL with KuickPay.

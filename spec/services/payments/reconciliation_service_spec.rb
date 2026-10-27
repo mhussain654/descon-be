@@ -82,6 +82,19 @@ RSpec.describe Payments::ReconciliationService do
     expect(run.payment_reconciliation_findings.pluck(:finding_code)).to include('terminal_event_conflict')
   end
 
+  it 'flags both payments when the same fee was paid twice (for example a payment code and a card)' do
+    assignment = create(:candidate_assignment, current_workflow_stage: stage_for('fee_paid'))
+    paid_by_card = consistent_paid_payment(candidate_assignment: assignment, provider_code: 'kuickpay')
+    paid_by_code = consistent_paid_payment(candidate_assignment: assignment, provider_code: 'kuickpay_voucher')
+    other_candidate = consistent_paid_payment
+
+    run = described_class.call(run_date: Date.current)
+
+    flagged = run.payment_reconciliation_findings.where(finding_code: 'duplicate_fee_payment').pluck(:payment_id)
+    expect(flagged).to contain_exactly(paid_by_card.id, paid_by_code.id)
+    expect(flagged).not_to include(other_candidate.id)
+  end
+
   it 'does not flag a clean, fully-paid, workflow-consistent payment' do
     consistent_paid_payment
 

@@ -54,7 +54,8 @@ module Payments
         current_stage_code: assignment.current_workflow_stage.code,
         eligible: prerequisite_result.allowed,
         blocking_reasons: prerequisite_result.blocking_reasons,
-        checkout_available: prerequisite_result.allowed && provider.available?
+        checkout_available: prerequisite_result.allowed && provider.available?,
+        voucher_available: prerequisite_result.allowed && voucher_provider.available?
       )
     end
 
@@ -67,7 +68,7 @@ module Payments
       )
     end
 
-    def build_result(assignment:, current_stage_code:, eligible:, blocking_reasons:, checkout_available:)
+    def build_result(assignment:, current_stage_code:, eligible:, blocking_reasons:, **availability)
       Payments::EligibilityResultBuilder.call(
         candidate: @candidate,
         configuration: @configuration,
@@ -75,7 +76,8 @@ module Payments
         current_stage_code:,
         eligible:,
         blocking_reasons:,
-        checkout_available:
+        checkout_available: availability.fetch(:checkout_available),
+        voucher_available: availability.fetch(:voucher_available, false)
       )
     end
 
@@ -93,6 +95,10 @@ module Payments
 
     def provider
       @provider ||= Payments::ProviderRegistry.fetch(@provider_code)
+    end
+
+    def voucher_provider
+      @voucher_provider ||= Payments::ProviderRegistry.fetch('kuickpay_voucher')
     end
 
     def fee_paid_or_later?(assignment) = assignment.reached_stage?('fee_paid')

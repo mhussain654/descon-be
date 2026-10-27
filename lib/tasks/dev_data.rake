@@ -39,6 +39,20 @@ rescue RuntimeError => e
 end
 
 namespace :dev_data do
+  desc 'Gives a candidate at the fee stage the login code 123456 for one hour, to try the payment screen ' \
+       'locally: bin/rails "dev_data:payment_test_candidate[3210225612443]" (without a CNIC, any candidate who ' \
+       'can pay is used and printed). Development-only.'
+  task :payment_test_candidate, [:cnic] => :environment do |_task, args|
+    require Rails.root.join('lib/dev_data/payment_test_candidate')
+    candidate = DevData::PaymentTestCandidate.call(cnic: args[:cnic])
+    puts "Candidate: #{candidate.full_name} (#{candidate.current_assignment.reference_number})"
+    puts "CNIC:      #{candidate.cnic}"
+    puts "Login code: #{DevData::PaymentTestCandidate::CODE} (valid 1 hour)."
+    puts 'In the app, enter the CNIC and request the code within a minute of running this, then type the code.'
+  rescue RuntimeError => e
+    abort(e.message)
+  end
+
   desc 'Seeds ~25 candidates spread across every workflow stage, plus documents, QVC/visa/' \
        'protection/flight/payment records, AI calls, communications, audit events, document ' \
        'submissions, an import batch, and database backups -- enough to manually exercise every ' \

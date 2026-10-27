@@ -34,18 +34,54 @@ module Payments
     end
 
     def kuickpay_base_url
-      kuickpay_setting(:base_url) || 'https://sandbox-api.kuickpay.com'
+      kuickpay_setting(:base_url)
     end
 
     def kuickpay_return_url
       kuickpay_setting(:return_url)
     end
 
-    # Where the candidate's browser is redirected after HostedCheckoutReturnsController
-    # processes the signed provider return -- the frontend's dedicated, unauthenticated
-    # payment-pending page (never a JSON error/success body -- see that controller).
-    def frontend_payment_return_url
-      ENV['FRONTEND_PAYMENT_RETURN_URL'].to_s.strip.presence
+    # Voucher (consumer number) payments -- wallet / bank-app payment with a code. Its own
+    # kill switch, separate from the hosted card checkout's KUICKPAY_ENABLED.
+    def kuickpay_voucher_enabled?
+      ActiveModel::Type::Boolean.new.cast(ENV.fetch('KUICKPAY_VOUCHER_ENABLED', 'false'))
+    end
+
+    def kuickpay_hybrid_base_url
+      kuickpay_setting(:hybrid_base_url)
+    end
+
+    def kuickpay_hybrid_username
+      kuickpay_setting(:hybrid_username)
+    end
+
+    def kuickpay_hybrid_password
+      kuickpay_setting(:hybrid_password)
+    end
+
+    # The login for Bill Payment Bulk Inquiry (checking which vouchers were paid). KuickPay
+    # issues it separately from the Insert Voucher login, and the voucher login is refused
+    # there ("User is not Active"), so there is deliberately no fallback to it.
+    def kuickpay_payment_status_username
+      kuickpay_setting(:payment_status_username)
+    end
+
+    def kuickpay_payment_status_password
+      kuickpay_setting(:payment_status_password)
+    end
+
+    def kuickpay_institution_id
+      kuickpay_setting(:institution_id) || kuickpay_company_id
+    end
+
+    # How long an unpaid voucher stays payable (also the due date: no late fee).
+    def voucher_valid_days
+      ENV.fetch('PAYMENT_VOUCHER_VALID_DAYS', 14).to_i
+    end
+
+    # KuickPay requires an email for every voucher; candidates have none on file.
+    def voucher_fallback_email
+      ENV.fetch('PAYMENT_VOUCHER_FALLBACK_EMAIL', 'no-reply@descon-mps.com').strip
     end
 
     def kuickpay_open_timeout

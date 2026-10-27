@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_20_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -976,6 +976,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_100000) do
     t.bigint "recorded_by_id"
     t.string "status_code", null: false
     t.datetime "updated_at", null: false
+    t.string "voucher_number"
     t.index ["candidate_assignment_id", "status_code", "created_at"], name: "index_payments_on_assignment_status_created_at"
     t.index ["candidate_assignment_id"], name: "index_payments_on_candidate_assignment_id"
     t.index ["external_reference"], name: "index_payments_on_external_reference", unique: true, where: "(external_reference IS NOT NULL)"
@@ -984,6 +985,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_100000) do
     t.index ["provider_transaction_id"], name: "index_payments_on_provider_transaction_id"
     t.index ["public_id"], name: "index_payments_on_public_id", unique: true
     t.index ["recorded_by_id"], name: "index_payments_on_recorded_by_id"
+    t.index ["voucher_number"], name: "index_payments_on_voucher_number", unique: true, where: "(voucher_number IS NOT NULL)"
     t.check_constraint "amount > 0::numeric", name: "payments_amount_positive"
     t.check_constraint "currency_code::text ~ '^[A-Z]{3}$'::text", name: "payments_currency_code_format"
     t.check_constraint "payment_type_code::text ~ '^[a-z0-9_]+$'::text", name: "payments_payment_type_code_format"

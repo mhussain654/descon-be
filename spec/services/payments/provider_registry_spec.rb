@@ -15,6 +15,10 @@ RSpec.describe Payments::ProviderRegistry do
     expect(provider).to be_a(Payments::Providers::KuickpayHostedCheckoutAdapter)
   end
 
+  it 'returns the voucher adapter for the kuickpay_voucher provider code' do
+    expect(described_class.fetch('kuickpay_voucher')).to be_a(Payments::Providers::KuickpayVoucherAdapter)
+  end
+
   it 'rejects unknown provider codes' do
     expect do
       described_class.fetch('unknown_provider')

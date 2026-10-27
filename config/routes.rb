@@ -28,7 +28,9 @@ Rails.application.routes.draw do
           resource :access, only: :create, controller: :document_accesses
         end
         resources :document_submissions, only: :create
-        resource :payment, only: %i[show create], controller: :payments
+        resource :payment, only: %i[show create], controller: :payments do
+          resource :voucher, only: :create, controller: :payment_vouchers
+        end
         resource :application_progress, only: :show, controller: :application_progress
         resource :profile, only: :show do
           resource :photo, only: %i[update destroy], controller: :profile_photos
