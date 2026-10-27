@@ -21,7 +21,7 @@ RSpec.describe 'API V1 Admin Candidate Bank Details', type: :request do
     it 'returns masked details for view-only staff and unmasked details for payment-authorized staff' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      create(:candidate_bank_detail, candidate_assignment: assignment, account_number: 'PK24SCBL0000001123456702')
+      create(:candidate_bank_detail, candidate_assignment: assignment, account_number: '0000001123456702')
 
       management = create(:user, role: 'management')
       get "/api/v1/admin/candidates/#{candidate.public_id}/bank_details",
@@ -30,7 +30,7 @@ RSpec.describe 'API V1 Admin Candidate Bank Details', type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.headers['Content-Language']).to eq('ur')
       expect(response.parsed_body.dig('data', 'account_number')).to end_with('6702')
-      expect(response.parsed_body.dig('data', 'account_number')).not_to eq('PK24SCBL0000001123456702')
+      expect(response.parsed_body.dig('data', 'account_number')).not_to eq('0000001123456702')
       expect(AuditEvent.where(action_code: 'candidate_bank_detail_viewed_unmasked')).to be_empty
 
       finance = create(:user, role: 'finance')
@@ -38,7 +38,7 @@ RSpec.describe 'API V1 Admin Candidate Bank Details', type: :request do
           headers: { 'Authorization' => "Bearer #{access_token_for(finance)}" }
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body.dig('data', 'account_number')).to eq('PK24SCBL0000001123456702')
+      expect(response.parsed_body.dig('data', 'account_number')).to eq('0000001123456702')
       expect(AuditEvent.order(:id).last.action_code).to eq('candidate_bank_detail_viewed_unmasked')
     end
 

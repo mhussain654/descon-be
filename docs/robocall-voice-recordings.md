@@ -26,7 +26,7 @@ are left switched off until an admin turns them on under *Automatic calls*.
 ## 538 - Upload documents (about 36 s)
 
 **Meaning.** The call is from Descon Engineering Limited, Manpower Services Department.
-It asks the candidate to log in to the Descon MPS Connect mobile app and scan and upload
+It asks the candidate to log in to the MPS Connect mobile app and scan and upload
 all required documents and the receipt for the medical fee issued by the medical lab. It
 warns that mobilization may be delayed if this is not done soon.
 
@@ -52,7 +52,7 @@ that must exist before this call goes live, or the recording needs to change.
 ## 536 - Medical date and center added (about 51 s)
 
 **Meaning.** The QVC medical date, time and center details have been updated in the
-Descon MPS Connect mobile app. The candidate should log in, check them carefully and be at
+MPS Connect mobile app. The candidate should log in, check them carefully and be at
 the stated center on the stated date and time. If they fail the QVC medical, they must pay
 the fee for repeating it themselves.
 

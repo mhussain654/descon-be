@@ -404,7 +404,7 @@ FactoryBot.define do
     public_id { SecureRandom.uuid }
     status_code { 'submitted' }
     account_title { 'Ahmed Ali' }
-    account_number { 'PK24SCBL0000001123456702' }
+    account_number { '0000001123456702' }
     bank_name { 'Sample Bank' }
     proof_filename { 'cheque.pdf' }
     proof_content_type { 'application/pdf' }
