@@ -6162,6 +6162,13 @@ paths:
         command resources cannot be entered here. In particular,
         visa_issued_or_rejected must use the candidate visa-decisions endpoint
         so issued visas cannot bypass the required private visa-copy upload.
+        When the stage completed here is immediately followed by fee_pending in
+        the candidate's process (for example a medical fit, or a prepared visa
+        case) and the candidate's documents are verified, the candidate is moved
+        into fee_pending automatically in the same request, so the returned
+        snapshot may already show fee_pending. That history entry has the reason
+        auto_fee_stage_opened. If the documents are not verified the candidate
+        stays at the completed stage and fee_pending can still be entered here.
       security:
         - bearerAuth: []
       parameters:

@@ -143,7 +143,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
                 evidence: { medical_appointment_date: '2026-08-20' })
     transition!(candidate:, actor:, to_stage_code: 'medical_fit',
                 evidence: { medical_outcome_code: 'fit', medical_result_date: '2026-08-22' })
-    transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+    expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
     record_paid_fee!(assignment)
     transition!(candidate:, actor:, to_stage_code: 'fee_paid')
     transition!(candidate:, actor:, to_stage_code: 'documents_shared_with_qatar_bu')
@@ -197,7 +197,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
     transition!(candidate:, actor:, to_stage_code: 'biometric_completed',
                 evidence: { biometric_completed_on: '2026-08-27' })
     transition!(candidate:, actor:, to_stage_code: 'visa_stamping_case_prepared')
-    transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+    expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
     record_paid_fee!(assignment)
     transition!(candidate:, actor:, to_stage_code: 'fee_paid')
     transition!(candidate:, actor:, to_stage_code: 'visa_stamping_case_sent')
@@ -571,6 +571,74 @@ RSpec.describe CandidateWorkflows::TransitionService do
     transition!(candidate:, actor:, to_stage_code: 'protection_call', evidence: protection_call)
 
     expect(assignment.reload.current_workflow_stage.code).to eq('protection_call')
+  end
+
+  describe 'opening the fee stage automatically' do
+    def qatar_candidate_at_medical_appointment(actor)
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:, country: process_country(:qatar),
+                                                 current_workflow_stage: stage_for('registered'))
+      advance_through_documents!(candidate:, assignment:, actor:)
+      transition!(candidate:, actor:, to_stage_code: 'campaign_nomination')
+      transition!(candidate:, actor:, to_stage_code: 'medical_appointment',
+                  evidence: { medical_appointment_date: '2026-08-20' })
+      [candidate, assignment]
+    end
+
+    def record_fit_result!(candidate:, actor:)
+      transition!(candidate:, actor:, to_stage_code: 'medical_fit',
+                  evidence: { medical_outcome_code: 'fit', medical_result_date: '2026-08-22' })
+    end
+
+    it 'moves a medically fit candidate straight into fee_pending and records why' do
+      actor = create(:user, role: 'mps')
+      candidate, assignment = qatar_candidate_at_medical_appointment(actor)
+
+      result = record_fit_result!(candidate:, actor:)
+
+      expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
+      expect(candidate.reload.status_code).to eq('fee_pending')
+      expect(history_codes(assignment).last(2)).to eq(%w[medical_fit fee_pending])
+      expect(assignment.candidate_stage_histories.order(:occurred_at, :id).last.reason_code)
+        .to eq('auto_fee_stage_opened')
+      expect(result.fetch(:history_entry).to_workflow_stage.code).to eq('medical_fit')
+    end
+
+    it 'leaves the candidate at the medical stage when the documents are no longer all verified' do
+      actor = create(:user, role: 'mps')
+      candidate, assignment = qatar_candidate_at_medical_appointment(actor)
+      assignment.candidate_documents.current_version.first.update!(
+        status_code: 'rejected', rejection_reason: 'Document is unreadable.',
+        verified_at: Time.current, verified_by: actor
+      )
+
+      record_fit_result!(candidate:, actor:)
+
+      expect(assignment.reload.current_workflow_stage.code).to eq('medical_fit')
+      expect(history_codes(assignment).last).to eq('medical_fit')
+    end
+
+    it 'does nothing when the fee stage is not the next stage' do
+      actor = create(:user, role: 'mps')
+      candidate, assignment = qatar_candidate_at_medical_appointment(actor)
+
+      expect(assignment.reload.current_workflow_stage.code).to eq('medical_appointment')
+      expect(CandidateWorkflows::FeeStageOpener.call(actor:, candidate:, request_id: 'noop')).to be_nil
+      expect(assignment.reload.current_workflow_stage.code).to eq('medical_appointment')
+    end
+
+    it 'still lets an admin move the candidate on by hand if the automatic step did not happen' do
+      actor = create(:user, role: 'mps')
+      candidate = create(:candidate, status_code: 'medical_fit')
+      assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('medical_fit'))
+      create(:candidate_medical_result, candidate_assignment: assignment)
+      requirement_for(assignment:, code: 'passport')
+      create_required_documents(candidate:, assignment:, default_status: 'verified')
+
+      transition!(candidate:, actor:, to_stage_code: 'fee_pending')
+
+      expect(assignment.reload.current_workflow_stage.code).to eq('fee_pending')
+    end
   end
 
   it 'blocks fee_pending when a previously verified required document is rejected' do
