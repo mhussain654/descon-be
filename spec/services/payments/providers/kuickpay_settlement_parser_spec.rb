@@ -19,19 +19,19 @@ RSpec.describe Payments::Providers::KuickpaySettlementParser do
     )
   end
 
-  it 'takes the paid time from the transaction date and tranTime, in Pakistan time, until KuickPay settles it' do
-    expect(described_class.call(row).paid_at).to eq(Time.find_zone('Asia/Karachi').parse('2026-10-27 09:16:02'))
+  it 'takes the paid time from the transaction date and tranTime, in UTC, until KuickPay settles it' do
+    expect(described_class.call(row).paid_at).to eq(Time.find_zone('UTC').parse('2026-10-27 09:16:02'))
   end
 
   it 'prefers the settlement time once there is one' do
     settled = row('settlement_Date_Time' => '2026-10-28T10:00:05', 'isSettled' => true)
 
-    expect(described_class.call(settled).paid_at).to eq(Time.find_zone('Asia/Karachi').parse('2026-10-28 10:00:05'))
+    expect(described_class.call(settled).paid_at).to eq(Time.find_zone('UTC').parse('2026-10-28 10:00:05'))
   end
 
   it 'falls back to midnight when tranTime is missing, and to no time when the date is unreadable' do
     expect(described_class.call(row('tranTime' => nil)).paid_at)
-      .to eq(Time.find_zone('Asia/Karachi').parse('2026-10-27 00:00:00'))
+      .to eq(Time.find_zone('UTC').parse('2026-10-27 00:00:00'))
     expect(described_class.call(row('transaction_Date_Time' => 'garbage', 'tranTime' => '999999')).paid_at).to be_nil
   end
 

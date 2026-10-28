@@ -145,6 +145,17 @@ RSpec.describe 'API V1 Admin Payments', type: :request do
       expect(body['payment_events'].first).not_to have_key('secret_signature')
       expect(body['reconciliation_findings'].first['finding_code']).to eq('paid_at_missing')
       expect(body['reconciliation_findings'].first['state']).to eq('open')
+      expect(body).not_to have_key('voucher_number')
+    end
+
+    it 'includes the voucher number of a voucher payment' do
+      finance = create(:user, role: 'finance')
+      payment = payment_for(provider_code: 'kuickpay_voucher', voucher_number: '10420261000061939')
+
+      get "/api/v1/admin/payments/#{payment.public_id}", headers: auth_headers(finance)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body['data']['voucher_number']).to eq('10420261000061939')
     end
 
     it 'returns not_found for an unknown payment id' do

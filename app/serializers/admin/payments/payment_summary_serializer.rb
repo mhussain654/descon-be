@@ -27,7 +27,8 @@ module Admin
           id: @payment.public_id, candidate: serialized_candidate,
           payment_type_code: @payment.payment_type_code, status: @payment.status_code,
           amount: @payment.amount.to_s('F'), currency_code: @payment.currency_code, provider: @payment.provider_code,
-          external_reference: @payment.external_reference, reconciliation_state: reconciliation_state
+          external_reference: @payment.external_reference, voucher_number: @payment.voucher_number,
+          reconciliation_state: reconciliation_state
         }
       end
 

@@ -9,7 +9,9 @@ module Payments
     class KuickpaySettlementParser < ApplicationService
       Settlement = Struct.new(:consumer_number, :registration_number, :amount, :auth_id, :bank, :paid_at,
                               keyword_init: true)
-      PAKISTAN_ZONE = ActiveSupport::TimeZone['Asia/Karachi']
+      # KuickPay sends its times in UTC, not Pakistan time: a UAT voucher created at 06:29 UTC came back paid
+      # with tranTime 063119 (checked 2026-10-28).
+      KUICKPAY_ZONE = ActiveSupport::TimeZone['UTC']
 
       def initialize(row)
         @row = row
@@ -32,13 +34,13 @@ module Payments
         }
       end
 
-      # When the candidate paid, in Pakistan time: the settlement time once there is one, otherwise the
+      # When the candidate paid (KuickPay's UTC clock): the settlement time once there is one, otherwise the
       # transaction date (KuickPay sends it at midnight) plus the time of day it sends separately (`tranTime`,
       # HHMMSS). nil when neither can be read; the caller then uses the time it noticed the payment.
       def paid_at
-        return PAKISTAN_ZONE.parse(@row['settlement_Date_Time']) if @row['settlement_Date_Time'].present?
+        return KUICKPAY_ZONE.parse(@row['settlement_Date_Time']) if @row['settlement_Date_Time'].present?
 
-        PAKISTAN_ZONE.parse("#{@row['transaction_Date_Time'].to_s[0, 10]} #{time_of_day}")
+        KUICKPAY_ZONE.parse("#{@row['transaction_Date_Time'].to_s[0, 10]} #{time_of_day}")
       rescue ArgumentError
         nil
       end

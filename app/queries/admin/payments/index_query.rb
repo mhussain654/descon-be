@@ -69,7 +69,7 @@ module Admin
         scope.where(
           <<~SQL.squish,
             candidates.full_name ILIKE :match OR candidate_assignments.reference_number ILIKE :match OR
-            payments.external_reference ILIKE :match
+            payments.external_reference ILIKE :match OR payments.voucher_number ILIKE :match
           SQL
           match:
         )

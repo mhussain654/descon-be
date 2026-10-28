@@ -1249,6 +1249,9 @@ components:
         external_reference:
           type: string
           nullable: true
+        voucher_number:
+          type: string
+          description: The KuickPay voucher (consumer) number the candidate paid against; only for voucher payments.
         reconciliation_state:
           type: string
           enum: [clean, open, resolved]
@@ -8763,7 +8766,7 @@ paths:
         - $ref: '#/components/parameters/PageSize'
         - name: search
           in: query
-          description: Matches candidate full name, assignment reference number, or external_reference.
+          description: Matches candidate full name, assignment reference number, external_reference or voucher_number.
           schema: { type: string }
         - name: filter[status]
           in: query

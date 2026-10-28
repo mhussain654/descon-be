@@ -102,13 +102,16 @@ RSpec.describe Admin::Payments::IndexQuery do
     end
   end
 
-  it 'searches by candidate name, assignment reference number and external_reference' do
+  it 'searches by candidate name, assignment reference number, external_reference and voucher_number' do
     by_name = payment_for(full_name: 'Zubair Khan')
     by_reference = payment_for(reference_number: 'DES-SEARCHABLE')
     by_external_ref = payment_for(status_code: 'paid', paid_at: Time.current, external_reference: 'KP-77889900')
+    by_voucher = payment_for(voucher_number: '10420261000061939')
     payment_for(full_name: 'Someone Else')
 
     expect(described_class.new(scope: Payment.all, params: params_for(search: 'Zubair')).call.to_a).to eq([by_name])
+    expect(described_class.new(scope: Payment.all,
+                               params: params_for(search: '1000061939')).call.to_a).to eq([by_voucher])
     expect(described_class.new(scope: Payment.all,
                                params: params_for(search: 'SEARCHABLE')).call.to_a).to eq([by_reference])
     expect(described_class.new(scope: Payment.all,

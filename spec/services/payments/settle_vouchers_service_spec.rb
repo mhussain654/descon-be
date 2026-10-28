@@ -44,7 +44,7 @@ RSpec.describe Payments::SettleVouchersService do
     expect(run_with([row])).to eq(1)
 
     expect(payment.reload.status_code).to eq('paid')
-    expect(payment.paid_at).to eq(Time.find_zone('Asia/Karachi').parse('2026-10-21 09:16:02'))
+    expect(payment.paid_at).to eq(Time.find_zone('UTC').parse('2026-10-21 09:16:02'))
     expect(assignment.reload.current_workflow_stage.code).to eq('fee_paid')
   end
 
