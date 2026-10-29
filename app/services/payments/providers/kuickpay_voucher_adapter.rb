@@ -92,10 +92,13 @@ module Payments
         )
       end
 
+      # KuickPay shows "<registrationNumber>-<name>" cut to 30 characters, so the registration number is the
+      # candidate's short reference number (DES100016), leaving room for the name. It does not need to be
+      # unique per voucher: a paid voucher is matched by its voucher number.
       def identity_payload(payment:, candidate:)
         {
           institutionID: @configuration.kuickpay_institution_id,
-          registrationNumber: payment.provider_order_id.delete('-'),
+          registrationNumber: payment.candidate_assignment.reference_number.delete('-'),
           name: alphabetic_name(candidate.full_name), mobile: local_mobile(candidate.mobile_number),
           email: @configuration.voucher_fallback_email
         }

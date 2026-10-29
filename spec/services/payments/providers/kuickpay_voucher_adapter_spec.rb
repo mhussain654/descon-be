@@ -6,7 +6,7 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
   let(:configuration) { Payments::Configuration.new }
   let(:adapter) { described_class.new(configuration:) }
   let(:candidate) { create(:candidate, full_name: 'Ayesha Khan 2', mobile_number: '+923001234567') }
-  let(:assignment) { create(:candidate_assignment, candidate:) }
+  let(:assignment) { create(:candidate_assignment, candidate:, reference_number: 'DES-100016') }
   let(:payment) do
     create(:payment, candidate_assignment: assignment, amount: BigDecimal('1500'), provider_code: 'kuickpay_voucher',
                      provider_order_id: 'PAY-REF-1')
@@ -50,7 +50,7 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
       expect(request.path).to eq('/api/insertPPMVoucher')
       expect([request['username'], request['password']]).to eq(%w[test-hybrid-user test-hybrid-password])
       expect(body).to include(
-        'institutionID' => '00008', 'registrationNumber' => 'PAYREF1', 'head1' => 'Fee', 'amount1' => 1500,
+        'institutionID' => '00008', 'registrationNumber' => 'DES100016', 'head1' => 'Fee', 'amount1' => 1500,
         'totalAmount' => 1500, 'amountAfterDueDate' => 1500, 'dueDate' => '2026-11-04', 'expiryDate' => '2026-11-04',
         'name' => 'Ayesha Khan', 'mobile' => '03001234567', 'email' => 'no-reply@descon-mps.com'
       )

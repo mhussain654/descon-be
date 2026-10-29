@@ -55,8 +55,9 @@ from the company id and `secured_key`.
 We call this to generate a voucher/consumer number for a candidate's fee — this
 replaces staff manually creating the code on KuickPay's portal.
 
-Key request fields: `institutionID`, `registrationNumber` (our own bill/customer
-reference — likely `payment.provider_order_id` or similar), up to 10
+Key request fields: `institutionID`, `registrationNumber` (the candidate's reference
+number without dashes, e.g. `DES100016` — KuickPay shows it as "<registrationNumber>-<name>"
+cut to 30 characters, so a longer value hides the name), up to 10
 `headN`/`amountN` line-item pairs (`head1`/`amount1` mandatory — e.g.
 `"Total Fee"` / `1000`), `totalAmount`, `dueDate`, `amountAfterDueDate` (late-fee
 amount), `expiryDate`, `issueDate`, `voucherMonth`, `voucherYear`, `name`, `mobile`,
@@ -150,9 +151,9 @@ own `Payment`/`PaymentEvent` model would replace that manual step entirely.
 3. **Production base URL** — only the UAT host is documented here.
 4. **Auth credentials** — confirm whether Hybrid API credentials are separate from
    the existing hosted-checkout `KUICKPAY_COMPANY_ID`/`KUICKPAY_SECURED_KEY` pair.
-5. **Where `registrationNumber` should map to** in our own schema (likely
-   `payment.provider_order_id`, to be confirmed against how `Payment` uniqueness/
-   idempotency already works for the hosted-checkout adapter).
+5. **`registrationNumber`** — decided: the candidate's reference number without dashes.
+   It is not unique per voucher (a candidate can get a new voucher); paid vouchers are
+   matched by voucher number, never by this field.
 6. **Duplicate/mismatch handling** — the BPS guide documented explicit response
    codes for duplicate/mismatched amounts; confirm whether the Hybrid model has
    equivalent protections, since `insertPPMVoucher` could plausibly be called
