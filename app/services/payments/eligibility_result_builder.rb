@@ -34,9 +34,17 @@ module Payments
         eligible: @params.eligible,
         checkout_available: @params.checkout_available,
         voucher_available: @params.voucher_available == true,
-        open_voucher: Payments::OpenPayments.voucher(@params.assignment),
-        card_checkout_open: Payments::OpenPayments.card_checkout_open?(@params.assignment),
-        blocking_reasons: @params.blocking_reasons
+        blocking_reasons: @params.blocking_reasons,
+        **open_payment_attributes
+      }
+    end
+
+    # A way of paying switched off in App Settings hides its open code or checkout at once.
+    def open_payment_attributes
+      assignment = @params.assignment
+      {
+        open_voucher: (Payments::OpenPayments.voucher(assignment) if AppFeatureSetting.enabled?(:voucher_payment)),
+        card_checkout_open: AppFeatureSetting.enabled?(:card_payment) && Payments::OpenPayments.card_checkout_open?(assignment)
       }
     end
 

@@ -111,8 +111,14 @@ module CandidateWorkflows
           internal_note: @params.note
         )
         assignment.update!(updated_at: Time.current)
-        record_attempt_audit!(assignment, attempt)
+        record_follow_up!(assignment, attempt)
         attempt
+      end
+
+      # A follow-up is booked without a stage change, so its SMS is queued here.
+      def record_follow_up!(assignment, attempt)
+        record_attempt_audit!(assignment, attempt)
+        CandidateSms::ScheduleDelivery.call(assignment:, **CandidateSms::StageMessage.qvc_appointment(attempt))
       end
 
       def next_attempt_number(assignment)

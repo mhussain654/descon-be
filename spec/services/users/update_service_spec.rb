@@ -25,6 +25,23 @@ RSpec.describe Users::UpdateService do
     described_class.call(actor:, user:, attributes:, request_id: SecureRandom.uuid)
   end
 
+  it 'refuses to make anyone a developer' do
+    target = create(:user, role: 'hr')
+
+    expect { call(actor: create(:user, role: 'admin'), user: target, attributes: { role: 'developer' }) }
+      .to raise_error(ValidationError)
+    expect(target.reload.role).to eq('hr')
+  end
+
+  it 'refuses to change or suspend a developer account' do
+    developer = create(:user, role: 'developer')
+    actor = create(:user, role: 'admin')
+
+    expect { call(actor:, user: developer, attributes: { role: 'hr' }) }.to raise_error(ValidationError)
+    expect { call(actor:, user: developer, attributes: { staff_state: 'suspended' }) }.to raise_error(ValidationError)
+    expect(developer.reload).to have_attributes(role: 'developer', staff_state: 'active')
+  end
+
   it 'revokes only the target user sessions on role change' do
     actor = create(:user, role: 'admin')
     target = create(:user, role: 'hr')

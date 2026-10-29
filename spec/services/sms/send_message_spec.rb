@@ -8,7 +8,8 @@ RSpec.describe Sms::SendMessage do
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('test')
 
-      result = described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 })
+      result = described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 },
+                                    template: :otp)
       expect(result).to be_a(Sms::DeliveryResult)
       expect(result).to be_success
     end
@@ -24,7 +25,8 @@ RSpec.describe Sms::SendMessage do
       allow(Rails.application).to receive(:config_for).with(:sendpk).and_return({})
       allow(Net::HTTP).to receive(:start)
 
-      result = described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 })
+      result = described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 },
+                                    template: :otp)
 
       expect(result).to be_a(Sms::DeliveryResult)
       expect(result).not_to be_success
@@ -36,7 +38,10 @@ RSpec.describe Sms::SendMessage do
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('unknown_vendor')
 
-      expect { described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 }) }
+      expect do
+        described_class.call(to: '+923001234567', body: 'hello', variables: { code: '123456', minutes: 5 },
+                             template: :otp)
+      end
         .to raise_error(Sms::ProviderNotConfiguredError, /unknown_vendor/i)
     end
   end

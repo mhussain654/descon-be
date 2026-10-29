@@ -16,6 +16,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     AuditEvent.delete_all
     CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -32,6 +33,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     AuditEvent.delete_all
     CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -183,6 +185,26 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
         request_id: 'review-reject-2'
       )
     end.to raise_error(RejectionReasonInvalidError)
+  end
+
+  it 'texts the candidate which document to upload again, in their language' do
+    document = reviewable_document
+    document.candidate_assignment.candidate.update!(preferred_locale: 'ur')
+
+    described_class.call(actor: create(:user, role: 'admin'), decision: 'rejected', document:,
+                         rejection_reason: 'Document is unreadable.', request_id: 'review-reject-sms')
+
+    expect(CandidateSmsDelivery.sole).to have_attributes(
+      message_code: 'document_rejected', dedupe_key: "document_rejected:#{document.id}", locale: 'ur',
+      variables: include('document' => document.document_type.name_ur)
+    )
+  end
+
+  it 'sends no SMS when a document is verified' do
+    described_class.call(actor: create(:user, role: 'admin'), decision: 'verified', document: reviewable_document,
+                         request_id: 'review-verify-sms')
+
+    expect(CandidateSmsDelivery.where(message_code: 'document_rejected')).to be_empty
   end
 
   it 'raises when the document is not pending review or was already reviewed' do

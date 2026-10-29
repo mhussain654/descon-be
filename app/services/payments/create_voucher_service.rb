@@ -17,7 +17,7 @@ module Payments
     end
 
     def call
-      raise PaymentCheckoutUnavailableError unless provider.available?
+      raise PaymentCheckoutUnavailableError unless provider.available? && AppFeatureSetting.enabled?(:voucher_payment)
 
       CandidateAssignment.transaction { execute }
     end

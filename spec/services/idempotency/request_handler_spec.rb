@@ -8,6 +8,7 @@ RSpec.describe Idempotency::RequestHandler do
   around do |example|
     AuthenticationEvent.delete_all
     AuditEvent.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -20,6 +21,7 @@ RSpec.describe Idempotency::RequestHandler do
     AuthenticationEvent.delete_all
     AuditEvent.delete_all
     IdempotencyKey.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all

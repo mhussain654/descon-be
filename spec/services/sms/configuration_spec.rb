@@ -11,22 +11,39 @@ RSpec.describe Sms::Configuration do
 
   describe '#sendpk_template_id' do
     it 'returns the Urdu template for an Urdu locale when one is set' do
-      with_settings(template_id: '10790', template_id_ur: '10791')
+      with_settings(otp_template_id: '10790', otp_template_id_ur: '10791')
 
-      expect(configuration.sendpk_template_id('ur')).to eq('10791')
+      expect(configuration.sendpk_template_id(:otp, 'ur')).to eq('10791')
     end
 
     it 'returns the default template for any other locale' do
-      with_settings(template_id: '10790', template_id_ur: '10791')
+      with_settings(otp_template_id: '10790', otp_template_id_ur: '10791')
 
-      expect(configuration.sendpk_template_id('en')).to eq('10790')
-      expect(configuration.sendpk_template_id).to eq('10790')
+      expect(configuration.sendpk_template_id(:otp, 'en')).to eq('10790')
+      expect(configuration.sendpk_template_id(:otp)).to eq('10790')
     end
 
     it 'falls back to the default template when no Urdu template is configured' do
-      with_settings(template_id: '10790', template_id_ur: '')
+      with_settings(otp_template_id: '10790', otp_template_id_ur: '')
 
-      expect(configuration.sendpk_template_id('ur')).to eq('10790')
+      expect(configuration.sendpk_template_id(:otp, 'ur')).to eq('10790')
+    end
+
+    it 'reads each message its own templates' do
+      with_settings(otp_template_id: '10790', registered_template_id: '20001', registered_template_id_ur: '20002')
+
+      expect(configuration.sendpk_template_id(:registered, 'ur')).to eq('20002')
+      expect(configuration.sendpk_template_id('registered', 'en')).to eq('20001')
+      expect(configuration.sendpk_template_id(:fee_pending, 'en')).to be_nil
+    end
+  end
+
+  describe '#sendpk_urdu_template_id' do
+    it 'is the Urdu template only for an Urdu locale' do
+      with_settings(otp_template_id: '10790', otp_template_id_ur: '10791')
+
+      expect(configuration.sendpk_urdu_template_id(:otp, 'ur')).to eq('10791')
+      expect(configuration.sendpk_urdu_template_id(:otp, 'en')).to be_nil
     end
   end
 

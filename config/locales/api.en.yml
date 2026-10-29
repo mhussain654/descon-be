@@ -59,6 +59,8 @@ en:
       staff_state_invalid: "Select a valid staff state."
       staff_state_transition_invalid: "Invited users must activate their account through invitation acceptance."
       self_suspension_forbidden: "You cannot suspend your own account."
+      developer_role_not_assignable: "The developer role cannot be assigned here."
+      developer_account_not_manageable: "A developer account cannot be changed here."
       last_active_admin: "The final active administrator cannot be suspended or demoted."
       missing_idempotency_key: "An idempotency key is required for this request."
       invalid_idempotency_key: "The idempotency key format is invalid."

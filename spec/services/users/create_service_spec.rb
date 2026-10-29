@@ -18,6 +18,14 @@ RSpec.describe Users::CreateService do
     described_class.call(actor:, attributes:, request_id: SecureRandom.uuid)
   end
 
+  it 'refuses to invite a developer: that role is given only from the Rails console' do
+    actor = create(:user, role: 'admin')
+
+    expect { call(actor:, attributes: { email: 'dev@example.com', role: 'developer' }) }
+      .to raise_error(ValidationError)
+    expect(User.find_by(email: 'dev@example.com')).to be_nil
+  end
+
   it 'creates an invited staff user, records an audit event, and enqueues invitation delivery' do
     actor = create(:user, role: 'admin')
 

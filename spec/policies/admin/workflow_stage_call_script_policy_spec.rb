@@ -14,16 +14,14 @@ RSpec.describe Admin::WorkflowStageCallScriptPolicy do
   end
 
   describe '#index? and #update?' do
-    it 'allows staff with manage_ai_call_scripts (admin, hr, mps)' do
-      %w[admin hr mps].each do |role|
-        actor = create(:user, role:)
-        expect(described_class.new(actor, WorkflowStageCallScript).index?).to be(true)
-        expect(described_class.new(actor, WorkflowStageCallScript).update?).to be(true)
-      end
+    it 'allows only the developer: automatic calls are in the developer-only Communications menu' do
+      actor = create(:user, role: 'developer')
+      expect(described_class.new(actor, WorkflowStageCallScript).index?).to be(true)
+      expect(described_class.new(actor, WorkflowStageCallScript).update?).to be(true)
     end
 
-    it 'denies staff without manage_ai_call_scripts' do
-      %w[finance management].each do |role|
+    it 'denies every other role' do
+      %w[admin hr mps finance management].each do |role|
         actor = create(:user, role:)
         expect(described_class.new(actor, WorkflowStageCallScript).index?).to be(false)
       end
@@ -36,7 +34,7 @@ RSpec.describe Admin::WorkflowStageCallScriptPolicy do
 
   describe '::Scope' do
     it 'resolves the full scope for a permitted actor and none for a denied one' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       finance = create(:user, role: 'finance')
       create(:workflow_stage_call_script)
 

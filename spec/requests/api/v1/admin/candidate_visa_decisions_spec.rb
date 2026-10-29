@@ -23,6 +23,7 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
     Payment.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -43,6 +44,7 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
     Payment.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -216,6 +218,7 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     expect(assignment.candidate_visa_decisions.count).to eq(2)
     expect(assignment.candidate_stage_histories.joins(:to_workflow_stage)
                      .where(workflow_stages: { code: 'visa_issued_or_rejected' }).count).to eq(1)
+    expect(CandidateSmsDelivery.order(:id).pluck(:message_code)).to eq(%w[visa_rejected visa_issued])
   end
 
   it 'requires a visa copy for an issued outcome' do

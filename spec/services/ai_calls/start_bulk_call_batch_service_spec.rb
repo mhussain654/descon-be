@@ -97,6 +97,12 @@ RSpec.describe AiCalls::StartBulkCallBatchService do
       expect_refused(AiCallVoiceNotConfiguredError) { start }
     end
 
+    it 'refuses while bulk calls are switched off in App Settings' do
+      AppFeatureSetting.current.update!(bulk_calls_enabled: false)
+
+      expect_refused(AiCallOutboundDisabledError) { start }
+    end
+
     it 'refuses a call type that is switched off' do
       voice.update!(active: false)
 

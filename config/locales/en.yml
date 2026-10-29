@@ -36,6 +36,7 @@ en:
       mps: "MPS"
       finance: "Finance"
       management: "Management"
+      developer: "Developer"
     permissions:
       manage_staff_users: "Manage staff users"
       manage_roles_permissions: "Manage roles and permissions"
@@ -57,6 +58,8 @@ en:
       manage_ai_call_scripts: "Manage AI call scripts"
       manage_ai_call_settings: "Manage AI call rate limits"
       manage_support_settings: "Manage support contact number"
+      manage_app_settings: "Manage app settings"
+      access_communications_menu: "Access the communications menu"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"
@@ -88,3 +91,18 @@ en:
       ticket_handover: "Ticket Handover"
       flight_details_uploaded: "Flight Day"
       mobilized: "Mobilized"
+  # Candidate progress SMS (CandidateSms). send.pk sends the wording of the
+  # approved template, so these mirror those templates; the app uses them only
+  # for the test SMS provider. Keep them in step with docs/candidate-sms.md.
+  candidate_sms:
+    registered: "Descon: Dear %{name}, you are registered for overseas employment. Download MPS Connect, log in with your CNIC and upload your documents."
+    document_rejected: "Descon: Your %{document} was not accepted. Please open MPS Connect and upload it again."
+    medical_appointment: "Descon: Your medical is on %{date}. Please check MPS Connect for details."
+    fee_pending: "Descon: Please pay your fee of Rs %{amount} in MPS Connect to continue."
+    medical_unfit: "Descon: Your medical result is ready. Please contact Descon for details."
+    qvc_appointment: "Descon: Your QVC appointment is on %{date}. Please check MPS Connect for details."
+    visa_issued: "Descon: Congratulations, your visa has been issued. We will contact you about the next steps."
+    visa_rejected: "Descon: Your visa was not approved. Please contact Descon for details."
+    protection_call: "Descon: Please come for protection on %{date}. Contact Descon for details."
+    ticket_handover: "Descon: Your air ticket was handed over on %{date}. Please contact Descon if you have any questions."
+    flight_details: "Descon: Your flight %{airline} %{flight}, %{sector}, on %{date} at %{time}. Details in MPS Connect."

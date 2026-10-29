@@ -51,6 +51,7 @@ module DevData
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def clear_assignment_children!(assignment_ids)
       clear_ai_calls(assignment_ids)
+      CandidateSmsDelivery.where(candidate_assignment_id: assignment_ids).delete_all
       clear_communications(assignment_ids)
       clear_document_submissions(assignment_ids)
       CandidateDocument.where(candidate_assignment_id: assignment_ids).find_each(&:destroy!)

@@ -5,10 +5,16 @@ require 'rails_helper'
 RSpec.describe Admin::BulkCallPolicy do
   before { ensure_staff_authorization_reference_data! }
 
-  let(:admin) { create(:user, role: 'admin') }
+  let(:admin) { create(:user, role: 'developer') }
   let(:finance) { create(:user, role: 'finance') }
 
-  it 'lets anyone who can trigger AI calls use bulk calling' do
+  it 'refuses an admin: bulk calls are in the developer-only Communications menu' do
+    policy = described_class.new(create(:user, role: 'admin'), BulkCallBatch)
+
+    expect([policy.index?, policy.show?, policy.create?, policy.candidates?]).to all(be(false))
+  end
+
+  it 'lets the developer use bulk calling' do
     policy = described_class.new(admin, BulkCallBatch)
 
     expect([policy.index?, policy.show?, policy.create?, policy.candidates?]).to all(be(true))

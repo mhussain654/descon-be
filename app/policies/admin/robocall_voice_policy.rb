@@ -7,10 +7,16 @@ module Admin
   # play), like the per-stage call setup.
   class RobocallVoicePolicy < ApplicationPolicy
     def index? = trigger_or_manage?
-    def create? = permission_granted?('manage_ai_call_scripts')
-    def update? = permission_granted?('manage_ai_call_scripts')
+    def create? = manage?
+    def update? = manage?
 
     private
+
+    # Managing call types sits in the developer-only Communications menu; picking
+    # one (index) stays open to anyone who can call a candidate.
+    def manage?
+      permission_granted?('access_communications_menu') && permission_granted?('manage_ai_call_scripts')
+    end
 
     def trigger_or_manage?
       permission_granted?('trigger_ai_calls') || permission_granted?('manage_ai_call_scripts')

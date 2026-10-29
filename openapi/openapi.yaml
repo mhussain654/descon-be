@@ -362,7 +362,7 @@ components:
           format: email
         role:
           type: string
-          enum: [admin, hr, mps, finance, management]
+          enum: [admin, hr, mps, finance, management, developer]
         permissions:
           type: array
           items:
@@ -379,7 +379,7 @@ components:
           format: email
         role:
           type: string
-          enum: [admin, hr, mps, finance, management]
+          enum: [admin, hr, mps, finance, management, developer]
         staff_state:
           type: string
           enum: [invited, active, suspended]
@@ -402,6 +402,7 @@ components:
             role:
               type: string
               enum: [admin, hr, mps, finance, management]
+              description: The developer role is set only from the Rails console and is refused here; a developer account cannot be changed through this API.
       required: [user]
     UserUpdateRequest:
       type: object
@@ -412,6 +413,7 @@ components:
             role:
               type: string
               enum: [admin, hr, mps, finance, management]
+              description: The developer role is set only from the Rails console and is refused here; a developer account cannot be changed through this API.
             staff_state:
               type: string
               enum: [active, suspended]
@@ -1920,6 +1922,31 @@ components:
           additionalProperties: false
           required: [phone_number]
       required: [support_setting]
+    AdminAppFeatureSettingRequest:
+      type: object
+      properties:
+        app_feature_setting:
+          type: object
+          description: >-
+            Any subset of the switches. A feature runs only when its switch is on
+            and the server is set up for it (see `server_ready` in the response).
+          properties:
+            card_payment_enabled: { type: boolean, description: Card payment (KuickPay hosted checkout). }
+            voucher_payment_enabled: { type: boolean, description: Payment code (KuickPay voucher). }
+            progress_sms_enabled: { type: boolean, description: Every candidate progress SMS. }
+            automatic_calls_enabled: { type: boolean, description: Automatic stage calls. }
+            bulk_calls_enabled: { type: boolean, description: Starting bulk calls. }
+            document_ocr_enabled: { type: boolean, description: Reading dates from uploaded documents. }
+            disabled_sms_messages:
+              type: array
+              description: The progress SMS messages switched off; an empty list turns them all back on.
+              items:
+                type: string
+                enum: [registered, document_rejected, medical_appointment, fee_pending, medical_unfit,
+                       qvc_appointment, visa_issued, visa_rejected, protection_call, ticket_handover,
+                       flight_details]
+          additionalProperties: false
+      required: [app_feature_setting]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -2591,7 +2618,7 @@ components:
           format: uuid
         role:
           type: string
-          enum: [admin, hr, mps, finance, management]
+          enum: [admin, hr, mps, finance, management, developer]
       required: [id, role]
     AdminDocumentSubmissionCandidate:
       type: object
@@ -10008,6 +10035,128 @@ paths:
           description: Authenticated staff user lacks manage_ai_call_settings, or is inactive
         '422':
           description: A knob is out of its valid range (e.g. calling_hours_start > 23)
+  /api/v1/admin/app_feature_setting:
+    get:
+      summary: Read the App Settings feature switches
+      description: >-
+        Returns the single AppFeatureSetting row: each feature switch, each
+        progress SMS message with whether its send.pk template is set, and
+        `server_ready` -- whether the server is set up for each feature. A feature
+        runs only when its switch is on and its server setup is ready. Switching
+        card payment or payment codes off also hides any already-open checkout or
+        code from the candidate at once; settlement of codes already paid keeps
+        running. Requires the `manage_app_settings` permission -- admin-only by default.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current switches
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      card_payment_enabled: true
+                      voucher_payment_enabled: false
+                      progress_sms_enabled: true
+                      automatic_calls_enabled: true
+                      bulk_calls_enabled: true
+                      document_ocr_enabled: false
+                      sms_messages:
+                        - { code: registered, enabled: true, template_ready: true }
+                        - { code: fee_pending, enabled: false, template_ready: true }
+                      server_ready:
+                        card_payment: true
+                        voucher_payment: true
+                        progress_sms: true
+                        automatic_calls: true
+                        bulk_calls: true
+                        document_ocr: false
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-10-29T09:05:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-29T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_app_settings, or is inactive
+    patch:
+      summary: Change the App Settings feature switches
+      description: >-
+        Updates any of the switches. Requires `manage_app_settings`; a change is
+        recorded as an AuditEvent carrying the actor and the before/after values.
+        A progress SMS switched off is recorded as skipped and never sent later.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAppFeatureSettingRequest'
+            examples:
+              switch_off_codes:
+                value:
+                  app_feature_setting:
+                    voucher_payment_enabled: false
+                    disabled_sms_messages: [fee_pending]
+      responses:
+        '200':
+          description: Switches updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      card_payment_enabled: true
+                      voucher_payment_enabled: false
+                      progress_sms_enabled: true
+                      automatic_calls_enabled: true
+                      bulk_calls_enabled: true
+                      document_ocr_enabled: false
+                      sms_messages:
+                        - { code: registered, enabled: true, template_ready: true }
+                        - { code: fee_pending, enabled: false, template_ready: true }
+                      server_ready:
+                        card_payment: true
+                        voucher_payment: true
+                        progress_sms: true
+                        automatic_calls: true
+                        bulk_calls: true
+                        document_ocr: false
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-10-29T09:05:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-29T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_app_settings, or is inactive
+        '422':
+          description: disabled_sms_messages names an unknown message
   /api/v1/admin/support_setting:
     get:
       summary: Read the support-number singleton

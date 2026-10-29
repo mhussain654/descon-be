@@ -20,6 +20,7 @@ module Users
 
     def persist_update!
       updated_user = locked_user
+      DeveloperRoleGuard.ensure_update_allowed!(user: updated_user, role: @attributes[:role])
       before_state = audit_state(updated_user)
       updated_user.assign_attributes(@attributes)
       protect_last_active_admin!(updated_user, before_state:)

@@ -25,7 +25,7 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
 
   describe 'GET /api/v1/admin/workflow_stage_call_scripts' do
     it 'lists scripts ordered by workflow_stage_code for an authorized admin' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified')
       create(:workflow_stage_call_script, workflow_stage_code: 'fee_paid')
 
@@ -53,7 +53,7 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
 
   describe 'PATCH /api/v1/admin/workflow_stage_call_scripts/:workflow_stage_code' do
     it 'updates both language announcements and the active flag, recording the actor and an audit event' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified', active: false)
 
       patch '/api/v1/admin/workflow_stage_call_scripts/verified',
@@ -75,7 +75,7 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
     end
 
     it 'allows clearing announcement_ur back to blank (Urdu wording not ready yet)' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified', announcement_ur: 'موجودہ عبارت')
 
       patch '/api/v1/admin/workflow_stage_call_scripts/verified',
@@ -87,7 +87,7 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
     end
 
     it 'returns 404 for a stage with no script row' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
 
       patch '/api/v1/admin/workflow_stage_call_scripts/mobilized',
             params: { workflow_stage_call_script: { active: true } }.to_json,
@@ -108,7 +108,7 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
     end
 
     it 'sets and returns the RoboCall voice id, which replaces the need for announcement text' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified', active: false)
 
       patch '/api/v1/admin/workflow_stage_call_scripts/verified',
@@ -121,7 +121,7 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
     end
 
     it 'rejects a malformed voice id' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified')
 
       patch '/api/v1/admin/workflow_stage_call_scripts/verified',
@@ -132,7 +132,7 @@ RSpec.describe 'API V1 Admin Workflow Stage Call Scripts', type: :request do
     end
 
     it 'rejects an invalid update (blank announcement_en)' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:workflow_stage_call_script, workflow_stage_code: 'verified')
 
       patch '/api/v1/admin/workflow_stage_call_scripts/verified',

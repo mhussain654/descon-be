@@ -126,6 +126,20 @@ RSpec.describe Candidates::Documents::UploadService do
       end.to have_enqueued_job(Candidates::Documents::ExtractDatesJob)
     end
 
+    it 'does not enqueue OCR extraction while document auto-read is switched off in App Settings' do
+      create_required_documents(overrides: { 'passport' => { skip_create: true } })
+      AppFeatureSetting.current.update!(document_ocr_enabled: false)
+
+      expect do
+        described_class.call(
+          candidate:,
+          uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
+          requirement_code: 'passport',
+          request_id: 'req-doc-upload-ocr-off'
+        )
+      end.not_to have_enqueued_job(Candidates::Documents::ExtractDatesJob)
+    end
+
     it 'does not enqueue OCR extraction for a document type that does not support it (e.g. CV)' do
       cv_type = existing_or_create_document_type('cv', name_en: 'CV / Resume', name_ur: 'سی وی')
       create(

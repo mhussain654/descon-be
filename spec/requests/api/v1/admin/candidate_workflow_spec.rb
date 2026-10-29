@@ -27,6 +27,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     DocumentRequirement.delete_all
     DocumentType.delete_all
     Payment.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -51,6 +52,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     DocumentRequirement.delete_all
     DocumentType.delete_all
     Payment.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all

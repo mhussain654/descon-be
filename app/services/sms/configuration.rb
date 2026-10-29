@@ -13,11 +13,17 @@ module Sms
       setting(:sender_id)
     end
 
-    # The Urdu template (template_id_ur) is used for Urdu locales when it is
-    # set; every other locale, or an unset Urdu id, uses the English one.
-    def sendpk_template_id(locale = nil)
-      urdu = setting(:template_id_ur) if locale.to_s == 'ur'
-      urdu || setting(:template_id)
+    # Each message (`template`, e.g. :otp or :registered) has its own approved
+    # template: the Urdu one (<template>_template_id_ur) is used for Urdu
+    # locales when it is set; every other locale, or an unset Urdu id, uses
+    # the English one.
+    def sendpk_template_id(template, locale = nil)
+      sendpk_urdu_template_id(template, locale) || setting(:"#{template}_template_id")
+    end
+
+    # The Urdu template id when one applies, so the provider knows to send Unicode.
+    def sendpk_urdu_template_id(template, locale)
+      setting(:"#{template}_template_id_ur") if locale.to_s == 'ur'
     end
 
     def sendpk_base_url

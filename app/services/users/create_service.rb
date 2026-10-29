@@ -9,6 +9,7 @@ module Users
     end
 
     def call
+      DeveloperRoleGuard.ensure_assignable!(@attributes.fetch(:role))
       user = create_user_with_audit!
       InvitationDeliveryJob.perform_later(user.id)
       user

@@ -6,6 +6,7 @@ ur:
       mps: "ایم پی ایس"
       finance: "فنانس"
       management: "انتظامیہ"
+      developer: "ڈویلپر"
     permissions:
       manage_staff_users: "اسٹاف صارفین کا انتظام"
       manage_roles_permissions: "کرداروں اور اجازتوں کا انتظام"
@@ -27,6 +28,8 @@ ur:
       manage_ai_call_scripts: "AI کال اسکرپٹس کا انتظام"
       manage_ai_call_settings: "AI کال کی حد بندیوں کا انتظام"
       manage_support_settings: "سپورٹ رابطہ نمبر کا انتظام"
+      manage_app_settings: "ایپ سیٹنگز کا انتظام"
+      access_communications_menu: "کمیونیکیشن مینو تک رسائی"
     workflow_stages:
       registered: "رجسٹرڈ"
       documents_pending: "دستاویزات زیر التوا"
@@ -58,3 +61,15 @@ ur:
       ticket_handover: "ٹکٹ کی حوالگی"
       flight_details_uploaded: "پرواز کا دن"
       mobilized: "موبلائزڈ (روانہ)"
+  candidate_sms:
+    registered: "ڈیسکون: محترم %{name}، آپ بیرون ملک ملازمت کے لیے رجسٹر ہو گئے ہیں۔ MPS Connect ایپ ڈاؤن لوڈ کریں، اپنے شناختی کارڈ سے لاگ اِن کریں اور اپنی دستاویزات اپ لوڈ کریں۔"
+    document_rejected: "ڈیسکون: آپ کا %{document} قبول نہیں ہوا۔ براہِ کرم MPS Connect کھول کر دوبارہ اپ لوڈ کریں۔"
+    medical_appointment: "ڈیسکون: آپ کا میڈیکل %{date} کو ہے۔ تفصیل کے لیے MPS Connect دیکھیں۔"
+    fee_pending: "ڈیسکون: آگے بڑھنے کے لیے MPS Connect میں اپنی فیس %{amount} روپے ادا کریں۔"
+    medical_unfit: "ڈیسکون: آپ کا میڈیکل رزلٹ آ گیا ہے۔ تفصیل کے لیے ڈیسکون سے رابطہ کریں۔"
+    qvc_appointment: "ڈیسکون: آپ کی QVC اپائنٹمنٹ %{date} کو ہے۔ تفصیل کے لیے MPS Connect دیکھیں۔"
+    visa_issued: "ڈیسکون: مبارک ہو، آپ کا ویزا جاری ہو گیا ہے۔ اگلے مراحل کے لیے ہم آپ سے رابطہ کریں گے۔"
+    visa_rejected: "ڈیسکون: آپ کا ویزا منظور نہیں ہوا۔ تفصیل کے لیے ڈیسکون سے رابطہ کریں۔"
+    protection_call: "ڈیسکون: براہِ کرم %{date} کو پروٹیکٹر کے لیے آئیں۔ تفصیل کے لیے ڈیسکون سے رابطہ کریں۔"
+    ticket_handover: "ڈیسکون: آپ کا ہوائی ٹکٹ %{date} کو حوالے کر دیا گیا ہے۔ کسی سوال کے لیے ڈیسکون سے رابطہ کریں۔"
+    flight_details: "ڈیسکون: آپ کی فلائٹ %{airline} %{flight}، %{sector}، %{date} کو %{time} بجے ہے۔ تفصیل MPS Connect میں دیکھیں۔"

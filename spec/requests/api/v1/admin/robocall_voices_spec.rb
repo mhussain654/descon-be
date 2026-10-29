@@ -15,7 +15,7 @@ RSpec.describe 'API V1 Admin Robocall Voices', type: :request do
       'Content-Type' => 'application/json' }
   end
 
-  let(:admin) { create(:user, role: 'admin') }
+  let(:admin) { create(:user, role: 'developer') }
   let(:finance) { create(:user, role: 'finance') }
 
   describe 'GET /api/v1/admin/robocall_voices' do

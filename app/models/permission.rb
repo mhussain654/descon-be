@@ -30,8 +30,14 @@ class Permission < ApplicationRecord
     { code: 'manage_ai_call_scripts' },
     { code: 'manage_ai_call_settings' },
     { code: 'manage_training_settings' },
-    { code: 'manage_support_settings' }
+    { code: 'manage_support_settings' },
+    { code: 'manage_app_settings' },
+    { code: 'access_communications_menu' }
   ].freeze
+
+  # Granted only to the developer role: the App Settings feature switches and the
+  # whole Communications menu (communications log, bulk calls, automatic calls).
+  DEVELOPER_ONLY_PERMISSIONS = %w[manage_app_settings access_communications_menu].freeze
 
   has_many :role_permissions, dependent: :destroy
   has_many :roles, through: :role_permissions

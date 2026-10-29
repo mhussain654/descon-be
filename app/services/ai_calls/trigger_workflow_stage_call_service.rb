@@ -33,6 +33,7 @@ module AiCalls
 
     def call
       return if @transitioned_at <= Time.current - NOTIFICATION_WINDOW
+      return unless AppFeatureSetting.enabled?(:automatic_calls)
 
       script = WorkflowStageCallScript.active.find_by(workflow_stage_code: @workflow_stage_code)
       return if script.blank?

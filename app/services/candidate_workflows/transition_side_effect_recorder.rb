@@ -14,7 +14,7 @@ module CandidateWorkflows
       record_protection_record!
       record_outcome!
       record_flight_detail!
-      trigger_workflow_stage_call!
+      notify_candidate!
       PostTransitionEventRecorder.call(
         history_entry: @history_entry,
         context: @context,
@@ -23,6 +23,12 @@ module CandidateWorkflows
     end
 
     private
+
+    # The automatic call and the progress SMS, each a no-op for a stage without one.
+    def notify_candidate!
+      trigger_workflow_stage_call!
+      CandidateSms::StageMessage.call(history_entry: @history_entry, context: @context, evidence:)
+    end
 
     # Enqueued unconditionally -- AiCalls::TriggerWorkflowStageCallService
     # itself checks whether the destination stage has an active script, so

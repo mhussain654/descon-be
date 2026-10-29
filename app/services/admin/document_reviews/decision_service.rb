@@ -28,6 +28,7 @@ module Admin
           document = lock_reviewable_document!
           apply_decision!(document)
           create_audit_event!(document)
+          schedule_rejection_sms!(document) if rejected?
           advance_workflow!(document)
 
           DecisionResult.new(
@@ -51,6 +52,17 @@ module Admin
       def create_audit_event!(document)
         AuditEvent.create!(
           audit_attributes(document)
+        )
+      end
+
+      # Tells the candidate which document to upload again. Each upload is its own
+      # document row, so a rejected re-upload sends again.
+      def schedule_rejection_sms!(document)
+        assignment = document.candidate_assignment
+        locale = CandidateSms::ScheduleDelivery.locale_for(assignment.candidate)
+        CandidateSms::ScheduleDelivery.call(
+          assignment:, message_code: 'document_rejected', dedupe_key: "document_rejected:#{document.id}",
+          variables: { document: document.document_type.public_send(locale == 'ur' ? :name_ur : :name_en) }
         )
       end
 

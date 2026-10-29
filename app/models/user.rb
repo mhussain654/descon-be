@@ -6,7 +6,9 @@
 class User < ApplicationRecord
   devise :database_authenticatable, :recoverable, :lockable, :validatable
 
-  STAFF_ROLE_CODES = %w[admin hr mps finance management].freeze
+  STAFF_ROLE_CODES = %w[admin hr mps finance management developer].freeze
+  # The developer role is set only from the Rails console; admin can never assign it.
+  ASSIGNABLE_ROLE_CODES = (STAFF_ROLE_CODES - %w[developer]).freeze
   STAFF_STATES = %w[invited active suspended].freeze
   INVITATION_TTL = 72.hours
 

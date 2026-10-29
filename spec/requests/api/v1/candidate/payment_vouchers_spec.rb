@@ -138,6 +138,28 @@ RSpec.describe 'API V1 Candidate Payment Vouchers', type: :request do
       expect(Payment.count).to eq(0)
     end
 
+    it 'is unavailable when an admin switches payment codes off in App Settings' do
+      ready_for_payment
+      AppFeatureSetting.current.update!(voucher_payment_enabled: false)
+      with_kuickpay_voucher_configured do
+        post_voucher
+
+        expect(response).to have_http_status(:service_unavailable)
+        expect(Payment.count).to eq(0)
+      end
+    end
+
+    it 'refuses a card checkout when an admin switches card payment off in App Settings' do
+      ready_for_payment
+      AppFeatureSetting.current.update!(card_payment_enabled: false)
+      with_kuickpay_configured do
+        post '/api/v1/candidate/payment', headers: candidate_headers('Idempotency-Key' => 'card-off')
+
+        expect(response).to have_http_status(:service_unavailable)
+        expect(Payment.count).to eq(0)
+      end
+    end
+
     it 'leaves nothing behind when KuickPay refuses' do
       ready_for_payment
       with_kuickpay_voucher_configured do
@@ -172,6 +194,32 @@ RSpec.describe 'API V1 Candidate Payment Vouchers', type: :request do
         post_voucher
         get '/api/v1/candidate/payment', headers: candidate_headers
         expect(response.parsed_body['data']['open_voucher']).to include('provider' => 'kuickpay_voucher')
+      end
+    end
+
+    it 'hides payment codes, even an open one, once an admin switches them off' do
+      ready_for_payment
+      with_kuickpay_voucher_configured do
+        stub_kuickpay_hybrid
+        post_voucher
+        AppFeatureSetting.current.update!(voucher_payment_enabled: false)
+
+        get '/api/v1/candidate/payment', headers: candidate_headers
+
+        expect(response.parsed_body['data']).to include('voucher_available' => false, 'open_voucher' => nil)
+      end
+    end
+
+    it 'hides card payment, even an open checkout, once an admin switches it off' do
+      ready_for_payment
+      with_kuickpay_configured do
+        stub_kuickpay_create_session
+        post '/api/v1/candidate/payment', headers: candidate_headers('Idempotency-Key' => 'card-open')
+        AppFeatureSetting.current.update!(card_payment_enabled: false)
+
+        get '/api/v1/candidate/payment', headers: candidate_headers
+
+        expect(response.parsed_body['data']).to include('checkout_available' => false, 'card_checkout_open' => false)
       end
     end
 

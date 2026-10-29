@@ -26,6 +26,19 @@ RSpec.describe CandidateWorkflows::TransitionSideEffectRecorder do
     )
   end
 
+  it 'queues the candidate’s progress SMS for the stage, if it has one' do
+    stage = WorkflowStage.find_by!(code: 'documents_pending')
+
+    expect do
+      described_class.call(
+        history_entry: create(:candidate_stage_history, candidate_assignment: assignment, to_workflow_stage: stage),
+        context: { candidate:, assignment:, destination_stage: stage, current_stage: nil },
+        transition: { request_id: 'req-3', transitioned_at:, evidence: {} }
+      )
+    end.to have_enqueued_job(CandidateSms::DeliveryJob)
+    expect(CandidateSmsDelivery.sole.message_code).to eq('registered')
+  end
+
   it 'enqueues the job for every destination stage, not only ones with other side effects' do
     other_stage = WorkflowStage.find_by!(code: 'documents_pending')
     other_transitioned_at = Time.current

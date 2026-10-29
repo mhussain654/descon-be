@@ -136,7 +136,7 @@ Commonly adjusted per machine or environment:
 - `OTP_IDENTITY_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_IMPORT_MAX_BYTES`
 - `CANDIDATE_IMPORT_MAX_ROWS`
-- `SMS_PROVIDER` -- `test` (no network call, delivers nothing, never returns or logs the code) or `sendpk` (real delivery through send.pk; needs `sendpk.<env>.api_key` in encrypted credentials plus `SENDPK_SENDER_ID` and the approved `OTP_TEMPLATE_ID`/`OTP_TEMPLATE_ID_UR`); see `app/services/sms/`
+- `SMS_PROVIDER` -- `test` (no network call, delivers nothing, never returns or logs the code) or `sendpk` (real delivery through send.pk; needs `sendpk.<env>.api_key` in encrypted credentials plus `SENDPK_SENDER_ID` and the approved `OTP_TEMPLATE_ID`/`OTP_TEMPLATE_ID_UR`); see `app/services/sms/`. Candidate progress SMS use the same send.pk setup with one template per message (`<MESSAGE>_TEMPLATE_ID`/`_UR`); see [docs/candidate-sms.md](docs/candidate-sms.md)
 - `ACTIVE_STORAGE_SERVICE`
 - `FORCE_SSL`
 - `RAILS_LOG_LEVEL`

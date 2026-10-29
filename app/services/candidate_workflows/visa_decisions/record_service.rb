@@ -136,10 +136,13 @@ module CandidateWorkflows
         decision_result(decision, StateSnapshotService.call(candidate: @params.candidate))
       end
 
+      # A re-decision has no stage change, so its SMS is queued here with the audit.
       def audit_re_decision!(decision)
         VisaDecisionAuditRecorder.call(actor: @params.actor, request_id: @params.request_id,
                                        context: { candidate: @params.candidate, assignment: locked_assignment,
                                                   decision: })
+        CandidateSms::ScheduleDelivery.call(assignment: locked_assignment,
+                                            **CandidateSms::StageMessage.visa_decision(decision))
       end
 
       def re_decision_attributes

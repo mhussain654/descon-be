@@ -132,6 +132,7 @@ module Candidates
       # CNIC) are extracted.
       def enqueue_extraction(document)
         return unless document.document_type.supports_ocr_extraction?
+        return unless AppFeatureSetting.enabled?(:document_ocr)
 
         ExtractDatesJob.perform_later(document.id)
       end

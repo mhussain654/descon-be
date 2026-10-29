@@ -22,6 +22,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
     Payment.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -41,6 +42,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     CandidateQvcAttempt.delete_all
     CandidateProtectionRecord.delete_all
     Payment.delete_all
+    CandidateSmsDelivery.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -304,6 +306,8 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     expect(response.parsed_body.dig('data', 'qvc_attempt', 'attempt_number')).to eq(2)
     expect(assignment.reload.current_workflow_stage.code).to eq('qvc_completed_outcome_received')
     expect(prior_attempt.reload.outcome_code).to eq('re_medical')
+    expect(CandidateSmsDelivery.where(message_code: 'qvc_appointment').sole.variables)
+      .to include('date' => '05-09-2026')
 
     follow_up_id = response.parsed_body.dig('data', 'qvc_attempt', 'id')
     patch "/api/v1/admin/candidates/#{candidate.public_id}/qvc_attempts/#{follow_up_id}",

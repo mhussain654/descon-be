@@ -2,7 +2,9 @@
 
 module StaffAuthorizationReferenceData
   ROLE_PERMISSION_MAP = {
-    'admin' => Permission::SYSTEM_PERMISSIONS.map { |permission| permission.fetch(:code) },
+    'admin' => Permission::SYSTEM_PERMISSIONS.map { |permission| permission.fetch(:code) } -
+               Permission::DEVELOPER_ONLY_PERMISSIONS,
+    'developer' => Permission::SYSTEM_PERMISSIONS.map { |permission| permission.fetch(:code) },
     'hr' => %w[
       manage_candidates
       manage_candidate_documents
@@ -74,6 +76,16 @@ module StaffAuthorizationReferenceData
       role = Role.find_by!(code: role_code)
       permission_codes.each { |permission_code| ensure_role_permission!(role, permission_code) }
     end
+    remove_developer_only_grants!
+  end
+
+  # Mirrors db/seeds.rb: a test database seeded before a permission became
+  # developer-only may still grant it to another role.
+  def remove_developer_only_grants!
+    RolePermission.joins(:permission, :role)
+                  .where(permissions: { code: Permission::DEVELOPER_ONLY_PERMISSIONS })
+                  .where.not(roles: { code: 'developer' })
+                  .delete_all
   end
 
   def ensure_role_permission!(role, permission_code)

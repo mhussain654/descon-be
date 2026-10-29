@@ -11,7 +11,10 @@ class Role < ApplicationRecord
     { code: 'hr' },
     { code: 'mps' },
     { code: 'finance' },
-    { code: 'management' }
+    { code: 'management' },
+    # Every permission, including the developer-only ones. Assigned only from the
+    # Rails console, never from admin (see User::ASSIGNABLE_ROLE_CODES).
+    { code: 'developer' }
   ].freeze
 
   has_many :users, primary_key: :code, foreign_key: :role, inverse_of: :staff_role,

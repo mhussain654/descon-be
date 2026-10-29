@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_21_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -63,6 +63,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_100000) do
     t.check_constraint "human_transfer_phone_number IS NULL OR human_transfer_phone_number::text ~ '^\\+?\\d{10,15}$'::text", name: "ai_call_operational_settings_human_transfer_phone_number_format"
     t.check_constraint "max_call_duration_minutes >= 0", name: "ai_call_operational_settings_max_call_duration_minutes_non_nega"
     t.check_constraint "outbound_trigger_cooldown_minutes >= 0", name: "ai_call_operational_settings_outbound_trigger_cooldown_minutes_"
+  end
+
+  create_table "app_feature_settings", force: :cascade do |t|
+    t.boolean "automatic_calls_enabled", default: true, null: false
+    t.boolean "bulk_calls_enabled", default: true, null: false
+    t.boolean "card_payment_enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "disabled_sms_messages", default: [], null: false, array: true
+    t.boolean "document_ocr_enabled", default: true, null: false
+    t.boolean "progress_sms_enabled", default: true, null: false
+    t.boolean "singleton_guard", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.boolean "voucher_payment_enabled", default: true, null: false
+    t.index ["singleton_guard"], name: "index_app_feature_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_app_feature_settings_on_updated_by_id"
   end
 
   create_table "audit_events", force: :cascade do |t|
@@ -591,6 +607,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_100000) do
     t.index ["candidate_id"], name: "index_candidate_sessions_on_candidate_id"
     t.index ["jti"], name: "index_candidate_sessions_on_jti", unique: true
     t.index ["public_id"], name: "index_candidate_sessions_on_public_id", unique: true
+  end
+
+  create_table "candidate_sms_deliveries", force: :cascade do |t|
+    t.bigint "candidate_assignment_id", null: false
+    t.bigint "candidate_id", null: false
+    t.datetime "created_at", null: false
+    t.string "dedupe_key", null: false
+    t.string "error_code"
+    t.string "locale", null: false
+    t.string "message_code", null: false
+    t.string "provider_reference"
+    t.string "public_id", null: false
+    t.datetime "sent_at"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "variables", default: {}, null: false
+    t.index ["candidate_assignment_id"], name: "index_candidate_sms_deliveries_on_candidate_assignment_id"
+    t.index ["candidate_id"], name: "index_candidate_sms_deliveries_on_candidate_id"
+    t.index ["dedupe_key"], name: "index_candidate_sms_deliveries_on_dedupe_key", unique: true
+    t.index ["public_id"], name: "index_candidate_sms_deliveries_on_public_id", unique: true
+    t.index ["status"], name: "index_candidate_sms_deliveries_on_status"
+    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidate_sms_deliveries_locale_values"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text, 'skipped'::character varying::text])", name: "candidate_sms_deliveries_status_values"
   end
 
   create_table "candidate_stage_histories", force: :cascade do |t|
@@ -1185,6 +1224,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_100000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "ai_call_operational_settings", "users", column: "updated_by_id"
+  add_foreign_key "app_feature_settings", "users", column: "updated_by_id"
   add_foreign_key "audit_events", "candidate_assignments"
   add_foreign_key "audit_events", "candidates"
   add_foreign_key "audit_events", "users", column: "actor_id"
@@ -1243,6 +1283,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_100000) do
   add_foreign_key "candidate_refresh_tokens", "candidate_refresh_tokens", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "candidate_refresh_tokens", "candidate_sessions"
   add_foreign_key "candidate_sessions", "candidates"
+  add_foreign_key "candidate_sms_deliveries", "candidate_assignments"
+  add_foreign_key "candidate_sms_deliveries", "candidates"
   add_foreign_key "candidate_stage_histories", "candidate_assignments"
   add_foreign_key "candidate_stage_histories", "mobilization_process_stages", column: "from_mobilization_process_stage_id"
   add_foreign_key "candidate_stage_histories", "mobilization_process_stages", column: "to_mobilization_process_stage_id"

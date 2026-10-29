@@ -18,7 +18,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
 
   describe 'GET /api/v1/admin/communications' do
     it 'allows an admin to list communications, most recent first' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       older = travel_to(2.days.ago) { create(:communication) }
       newer = travel_to(1.hour.ago) { create(:communication) }
 
@@ -30,7 +30,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
     end
 
     it 'includes a zero-filled direction summary in meta' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:communication, direction_code: 'outbound')
       create(:communication, direction_code: 'inbound')
 
@@ -42,7 +42,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
     end
 
     it 'serializes channel, assignment, initiated_by and delivery state' do
-      actor = create(:user, role: 'admin')
+      actor = create(:user, role: 'developer')
       assignment = create(:candidate_assignment)
       communication = create(:communication, candidate_assignment: assignment, initiated_by: actor)
 
@@ -61,7 +61,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
           'reference_number' => assignment.reference_number,
           'candidate_id' => assignment.candidate.public_id
         },
-        'initiated_by' => { 'id' => actor.public_id, 'role' => 'admin' },
+        'initiated_by' => { 'id' => actor.public_id, 'role' => 'developer' },
         'recipient_masked' => '+92300*****12',
         'provider_reference' => nil,
         'error_code' => nil,
@@ -72,14 +72,12 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
       )
     end
 
-    it 'allows a management staff member (view_communications) to list too' do
-      management = create(:user, role: 'management')
-      create(:communication)
+    it 'forbids admin and management: the Communications menu is developer-only' do
+      %w[admin management].each do |role|
+        get '/api/v1/admin/communications', headers: auth_headers(create(:user, role:))
 
-      get '/api/v1/admin/communications', headers: auth_headers(management)
-
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body['data'].size).to eq(1)
+        expect(response).to have_http_status(:forbidden)
+      end
     end
 
     it 'forbids a staff member without view_communications or manage_communications' do
@@ -98,7 +96,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
     end
 
     it 'filters by channel' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       sms = create(:communication, channel_code: 'sms')
       create(:communication, channel_code: 'email')
 
@@ -109,7 +107,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
     end
 
     it 'filters by candidate' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
       mine = create(:communication, candidate_assignment: assignment)
@@ -123,7 +121,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
     end
 
     it 'rejects an unsupported filter' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
 
       get '/api/v1/admin/communications', params: { filter: { bogus: 'x' } }, headers: auth_headers(admin)
 
@@ -132,7 +130,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
     end
 
     it 'paginates the collection' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       3.times { create(:communication) }
 
       get '/api/v1/admin/communications', params: { page: { number: 1, size: 2 } }, headers: auth_headers(admin)
@@ -143,7 +141,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
     end
 
     it 'does not N+1 as the number of communications grows' do
-      admin = create(:user, role: 'admin')
+      admin = create(:user, role: 'developer')
       create(:communication)
 
       single_row_count = count_queries do

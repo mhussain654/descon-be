@@ -49,15 +49,17 @@ module Payments
 
     def eligible_result(assignment:)
       prerequisite_result = fee_pending_prerequisite_result(assignment)
+      allowed = prerequisite_result.allowed
       build_result(
-        assignment:,
-        current_stage_code: assignment.current_workflow_stage.code,
-        eligible: prerequisite_result.allowed,
+        assignment:, current_stage_code: assignment.current_workflow_stage.code, eligible: allowed,
         blocking_reasons: prerequisite_result.blocking_reasons,
-        checkout_available: prerequisite_result.allowed && provider.available?,
-        voucher_available: prerequisite_result.allowed && voucher_provider.available?
+        checkout_available: allowed && card_offered?, voucher_available: allowed && voucher_offered?
       )
     end
+
+    # A way of paying is offered when the server is set up for it and App Settings has it on.
+    def card_offered? = provider.available? && AppFeatureSetting.enabled?(:card_payment)
+    def voucher_offered? = voucher_provider.available? && AppFeatureSetting.enabled?(:voucher_payment)
 
     def unavailable_provider_result
       assignment = @candidate.current_assignment

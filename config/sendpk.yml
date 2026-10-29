@@ -9,8 +9,43 @@
 default: &default
   base_url: <%= ENV.fetch('SENDPK_BASE_URL', 'https://sendpk.com').to_json %>
   sender_id: <%= ENV.fetch('SENDPK_SENDER_ID', '').to_json %>
-  template_id: <%= ENV.fetch('OTP_TEMPLATE_ID', '').to_json %>
-  template_id_ur: <%= ENV.fetch('OTP_TEMPLATE_ID_UR', '').to_json %>
+
+  otp_template_id: <%= ENV.fetch('OTP_TEMPLATE_ID', '').to_json %>
+  otp_template_id_ur: <%= ENV.fetch('OTP_TEMPLATE_ID_UR', '').to_json %>
+
+  registered_template_id: <%= ENV.fetch('REGISTERED_TEMPLATE_ID', '').to_json %>
+  registered_template_id_ur: <%= ENV.fetch('REGISTERED_TEMPLATE_ID_UR', '').to_json %>
+
+  document_rejected_template_id: <%= ENV.fetch('DOCUMENT_REJECTED_TEMPLATE_ID', '').to_json %>
+  document_rejected_template_id_ur: <%= ENV.fetch('DOCUMENT_REJECTED_TEMPLATE_ID_UR', '').to_json %>
+
+  medical_appointment_template_id: <%= ENV.fetch('MEDICAL_APPOINTMENT_TEMPLATE_ID', '').to_json %>
+  medical_appointment_template_id_ur: <%= ENV.fetch('MEDICAL_APPOINTMENT_TEMPLATE_ID_UR', '').to_json %>
+
+  fee_pending_template_id: <%= ENV.fetch('FEE_PENDING_TEMPLATE_ID', '').to_json %>
+  fee_pending_template_id_ur: <%= ENV.fetch('FEE_PENDING_TEMPLATE_ID_UR', '').to_json %>
+
+  medical_unfit_template_id: <%= ENV.fetch('MEDICAL_UNFIT_TEMPLATE_ID', '').to_json %>
+  medical_unfit_template_id_ur: <%= ENV.fetch('MEDICAL_UNFIT_TEMPLATE_ID_UR', '').to_json %>
+
+  qvc_appointment_template_id: <%= ENV.fetch('QVC_APPOINTMENT_TEMPLATE_ID', '').to_json %>
+  qvc_appointment_template_id_ur: <%= ENV.fetch('QVC_APPOINTMENT_TEMPLATE_ID_UR', '').to_json %>
+
+  visa_issued_template_id: <%= ENV.fetch('VISA_ISSUED_TEMPLATE_ID', '').to_json %>
+  visa_issued_template_id_ur: <%= ENV.fetch('VISA_ISSUED_TEMPLATE_ID_UR', '').to_json %>
+
+  visa_rejected_template_id: <%= ENV.fetch('VISA_REJECTED_TEMPLATE_ID', '').to_json %>
+  visa_rejected_template_id_ur: <%= ENV.fetch('VISA_REJECTED_TEMPLATE_ID_UR', '').to_json %>
+
+  protection_call_template_id: <%= ENV.fetch('PROTECTION_CALL_TEMPLATE_ID', '').to_json %>
+  protection_call_template_id_ur: <%= ENV.fetch('PROTECTION_CALL_TEMPLATE_ID_UR', '').to_json %>
+
+  ticket_handover_template_id: <%= ENV.fetch('TICKET_HANDOVER_TEMPLATE_ID', '').to_json %>
+  ticket_handover_template_id_ur: <%= ENV.fetch('TICKET_HANDOVER_TEMPLATE_ID_UR', '').to_json %>
+
+  flight_details_template_id: <%= ENV.fetch('FLIGHT_DETAILS_TEMPLATE_ID', '').to_json %>
+  flight_details_template_id_ur: <%= ENV.fetch('FLIGHT_DETAILS_TEMPLATE_ID_UR', '').to_json %>
+
   open_timeout: <%= ENV.fetch('SENDPK_OPEN_TIMEOUT_SECONDS', 5).to_i %>
   read_timeout: <%= ENV.fetch('SENDPK_READ_TIMEOUT_SECONDS', 10).to_i %>
 

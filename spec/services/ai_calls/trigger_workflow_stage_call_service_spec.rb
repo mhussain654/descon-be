@@ -69,6 +69,15 @@ RSpec.describe AiCalls::TriggerWorkflowStageCallService do
     expect(CandidateAiCall.count).to eq(0)
   end
 
+  it 'is a no-op while automatic calls are switched off in App Settings' do
+    create(:workflow_stage_call_script, workflow_stage_code: 'verified')
+    AppFeatureSetting.current.update!(automatic_calls_enabled: false)
+    allow(Net::HTTP).to receive(:start)
+
+    expect(service.call).to be_nil
+    expect(Net::HTTP).not_to have_received(:start)
+  end
+
   it 'places the call for an active script, unattributed to any admin' do
     create(:workflow_stage_call_script, workflow_stage_code: 'verified',
                                         announcement_en: 'Your documents are verified.')

@@ -113,7 +113,8 @@ module CandidateAuthentication
       end
 
       def send_sms(to:, code:, locale:)
-        Sms::SendMessage.call(to:, body: sms_body(code:, locale:), variables: sms_variables(code:), locale:)
+        Sms::SendMessage.call(to:, body: sms_body(code:, locale:), variables: sms_variables(code:), template: :otp,
+                              locale:)
       end
 
       def sms_body(code:, locale:)

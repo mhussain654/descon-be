@@ -58,6 +58,8 @@ ur:
       staff_state_invalid: "اسٹاف کی درست حالت منتخب کریں۔"
       staff_state_transition_invalid: "مدعو شدہ صارفین کو دعوت نامہ قبول کر کے اپنا اکاؤنٹ فعال کرنا ہوگا۔"
       self_suspension_forbidden: "آپ اپنا اکاؤنٹ خود معطل نہیں کر سکتے۔"
+      developer_role_not_assignable: "ڈویلپر کا کردار یہاں نہیں دیا جا سکتا۔"
+      developer_account_not_manageable: "ڈویلپر اکاؤنٹ یہاں تبدیل نہیں کیا جا سکتا۔"
       last_active_admin: "آخری فعال ایڈمنسٹریٹر کو معطل یا تنزّل نہیں کیا جا سکتا۔"
       missing_idempotency_key: "اس درخواست کے لیے آئیڈیمپوٹنسی کلید ضروری ہے۔"
       invalid_idempotency_key: "آئیڈیمپوٹنسی کلید کا فارمیٹ درست نہیں ہے۔"

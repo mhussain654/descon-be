@@ -9,13 +9,19 @@ RSpec.describe Admin::RobocallVoicePolicy do
     ensure_staff_authorization_reference_data!
   end
 
-  let(:admin) { create(:user, role: 'admin') }
+  let(:admin) { create(:user, role: 'developer') }
   let(:finance) { create(:user, role: 'finance') }
 
   it 'lets a permitted staff member read and change the library' do
     policy = described_class.new(admin, RobocallVoice)
 
     expect([policy.index?, policy.create?, policy.update?]).to all(be(true))
+  end
+
+  it 'lets an admin pick a call type but not change the library (developer-only)' do
+    policy = described_class.new(create(:user, role: 'admin'), RobocallVoice)
+
+    expect([policy.index?, policy.create?, policy.update?]).to eq([true, false, false])
   end
 
   it 'refuses everything to staff with neither call permission' do

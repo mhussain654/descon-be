@@ -10,7 +10,7 @@ module Payments
     end
 
     def call
-      raise PaymentCheckoutUnavailableError unless provider.available?
+      raise PaymentCheckoutUnavailableError unless provider.available? && AppFeatureSetting.enabled?(:card_payment)
 
       CandidateAssignment.transaction { execute_checkout }
     rescue Payments::ProviderNotConfiguredError

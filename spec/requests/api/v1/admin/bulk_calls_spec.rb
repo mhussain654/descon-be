@@ -7,7 +7,7 @@ RSpec.describe 'API V1 Admin Bulk Calls', type: :request do
 
   before { ensure_staff_authorization_reference_data! }
 
-  let(:admin) { create(:user, role: 'admin') }
+  let(:admin) { create(:user, role: 'developer') }
   let(:finance) { create(:user, role: 'finance') }
   let(:voice) { create(:robocall_voice, name_en: 'Visa approved') }
 

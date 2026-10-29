@@ -24,17 +24,19 @@ module Sms
   class SendMessage < ApplicationService
     # `body` is the full human-readable text (used by the test provider);
     # `variables` are the values for the vendor's pre-approved template (send.pk
-    # only accepts approved templates -- free text is rejected); `locale` picks
-    # which approved template (English or Urdu) is used.
-    def initialize(to:, body:, variables:, locale: 'en')
+    # only accepts approved templates -- free text is rejected); `template`
+    # names the message (e.g. :otp, :registered) and `locale` picks its
+    # English or Urdu template.
+    def initialize(to:, body:, variables:, template:, locale: 'en')
       @to = to
       @body = body
       @variables = variables
+      @template = template
       @locale = locale
     end
 
     def call
-      provider.deliver(to: @to, body: @body, variables: @variables, locale: @locale)
+      provider.deliver(to: @to, body: @body, variables: @variables, template: @template, locale: @locale)
     end
 
     private

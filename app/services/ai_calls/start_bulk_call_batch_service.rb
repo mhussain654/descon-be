@@ -6,10 +6,10 @@ module AiCalls
   # one background job per candidate, spaced out so RoboCall is not hit all at
   # once (see AiCalls::PlaceBulkCallItemService for what each job does).
   #
-  # Refused up front, before anything is recorded: outbound calling off, outside
-  # calling hours, a limit above the batch ceiling, a voice that is switched
-  # off, nobody left to call, or a batch bigger than today's remaining daily
-  # call budget. Two admins starting overlapping batches are serialized, so no
+  # Refused up front, before anything is recorded: outbound calling off (or bulk
+  # calls switched off in App Settings), outside calling hours, a limit above the
+  # batch ceiling, a voice that is switched off, nobody left to call, or a batch
+  # bigger than today's remaining daily call budget. Two admins starting overlapping batches are serialized, so no
   # candidate is picked twice.
   class StartBulkCallBatchService < ApplicationService
     def initialize(actor:, voice:, query:, limit:, configuration: AiCalls::Configuration.new)
@@ -33,6 +33,7 @@ module AiCalls
 
     def ensure_startable!
       raise AiCallVoiceNotConfiguredError unless @configuration.robocall?
+      raise AiCallOutboundDisabledError unless AppFeatureSetting.enabled?(:bulk_calls)
 
       ensure_voice_and_limit!
       @guard.ensure_allowed!(actor: nil)
