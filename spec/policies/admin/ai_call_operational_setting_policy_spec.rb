@@ -8,15 +8,15 @@ RSpec.describe Admin::AiCallOperationalSettingPolicy do
   end
 
   describe '#show? and #update?' do
-    it 'allows only admin (manage_ai_call_settings is admin-only by default)' do
-      admin = create(:user, role: 'admin')
+    it 'allows only the developer (manage_ai_call_settings is developer-only)' do
+      developer = create(:user, role: 'developer')
 
-      expect(described_class.new(admin, AiCallOperationalSetting).show?).to be(true)
-      expect(described_class.new(admin, AiCallOperationalSetting).update?).to be(true)
+      expect(described_class.new(developer, AiCallOperationalSetting).show?).to be(true)
+      expect(described_class.new(developer, AiCallOperationalSetting).update?).to be(true)
     end
 
-    it 'denies staff with manage_ai_call_scripts/trigger_ai_calls but not manage_ai_call_settings' do
-      %w[hr mps finance management].each do |role|
+    it 'denies admin and every other staff role' do
+      %w[admin hr mps finance management].each do |role|
         actor = create(:user, role:)
         expect(described_class.new(actor, AiCallOperationalSetting).show?).to be(false)
         expect(described_class.new(actor, AiCallOperationalSetting).update?).to be(false)

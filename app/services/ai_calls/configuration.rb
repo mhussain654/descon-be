@@ -11,6 +11,17 @@ module AiCalls
     # agent). An unrecognised value falls back to the default.
     VOICE_PROVIDERS = %w[robocall elevenlabs].freeze
 
+    # The admin-editable operational knobs: the ENV var and built-in fallback
+    # each uses when its AiCallOperationalSetting column is blank.
+    OPERATIONAL_DEFAULTS = {
+      outbound_trigger_cooldown_minutes: ['AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 15],
+      daily_outbound_call_limit: ['AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 1000],
+      admin_trigger_rate_limit_per_hour: ['AI_VOICE_ADMIN_TRIGGER_RATE_LIMIT_PER_HOUR', 50],
+      calling_hours_start: ['AI_VOICE_CALLING_HOURS_START', 9],
+      calling_hours_end: ['AI_VOICE_CALLING_HOURS_END', 19],
+      max_call_duration_minutes: ['AI_VOICE_MAX_CALL_DURATION_MINUTES', 15]
+    }.freeze
+
     def voice_provider
       value = ENV.fetch('AI_VOICE_PROVIDER', 'robocall').strip.downcase
       VOICE_PROVIDERS.include?(value) ? value : 'robocall'
@@ -108,35 +119,24 @@ module AiCalls
     # never absent (AiCallOperationalSetting.current creates it lazily), so
     # "the row is absent" only ever describes a never-touched-by-an-admin
     # column, not a missing table row.
-    def outbound_trigger_cooldown_minutes
-      operational_setting.outbound_trigger_cooldown_minutes ||
-        ENV.fetch('AI_VOICE_OUTBOUND_TRIGGER_COOLDOWN_MINUTES', 15).to_i
-    end
-
-    def daily_outbound_call_limit
-      operational_setting.daily_outbound_call_limit || ENV.fetch('AI_VOICE_DAILY_OUTBOUND_CALL_LIMIT', 1000).to_i
-    end
-
-    def admin_trigger_rate_limit_per_hour
-      operational_setting.admin_trigger_rate_limit_per_hour ||
-        ENV.fetch('AI_VOICE_ADMIN_TRIGGER_RATE_LIMIT_PER_HOUR', 50).to_i
-    end
+    def outbound_trigger_cooldown_minutes = operational_value(:outbound_trigger_cooldown_minutes)
+    def daily_outbound_call_limit = operational_value(:daily_outbound_call_limit)
+    def admin_trigger_rate_limit_per_hour = operational_value(:admin_trigger_rate_limit_per_hour)
 
     # Pakistan-local allowed calling hours (24h clock, start inclusive, end
     # exclusive).
-    def calling_hours_start
-      operational_setting.calling_hours_start || ENV.fetch('AI_VOICE_CALLING_HOURS_START', 9).to_i
-    end
-
-    def calling_hours_end
-      operational_setting.calling_hours_end || ENV.fetch('AI_VOICE_CALLING_HOURS_END', 19).to_i
-    end
+    def calling_hours_start = operational_value(:calling_hours_start)
+    def calling_hours_end = operational_value(:calling_hours_end)
 
     # Used both as the reconciliation job's `in_progress` threshold (plus a
     # buffer) and, once agent-config sync manages it, the ElevenLabs
     # `conversation.max_duration_seconds` platform setting.
-    def max_call_duration_minutes
-      operational_setting.max_call_duration_minutes || ENV.fetch('AI_VOICE_MAX_CALL_DURATION_MINUTES', 15).to_i
+    def max_call_duration_minutes = operational_value(:max_call_duration_minutes)
+
+    # What each knob uses while its AiCallOperationalSetting column is blank,
+    # so the admin settings page can show the value actually in force.
+    def operational_defaults
+      OPERATIONAL_DEFAULTS.to_h { |knob, (env_var, fallback)| [knob, ENV.fetch(env_var, fallback).to_i] }
     end
 
     # The phone number ElevenLabs' `transfer_to_number` system tool connects
@@ -162,6 +162,10 @@ module AiCalls
 
     def operational_setting
       @operational_setting ||= AiCallOperationalSetting.current
+    end
+
+    def operational_value(knob)
+      operational_setting.public_send(knob) || operational_defaults.fetch(knob)
     end
   end
 end

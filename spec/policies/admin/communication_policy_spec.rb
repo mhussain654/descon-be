@@ -8,29 +8,28 @@ RSpec.describe Admin::CommunicationPolicy do
   end
 
   describe '#index?' do
-    it 'allows only the developer: the Communications menu is developer-only' do
-      expect(described_class.new(create(:user, role: 'developer'), Communication).index?).to be(true)
-      %w[admin management hr finance].each do |role|
-        expect(described_class.new(create(:user, role:), Communication).index?).to be(false)
+    it 'allows every active staff role: the log is a read-only report' do
+      %w[developer admin management hr mps finance].each do |role|
+        expect(described_class.new(create(:user, role:), Communication).index?).to be(true)
       end
       expect(described_class.new(nil, Communication).index?).to be(false)
     end
 
-    it 'denies an inactive developer' do
-      inactive_developer = create(:user, role: 'developer', active: false)
+    it 'denies an inactive staff member' do
+      inactive_admin = create(:user, role: 'admin', active: false)
 
-      expect(described_class.new(inactive_developer, Communication).index?).to be(false)
+      expect(described_class.new(inactive_admin, Communication).index?).to be(false)
     end
   end
 
   describe '::Scope' do
-    it 'resolves the full scope for a permitted actor and none for a denied one' do
-      developer = create(:user, role: 'developer')
-      management = create(:user, role: 'management')
+    it 'resolves the full scope for active staff and none for an inactive one' do
+      finance = create(:user, role: 'finance')
+      inactive_admin = create(:user, role: 'admin', active: false)
       create(:communication)
 
-      expect(described_class::Scope.new(developer, Communication.all).resolve.count).to eq(1)
-      expect(described_class::Scope.new(management, Communication.all).resolve.count).to eq(0)
+      expect(described_class::Scope.new(finance, Communication.all).resolve.count).to eq(1)
+      expect(described_class::Scope.new(inactive_admin, Communication.all).resolve.count).to eq(0)
     end
   end
 end

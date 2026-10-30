@@ -9321,8 +9321,8 @@ paths:
       summary: Browse the central cross-channel communications log
       description: >-
         Read-only, paginated, filterable view over every Communication record (SMS, email,
-        notification, AI voice call) sent or received about a candidate assignment. Requires
-        either the `view_communications` or `manage_communications` permission. There is no
+        notification, AI voice call) sent or received about a candidate assignment. Open to
+        every active staff member (a read-only report). There is no
         show, create, update, or destroy route: every channel writes Communication rows through
         its own provider-specific service, never directly through this API. `meta.summary`
         returns a zero-filled count per direction (inbound/outbound), scoped by every active
@@ -9435,7 +9435,7 @@ paths:
         '401':
           description: Missing, invalid, expired, or revoked staff access token
         '403':
-          description: Authenticated staff user lacks view_communications/manage_communications, or is inactive
+          description: Authenticated staff user is inactive
   /api/v1/admin/workflow_stage_call_scripts:
     get:
       summary: List the per-workflow-stage AI call scripts
@@ -9936,8 +9936,10 @@ paths:
         max call duration), plus the live human-transfer destination number. A knob column
         reading null means that knob still falls back to its ENV var/default;
         human_transfer_phone_number has no ENV fallback and simply stays null (no transfer
-        capability) until set. Requires the `manage_ai_call_settings` permission -- admin-only
-        by default, independent from `trigger_ai_calls`/`manage_ai_call_scripts`.
+        capability) until set. `defaults` gives the value each knob uses while its column is
+        null, so the settings page can show the value in force. Requires the
+        `manage_ai_call_settings` permission -- developer-only, independent from
+        `trigger_ai_calls`/`manage_ai_call_scripts`.
       security:
         - bearerAuth: []
       parameters:
@@ -9968,6 +9970,13 @@ paths:
                       calling_hours_end: null
                       max_call_duration_minutes: null
                       human_transfer_phone_number: null
+                      defaults:
+                        outbound_trigger_cooldown_minutes: 15
+                        daily_outbound_call_limit: 1000
+                        admin_trigger_rate_limit_per_hour: 50
+                        calling_hours_start: 9
+                        calling_hours_end: 19
+                        max_call_duration_minutes: 15
                       updated_by: null
                       updated_at: '2026-09-11T09:00:00Z'
                     meta:
@@ -10021,9 +10030,16 @@ paths:
                       calling_hours_end: 19
                       max_call_duration_minutes: 15
                       human_transfer_phone_number: null
+                      defaults:
+                        outbound_trigger_cooldown_minutes: 15
+                        daily_outbound_call_limit: 1000
+                        admin_trigger_rate_limit_per_hour: 50
+                        calling_hours_start: 9
+                        calling_hours_end: 19
+                        max_call_duration_minutes: 15
                       updated_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
-                        role: admin
+                        role: developer
                       updated_at: '2026-09-11T09:05:00Z'
                     meta:
                       request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5

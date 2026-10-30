@@ -72,21 +72,12 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
       )
     end
 
-    it 'forbids admin and management: the Communications menu is developer-only' do
-      %w[admin management].each do |role|
+    it 'allows every staff role, including one without a communications permission' do
+      %w[admin management finance].each do |role|
         get '/api/v1/admin/communications', headers: auth_headers(create(:user, role:))
 
-        expect(response).to have_http_status(:forbidden)
+        expect(response).to have_http_status(:ok)
       end
-    end
-
-    it 'forbids a staff member without view_communications or manage_communications' do
-      finance = create(:user, role: 'finance')
-
-      get '/api/v1/admin/communications', headers: auth_headers(finance)
-
-      expect(response).to have_http_status(:forbidden)
-      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('forbidden')
     end
 
     it 'rejects an unauthenticated request' do

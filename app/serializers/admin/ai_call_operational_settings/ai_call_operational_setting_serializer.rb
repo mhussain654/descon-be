@@ -8,7 +8,11 @@ module Admin
       end
 
       def as_json(*)
-        knob_attributes.merge(updated_by: serialized_updated_by, updated_at: @setting.updated_at.utc.iso8601)
+        knob_attributes.merge(
+          defaults: ::AiCalls::Configuration.new.operational_defaults,
+          updated_by: serialized_updated_by,
+          updated_at: @setting.updated_at.utc.iso8601
+        )
       end
 
       private

@@ -8,10 +8,12 @@ RSpec.describe Admin::BulkCallPolicy do
   let(:admin) { create(:user, role: 'developer') }
   let(:finance) { create(:user, role: 'finance') }
 
-  it 'refuses an admin: bulk calls are in the developer-only Communications menu' do
-    policy = described_class.new(create(:user, role: 'admin'), BulkCallBatch)
+  it 'lets admin and calling staff use bulk calling' do
+    %w[admin hr mps].each do |role|
+      policy = described_class.new(create(:user, role:), BulkCallBatch)
 
-    expect([policy.index?, policy.show?, policy.create?, policy.candidates?]).to all(be(false))
+      expect([policy.index?, policy.show?, policy.create?, policy.candidates?]).to all(be(true))
+    end
   end
 
   it 'lets the developer use bulk calling' do
