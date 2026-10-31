@@ -1937,16 +1937,36 @@ components:
             automatic_calls_enabled: { type: boolean, description: Automatic stage calls. }
             bulk_calls_enabled: { type: boolean, description: Starting bulk calls. }
             document_ocr_enabled: { type: boolean, description: Reading dates from uploaded documents. }
-            disabled_sms_messages:
-              type: array
-              description: The progress SMS messages switched off; an empty list turns them all back on.
-              items:
-                type: string
-                enum: [registered, document_rejected, medical_appointment, fee_pending, medical_unfit,
-                       qvc_appointment, visa_issued, visa_rejected, protection_call, ticket_handover,
-                       flight_details]
           additionalProperties: false
       required: [app_feature_setting]
+    AdminSmsTemplateRequest:
+      type: object
+      properties:
+        sms_template:
+          type: object
+          description: Any subset of the fields.
+          properties:
+            template_id_en:
+              type: string
+              nullable: true
+              pattern: '^[0-9]{1,20}$'
+              description: >-
+                The id of the English template approved in send.pk's dashboard.
+                An empty value clears it; a message with no template id is skipped.
+              example: '20010'
+            template_id_ur:
+              type: string
+              nullable: true
+              pattern: '^[0-9]{1,20}$'
+              description: >-
+                The id of the Urdu template, used for Urdu-speaking candidates and
+                sent as Unicode. When it is empty they get the English one.
+              example: '20011'
+            enabled:
+              type: boolean
+              description: Whether the message is sent. The OTP cannot be switched off.
+          additionalProperties: false
+      required: [sms_template]
     AdminQvcAttemptRequest:
       type: object
       properties:
@@ -10055,8 +10075,7 @@ paths:
     get:
       summary: Read the App Settings feature switches
       description: >-
-        Returns the single AppFeatureSetting row: each feature switch, each
-        progress SMS message with whether its send.pk template is set, and
+        Returns the single AppFeatureSetting row: each feature switch and
         `server_ready` -- whether the server is set up for each feature. A feature
         runs only when its switch is on and its server setup is ready. Switching
         card payment or payment codes off also hides any already-open checkout or
@@ -10087,9 +10106,6 @@ paths:
                       automatic_calls_enabled: true
                       bulk_calls_enabled: true
                       document_ocr_enabled: false
-                      sms_messages:
-                        - { code: registered, enabled: true, template_ready: true }
-                        - { code: fee_pending, enabled: false, template_ready: true }
                       server_ready:
                         card_payment: true
                         voucher_payment: true
@@ -10114,7 +10130,7 @@ paths:
       description: >-
         Updates any of the switches. Requires `manage_app_settings`; a change is
         recorded as an AuditEvent carrying the actor and the before/after values.
-        A progress SMS switched off is recorded as skipped and never sent later.
+        Each SMS message is switched on or off in `/api/v1/admin/sms_templates`.
       security:
         - bearerAuth: []
       parameters:
@@ -10131,7 +10147,6 @@ paths:
                 value:
                   app_feature_setting:
                     voucher_payment_enabled: false
-                    disabled_sms_messages: [fee_pending]
       responses:
         '200':
           description: Switches updated
@@ -10149,9 +10164,6 @@ paths:
                       automatic_calls_enabled: true
                       bulk_calls_enabled: true
                       document_ocr_enabled: false
-                      sms_messages:
-                        - { code: registered, enabled: true, template_ready: true }
-                        - { code: fee_pending, enabled: false, template_ready: true }
                       server_ready:
                         card_payment: true
                         voucher_payment: true
@@ -10172,7 +10184,130 @@ paths:
         '403':
           description: Authenticated staff user lacks manage_app_settings, or is inactive
         '422':
-          description: disabled_sms_messages names an unknown message
+          description: Validation failed
+  /api/v1/admin/sms_templates:
+    get:
+      summary: List the send.pk SMS messages
+      description: >-
+        Returns every SMS message -- the OTP and each progress SMS, in the order
+        a candidate gets them -- with its English and Urdu send.pk template ids,
+        whether it is sent, whether it may be switched off (`can_disable`, false
+        for the OTP) and the values its template must use (`variables`). A
+        progress SMS is sent only while both this switch and `progress_sms_enabled`
+        in the app feature setting are on. Requires `manage_app_settings`
+        (developer-only).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Every SMS message
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                templates:
+                  value:
+                    data:
+                      - message_code: otp
+                        template_id_en: '10790'
+                        template_id_ur: null
+                        enabled: true
+                        can_disable: false
+                        variables: [code, minutes]
+                        updated_by: null
+                        updated_at: '2026-10-30T09:00:00Z'
+                      - message_code: fee_pending
+                        template_id_en: '20010'
+                        template_id_ur: '20011'
+                        enabled: true
+                        can_disable: true
+                        variables: [name, amount]
+                        updated_by:
+                          id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                          role: developer
+                        updated_at: '2026-10-30T09:05:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-30T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_app_settings, or is inactive
+  /api/v1/admin/sms_templates/{message_code}:
+    patch:
+      summary: Change one SMS message's template ids or switch
+      description: >-
+        Updates the message's template ids and/or whether it is sent. Takes effect
+        on the next SMS, with no deploy. A message switched off is recorded as
+        skipped and never sent later. Requires `manage_app_settings`; a change is
+        recorded as an AuditEvent carrying the actor and the before/after values.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: message_code
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [otp, registered, document_rejected, medical_appointment, fee_pending, medical_unfit,
+                   qvc_appointment, visa_issued, visa_rejected, protection_call, ticket_handover,
+                   flight_details]
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSmsTemplateRequest'
+            examples:
+              new_template:
+                value:
+                  sms_template:
+                    template_id_en: '20010'
+                    template_id_ur: '20011'
+                    enabled: true
+      responses:
+        '200':
+          description: Message updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      message_code: fee_pending
+                      template_id_en: '20010'
+                      template_id_ur: '20011'
+                      enabled: true
+                      can_disable: true
+                      variables: [name, amount]
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: developer
+                      updated_at: '2026-10-30T09:05:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-10-30T09:05:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_app_settings, or is inactive
+        '404':
+          description: No such SMS message
+        '422':
+          description: A template id is not a number, or the request tries to switch off the OTP
   /api/v1/admin/support_setting:
     get:
       summary: Read the support-number singleton

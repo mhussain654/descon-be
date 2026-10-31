@@ -17,11 +17,6 @@ module Admin
         }
       end
 
-      # The message's English template id is set (the Urdu one is optional).
-      def sms_template_ready?(message_code)
-        sms_configuration.sendpk_template_id(message_code).present?
-      end
-
       private
 
       def provider_available?(provider_code)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -70,7 +70,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_110000) do
     t.boolean "bulk_calls_enabled", default: true, null: false
     t.boolean "card_payment_enabled", default: true, null: false
     t.datetime "created_at", null: false
-    t.string "disabled_sms_messages", default: [], null: false, array: true
     t.boolean "document_ocr_enabled", default: true, null: false
     t.boolean "progress_sms_enabled", default: true, null: false
     t.boolean "singleton_guard", default: true, null: false
@@ -141,7 +140,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_110000) do
     t.index ["candidate_assignment_id", "status"], name: "index_bulk_call_items_on_assignment_and_status"
     t.index ["candidate_assignment_id"], name: "index_bulk_call_batch_items_on_candidate_assignment_id"
     t.index ["candidate_id"], name: "index_bulk_call_batch_items_on_candidate_id"
-    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'placed'::character varying, 'skipped'::character varying, 'failed'::character varying]::text[])", name: "bulk_call_batch_items_status"
+    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying::text, 'placed'::character varying::text, 'skipped'::character varying::text, 'failed'::character varying::text])", name: "bulk_call_batch_items_status"
   end
 
   create_table "bulk_call_batches", force: :cascade do |t|
@@ -476,7 +475,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_110000) do
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
     t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying, 'queued'::character varying, 'processing'::character varying, 'completed'::character varying, 'partial'::character varying, 'failed'::character varying, 'invalidated'::character varying]::text[])", name: "candidate_import_batches_status"
+    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying::text, 'queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_import_row_results", force: :cascade do |t|
@@ -1122,6 +1121,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_110000) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "sms_templates", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "message_code", null: false
+    t.string "template_id_en"
+    t.string "template_id_ur"
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.index ["message_code"], name: "index_sms_templates_on_message_code", unique: true
+    t.index ["updated_by_id"], name: "index_sms_templates_on_updated_by_id"
+    t.check_constraint "message_code::text <> 'otp'::text OR enabled", name: "sms_templates_otp_always_enabled"
+    t.check_constraint "message_code::text = ANY (ARRAY['otp'::character varying, 'registered'::character varying, 'document_rejected'::character varying, 'medical_appointment'::character varying, 'fee_pending'::character varying, 'medical_unfit'::character varying, 'qvc_appointment'::character varying, 'visa_issued'::character varying, 'visa_rejected'::character varying, 'protection_call'::character varying, 'ticket_handover'::character varying, 'flight_details'::character varying]::text[])", name: "sms_templates_message_code_known"
+  end
+
   create_table "support_settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "phone_number"
@@ -1329,6 +1342,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_110000) do
   add_foreign_key "role_permissions", "permissions", on_delete: :cascade
   add_foreign_key "role_permissions", "roles", on_delete: :cascade
   add_foreign_key "sessions", "users"
+  add_foreign_key "sms_templates", "users", column: "updated_by_id"
   add_foreign_key "support_settings", "users", column: "updated_by_id"
   add_foreign_key "training_videos", "users", column: "created_by_id"
   add_foreign_key "users", "roles", column: "role", primary_key: "code"

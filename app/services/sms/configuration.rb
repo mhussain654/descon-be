@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 module Sms
-  # Reads every SMS-provider-related setting from config/sendpk.yml (secrets
-  # from encrypted credentials, the rest from ENV), so providers themselves
-  # never touch ENV or credentials directly.
+  # Reads every SMS-provider-related setting -- the account from
+  # config/sendpk.yml (secrets from encrypted credentials, the rest from ENV),
+  # each message's template ids from its SmsTemplate row -- so providers
+  # themselves never touch ENV, credentials or App Settings directly.
   class Configuration
     def sendpk_api_key
       setting(:api_key)
@@ -14,16 +15,15 @@ module Sms
     end
 
     # Each message (`template`, e.g. :otp or :registered) has its own approved
-    # template: the Urdu one (<template>_template_id_ur) is used for Urdu
-    # locales when it is set; every other locale, or an unset Urdu id, uses
-    # the English one.
+    # template: the Urdu one is used for Urdu locales when it is set; every
+    # other locale, or an unset Urdu id, uses the English one.
     def sendpk_template_id(template, locale = nil)
-      sendpk_urdu_template_id(template, locale) || setting(:"#{template}_template_id")
+      sendpk_urdu_template_id(template, locale) || sms_template(template)&.template_id_en
     end
 
     # The Urdu template id when one applies, so the provider knows to send Unicode.
     def sendpk_urdu_template_id(template, locale)
-      setting(:"#{template}_template_id_ur") if locale.to_s == 'ur'
+      sms_template(template)&.template_id_ur if locale.to_s == 'ur'
     end
 
     def sendpk_base_url
@@ -39,6 +39,12 @@ module Sms
     end
 
     private
+
+    def sms_template(template)
+      code = template.to_s
+      @sms_templates ||= {}
+      @sms_templates.fetch(code) { @sms_templates[code] = SmsTemplate.find_for(code) }
+    end
 
     def setting(key)
       @settings ||= Rails.application.config_for(:sendpk)

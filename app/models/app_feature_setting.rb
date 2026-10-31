@@ -14,7 +14,6 @@ class AppFeatureSetting < ApplicationRecord
 
   validates :singleton_guard, inclusion: { in: [true] }
   validates(*SWITCHES.map { |switch| :"#{switch}_enabled" }, inclusion: { in: [true, false] })
-  validate :disabled_sms_messages_known
 
   before_destroy :raise_readonly_record
 
@@ -33,18 +32,7 @@ class AppFeatureSetting < ApplicationRecord
     current.public_send(:"#{switch}_enabled")
   end
 
-  # A progress SMS goes out only while progress SMS are on and that message is not switched off.
-  def self.sms_message_enabled?(message_code)
-    setting = current
-    setting.progress_sms_enabled && setting.disabled_sms_messages.exclude?(message_code.to_s)
-  end
-
   private
-
-  def disabled_sms_messages_known
-    unknown = Array(disabled_sms_messages) - CandidateSmsDelivery::MESSAGE_CODES
-    errors.add(:disabled_sms_messages, :inclusion) if unknown.any?
-  end
 
   def raise_readonly_record
     raise ActiveRecord::ReadOnlyRecord, "#{self.class.name} is a singleton and cannot be destroyed"

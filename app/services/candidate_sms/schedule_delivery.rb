@@ -6,7 +6,8 @@ module CandidateSms
   # id>"), so asking twice for the same event sends it once. Meant to run inside
   # the caller's transaction: Solid Queue is DB-backed, so the job only exists if
   # that transaction commits. An inactive candidate gets nothing; a message
-  # switched off in App Settings is recorded as skipped and not queued.
+  # switched off in App Settings (all progress SMS, or this one message) is
+  # recorded as skipped and not queued.
   class ScheduleDelivery < ApplicationService
     DATE_FORMAT = '%d-%m-%Y'
 
@@ -29,7 +30,7 @@ module CandidateSms
       candidate = @assignment.candidate
       return unless candidate.active?
 
-      enabled = AppFeatureSetting.sms_message_enabled?(@message_code)
+      enabled = AppFeatureSetting.enabled?(:progress_sms) && SmsTemplate.enabled?(@message_code)
       delivery_id = insert_delivery(candidate, enabled:)
       DeliveryJob.perform_later(candidate_sms_delivery_id: delivery_id) if delivery_id && enabled
     end

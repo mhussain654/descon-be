@@ -137,6 +137,11 @@ end
 # voice (stage stays off until an admin turns it on).
 AiCalls::InstallStarterRobocallVoicesService.call
 
+# --- send.pk message templates ----------------------------------------------
+# One row per SMS message (there is no create route). Template ids are set by
+# a developer in App Settings; a message without one is skipped when sent.
+SmsTemplate::MESSAGE_CODES.each { |code| SmsTemplate.find_or_create_by!(message_code: code) }
+
 # --- AI call operational settings (MPS-712) ---------------------------------
 # Seeds the singleton row up front so it's visible to an admin immediately,
 # rather than only appearing on first lazy access. Every column stays nil

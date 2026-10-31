@@ -13,7 +13,6 @@ module Admin
 
       def as_json(*)
         switches.merge(
-          sms_messages:,
           server_ready: @server_readiness.as_json,
           updated_by: serialized_updated_by,
           updated_at: @setting.updated_at.utc.iso8601
@@ -24,13 +23,6 @@ module Admin
 
       def switches
         AppFeatureSetting::SWITCHES.to_h { |switch| [:"#{switch}_enabled", @setting.public_send(:"#{switch}_enabled")] }
-      end
-
-      def sms_messages
-        CandidateSmsDelivery::MESSAGE_CODES.map do |code|
-          { code:, enabled: @setting.disabled_sms_messages.exclude?(code),
-            template_ready: @server_readiness.sms_template_ready?(code) }
-        end
       end
 
       def serialized_updated_by

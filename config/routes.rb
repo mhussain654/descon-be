@@ -113,6 +113,7 @@ Rails.application.routes.draw do
         resource :onboarding_fee_setting, only: %i[show update]
         resource :support_setting, only: %i[show update]
         resource :app_feature_setting, only: %i[show update]
+        resources :sms_templates, only: %i[index update], param: :message_code
         resources :system_database_backups, only: :index do
           resource :access, only: :create, controller: :system_database_backup_accesses
         end

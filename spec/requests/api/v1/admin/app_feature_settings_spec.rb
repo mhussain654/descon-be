@@ -19,7 +19,7 @@ RSpec.describe 'API V1 App Feature Setting', type: :request do
   end
 
   describe 'GET /api/v1/admin/app_feature_setting' do
-    it 'returns every switch, each SMS message and whether the server is set up for it' do
+    it 'returns every switch and whether the server is set up for it' do
       get '/api/v1/admin/app_feature_setting', headers: auth_headers(create(:user, role: 'developer'))
 
       expect(response).to have_http_status(:ok)
@@ -27,8 +27,7 @@ RSpec.describe 'API V1 App Feature Setting', type: :request do
       expect(data).to include('card_payment_enabled' => true, 'voucher_payment_enabled' => true,
                               'progress_sms_enabled' => true, 'automatic_calls_enabled' => true,
                               'bulk_calls_enabled' => true, 'document_ocr_enabled' => true)
-      expect(data['sms_messages'].pluck('code')).to eq(CandidateSmsDelivery::MESSAGE_CODES)
-      expect(data['sms_messages'].first).to include('enabled' => true, 'template_ready' => false)
+      expect(data).not_to have_key('sms_messages')
       expect(data['server_ready'].keys).to match_array(%w[card_payment voucher_payment progress_sms automatic_calls
                                                           bulk_calls document_ocr])
     end
@@ -51,35 +50,23 @@ RSpec.describe 'API V1 App Feature Setting', type: :request do
       developer = create(:user, role: 'developer')
 
       patch '/api/v1/admin/app_feature_setting',
-            params: { app_feature_setting: { voucher_payment_enabled: false,
-                                             disabled_sms_messages: %w[fee_pending] } }.to_json,
+            params: { app_feature_setting: { voucher_payment_enabled: false } }.to_json,
             headers: json_headers(developer)
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.dig('data', 'voucher_payment_enabled')).to be(false)
-      expect(response.parsed_body.dig('data', 'sms_messages').find { |m| m['code'] == 'fee_pending' })
-        .to include('enabled' => false)
       expect(AppFeatureSetting.current).to have_attributes(voucher_payment_enabled: false, updated_by: developer)
       audit = AuditEvent.find_by!(action_code: 'app_feature_setting_updated')
-      expect(audit.metadata['changes'].keys).to match_array(%w[voucher_payment_enabled disabled_sms_messages])
+      expect(audit.metadata['changes'].keys).to eq(%w[voucher_payment_enabled])
     end
 
-    it 'turns every SMS message back on with an empty list' do
-      AppFeatureSetting.current.update!(disabled_sms_messages: %w[fee_pending])
-
+    it 'records no audit event when nothing changed' do
       patch '/api/v1/admin/app_feature_setting',
-            params: { app_feature_setting: { disabled_sms_messages: [] } }.to_json,
+            params: { app_feature_setting: { card_payment_enabled: true } }.to_json,
             headers: json_headers(create(:user, role: 'developer'))
 
-      expect(AppFeatureSetting.current.disabled_sms_messages).to eq([])
-    end
-
-    it 'rejects an unknown SMS message' do
-      patch '/api/v1/admin/app_feature_setting',
-            params: { app_feature_setting: { disabled_sms_messages: %w[birthday] } }.to_json,
-            headers: json_headers(create(:user, role: 'developer'))
-
-      expect(response).to have_http_status(:unprocessable_content)
+      expect(response).to have_http_status(:ok)
+      expect(AuditEvent.where(action_code: 'app_feature_setting_updated')).to be_empty
     end
 
     it 'forbids a staff member without manage_app_settings' do

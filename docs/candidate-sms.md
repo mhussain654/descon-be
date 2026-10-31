@@ -6,20 +6,27 @@ sharing with the Qatar BU, ...) send nothing.
 
 The SMS go through send.pk, with the same endpoint, API key and sender as the
 OTP. Each message has its own approved send.pk template, an English one and an
-optional Urdu one, set as env vars `<MESSAGE>_TEMPLATE_ID` and
-`<MESSAGE>_TEMPLATE_ID_UR` (read in `config/sendpk.yml`). The candidate's
+optional Urdu one. A developer sets their ids in the web app under **App
+Settings -> SMS settings** (the `sms_templates` table, one row per message,
+the OTP included); a change takes effect on the next SMS with no deploy or
+restart. The candidate's
 `preferred_locale` picks the template; with no Urdu template the English one
 is used. A message whose template is not set yet is not sent: its delivery is
 recorded as `skipped` / `not_configured`, so templates can be added one by one.
 
-Admins can switch all progress SMS, or single messages, off in **App Settings**
-(`AppFeatureSetting`). A message switched off is recorded as `skipped` /
-`disabled` and is never sent later, even when switched back on.
+All progress SMS can be switched off together on the App Settings **Features**
+tab (`AppFeatureSetting#progress_sms_enabled`), and single messages on the
+**SMS settings** tab (`SmsTemplate#enabled`). A message switched off is
+recorded as `skipped` / `disabled` and is never sent later, even when switched
+back on. The OTP cannot be switched off: candidates could no longer log in.
+Both tabs are developer-only (`manage_app_settings`) and every change is
+audited.
 
 ## Messages
 
 | Message (`message_code`) | When | Countries | Template variables |
 |---|---|---|---|
+| `otp` | Candidate asks for a login code | All | `code`, `minutes` (no `name`) |
 | `registered` | Candidate added and asked for documents (enters Documents Pending) | All | `name` |
 | `document_rejected` | HR rejects a document | All | `name`, `document` (document name, in the candidate's language) |
 | `medical_appointment` | Enters a medical appointment stage (Medical Pending, Medical Appointment, GAMCA Medical Pending) **with** an appointment date | All | `name`, `date` |

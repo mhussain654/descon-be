@@ -40,7 +40,7 @@ RSpec.describe CandidateSms::ScheduleDelivery do
   end
 
   it 'records a message switched off in App Settings as skipped and never queues it' do
-    AppFeatureSetting.current.update!(disabled_sms_messages: ['medical_appointment'])
+    create(:sms_template, message_code: 'medical_appointment', enabled: false)
 
     expect { schedule }.not_to have_enqueued_job(CandidateSms::DeliveryJob)
     expect(CandidateSmsDelivery.sole).to have_attributes(status: 'skipped', error_code: 'disabled')
