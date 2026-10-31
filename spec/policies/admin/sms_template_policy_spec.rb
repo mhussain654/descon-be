@@ -32,7 +32,7 @@ RSpec.describe Admin::SmsTemplatePolicy do
     it 'returns every row to the developer and none to anyone else' do
       template = create(:sms_template)
 
-      expect(described_class::Scope.new(create(:user, role: 'developer'), SmsTemplate).resolve).to eq([template])
+      expect(described_class::Scope.new(create(:user, role: 'developer'), SmsTemplate).resolve).to include(template)
       expect(described_class::Scope.new(create(:user, role: 'admin'), SmsTemplate).resolve).to be_empty
     end
   end

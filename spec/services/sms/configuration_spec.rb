@@ -29,6 +29,8 @@ RSpec.describe Sms::Configuration do
     end
 
     it 'is unset for a message with no row yet' do
+      SmsTemplate.where(message_code: 'fee_pending').delete_all
+
       expect(configuration.sendpk_template_id(:fee_pending, 'en')).to be_nil
     end
 

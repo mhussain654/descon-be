@@ -22,7 +22,7 @@ RSpec.describe SmsTemplate do
     create(:sms_template, message_code: 'fee_pending')
 
     expect(build(:sms_template, message_code: 'birthday')).not_to be_valid
-    expect(build(:sms_template, message_code: 'fee_pending')).not_to be_valid
+    expect(described_class.new(message_code: 'fee_pending')).not_to be_valid
   end
 
   it 'never lets the OTP be switched off, in the model or the database' do
@@ -37,6 +37,7 @@ RSpec.describe SmsTemplate do
     it 'is false only for a message switched off, and true for one with no row yet' do
       create(:sms_template, message_code: 'fee_pending', enabled: false)
       create(:sms_template, message_code: 'registered')
+      described_class.where(message_code: 'visa_issued').delete_all
 
       expect(described_class.enabled?(:fee_pending)).to be(false)
       expect(described_class.enabled?('registered')).to be(true)
