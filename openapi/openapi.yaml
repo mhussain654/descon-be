@@ -473,7 +473,7 @@ components:
           description: How long a requested code remains valid for, once sent. Defaults to 600 seconds (10 minutes); configurable through OTP_EXPIRY_SECONDS. Returned only for a registered active candidate.
         resend_after_seconds:
           type: integer
-          description: Minimum time before another code may be requested for the same CNIC.
+          description: Minimum time before another code may be requested for the same CNIC. Defaults to 600 seconds (10 minutes, the same as the code expiry); configurable through OTP_RESEND_COOLDOWN_SECONDS.
         mobile_last_four:
           type: string
           pattern: '^[0-9]{4}$'
@@ -652,7 +652,8 @@ components:
               type: string
             account_number:
               type: string
-              description: Account number. The backend strips spaces and requires 6 to 20 digits.
+              description: The candidate's full Pakistani IBAN (24 characters, `PK` + 2 check digits + 4-letter bank code + 16 digits) with a valid mod-97 checksum. The backend strips spaces and upper-cases it first.
+              example: PK36SCBL0000001123456702
             bank_name:
               type: string
             proof:
@@ -756,6 +757,10 @@ components:
               enum: [current, near_expiry, expired, not_applicable]
             - type: 'null'
           description: Present only for the `police_character` requirement. Non-PCC responses omit the field instead of returning `not_applicable`.
+        next_of_kin_relation:
+          type: string
+          enum: [father, mother, brother, wife, son, unmarried_sister, unmarried_daughter]
+          description: Present only for the `next_of_kin_cnic` requirement -- how the next of kin is related to the candidate. `wife` adds the `marriage_certificate` requirement to the checklist.
         reviewed_at:
           type: string
           format: date-time
@@ -882,7 +887,11 @@ components:
             issued_on:
               type: string
               format: date
-              description: Required when `requirement_code=police_character`. Must be a valid ISO date in `YYYY-MM-DD` format and cannot be in the future.
+              description: Required when `requirement_code=police_character`. Must be a valid ISO date in `YYYY-MM-DD` format, cannot be in the future, and must be no more than 5 months ago (`pcc_issue_date_too_old` message otherwise).
+            next_of_kin_relation:
+              type: string
+              enum: [father, mother, brother, wife, son, unmarried_sister, unmarried_daughter]
+              description: Required when `requirement_code=next_of_kin_cnic`; ignored otherwise. Only these relations can be a candidate's next of kin. `wife` makes the marriage certificate (`marriage_certificate`) a required document.
             expires_on:
               type: string
               format: date
@@ -1096,7 +1105,22 @@ components:
             - type: string
               format: date-time
             - type: 'null'
-      required: [timeline, completed_count, total_count, progress_percentage, updated_at]
+        outcomes:
+          type: object
+          description: The latest recorded medical result and visa decision, null until one exists -- lets the candidate's journey show the Medical or Visa step as rejected.
+          properties:
+            medical:
+              anyOf:
+                - type: string
+                  enum: [fit, unfit]
+                - type: 'null'
+            visa:
+              anyOf:
+                - type: string
+                  enum: [issued, rejected]
+                - type: 'null'
+          required: [medical, visa]
+      required: [timeline, completed_count, total_count, progress_percentage, updated_at, outcomes]
     CandidatePaymentRecord:
       type: object
       properties:
@@ -3523,7 +3547,7 @@ paths:
                   value:
                     data:
                       expires_in_seconds: 600
-                      resend_after_seconds: 60
+                      resend_after_seconds: 600
                       mobile_last_four: '4821'
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
@@ -3533,7 +3557,7 @@ paths:
                   value:
                     data:
                       expires_in_seconds: 600
-                      resend_after_seconds: 60
+                      resend_after_seconds: 600
                       mobile_last_four: '4821'
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
@@ -4376,7 +4400,7 @@ paths:
                         id: d86f5c87-4379-433a-9a29-c8c3d51f859a
                         status: submitted
                         account_title: احمد علی
-                        account_number: '****************6702'
+                        account_number: '********************6702'
                         bank_name: میزان بینک
                         proof:
                           file_name: cheque.pdf
@@ -4439,7 +4463,7 @@ paths:
                         id: d86f5c87-4379-433a-9a29-c8c3d51f859a
                         status: submitted
                         account_title: Ahmed Ali
-                        account_number: '****************6702'
+                        account_number: '********************6702'
                         bank_name: Meezan Bank
                         proof:
                           file_name: cheque.pdf
@@ -4477,7 +4501,7 @@ paths:
                         id: d86f5c87-4379-433a-9a29-c8c3d51f859a
                         status: submitted
                         account_title: احمد علی
-                        account_number: '****************6702'
+                        account_number: '********************6702'
                         bank_name: میزان بینک
                         proof:
                           file_name: cheque.png
@@ -9122,7 +9146,7 @@ paths:
                         reference_number: DES-001001
                       status: submitted
                       account_title: Ahmed Ali
-                      account_number: '****************6702'
+                      account_number: '********************6702'
                       bank_name: Meezan Bank
                       proof:
                         file_name: cheque.pdf
@@ -9147,7 +9171,7 @@ paths:
                         reference_number: DES-001001
                       status: submitted
                       account_title: احمد علی
-                      account_number: 0000001123456702
+                      account_number: PK36SCBL0000001123456702
                       bank_name: میزان بینک
                       proof:
                         file_name: cheque.pdf

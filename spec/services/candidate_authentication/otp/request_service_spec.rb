@@ -214,8 +214,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
         described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
       end
 
-      expect(delivered_body).to start_with('آپ کا MPS Connect تصدیقی کوڈ ')
-      expect(delivered_body).not_to start_with('Your MPS Connect verification code is ')
+      expect(delivered_body).to start_with('ڈیسکون MPS Connect میں لاگ اِن کے لیے آپ کا تصدیقی کوڈ ')
+      expect(delivered_body).not_to start_with('Your verification code to log in to Descon MPS Connect is ')
     end
 
     it 'serializes concurrent requests for the same CNIC so only one challenge is created during cooldown' do

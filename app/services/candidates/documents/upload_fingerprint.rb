@@ -6,14 +6,15 @@ module Candidates
   module Documents
     # Identifies one document-upload request's content, so a retried
     # Idempotency-Key with a materially different upload (another file, side
-    # label, requirement or issue date) is detected. `uploaded_files` are
+    # label, requirement, issue date or next-of-kin relation) is detected. `uploaded_files` are
     # `{ file:, side_code: }`.
     class UploadFingerprint < ApplicationService
-      def initialize(request:, uploaded_files:, requirement_code:, issued_on:)
+      def initialize(request:, uploaded_files:, requirement_code:, issued_on:, next_of_kin_relation: nil)
         @request = request
         @uploaded_files = Array(uploaded_files)
         @requirement_code = requirement_code.to_s.strip.downcase
         @issued_on = issued_on.to_s.strip
+        @next_of_kin_relation = next_of_kin_relation.to_s.strip.downcase
       end
 
       def call
@@ -23,7 +24,7 @@ module Candidates
       private
 
       def fingerprint_parts
-        [@request.request_method, @request.path, @requirement_code, @issued_on] +
+        [@request.request_method, @request.path, @requirement_code, @issued_on, @next_of_kin_relation] +
           @uploaded_files.flat_map { |entry| file_parts(entry) }
       end
 

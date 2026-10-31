@@ -6,49 +6,66 @@ module DocumentChecklists
   module Instructions
     TEXT = {
       'passport' => [
-        'Upload the first two pages of your passport as one PDF, or as two photos labelled page 1 and page 2.',
-        'پاسپورٹ کے پہلے دو صفحات ایک PDF میں، یا دو تصاویر (صفحہ 1 اور صفحہ 2) کی صورت میں اپ لوڈ کریں۔'
+        'Upload your latest passport: scan the first two pages into one PDF. Scan in colour, keep each page ' \
+        'flat, straight and complete with no edges cut off, and make sure all text is sharp and readable.',
+        'اپنا تازہ ترین پاسپورٹ اپ لوڈ کریں: پہلے دو صفحات اسکین کر کے ایک PDF بنائیں۔ رنگین اسکین کریں، ہر صفحہ ' \
+        'سیدھا اور مکمل ہو، کوئی کنارہ کٹا نہ ہو، اور تمام تحریر واضح اور پڑھنے کے قابل ہو۔'
       ],
       'cnic' => [
-        'Upload the front and back of your CNIC as one PDF, or as two photos labelled front and back.',
-        'شناختی کارڈ کا اگلا اور پچھلا رخ ایک PDF میں، یا دو تصاویر (اگلا رخ اور پچھلا رخ) کی صورت میں اپ لوڈ کریں۔'
+        'Scan the front and back of your CNIC into one PDF. Scan in colour, keep the card straight and complete, ' \
+        'and make sure all text is sharp and readable.',
+        'اپنے شناختی کارڈ کا اگلا اور پچھلا رخ اسکین کر کے ایک PDF بنائیں۔ رنگین اسکین کریں، کارڈ سیدھا اور مکمل ہو، ' \
+        'اور تمام تحریر واضح اور پڑھنے کے قابل ہو۔'
       ],
       'photograph' => [
-        'Upload a recent photograph of yourself with a plain blue background.',
-        'نیلے پس منظر والی اپنی حالیہ تصویر اپ لوڈ کریں۔'
+        'Upload a scanned passport-size photograph as a PDF, as the embassy requires: recent (taken in the last ' \
+        '6 months), in colour, plain blue background, face straight to the camera with eyes open, no glasses, ' \
+        'cap or shadows, and your full face and ears clearly visible.',
+        'سفارت خانے کی شرائط کے مطابق پاسپورٹ سائز تصویر اسکین کر کے PDF میں اپ لوڈ کریں: حالیہ (پچھلے 6 ماہ کی)، ' \
+        'رنگین، سادہ نیلا پس منظر، چہرہ سیدھا کیمرے کی طرف اور آنکھیں کھلی ہوں، عینک، ٹوپی یا سایہ نہ ہو، ' \
+        'اور پورا چہرہ اور کان صاف نظر آئیں۔'
       ],
       'next_of_kin_cnic' => [
-        "Upload the front and back of your legal heir's CNIC as one PDF, or as two photos labelled front and back.",
-        'قانونی وارث کے شناختی کارڈ کا اگلا اور پچھلا رخ ایک PDF میں، یا دو تصاویر کی صورت میں اپ لوڈ کریں۔'
+        'Only your father, mother, brother, wife, son, or unmarried sister or daughter can be your Next of Kin. ' \
+        'Choose how they are related to you, then scan the front and back of their CNIC into one PDF.',
+        'صرف آپ کے والد، والدہ، بھائی، بیوی، بیٹا، یا غیر شادی شدہ بہن یا بیٹی آپ کے نیکسٹ آف کن ہو سکتے ہیں۔ ' \
+        'بتائیں کہ ان کا آپ سے کیا رشتہ ہے، پھر ان کے شناختی کارڈ کا اگلا اور پچھلا رخ اسکین کر کے ایک PDF بنائیں۔'
       ],
-      'cv' => ['Upload your latest CV.', 'اپنی تازہ ترین سی وی اپ لوڈ کریں۔'],
+      'marriage_certificate' => [
+        'Your Next of Kin is your wife, so scan your marriage certificate (Nikah Nama) into one PDF.',
+        'آپ کی نیکسٹ آف کن آپ کی بیوی ہیں، اس لیے اپنا نکاح نامہ اسکین کر کے ایک PDF بنائیں۔'
+      ],
+      'cv' => ['Upload your latest CV as a PDF.', 'اپنی تازہ ترین سی وی PDF میں اپ لوڈ کریں۔'],
       'educational_certificates' => [
-        'Upload all your educational certificates. You can add each certificate as a separate file.',
-        'اپنی تمام تعلیمی اسناد اپ لوڈ کریں۔ ہر سند الگ فائل کے طور پر شامل کی جا سکتی ہے۔'
+        'Scan all your educational certificates as PDFs. You can add each certificate as a separate PDF.',
+        'اپنی تمام تعلیمی اسناد اسکین کر کے PDF میں اپ لوڈ کریں۔ ہر سند الگ PDF کے طور پر شامل کی جا سکتی ہے۔'
       ],
       'experience_certificates' => [
-        'Upload all your experience certificates. You can add each certificate as a separate file.',
-        'اپنے تمام تجربے کے سرٹیفکیٹس اپ لوڈ کریں۔ ہر سرٹیفکیٹ الگ فائل کے طور پر شامل کیا جا سکتا ہے۔'
+        'Scan all your experience certificates as PDFs. You can add each certificate as a separate PDF.',
+        'اپنے تمام تجربے کے سرٹیفکیٹس اسکین کر کے PDF میں اپ لوڈ کریں۔ ' \
+        'ہر سرٹیفکیٹ الگ PDF کے طور پر شامل کیا جا سکتا ہے۔'
       ],
       'cheque_copy' => [
-        'Upload a clear copy of a cheque from your bank account.',
-        'اپنے بینک اکاؤنٹ کے چیک کی واضح کاپی اپ لوڈ کریں۔'
+        'Scan a clear copy of a cheque from your bank account into a PDF.',
+        'اپنے بینک اکاؤنٹ کے چیک کی واضح کاپی اسکین کر کے PDF میں اپ لوڈ کریں۔'
       ],
       'gamca_medical_report' => [
-        'Upload your GAMCA / Wafid medical report.',
-        'اپنی GAMCA / وافد میڈیکل رپورٹ اپ لوڈ کریں۔'
+        'Upload your GAMCA / Wafid medical report as a PDF.',
+        'اپنی GAMCA / وافد میڈیکل رپورٹ PDF میں اپ لوڈ کریں۔'
       ],
       'police_character' => [
-        'Upload your Police Character Certificate and enter its issue date.',
-        'اپنا پولیس کریکٹر سرٹیفکیٹ اپ لوڈ کریں اور اس کے اجرا کی تاریخ درج کریں۔'
+        'Upload your valid Police Character Certificate as a scanned PDF and enter its issue date. It must have ' \
+        'been issued within the last 5 months. The original should be posted to Descon.',
+        'اپنا کارآمد پولیس کریکٹر سرٹیفکیٹ اسکین کر کے PDF میں اپ لوڈ کریں اور اس کے اجرا کی تاریخ درج کریں۔ ' \
+        'یہ پچھلے 5 ماہ کے اندر جاری ہوا ہو۔ اصل سرٹیفکیٹ ڈیسکون کو بذریعہ ڈاک بھیجیں۔'
       ],
       'polio_certificate' => [
-        'Upload your polio vaccination certificate or card.',
-        'اپنا پولیو ویکسینیشن سرٹیفکیٹ یا کارڈ اپ لوڈ کریں۔'
+        'Upload your polio vaccination certificate or card as a PDF.',
+        'اپنا پولیو ویکسینیشن سرٹیفکیٹ یا کارڈ PDF میں اپ لوڈ کریں۔'
       ],
       'qatar_driving_licence' => [
-        'Upload the front and back of your driving licence as one PDF, or as two photos labelled front and back.',
-        'ڈرائیونگ لائسنس کا اگلا اور پچھلا رخ ایک PDF میں، یا دو تصاویر کی صورت میں اپ لوڈ کریں۔'
+        'Scan the front and back of your driving licence into one PDF.',
+        'ڈرائیونگ لائسنس کا اگلا اور پچھلا رخ اسکین کر کے ایک PDF بنائیں۔'
       ]
     }.freeze
   end

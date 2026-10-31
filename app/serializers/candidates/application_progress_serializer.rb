@@ -42,7 +42,8 @@ module Candidates
         completed_count: @progress.workflow_completed_count,
         total_count: @progress.workflow_total_count,
         progress_percentage: @progress.workflow_progress_percentage,
-        updated_at: @progress.workflow_updated_at
+        updated_at: @progress.workflow_updated_at,
+        outcomes: @progress.workflow_outcomes
       }
     end
 

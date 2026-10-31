@@ -16,7 +16,7 @@ RSpec.describe Candidates::BankDetails::UpsertService do
         candidate:,
         attributes: {
           account_title: ' Ahmed Ali ',
-          account_number: '0000 0011 2345 6702',
+          account_number: 'PK36 SCBL 0000 0011 2345 6702',
           bank_name: ' Sample Bank ',
           proof: proof_upload
         },
@@ -25,7 +25,7 @@ RSpec.describe Candidates::BankDetails::UpsertService do
 
       expect(result).to be_created
       expect(result.bank_detail.candidate_assignment).to eq(assignment)
-      expect(result.bank_detail.account_number).to eq('0000001123456702')
+      expect(result.bank_detail.account_number).to eq('PK36SCBL0000001123456702')
       expect(result.bank_detail.proof).to be_attached
 
       event = AuditEvent.order(:id).last
@@ -41,7 +41,8 @@ RSpec.describe Candidates::BankDetails::UpsertService do
     it 'preserves the previous current record and proof when replacement fails' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:)
-      current_record = create(:candidate_bank_detail, candidate_assignment: assignment, account_number: '100001')
+      current_record = create(:candidate_bank_detail, candidate_assignment: assignment,
+                                                      account_number: 'PK14SCBL0000000000100001')
       failing_event = build(:audit_event)
 
       allow(AuditEvent).to receive(:create!).and_raise(ActiveRecord::RecordInvalid.new(failing_event))
@@ -51,7 +52,7 @@ RSpec.describe Candidates::BankDetails::UpsertService do
           candidate:,
           attributes: {
             account_title: 'Updated Name',
-            account_number: '100002',
+            account_number: 'PK84SCBL0000000000100002',
             bank_name: 'Updated Bank',
             proof: proof_upload
           },

@@ -190,15 +190,22 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
   end
 
   describe 'POST /api/v1/candidate/documents' do
-    it 'uploads valid PDF, PNG, and JPEG documents' do
+    it 'uploads a PDF document and refuses a photo -- documents are scanned PDFs only' do
       candidate = create(:candidate)
       create_requirement(candidate:, code: 'passport')
 
-      {
-        'test.pdf' => 'application/pdf',
-        'test.png' => 'image/png',
-        'test.jpg' => 'image/jpeg'
-      }.each do |fixture_name, content_type|
+      %w[test.png test.jpg].each do |fixture_name|
+        post '/api/v1/candidate/documents',
+             params: { candidate_document: { requirement_code: 'passport',
+                                             file: fixture_upload(fixture_name, 'image/png') } },
+             headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body.dig('errors', 0,
+                                        'message')).to eq(I18n.t('api.errors.unsupported_file_type_pdf_only'))
+      end
+
+      { 'test.pdf' => 'application/pdf' }.each do |fixture_name, content_type|
         post '/api/v1/candidate/documents',
              params: {
                candidate_document: {
@@ -530,7 +537,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
            params: {
              candidate_document: {
                requirement_code: 'passport',
-               file: fixture_upload('test.png', 'image/png')
+               file: fixture_upload('test.pdf', 'application/pdf')
              }
            },
            headers: candidate_auth_headers(candidate)
@@ -552,7 +559,7 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
            params: {
              candidate_document: {
                requirement_code: 'passport',
-               file: fixture_upload('test.jpg', 'image/jpeg')
+               file: fixture_upload('test.pdf', 'application/pdf')
              }
            },
            headers: candidate_auth_headers(candidate)

@@ -11,7 +11,8 @@ module Candidates
       :workflow_completed_count,
       :workflow_total_count,
       :workflow_progress_percentage,
-      :workflow_updated_at
+      :workflow_updated_at,
+      :workflow_outcomes
     )
   end
 end

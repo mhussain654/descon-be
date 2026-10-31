@@ -173,7 +173,7 @@ RSpec.describe Candidates::Documents::UploadService do
         candidate:,
         uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
         requirement_code: pcc_code,
-        pcc_attributes: { issued_on: '2026-08-28' },
+        document_attributes: { issued_on: '2026-08-28' },
         request_id: 'req-doc-upload-pcc-1'
       )
 
@@ -218,7 +218,7 @@ RSpec.describe Candidates::Documents::UploadService do
         candidate:,
         uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
         requirement_code: pcc_code,
-        pcc_attributes: { issued_on: '2026-08-15' },
+        document_attributes: { issued_on: '2026-08-15' },
         request_id: 'req-doc-upload-pcc-2'
       )
 
@@ -245,7 +245,7 @@ RSpec.describe Candidates::Documents::UploadService do
 
       result = described_class.call(
         candidate:,
-        uploaded_files: [{ file: fixture_upload('test.png', 'image/png') }],
+        uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
         requirement_code: 'passport',
         request_id: 'req-doc-upload-2'
       )
@@ -324,7 +324,7 @@ RSpec.describe Candidates::Documents::UploadService do
         candidate:,
         uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
         requirement_code: pcc_code,
-        pcc_attributes: { issued_on: '2026-08-28' },
+        document_attributes: { issued_on: '2026-08-28' },
         request_id: 'req-doc-upload-pcc-replacement-1'
       )
 
@@ -373,7 +373,7 @@ RSpec.describe Candidates::Documents::UploadService do
       expect do
         described_class.call(
           candidate:,
-          uploaded_files: [{ file: fixture_upload('test.jpg', 'image/jpeg') }],
+          uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
           requirement_code: 'passport',
           request_id: 'req-doc-upload-4'
         )
@@ -442,7 +442,7 @@ RSpec.describe Candidates::Documents::UploadService do
       expect do
         described_class.call(
           candidate:,
-          uploaded_files: [{ file: fixture_upload('test.jpg', 'image/jpeg') }],
+          uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
           requirement_code: 'passport',
           request_id: 'req-doc-upload-rollback-2'
         )
@@ -479,9 +479,9 @@ RSpec.describe Candidates::Documents::UploadService do
       expect do
         described_class.call(
           candidate:,
-          uploaded_files: [{ file: fixture_upload('test.jpg', 'image/jpeg') }],
+          uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
           requirement_code: pcc_code,
-          pcc_attributes: { issued_on: '2026-08-01' },
+          document_attributes: { issued_on: '2026-08-01' },
           request_id: 'req-doc-upload-pcc-3'
         )
       end.to raise_error(ActiveRecord::RecordInvalid)
@@ -517,7 +517,7 @@ RSpec.describe Candidates::Documents::UploadService do
           candidate:,
           uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
           requirement_code: pcc_code,
-          pcc_attributes: { issued_on: '2026-02-30' },
+          document_attributes: { issued_on: '2026-02-30' },
           request_id: 'req-doc-upload-pcc-5'
         )
       end.to raise_error(ValidationError, I18n.t('api.errors.pcc_issue_date_invalid'))
@@ -527,7 +527,7 @@ RSpec.describe Candidates::Documents::UploadService do
           candidate:,
           uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
           requirement_code: pcc_code,
-          pcc_attributes: { issued_on: (Date.current + 1.day).iso8601 },
+          document_attributes: { issued_on: (Date.current + 1.day).iso8601 },
           request_id: 'req-doc-upload-pcc-6'
         )
       end.to raise_error(ValidationError, I18n.t('api.errors.pcc_issue_date_in_future'))
@@ -537,7 +537,7 @@ RSpec.describe Candidates::Documents::UploadService do
           candidate:,
           uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
           requirement_code: pcc_code,
-          pcc_attributes: {
+          document_attributes: {
             issued_on: '2026-08-01',
             expires_on: '2027-02-01'
           },
@@ -551,7 +551,7 @@ RSpec.describe Candidates::Documents::UploadService do
         candidate:,
         uploaded_files: [{ file: fixture_upload('test.pdf', 'application/pdf') }],
         requirement_code: 'passport',
-        pcc_attributes: { issued_on: '2026-08-01' },
+        document_attributes: { issued_on: '2026-08-01' },
         request_id: 'req-doc-upload-6'
       )
 

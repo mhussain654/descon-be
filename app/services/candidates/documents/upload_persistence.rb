@@ -13,6 +13,7 @@ module Candidates
         @files = files
         @request_id = context[:request_id]
         @issued_on = context[:issued_on]
+        @next_of_kin_relation = context[:next_of_kin_relation]
       end
 
       # Runs inside the caller's transaction (UploadService), which owns the
@@ -75,7 +76,8 @@ module Candidates
           document_type: @requirement.document_type,
           status_code: 'uploaded',
           uploaded_at: Time.current,
-          issued_on: @issued_on
+          issued_on: @issued_on,
+          next_of_kin_relation: @next_of_kin_relation
         }
       end
 

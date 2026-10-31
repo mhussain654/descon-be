@@ -37,7 +37,19 @@ module Candidates
           workflow_completed_count: snapshot.completed_count,
           workflow_total_count: snapshot.total_count,
           workflow_progress_percentage: snapshot.progress_percentage,
-          workflow_updated_at: snapshot.updated_at
+          workflow_updated_at: snapshot.updated_at,
+          workflow_outcomes: outcomes
+        }
+      end
+
+      # The latest medical result and visa decision, so the candidate's journey
+      # can show a step as Rejected (unfit, visa refused) and not only as done.
+      def outcomes
+        return { medical: nil, visa: nil } if @assignment.blank?
+
+        {
+          medical: @assignment.candidate_medical_results.order(:id).last&.outcome_code,
+          visa: @assignment.candidate_visa_decisions.order(:id).last&.outcome_code
         }
       end
 

@@ -50,15 +50,17 @@ module Api
             request:,
             uploaded_files:,
             requirement_code: document_params[:requirement_code],
-            issued_on: document_params[:issued_on]
+            issued_on: document_params[:issued_on],
+            next_of_kin_relation: document_params[:next_of_kin_relation]
           )
         end
 
         # Strong-params the document upload fields (requirement code, files with their side
-        # codes or the legacy single file, and validity dates).
+        # codes or the legacy single file, validity dates, and the next of kin's relation).
         def document_params
           @document_params ||= params.expect(
-            candidate_document: [:requirement_code, :file, :issued_on, :expires_on, { files: [%i[file side_code]] }]
+            candidate_document: [:requirement_code, :file, :issued_on, :expires_on, :next_of_kin_relation,
+                                 { files: [%i[file side_code]] }]
           )
         end
 
@@ -82,16 +84,18 @@ module Api
             uploaded_files:,
             requirement_code: document_params[:requirement_code],
             request_id: request.request_id,
-            pcc_attributes:
+            document_attributes:
           }
         end
 
-        # Builds the police-clearance-certificate-specific attributes (issue/expiry dates) for the upload service.
-        def pcc_attributes
+        # The requirement-specific attributes for the upload service: the PCC issue/expiry
+        # dates and the next of kin's relation.
+        def document_attributes
           {
             issued_on: document_params[:issued_on],
             expires_on: document_params[:expires_on],
-            expires_on_supplied: document_params.key?(:expires_on)
+            expires_on_supplied: document_params.key?(:expires_on),
+            next_of_kin_relation: document_params[:next_of_kin_relation]
           }
         end
       end

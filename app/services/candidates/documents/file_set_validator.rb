@@ -40,7 +40,16 @@ module Candidates
         raise FileTooLargeError.new(field:) if details.byte_size > @requirement.maximum_file_size
         return if @requirement.accepted_content_types.include?(details.content_type)
 
-        raise UnsupportedFileTypeError.new(field:)
+        raise UnsupportedFileTypeError.new(field:, message: unsupported_type_message)
+      end
+
+      # Documents are scanned PDFs only (client rule), so say exactly that rather than the generic list.
+      def unsupported_type_message
+        if @requirement.accepted_content_types == %w[application/pdf]
+          return I18n.t('api.errors.unsupported_file_type_pdf_only')
+        end
+
+        I18n.t('api.errors.unsupported_file_type')
       end
 
       def validate_side_codes!

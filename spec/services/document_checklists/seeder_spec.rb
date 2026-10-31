@@ -45,13 +45,38 @@ RSpec.describe DocumentChecklists::Seeder do
     expect(checklist_codes(country: create(:country))).to eq(common_codes)
   end
 
-  it 'configures multi-file rules and bilingual instructions per document' do
+  it 'asks for every document as a scanned PDF, with bilingual instructions' do
     passport = DocumentRequirement.joins(:document_type).find_by!(document_types: { code: 'passport' }, country: nil)
 
-    expect(passport).to have_attributes(minimum_files: 1, maximum_files: 2, combined_pdf_allowed: true,
-                                        allowed_side_codes: %w[combined page_1 page_2], display_position: 1)
-    expect(passport.instructions_for(locale: :en)).to include('first two pages')
+    expect(passport).to have_attributes(minimum_files: 1, maximum_files: 1, combined_pdf_allowed: true,
+                                        allowed_side_codes: %w[combined], display_position: 1)
+    expect(passport.instructions_for(locale: :en)).to include('latest passport')
     expect(passport.instructions_for(locale: :ur)).to include('پاسپورٹ')
+    catalog_codes = DocumentChecklists::Definitions::DOCUMENT_TYPES.pluck(:code)
+    catalog_rows = DocumentRequirement.joins(:document_type).where(active: true, project_id: nil, craft_id: nil,
+                                                                   document_types: { code: catalog_codes })
+    expect(catalog_rows.pluck(:accepted_content_types).uniq).to eq([%w[application/pdf]])
+  end
+
+  it 'names the next of kin document without "Legal Heir" and explains who can be next of kin' do
+    next_of_kin = DocumentRequirement.joins(:document_type).find_by!(document_types: { code: 'next_of_kin_cnic' })
+
+    expect(next_of_kin.document_type.name_en).to eq('Next of Kin CNIC')
+    expect(next_of_kin.instructions_for(locale: :en)).to include('unmarried sister or daughter')
+  end
+
+  it 'adds the marriage certificate after the next of kin CNIC only when the next of kin is the wife' do
+    assignment = create(:candidate_assignment, country: process_country(:saudi_arabia))
+    codes = -> { Candidates::Documents::RequirementResolver.call(candidate: assignment.candidate, assignment:).map { |r| r.document_type.code } }
+    next_of_kin_type = DocumentType.find_by!(code: 'next_of_kin_cnic')
+
+    expect(codes.call).not_to include('marriage_certificate')
+    document = create(:candidate_document, candidate_assignment: assignment, document_type: next_of_kin_type,
+                                           next_of_kin_relation: 'brother')
+    expect(codes.call).not_to include('marriage_certificate')
+
+    document.update!(next_of_kin_relation: 'wife')
+    expect(codes.call.each_cons(2)).to include(%w[next_of_kin_cnic marriage_certificate])
   end
 
   it 'retires the superseded single-file types and stays idempotent' do

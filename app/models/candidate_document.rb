@@ -15,6 +15,9 @@ class CandidateDocument < ApplicationRecord
     'rejected' => 'rejected'
   }.freeze
   REPLACEABLE_STATUS_CODES = %w[uploaded rejected].freeze
+  NEXT_OF_KIN_REQUIREMENT_CODE = 'next_of_kin_cnic'
+  # Who may be a candidate's next of kin (client rule); a wife also needs a marriage certificate.
+  NEXT_OF_KIN_RELATIONS = %w[father mother brother wife son unmarried_sister unmarried_daughter].freeze
 
   belongs_to :candidate_assignment
   belongs_to :document_type
@@ -34,6 +37,7 @@ class CandidateDocument < ApplicationRecord
   validates :public_id, presence: true, uniqueness: true
   validates :status_code, presence: true, inclusion: { in: STATUS_CODES }
   validates :uploaded_at, presence: true
+  validates :next_of_kin_relation, inclusion: { in: NEXT_OF_KIN_RELATIONS }, allow_nil: true
   validate :files_present_for_current_version
   validate :status_consistency
 

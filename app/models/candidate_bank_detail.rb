@@ -4,7 +4,6 @@
 # document, superseded by a new row whenever the details are updated.
 class CandidateBankDetail < ApplicationRecord
   STATUS_CODES = %w[submitted].freeze
-  ACCOUNT_NUMBER_FORMAT = /\A\d{6,20}\z/
 
   belongs_to :candidate_assignment
   belongs_to :reviewed_by, class_name: 'User', optional: true
@@ -27,8 +26,8 @@ class CandidateBankDetail < ApplicationRecord
   validates :account_title, :account_number, :bank_name, :proof_filename, :proof_content_type, presence: true
   validates :proof_byte_size, numericality: { greater_than: 0 }
   validates :submitted_at, presence: true
-  # Only on create: a row saved under an older, looser format (e.g. an IBAN) must stay supersedable.
-  validates :account_number, format: { with: ACCOUNT_NUMBER_FORMAT }, on: :create
+  # Only on create: a row saved under an older format (a plain account number) must stay supersedable.
+  validate :account_number_is_pakistan_iban, on: :create
   validate :proof_attached_for_current_version
 
   # Whether this row is the active bank detail version (not yet replaced by a newer submission).
@@ -40,6 +39,10 @@ class CandidateBankDetail < ApplicationRecord
   end
 
   private
+
+  def account_number_is_pakistan_iban
+    errors.add(:account_number, :invalid) if account_number.present? && !PakistanIban.valid?(account_number)
+  end
 
   # Assigns a public-facing UUID identifier on creation, if one isn't already set.
   def assign_public_id

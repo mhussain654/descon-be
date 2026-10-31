@@ -22,7 +22,7 @@ module Candidates
       def validate_account_fields!
         raise MissingAccountTitleError if account_title.blank?
         raise MissingAccountNumberError if account_number.blank?
-        raise InvalidAccountNumberError unless CandidateBankDetail::ACCOUNT_NUMBER_FORMAT.match?(account_number)
+        raise InvalidAccountNumberError unless PakistanIban.valid?(account_number)
         raise MissingBankNameError if bank_name.blank?
       end
 

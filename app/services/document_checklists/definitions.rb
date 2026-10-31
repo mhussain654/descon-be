@@ -7,17 +7,17 @@ module DocumentChecklists
   # documents. The five provisional countries (UAE, Oman, Kuwait, Azerbaijan,
   # South Africa) get the common checklist only.
   module Definitions
-    CONTENT_TYPES = %w[application/pdf image/jpeg image/png].freeze
+    # Client feedback: every document is a scanned PDF -- no photos, no JPEG or
+    # PNG -- because a poor photo directly affects the visa application.
+    CONTENT_TYPES = %w[application/pdf].freeze
 
-    # How each kind of document is uploaded.
+    # How each kind of document is uploaded. A two-page or two-sided document
+    # (passport, CNIC, next of kin's CNIC) is one PDF holding both pages/sides.
     UPLOAD_PROFILES = {
       single: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: false, allowed_side_codes: [] },
-      photo: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: false, allowed_side_codes: [],
-               accepted_content_types: %w[image/jpeg image/png] },
-      two_pages: { minimum_files: 1, maximum_files: 2, combined_pdf_allowed: true,
-                   allowed_side_codes: %w[combined page_1 page_2] },
-      two_sided: { minimum_files: 1, maximum_files: 2, combined_pdf_allowed: true,
-                   allowed_side_codes: %w[combined front back] },
+      photo: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: false, allowed_side_codes: [] },
+      two_pages: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: true, allowed_side_codes: %w[combined] },
+      two_sided: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: true, allowed_side_codes: %w[combined] },
       certificates: { minimum_files: 1, maximum_files: 10, combined_pdf_allowed: false,
                       allowed_side_codes: %w[certificate] }
     }.freeze
@@ -26,8 +26,9 @@ module DocumentChecklists
       { code: 'passport', name_en: 'Passport', name_ur: 'پاسپورٹ', requires_number: true, requires_expiry: true },
       { code: 'cnic', name_en: 'CNIC', name_ur: 'شناختی کارڈ', requires_expiry: true },
       { code: 'photograph', name_en: 'Photograph (Blue Background)', name_ur: 'تصویر (نیلا پس منظر)' },
-      { code: 'next_of_kin_cnic', name_en: 'Legal Heir / Next of Kin CNIC',
-        name_ur: 'قانونی وارث / قریبی رشتہ دار کا شناختی کارڈ', requires_expiry: true },
+      { code: 'next_of_kin_cnic', name_en: 'Next of Kin CNIC', name_ur: 'قریبی رشتہ دار (نیکسٹ آف کن) کا شناختی کارڈ',
+        requires_expiry: true },
+      { code: 'marriage_certificate', name_en: 'Marriage Certificate', name_ur: 'نکاح نامہ' },
       { code: 'cv', name_en: 'CV / Resume', name_ur: 'سی وی / ریزیومے' },
       { code: 'educational_certificates', name_en: 'Educational Certificates', name_ur: 'تعلیمی اسناد' },
       { code: 'experience_certificates', name_en: 'Experience Certificates', name_ur: 'تجربے کے سرٹیفکیٹس' },
@@ -47,8 +48,11 @@ module DocumentChecklists
                                      bank_details].freeze
 
     # [document code, upload profile, extra attributes] in display order.
+    # The marriage certificate is asked for only when the next of kin is the
+    # candidate's wife (RequirementResolver), straight after the next of kin's CNIC.
     COMMON = [
       ['passport', :two_pages], ['cnic', :two_sided], ['photograph', :photo], ['next_of_kin_cnic', :two_sided],
+      ['marriage_certificate', :single, { next_of_kin_spouse_only: true }],
       ['cv', :single], ['educational_certificates', :certificates], ['experience_certificates', :certificates],
       ['cheque_copy', :single]
     ].freeze
@@ -78,7 +82,7 @@ module DocumentChecklists
       instructions_en, instructions_ur = Instructions::TEXT.fetch(document_code)
       attributes = { accepted_content_types: CONTENT_TYPES }.merge(UPLOAD_PROFILES.fetch(profile)).merge(
         requirement_level: 'required', display_position:, instructions_en:, instructions_ur:,
-        driver_only: false, active: true
+        driver_only: false, next_of_kin_spouse_only: false, active: true
       ).merge(extra || {})
       { document_code:, country_code:, attributes: }
     end

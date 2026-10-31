@@ -12,13 +12,16 @@ module Candidates
     # `uploaded_files` is a list of `{ file:, side_code: }`.
     # rubocop:disable Metrics/ClassLength
     class UploadService < ApplicationService
-      def initialize(candidate:, uploaded_files:, requirement_code:, request_id:, pcc_attributes: {})
+      # `document_attributes` are the PCC dates (`issued_on`, `expires_on[_supplied]`) and the
+      # next of kin's `next_of_kin_relation`, each used only by its own requirement.
+      def initialize(candidate:, uploaded_files:, requirement_code:, request_id:, document_attributes: {})
         @candidate = candidate
+        @next_of_kin_relation = document_attributes[:next_of_kin_relation].to_s.strip.downcase.presence
         @uploaded_files = Array(uploaded_files)
         @requirement_code = requirement_code.to_s.strip.downcase
         @request_id = request_id
-        @issued_on = pcc_attributes[:issued_on]
-        @expires_on_supplied = expires_on_supplied?(pcc_attributes)
+        @issued_on = document_attributes[:issued_on]
+        @expires_on_supplied = expires_on_supplied?(document_attributes)
       end
 
       def call
@@ -52,6 +55,20 @@ module Candidates
 
         validate_file_presence!
         pcc_issued_on
+        validate_next_of_kin_relation!
+      end
+
+      # The next of kin's CNIC must say how they are related to the candidate.
+      def validate_next_of_kin_relation!
+        return unless next_of_kin_requirement?
+        return if CandidateDocument::NEXT_OF_KIN_RELATIONS.include?(@next_of_kin_relation)
+
+        raise ValidationError.new(field: 'candidate_document.next_of_kin_relation',
+                                  message: I18n.t('api.errors.next_of_kin_relation_required'))
+      end
+
+      def next_of_kin_requirement?
+        requirement.document_type.code == CandidateDocument::NEXT_OF_KIN_REQUIREMENT_CODE
       end
 
       # The cheap checks first, before reading any file's contents.
@@ -118,11 +135,16 @@ module Candidates
             candidate: @candidate,
             requirement:,
             files: entries.zip(blobs).map { |entry, blob| entry.slice(:side_code, :details).merge(blob:) },
-            context: { request_id: @request_id, issued_on: issued_on_for_persistence }
+            context: persistence_context
           )
           advance_workflow!
           uploaded_document
         end
+      end
+
+      def persistence_context
+        { request_id: @request_id, issued_on: issued_on_for_persistence,
+          next_of_kin_relation: (@next_of_kin_relation if next_of_kin_requirement?) }
       end
 
       # Only after the whole upload + workflow transaction has committed: Solid
@@ -159,10 +181,10 @@ module Candidates
         requirement.document_type.code == CandidateDocument::PCC_REQUIREMENT_CODE
       end
 
-      def expires_on_supplied?(pcc_attributes)
-        return pcc_attributes[:expires_on_supplied] if pcc_attributes.key?(:expires_on_supplied)
+      def expires_on_supplied?(document_attributes)
+        return document_attributes[:expires_on_supplied] if document_attributes.key?(:expires_on_supplied)
 
-        pcc_attributes.key?(:expires_on)
+        document_attributes.key?(:expires_on)
       end
     end
     # rubocop:enable Metrics/ClassLength

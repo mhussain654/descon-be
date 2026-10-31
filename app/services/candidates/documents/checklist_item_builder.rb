@@ -60,7 +60,11 @@ module Candidates
           id: @document.public_id,
           uploaded_at: @document.uploaded_at.utc.iso8601,
           files: @document.files.map { |file| CandidateDocumentFileSerializer.new(file).as_json }
-        }.merge(legacy_file_metadata).merge(pcc_metadata).merge(review_metadata)
+        }.merge(document_metadata)
+      end
+
+      def document_metadata
+        legacy_file_metadata.merge(pcc_metadata, next_of_kin_metadata, review_metadata)
       end
 
       # Deprecated single-file fields (the representative file), kept until
@@ -80,6 +84,12 @@ module Candidates
           reviewed_at: @document.verified_at&.utc&.iso8601,
           rejection_reason: @document.rejection_reason
         }.compact
+      end
+
+      def next_of_kin_metadata
+        return {} if @document.next_of_kin_relation.blank?
+
+        { next_of_kin_relation: @document.next_of_kin_relation }
       end
 
       def pcc_metadata

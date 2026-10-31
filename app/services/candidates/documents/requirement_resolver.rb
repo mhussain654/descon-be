@@ -11,7 +11,9 @@ module Candidates
     # (rows scoped by project and/or craft without a country rank below a
     # country row). A winning `not_applicable` row drops the document; rows
     # marked `driver_only` are considered only when the assignment's craft is a
-    # driver craft. The result is ordered by `display_position`.
+    # driver craft, and rows marked `next_of_kin_spouse_only` (the marriage
+    # certificate) only when the candidate's next of kin is their wife. The
+    # result is ordered by `display_position`.
     class RequirementResolver < ApplicationService
       SCOPE_WEIGHTS = { country_id: 4, project_id: 2, craft_id: 1 }.freeze
 
@@ -51,7 +53,16 @@ module Candidates
                 .where(country_id: [nil, current_assignment.country_id])
                 .where(project_id: [nil, current_assignment.project_id])
                 .where(craft_id: [nil, current_assignment.craft_id])
-        driver_craft? ? scope : scope.where(driver_only: false)
+        scope = scope.where(driver_only: false) unless driver_craft?
+        scope = scope.where(next_of_kin_spouse_only: false) unless next_of_kin_is_wife?
+        scope
+      end
+
+      def next_of_kin_is_wife?
+        current_assignment.candidate_documents.current_version
+                          .joins(:document_type)
+                          .exists?(document_types: { code: CandidateDocument::NEXT_OF_KIN_REQUIREMENT_CODE },
+                                   next_of_kin_relation: 'wife')
       end
 
       def driver_craft?
