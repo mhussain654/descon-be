@@ -36,7 +36,21 @@ RSpec.describe MobilizationProcesses::RestartOnCurrentProcessService do
     end
   end
 
-  context 'when every candidate is already on an active process' do
+  context 'when a candidate is on the common process but their country has its own flow' do
+    it 'moves them onto their country flow' do
+      common = MobilizationProcess.active.find_by!(country_id: nil)
+      qatar = assignment_on(common, country: process_country(:qatar), stage_code: 'documents_pending')
+      kuwait = assignment_on(common, country: create(:country, code: 'kuwait'), stage_code: 'documents_pending')
+
+      expect(described_class.call).to contain_exactly(qatar)
+
+      expect(qatar.reload.mobilization_process).to have_attributes(code: 'qatar_mobilization', version: 1)
+      expect(qatar.current_workflow_stage.code).to eq('registered')
+      expect(kuwait.reload.mobilization_process).to eq(common)
+    end
+  end
+
+  context 'when every candidate is already on their country flow' do
     it 'changes nothing, so running it again is safe' do
       assignment = create(:candidate_assignment, country: process_country(:qatar),
                                                  current_workflow_stage: stage('verified'))
