@@ -10,7 +10,10 @@ RSpec.describe MobilizationProcesses::Seeder do
 
   it 'leaves the already-published approved processes untouched' do
     expect { described_class.call }.not_to change(MobilizationProcessStage, :count)
-    expect(described_class.call.map(&:code)).to eq(%w[common_mobilization ksa_mobilization qatar_mobilization])
+    expect(described_class.call.map { |process| [process.code, process.version] }).to eq(
+      [['common_mobilization', 1], ['ksa_mobilization', 1], ['qatar_mobilization', 1], ['common_mobilization', 2],
+       ['ksa_mobilization', 2], ['uae_mobilization', 1], ['oman_mobilization', 1]]
+    )
   end
 
   it 'creates and publishes a new definition with action types from the catalog mapping' do

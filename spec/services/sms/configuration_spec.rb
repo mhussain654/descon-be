@@ -11,17 +11,17 @@ RSpec.describe Sms::Configuration do
 
   describe '#sendpk_template_id' do
     before do
-      create(:sms_template, message_code: 'otp', template_id_en: '10790', template_id_ur: '10791')
+      create(:sms_template, message_code: 'otp', template_id_en: '11062', template_id_ur: '11065')
       create(:sms_template, message_code: 'registered', template_id_en: '20001', template_id_ur: nil)
     end
 
     it 'returns the Urdu template for an Urdu locale when one is set' do
-      expect(configuration.sendpk_template_id(:otp, 'ur')).to eq('10791')
+      expect(configuration.sendpk_template_id(:otp, 'ur')).to eq('11065')
     end
 
     it 'returns the English template for any other locale' do
-      expect(configuration.sendpk_template_id(:otp, 'en')).to eq('10790')
-      expect(configuration.sendpk_template_id('otp')).to eq('10790')
+      expect(configuration.sendpk_template_id(:otp, 'en')).to eq('11062')
+      expect(configuration.sendpk_template_id('otp')).to eq('11062')
     end
 
     it 'falls back to the English template when no Urdu template is set' do
@@ -46,9 +46,9 @@ RSpec.describe Sms::Configuration do
 
   describe '#sendpk_urdu_template_id' do
     it 'is the Urdu template only for an Urdu locale' do
-      create(:sms_template, message_code: 'otp', template_id_en: '10790', template_id_ur: '10791')
+      create(:sms_template, message_code: 'otp', template_id_en: '11062', template_id_ur: '11065')
 
-      expect(configuration.sendpk_urdu_template_id(:otp, 'ur')).to eq('10791')
+      expect(configuration.sendpk_urdu_template_id(:otp, 'ur')).to eq('11065')
       expect(configuration.sendpk_urdu_template_id(:otp, 'en')).to be_nil
     end
   end

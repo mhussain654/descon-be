@@ -68,15 +68,17 @@ RSpec.describe 'db:seed rake task' do
     expect(script.active).to be(true)
   end
 
-  it 'publishes the common, KSA and Qatar mobilization processes once, for all seven countries' do
+  it 'publishes the finalized KSA, Qatar, UAE and Oman processes and the common one once, for all seven countries' do
     Rake::Task['db:seed'].invoke
 
     expect(Country.pluck(:code)).to include('uae', 'saudi_arabia', 'qatar', 'oman', 'kuwait', 'azerbaijan',
                                             'south_africa')
     expect(MobilizationProcess.active.pluck(:code, :version)).to contain_exactly(
-      ['common_mobilization', 1], ['ksa_mobilization', 1], ['qatar_mobilization', 1]
+      ['common_mobilization', 2], ['ksa_mobilization', 2], ['qatar_mobilization', 1], ['uae_mobilization', 1],
+      ['oman_mobilization', 1]
     )
-    expect(MobilizationProcess.resolve_for(Country.find_by!(code: 'oman')).code).to eq('common_mobilization')
+    expect(MobilizationProcess.resolve_for(Country.find_by!(code: 'oman')).code).to eq('oman_mobilization')
+    expect(MobilizationProcess.resolve_for(Country.find_by!(code: 'kuwait')).code).to eq('common_mobilization')
 
     Rake::Task['db:seed'].reenable
     expect { Rake::Task['db:seed'].invoke }.not_to change(MobilizationProcessStage, :count)

@@ -8,7 +8,9 @@
 module WorkflowReferenceData
   PROCESS_COUNTRIES = [
     { code: 'qatar', name_en: 'Qatar', name_ur: 'قطر' },
-    { code: 'saudi_arabia', name_en: 'Saudi Arabia', name_ur: 'سعودی عرب' }
+    { code: 'saudi_arabia', name_en: 'Saudi Arabia', name_ur: 'سعودی عرب' },
+    { code: 'uae', name_en: 'United Arab Emirates', name_ur: 'متحدہ عرب امارات' },
+    { code: 'oman', name_en: 'Oman', name_ur: 'عمان' }
   ].freeze
 
   module_function

@@ -17,15 +17,15 @@ RSpec.describe Admin::Reports::MobilizationQuery do
     end
   end
 
-  # Completion is each process's own terminal stage: Ticket Handover for the
-  # common process (a factory country), Mobilized for Qatar.
+  # Completion is each process's own terminal stage -- Mobilized in every
+  # current flow, so a candidate at Ticket Handover isn't counted yet.
   it 'counts mobilized candidates grouped by country and by project, localized by name' do
     pakistan = create(:country, name_en: 'Pakistan', name_ur: 'پاکستان')
     qatar = process_country(:qatar)
     project = create(:project)
     ticket_handover = WorkflowStage.find_by!(code: 'ticket_handover')
-    create(:candidate_assignment, current_workflow_stage: ticket_handover, country: pakistan, project:)
-    create(:candidate_assignment, current_workflow_stage: ticket_handover, country: pakistan, project:)
+    create(:candidate_assignment, current_workflow_stage: mobilized_stage, country: pakistan, project:)
+    create(:candidate_assignment, current_workflow_stage: mobilized_stage, country: pakistan, project:)
     create(:candidate_assignment, current_workflow_stage: mobilized_stage, country: qatar, project:)
     create(:candidate_assignment, current_workflow_stage: ticket_handover, country: qatar, project:)
     create(:candidate_assignment, current_workflow_stage: registered_stage, country: pakistan, project:)

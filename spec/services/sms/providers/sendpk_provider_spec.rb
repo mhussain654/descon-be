@@ -76,7 +76,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
 
   it 'marks sends that use an Urdu template as unicode and leaves the rest untyped' do
     types = []
-    allow(configuration).to receive(:sendpk_urdu_template_id) { |_template, locale| '10791' if locale == 'ur' }
+    allow(configuration).to receive(:sendpk_urdu_template_id) { |_template, locale| '11065' if locale == 'ur' }
     response = Net::HTTPOK.new('1.1', '200', 'OK')
     allow(response).to receive(:body).and_return('OK ID:1')
     allow(Net::HTTP).to receive(:start) do |*, &block|
@@ -104,12 +104,12 @@ RSpec.describe Sms::Providers::SendpkProvider do
       }.and_return(response)
       block.call(http)
     end
-    allow(configuration).to receive(:sendpk_template_id) { |_template, locale| locale == 'ur' ? '10791' : '10790' }
+    allow(configuration).to receive(:sendpk_template_id) { |_template, locale| locale == 'ur' ? '11065' : '11062' }
 
     provider.deliver(to: '923001234567', template: :otp, variables: { code: '1', minutes: 5 }, locale: 'ur')
     provider.deliver(to: '923001234567', template: :otp, variables: { code: '1', minutes: 5 }, locale: 'en')
 
-    expect(seen).to eq(%w[10791 10790])
+    expect(seen).to eq(%w[11065 11062])
   end
 
   it 'reports success and the provider message id for an "OK ID:<id>" response' do

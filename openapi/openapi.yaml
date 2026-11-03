@@ -10240,7 +10240,7 @@ paths:
                   value:
                     data:
                       - message_code: otp
-                        template_id_en: '10790'
+                        template_id_en: '11062'
                         template_id_ur: null
                         enabled: true
                         can_disable: false

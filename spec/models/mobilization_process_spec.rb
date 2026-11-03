@@ -69,7 +69,7 @@ RSpec.describe MobilizationProcess, type: :model do
     ksa = described_class.resolve_for(process_country(:saudi_arabia))
 
     expect(ksa.first_stage.code).to eq('registered')
-    expect(ksa.terminal_stage.code).to eq('ticket_handover')
+    expect(ksa.terminal_stage.code).to eq('mobilized')
     expect(ksa.next_stage_after(ksa.stage_for(stage('verified'))).code).to eq('campaign_nomination')
     expect(ksa.next_stage_after(ksa.terminal_stage)).to be_nil
     expect(ksa.next_stage_after(nil)).to be_nil

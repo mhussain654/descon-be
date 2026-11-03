@@ -128,7 +128,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
   end
 
   it 'requires the fee before a KSA visa stamping case is sent' do
-    candidate, = candidate_at('fee_paid', country: process_country(:saudi_arabia))
+    candidate, = candidate_at('visa_stamping_case_prepared', country: process_country(:saudi_arabia))
 
     expect(blocking_reasons_for(candidate, 'visa_stamping_case_sent')).to eq(['payment_required'])
   end

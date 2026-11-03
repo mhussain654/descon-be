@@ -77,13 +77,14 @@ RSpec.describe 'API V1 Candidate Workflow', type: :request do
       expect(response).to have_http_status(:ok)
       data = response.parsed_body.fetch('data')
       expect(data.fetch('timeline').pluck('code')).to eq(
-        MobilizationProcesses::Definitions::ALL.find { |d| d[:code] == 'common_mobilization' }[:stages]
+        MobilizationProcesses::Definitions::ALL.select { |d| d[:code] == 'common_mobilization' }
+                                               .max_by { |d| d[:version] }[:stages]
       )
       expect(data.dig('mobilization_process', 'provisional')).to be(true)
       expect(data.fetch('current_stage')).to include('code' => 'fee_pending', 'position' => 9,
                                                      'action_type' => 'payment')
       expect(data.slice('completed_count', 'total_count', 'progress_percentage')).to eq(
-        'completed_count' => 8, 'total_count' => 14, 'progress_percentage' => 57
+        'completed_count' => 8, 'total_count' => 16, 'progress_percentage' => 50
       )
     end
 

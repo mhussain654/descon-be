@@ -26,9 +26,15 @@ RSpec.describe MobilizationProcessStage, type: :model do
 
   it "identifies each process's last stage as terminal" do
     terminal_codes = described_class.terminal.includes(:workflow_stage, :mobilization_process)
-                                    .to_h { |stage| [stage.mobilization_process.code, stage.code] }
+                                    .to_h do |stage|
+                                      [[stage.mobilization_process.code, stage.mobilization_process.version],
+                                       stage.code]
+                                    end
 
-    expect(terminal_codes).to include('qatar_mobilization' => 'mobilized', 'ksa_mobilization' => 'ticket_handover',
-                                      'common_mobilization' => 'ticket_handover')
+    expect(terminal_codes).to include(
+      ['qatar_mobilization', 1] => 'mobilized', ['ksa_mobilization', 1] => 'ticket_handover',
+      ['ksa_mobilization', 2] => 'mobilized', ['common_mobilization', 2] => 'mobilized',
+      ['uae_mobilization', 1] => 'mobilized', ['oman_mobilization', 1] => 'mobilized'
+    )
   end
 end
