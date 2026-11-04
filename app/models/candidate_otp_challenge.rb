@@ -37,9 +37,10 @@ class CandidateOtpChallenge < ApplicationRecord
   # it is never persisted or logged (AGENTS.md: "OTP values must be random,
   # short-lived, single-use and stored as a digest" / ticket: "OTP is never
   # returned in any API response or log"). `cnic` defaults from `candidate`
-  # for the real-candidate case.
-  def self.generate_for(candidate: nil, cnic: candidate&.cnic, requested_ip: nil)
-    code = SecureRandom.random_number(10**CODE_LENGTH).to_s.rjust(CODE_LENGTH, '0')
+  # for the real-candidate case. `code` is given only for the store reviewer
+  # account's fixed code (StoreReview::Account); everyone else gets a random one.
+  def self.generate_for(candidate: nil, cnic: candidate&.cnic, requested_ip: nil, code: nil)
+    code ||= SecureRandom.random_number(10**CODE_LENGTH).to_s.rjust(CODE_LENGTH, '0')
     challenge = create!(
       candidate:,
       cnic:,

@@ -52,14 +52,30 @@ module CandidateAuthentication
       def request_verification_challenge
         challenge_payload = build_verification_challenge_payload
         return unless challenge_payload
+        # The store reviewer's code is fixed and known to the reviewer, so there is no SMS to send.
+        return if store_review_account?
 
         deliver(candidate: challenge_payload.fetch(:candidate), code: challenge_payload.fetch(:code),
                 locale: I18n.locale.to_s)
       end
 
+      # A store reviewer who has already signed in with their code may sign in
+      # again at once (no SMS is sent for them); a locked or unused code still
+      # waits out the cooldown like anyone else's.
       def within_resend_cooldown?
         latest = latest_challenge_for_cnic
-        latest.present? && latest.created_at > CandidateOtpChallenge::RESEND_COOLDOWN.ago
+        return false if latest.blank? || latest.created_at <= CandidateOtpChallenge::RESEND_COOLDOWN.ago
+
+        !(store_review_account? && latest.consumed?)
+      end
+
+      def store_review_account?
+        StoreReview::Account.candidate?(@candidate)
+      end
+
+      # The reviewer's fixed code; nil (a random code) for everyone else.
+      def store_review_code
+        StoreReview::Account.otp_code if store_review_account?
       end
 
       def latest_challenge_for_cnic
@@ -92,7 +108,8 @@ module CandidateAuthentication
           candidate = resolve_candidate!
           next if within_resend_cooldown?
 
-          challenge_payload = CandidateOtpChallenge.generate_for(candidate:, requested_ip: @ip_address)
+          challenge_payload = CandidateOtpChallenge.generate_for(candidate:, code: store_review_code,
+                                                                 requested_ip: @ip_address)
           challenge_payload[:candidate] = candidate
         end
 

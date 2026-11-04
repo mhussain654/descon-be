@@ -551,6 +551,41 @@ and no live conversation.
 * The ElevenLabs provider is still in the code and is selected with
   `AI_VOICE_PROVIDER=elevenlabs`; it is not used.
 
+## 5b. Store reviewer sign-in (Google Play and App Store)
+
+Store reviewers can't receive the sign-in SMS, so one demo candidate signs in
+with a fixed code instead (`StoreReview::Account`). This is a deliberate,
+client-approved exception to "OTP values must be random". It applies only to
+that one CNIC: no SMS is sent for it, the code is still single-use, expires and
+locks after too many wrong attempts, and every sign-in is audited
+(`store_review_signed_in`). The candidate never advances on its own, so it
+stays at Enrolled and can't reach the fee step.
+
+1. On your machine, `bin/rails credentials:edit` and add a synthetic CNIC that
+   matches no real person, plus a 6-digit code:
+
+   ```yaml
+   store_review:
+     production:
+       cnic: 20304-5067890-1
+       otp_code: 678567
+   ```
+
+   With either value missing or malformed the feature is off.
+2. Deploy, then create the candidate once (as `deploy`, from `current`), passing
+   an existing staff user's email:
+
+   ```bash
+   /home/deploy/descon-mps-api/shared/bin/with-env env RAILS_ENV=production RBENV_ROOT=$HOME/.rbenv RBENV_VERSION=3.4.7 PATH=$HOME/.rbenv/bin:$PATH rbenv exec bundle exec rails "store_review:create_candidate[admin@example.com]"
+   ```
+
+   It creates "Store Reviewer" on the Qatar flow at Enrolled and is safe to run
+   again.
+3. Give the CNIC and code to Google Play (App content → Sign in details) and
+   App Store Connect (App Review Information). Change the code by editing the
+   credentials and deploying; to turn the account off, remove the
+   `store_review` block (the candidate can also be deactivated from admin).
+
 ## 6. Backups: what exists and how to restore
 
 `Backups::CreateDatabaseBackupJob` runs from `config/recurring.yml` at

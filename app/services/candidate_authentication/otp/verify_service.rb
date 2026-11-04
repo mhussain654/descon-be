@@ -111,6 +111,7 @@ module CandidateAuthentication
         candidate_session = candidate.candidate_sessions.create!(user_agent: @user_agent, ip_address: @ip_address)
         refresh_token = RefreshTokenIssuer.call(candidate_session:)
         access_token = TokenIssuer.call(candidate:, candidate_session:)
+        StoreReview::Account.record_sign_in!(candidate:, candidate_session:)
 
         { candidate:, candidate_session:, access_token:, refresh_token: }
       end

@@ -22,7 +22,7 @@ module CandidateWorkflows
 
     def call
       return if assignment.blank? || !@candidate.active?
-      return assignment.current_workflow_stage if target_process_stage.blank?
+      return assignment.current_workflow_stage if stays_at_current_stage?
 
       advance_one_stage! while current_position < target_process_stage.position && advanceable_next_stage
       assignment.current_workflow_stage
@@ -32,6 +32,11 @@ module CandidateWorkflows
 
     def assignment
       @assignment ||= @candidate.current_assignment
+    end
+
+    # The store reviewer account stays at Enrolled (see StoreReview::Account).
+    def stays_at_current_stage?
+      target_process_stage.blank? || StoreReview::Account.candidate?(@candidate)
     end
 
     def current_position
