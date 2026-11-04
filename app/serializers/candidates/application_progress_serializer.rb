@@ -38,6 +38,7 @@ module Candidates
 
     def serialized_workflow
       {
+        mobilization_process: serialized_mobilization_process,
         timeline: @progress.workflow_timeline,
         completed_count: @progress.workflow_completed_count,
         total_count: @progress.workflow_total_count,
@@ -45,6 +46,11 @@ module Candidates
         updated_at: @progress.workflow_updated_at,
         outcomes: @progress.workflow_outcomes
       }
+    end
+
+    # Its country picks the steps the candidate's app shows (e.g. Qatar's QVC steps).
+    def serialized_mobilization_process
+      CandidateWorkflows::MobilizationProcessSerializer.new(@progress.workflow_mobilization_process).as_json
     end
 
     def serialized_workflow_stage

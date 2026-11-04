@@ -1088,6 +1088,11 @@ components:
     CandidateWorkflowProgress:
       type: object
       properties:
+        mobilization_process:
+          description: The process the candidate follows; its country_code picks the steps the app shows.
+          anyOf:
+            - $ref: '#/components/schemas/CandidateMobilizationProcess'
+            - type: 'null'
         timeline:
           type: array
           items:
@@ -1120,7 +1125,7 @@ components:
                   enum: [issued, rejected]
                 - type: 'null'
           required: [medical, visa]
-      required: [timeline, completed_count, total_count, progress_percentage, updated_at, outcomes]
+      required: [mobilization_process, timeline, completed_count, total_count, progress_percentage, updated_at, outcomes]
     CandidatePaymentRecord:
       type: object
       properties:
@@ -4984,6 +4989,11 @@ paths:
                         code: registered
                         name: Registered
                       workflow:
+                        mobilization_process:
+                          code: qatar_mobilization
+                          version: 1
+                          provisional: false
+                          country_code: qatar
                         timeline:
                           - code: registered
                             name: Registered
@@ -5019,6 +5029,7 @@ paths:
                       candidate_status: registered
                       current_workflow_stage: null
                       workflow:
+                        mobilization_process: null
                         timeline: []
                         completed_count: 0
                         total_count: 0

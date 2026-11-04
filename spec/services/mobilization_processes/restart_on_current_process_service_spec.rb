@@ -40,13 +40,13 @@ RSpec.describe MobilizationProcesses::RestartOnCurrentProcessService do
     it 'moves them onto their country flow' do
       common = MobilizationProcess.active.find_by!(country_id: nil)
       qatar = assignment_on(common, country: process_country(:qatar), stage_code: 'documents_pending')
-      kuwait = assignment_on(common, country: create(:country, code: 'kuwait'), stage_code: 'documents_pending')
+      no_own_flow = assignment_on(common, country: create(:country), stage_code: 'documents_pending')
 
       expect(described_class.call).to contain_exactly(qatar)
 
       expect(qatar.reload.mobilization_process).to have_attributes(code: 'qatar_mobilization', version: 1)
       expect(qatar.current_workflow_stage.code).to eq('registered')
-      expect(kuwait.reload.mobilization_process).to eq(common)
+      expect(no_own_flow.reload.mobilization_process).to eq(common)
     end
   end
 

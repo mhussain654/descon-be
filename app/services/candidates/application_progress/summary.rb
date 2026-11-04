@@ -7,6 +7,7 @@ module Candidates
       :candidate_status,
       :current_workflow_stage,
       :documents,
+      :workflow_mobilization_process,
       :workflow_timeline,
       :workflow_completed_count,
       :workflow_total_count,

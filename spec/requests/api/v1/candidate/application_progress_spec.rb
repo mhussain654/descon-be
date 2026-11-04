@@ -82,8 +82,19 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.parsed_body.dig('data', 'documents', 'required_total')).to eq(0)
       # No assignment means no mobilization process yet, so no stages to list.
       expect(response.parsed_body.dig('data', 'workflow', 'timeline')).to eq([])
+      expect(response.parsed_body.dig('data', 'workflow', 'mobilization_process')).to be_nil
       expect(response.parsed_body.dig('data', 'workflow', 'progress_percentage')).to eq(0)
       expect(response.parsed_body.dig('data', 'payment', 'blocking_reasons')).to eq(['no_current_assignment'])
+    end
+
+    it "names the candidate's mobilization process, so the app shows their country's steps" do
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:, country: process_country(:qatar))
+
+      get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
+
+      expect(response.parsed_body.dig('data', 'workflow', 'mobilization_process'))
+        .to include('code' => 'qatar_mobilization', 'country_code' => 'qatar')
     end
 
     it 'reports the latest medical and visa outcomes, so the journey can show a step as rejected' do

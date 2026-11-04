@@ -33,6 +33,7 @@ module Candidates
 
       def workflow_summary_attributes(snapshot)
         {
+          workflow_mobilization_process: snapshot.mobilization_process,
           workflow_timeline: snapshot.timeline,
           workflow_completed_count: snapshot.completed_count,
           workflow_total_count: snapshot.total_count,
