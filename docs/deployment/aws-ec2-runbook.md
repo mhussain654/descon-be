@@ -580,7 +580,9 @@ stays at Enrolled and can't reach the fee step.
    ```
 
    It creates "Store Reviewer" on the Qatar flow at Enrolled and is safe to run
-   again.
+   again. `db:seed` also creates it (recording the earliest active
+   administrator as its creator), so after a data reset it comes back with the
+   next seed once an administrator exists.
 3. Give the CNIC and code to Google Play (App content → Sign in details) and
    App Store Connect (App Review Information). Change the code by editing the
    credentials and deploying; to turn the account off, remove the

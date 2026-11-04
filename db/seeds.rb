@@ -277,3 +277,13 @@ if Rails.env.development? && ENV.fetch('SEED_DEMO_DATA', 'false') == 'true'
     candidate.save!
   end
 end
+
+# The Google Play / App Store reviewer's demo candidate (StoreReview::Account),
+# so it comes back after a data reset. Needs the store_review credentials and an
+# active staff administrator to record as its creator (the earliest one); on a
+# fresh database, create that administrator and run db:seed again. Does nothing
+# once the candidate exists.
+store_review_creator = User.where(role: 'admin', active: true).order(:created_at).first
+if StoreReview::Account.enabled? && store_review_creator
+  StoreReview::CreateCandidateService.call(created_by: store_review_creator)
+end

@@ -29,6 +29,32 @@ RSpec.describe 'db:seed rake task' do
     expect(counts_after).to eq(counts_before)
   end
 
+  context 'when the store reviewer credentials are set' do
+    before do
+      allow(StoreReview::Account).to receive(:setting).with(:cnic).and_return('12345-6789012-3')
+      allow(StoreReview::Account).to receive(:setting).with(:otp_code).and_return('246810')
+    end
+
+    it 'creates the reviewer candidate at Enrolled once a staff administrator exists' do
+      admin = create(:user, role: 'admin')
+
+      2.times do
+        Rake::Task['db:seed'].reenable
+        Rake::Task['db:seed'].invoke
+      end
+
+      reviewers = Candidate.where(cnic: '12345-6789012-3')
+      expect(reviewers.count).to eq(1)
+      expect(reviewers.first).to have_attributes(created_by: admin, status_code: 'registered')
+    end
+
+    it 'skips the reviewer candidate while there is no staff administrator' do
+      Rake::Task['db:seed'].invoke
+
+      expect(Candidate.where(cnic: '12345-6789012-3')).not_to exist
+    end
+  end
+
   it 'seeds the roles, permissions and canonical workflow stages required by MPS-106' do
     Rake::Task['db:seed'].invoke
 
