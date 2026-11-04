@@ -89,6 +89,7 @@ Rails.application.routes.draw do
             resource :ticket_access, only: :create, controller: :candidate_flight_detail_ticket_accesses
           end
           resources :ai_calls, only: %i[index create], controller: :candidate_ai_calls
+          resources :sms_messages, only: %i[index create], controller: :candidate_sms_messages
         end
         resources :candidate_documents, only: [] do
           resource :access, only: :create, controller: :document_accesses

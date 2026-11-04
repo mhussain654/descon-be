@@ -31,7 +31,7 @@ module CandidateSms
       when 'qvc_appointment_booked' then qvc_appointment_message
       when 'visa_issued_or_rejected' then visa_message
       when 'protection_call' then protection_call_message
-      when 'ticket_handover' then stage_entry('ticket_handover', date: date_from('ticket_handed_over_on'))
+      when 'ticket_handover' then stage_entry('ticket_handover')
       when 'flight_details_uploaded' then flight_message
       end
     end
@@ -105,8 +105,17 @@ module CandidateSms
       end
 
       # Also used for a re-decision (re-application or appeal) without a stage change.
+      # An issued visa names the country it is for.
       def visa_decision(decision)
-        { message_code: "visa_#{decision.outcome_code}", dedupe_key: "visa_decision:#{decision.id}", variables: {} }
+        { message_code: "visa_#{decision.outcome_code}", dedupe_key: "visa_decision:#{decision.id}",
+          variables: decision.outcome_code == 'issued' ? { country: visa_country(decision) } : {} }
+      end
+
+      private
+
+      def visa_country(decision)
+        assignment = decision.candidate_assignment
+        ScheduleDelivery.country_name(assignment, ScheduleDelivery.locale_for(assignment.candidate))
       end
     end
   end

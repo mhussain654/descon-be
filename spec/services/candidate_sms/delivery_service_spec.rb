@@ -30,6 +30,18 @@ RSpec.describe CandidateSms::DeliveryService do
     expect(delivery.reload).to have_attributes(status: 'sent', provider_reference: '29346', sent_at: be_present)
   end
 
+  it 'sends only the values the message’s template uses' do
+    stub_send(Sms::DeliveryResult.new(success: true, provider_reference: '29347'))
+    visa = CandidateSmsDelivery.create!(
+      candidate:, candidate_assignment: assignment, message_code: 'visa_issued', dedupe_key: 'visa_decision:9',
+      locale: 'en', variables: { 'name' => 'Daim Javed', 'country' => 'Qatar' }
+    )
+
+    described_class.call(candidate_sms_delivery_id: visa.id)
+
+    expect(Sms::SendMessage).to have_received(:call).with(hash_including(variables: { 'country' => 'Qatar' }))
+  end
+
   it 'never sends a delivery that is no longer pending' do
     delivery.update!(status: 'sent')
     allow(Sms::SendMessage).to receive(:call)

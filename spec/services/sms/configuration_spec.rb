@@ -55,12 +55,21 @@ RSpec.describe Sms::Configuration do
 
   describe 'defaults and blanks' do
     it 'treats blank settings as unset and applies the base URL default' do
-      with_settings(api_key: '', sender_id: ' ', base_url: '', open_timeout: 5, read_timeout: 10)
+      with_settings(api_key: '', otp_sender_id: ' ', sms_sender_id: '', base_url: '', open_timeout: 5, read_timeout: 10)
 
       expect(configuration.sendpk_api_key).to be_nil
-      expect(configuration.sendpk_sender_id).to be_nil
+      expect(configuration.sendpk_sender_id(:otp)).to be_nil
+      expect(configuration.sendpk_sender_id(:visa_issued)).to be_nil
       expect(configuration.sendpk_base_url).to eq('https://sendpk.com')
       expect([configuration.sendpk_open_timeout, configuration.sendpk_read_timeout]).to eq([5, 10])
+    end
+  end
+
+  describe '#sendpk_sender_id' do
+    it 'sends the login code from the short code and every other SMS from the brand name' do
+      expect(configuration.sendpk_sender_id(:otp)).to eq('8062050')
+      expect(configuration.sendpk_sender_id('visa_issued')).to eq('Descon')
+      expect(configuration.sendpk_sender_id).to eq('Descon')
     end
   end
 

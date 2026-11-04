@@ -27,6 +27,7 @@ class Permission < ApplicationRecord
     { code: 'view_reports' },
     { code: 'manage_backups' },
     { code: 'trigger_ai_calls' },
+    { code: 'send_candidate_sms' },
     { code: 'manage_ai_call_scripts' },
     { code: 'manage_ai_call_settings' },
     { code: 'manage_training_settings' },

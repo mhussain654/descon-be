@@ -17,6 +17,12 @@ module CandidateSms
       CandidateSmsDelivery::LOCALES.include?(candidate.preferred_locale) ? candidate.preferred_locale : 'en'
     end
 
+    # The assignment's country in the SMS's language (e.g. "Qatar" or "قطر").
+    def self.country_name(assignment, locale)
+      country = assignment.country
+      locale.to_s == 'ur' ? country.name_ur : country.name_en
+    end
+
     def initialize(assignment:, message_code:, dedupe_key:, variables: {})
       @assignment = assignment
       @message_code = message_code.to_s

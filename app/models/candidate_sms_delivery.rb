@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
-# One progress SMS to a candidate and whether it went out. Created by
-# CandidateSms::ScheduleDelivery and sent by CandidateSms::DeliveryJob.
+# One SMS to a candidate and whether it went out: a progress SMS queued
+# automatically by CandidateSms::ScheduleDelivery, or one a staff member sent
+# by hand (CandidateSms::SendManual, `sent_by` set). Sent by
+# CandidateSms::DeliveryJob.
 class CandidateSmsDelivery < ApplicationRecord
   MESSAGE_CODES = %w[
-    registered document_rejected medical_appointment fee_pending medical_unfit qvc_appointment
+    registered documents_submitted document_rejected medical_appointment fee_pending medical_unfit qvc_appointment
     visa_issued visa_rejected protection_call ticket_handover flight_details
   ].freeze
   STATUSES = %w[pending sent failed skipped].freeze
@@ -12,6 +14,7 @@ class CandidateSmsDelivery < ApplicationRecord
 
   belongs_to :candidate
   belongs_to :candidate_assignment
+  belongs_to :sent_by, class_name: 'User', optional: true
 
   before_validation :assign_public_id, on: :create
 
@@ -21,6 +24,7 @@ class CandidateSmsDelivery < ApplicationRecord
   validates :locale, inclusion: { in: LOCALES }
 
   def pending? = status == 'pending'
+  def manual? = sent_by_id.present?
 
   private
 

@@ -49,7 +49,10 @@ RSpec.describe SmsTemplate do
     it 'lists the values each message sends, the candidate name by default' do
       expect(build(:sms_template, message_code: 'otp').variables).to eq(%w[code minutes])
       expect(build(:sms_template, message_code: 'fee_pending').variables).to eq(%w[name amount])
-      expect(build(:sms_template, message_code: 'visa_issued').variables).to eq(%w[name])
+      expect(build(:sms_template, message_code: 'visa_rejected').variables).to eq(%w[name])
+      expect(build(:sms_template, message_code: 'visa_issued').variables).to eq(%w[country])
+      expect(build(:sms_template, message_code: 'documents_submitted').variables).to eq([])
+      expect(build(:sms_template, message_code: 'ticket_handover').variables).to eq([])
     end
   end
 end

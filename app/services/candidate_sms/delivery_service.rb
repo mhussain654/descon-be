@@ -29,10 +29,13 @@ module CandidateSms
 
     def send_message(delivery)
       Sms::SendMessage.call(
-        to: delivery.candidate.mobile_number, body: body_for(delivery), variables: delivery.variables,
+        to: delivery.candidate.mobile_number, body: body_for(delivery), variables: template_variables(delivery),
         template: delivery.message_code, locale: delivery.locale
       )
     end
+
+    # Only the values the message's template uses: send.pk fills the template from them.
+    def template_variables(delivery) = delivery.variables.slice(*SmsTemplate.variables_for(delivery.message_code))
 
     def body_for(delivery)
       I18n.t("candidate_sms.#{delivery.message_code}", locale: delivery.locale,

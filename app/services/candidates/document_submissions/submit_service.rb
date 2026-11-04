@@ -24,7 +24,7 @@ module Candidates
         @current_assignment.candidate_document_submissions.create!(
           request_id: @request_id,
           submitted_at: Time.current
-        )
+        ).tap { |submission| schedule_submitted_sms!(submission) }
       end
 
       def create_audit_event!(submission:) = SubmissionAuditCreator.call(**submission_audit_arguments(submission))
@@ -128,6 +128,15 @@ module Candidates
 
       def submit_document!(document)
         document.update!(status_code: 'under_verification')
+      end
+
+      # Each submission (a first one, or one after a document was sent back) is
+      # confirmed to the candidate by SMS.
+      def schedule_submitted_sms!(submission)
+        CandidateSms::ScheduleDelivery.call(
+          assignment: @current_assignment, message_code: 'documents_submitted',
+          dedupe_key: "documents_submitted:#{submission.id}"
+        )
       end
 
       def advance_workflow!

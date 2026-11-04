@@ -10,8 +10,10 @@ module Sms
       setting(:api_key)
     end
 
-    def sendpk_sender_id
-      setting(:sender_id)
+    # The login code (OTP) goes out from the short code; every other message
+    # from the brand name.
+    def sendpk_sender_id(template = nil)
+      template.to_s == 'otp' ? setting(:otp_sender_id) : setting(:sms_sender_id)
     end
 
     # Each message (`template`, e.g. :otp or :registered) has its own approved

@@ -9,7 +9,7 @@ RSpec.describe CandidateSms::DeliveryJob do
   let(:delivery) do
     CandidateSmsDelivery.create!(
       candidate: assignment.candidate, candidate_assignment: assignment, message_code: 'visa_issued',
-      dedupe_key: 'visa_decision:1', locale: 'en', variables: { 'name' => 'Daim Javed' }
+      dedupe_key: 'visa_decision:1', locale: 'en', variables: { 'name' => 'Daim Javed', 'country' => 'Qatar' }
     )
   end
 

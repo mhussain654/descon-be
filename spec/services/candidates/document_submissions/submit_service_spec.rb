@@ -166,6 +166,8 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
       expect(AuditEvent.where(action_code: 'candidate_documents_submitted').count).to eq(1)
       expect(assignment.reload.current_workflow_stage.code).to eq('under_verification')
       expect(candidate.reload.status_code).to eq('under_verification')
+      expect(CandidateSmsDelivery.find_by!(message_code: 'documents_submitted').dedupe_key)
+        .to eq("documents_submitted:#{CandidateDocumentSubmission.sole.id}")
     end
 
     it 'does not change data when a required document is missing' do

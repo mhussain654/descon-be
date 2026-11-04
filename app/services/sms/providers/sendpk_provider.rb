@@ -69,7 +69,7 @@ module Sms
       # own dashboard, so a blank value here means setup isn't finished yet
       # rather than a delivery problem worth a network round-trip to learn.
       def configured?(template)
-        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id.present? &&
+        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id(template).present? &&
           @configuration.sendpk_template_id(template).present?
       end
 
@@ -122,7 +122,7 @@ module Sms
       def base_params(to:, variables:, template:, locale:)
         {
           'api_key' => @configuration.sendpk_api_key,
-          'sender' => @configuration.sendpk_sender_id,
+          'sender' => @configuration.sendpk_sender_id(template),
           'mobile' => to,
           'template_id' => @configuration.sendpk_template_id(template, locale),
           'message' => variables.transform_values(&:to_s).to_json

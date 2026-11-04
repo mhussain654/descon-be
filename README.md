@@ -136,7 +136,7 @@ Commonly adjusted per machine or environment:
 - `OTP_IDENTITY_RATE_LIMIT_PER_MINUTE`
 - `CANDIDATE_IMPORT_MAX_BYTES`
 - `CANDIDATE_IMPORT_MAX_ROWS`
-- `SMS_PROVIDER` -- `test` (no network call, delivers nothing, never returns or logs the code) or `sendpk` (real delivery through send.pk; needs `sendpk.<env>.api_key` in encrypted credentials plus `SENDPK_SENDER_ID`; each message's template ids, the OTP's included, are set by a developer in App Settings -> SMS settings, not in env); see `app/services/sms/`. Candidate progress SMS use the same send.pk setup with one template per message; see [docs/candidate-sms.md](docs/candidate-sms.md)
+- `SMS_PROVIDER` -- `test` (no network call, delivers nothing, never returns or logs the code) or `sendpk` (real delivery through send.pk; needs `sendpk.<env>.api_key` in encrypted credentials; the senders (short code for the OTP, brand name for every other SMS) are in `config/sendpk.yml`; each message's template ids, the OTP's included, are set by a developer in App Settings -> SMS settings, not in env); see `app/services/sms/`. Candidate progress SMS use the same send.pk setup with one template per message; see [docs/candidate-sms.md](docs/candidate-sms.md)
 - `ACTIVE_STORAGE_SERVICE`
 - `FORCE_SSL`
 - `RAILS_LOG_LEVEL`

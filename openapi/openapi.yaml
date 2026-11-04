@@ -6736,6 +6736,173 @@ paths:
           description: The call provider request failed
         '503':
           description: Outbound AI calling is disabled, or the provider is not configured
+  /api/v1/admin/candidates/{candidate_id}/sms_messages:
+    get:
+      summary: List the SMS staff can send a candidate, and the candidate's SMS history
+      description: >-
+        `messages` lists every SMS (never the login code) that has a send.pk template id in
+        at least one language, in the order a candidate meets them. `automatic` says whether
+        it is also sent automatically at its step; `locales` are the languages with a
+        template; `variables` are the values its template uses, and `prefilled` holds those
+        the candidate's record already has, per language. `default_locale` is the
+        candidate's own language. `deliveries` is the candidate's SMS history, automatic and
+        manual, most recent first (at most 50); `sent_by` is null for an automatic SMS.
+        Requires the `send_candidate_sms` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The sendable messages and the SMS history
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                messages:
+                  value:
+                    data:
+                      default_locale: ur
+                      messages:
+                        - message_code: visa_issued
+                          automatic: true
+                          locales: [en, ur]
+                          variables: [country]
+                          prefilled:
+                            en:
+                              country: Qatar
+                            ur:
+                              country: قطر
+                      deliveries:
+                        - id: 6a1f3c2e-8d4b-4f1a-9c3e-2b7d5e8f1a2c
+                          message_code: documents_submitted
+                          locale: ur
+                          status: sent
+                          error_code: null
+                          sent_by: null
+                          created_at: '2026-11-04T09:00:00Z'
+                          sent_at: '2026-11-04T09:00:02Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-04T09:05:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks send_candidate_sms, or is inactive
+        '404':
+          description: Candidate not found
+    post:
+      summary: Send an SMS to a candidate by hand
+      description: >-
+        Queues one SMS from the list above in the chosen language, whether or not it is sent
+        automatically. Every value the template uses must be given. The SMS is sent from the
+        brand-name sender through send.pk and recorded in the candidate's SMS history with
+        the staff member who sent it. Requires the `send_candidate_sms` permission and an
+        Idempotency-Key header.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sms_message]
+              properties:
+                sms_message:
+                  type: object
+                  required: [message_code, locale]
+                  properties:
+                    message_code:
+                      type: string
+                    locale:
+                      type: string
+                      enum: [en, ur]
+                    variables:
+                      type: object
+                      additionalProperties:
+                        type: string
+            examples:
+              visa:
+                value:
+                  sms_message:
+                    message_code: visa_issued
+                    locale: ur
+                    variables:
+                      country: قطر
+      responses:
+        '201':
+          description: SMS queued, or replayed idempotently
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                queued:
+                  value:
+                    data:
+                      id: 0c9e2f4a-3b1d-4e6f-8a2c-7d5b9e1f3a4c
+                      message_code: visa_issued
+                      locale: ur
+                      status: pending
+                      error_code: null
+                      sent_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      created_at: '2026-11-04T09:10:00Z'
+                      sent_at: null
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-04T09:10:00Z'
+                    errors: []
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks send_candidate_sms, or is inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: >-
+            The message has no template (or is the login code), has no template in the
+            chosen language, a value is missing (`field` names it), or the candidate is
+            inactive or has no current assignment
   /api/v1/admin/ai_calls:
     get:
       summary: List AI voice calls across every candidate, primarily the manual-review queue

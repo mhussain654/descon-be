@@ -70,6 +70,24 @@ RSpec.describe CandidateSms::StageMessage do
                                         variables: include('date' => '09-11-2026'))
   end
 
+  it 'names the country of an issued visa in the candidate’s language' do
+    candidate.update!(preferred_locale: 'ur')
+    decision = create(:candidate_visa_decision, candidate_assignment: assignment, outcome_code: 'issued')
+
+    enter('visa_issued_or_rejected', history_entry: decision.candidate_stage_history)
+
+    expect(delivery).to have_attributes(message_code: 'visa_issued', locale: 'ur',
+                                        variables: include('country' => assignment.country.name_ur))
+  end
+
+  it 'names the country of an issued visa in English for an English-speaking candidate' do
+    decision = create(:candidate_visa_decision, candidate_assignment: assignment, outcome_code: 'issued')
+
+    enter('visa_issued_or_rejected', history_entry: decision.candidate_stage_history)
+
+    expect(delivery.variables).to include('country' => assignment.country.name_en)
+  end
+
   it 'tells the candidate whether the visa was issued or rejected' do
     decision = create(:candidate_visa_decision, candidate_assignment: assignment, outcome_code: 'rejected',
                                                 rejection_reason_code: 'other')
@@ -93,10 +111,10 @@ RSpec.describe CandidateSms::StageMessage do
     expect(CandidateSmsDelivery.count).to eq(0)
   end
 
-  it 'confirms the ticket handover date' do
+  it 'tells the candidate the ticket is ready to collect' do
     enter('ticket_handover', evidence: { 'ticket_handed_over_on' => '2026-11-12' })
 
-    expect(delivery).to have_attributes(message_code: 'ticket_handover', variables: include('date' => '12-11-2026'))
+    expect(delivery).to have_attributes(message_code: 'ticket_handover', dedupe_key: start_with('ticket_handover:'))
   end
 
   it 'gives the flight with its departure in Pakistan time' do

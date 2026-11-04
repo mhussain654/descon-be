@@ -37,7 +37,7 @@ RSpec.describe CreateSmsTemplates do
     it 'fills one row per message from the template env vars and the per-message switches' do
       migration.up
 
-      expect(connection.select_value('SELECT COUNT(*) FROM sms_templates')).to eq(SmsTemplate::MESSAGE_CODES.size)
+      expect(connection.select_value('SELECT COUNT(*) FROM sms_templates')).to eq(described_class::MESSAGE_CODES.size)
       expect(row('otp')).to eq('template_id_en' => '11062', 'template_id_ur' => nil, 'enabled' => true)
       expect(row('registered')).to eq('template_id_en' => '20001', 'template_id_ur' => '20002', 'enabled' => true)
       expect(row('fee_pending')).to eq('template_id_en' => nil, 'template_id_ur' => nil, 'enabled' => false)

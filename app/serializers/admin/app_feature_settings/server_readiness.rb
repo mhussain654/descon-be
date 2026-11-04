@@ -27,7 +27,7 @@ module Admin
 
       def sendpk_ready?
         ENV.fetch('SMS_PROVIDER', 'test') == 'sendpk' && sms_configuration.sendpk_api_key.present? &&
-          sms_configuration.sendpk_sender_id.present?
+          sms_configuration.sendpk_sender_id(:otp).present? && sms_configuration.sendpk_sender_id.present?
       end
 
       def ai_calls = @ai_calls ||= ::AiCalls::Configuration.new

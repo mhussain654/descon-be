@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 # One send.pk message (the OTP or a progress SMS): the ids of its English and
-# Urdu templates, approved in send.pk's dashboard, and whether it is sent.
+# Urdu templates, approved in send.pk's dashboard, and whether it is sent
+# automatically when the candidate reaches its stage (`enabled`). Any message
+# with a template id can also be sent by hand from the candidate page,
+# whether or not it is sent automatically (CandidateSms::SendManual).
 # Edited by developers in App Settings; read by Sms::Configuration and
 # CandidateSms::ScheduleDelivery. The set of messages is fixed in code
 # (MESSAGE_CODES), so rows are edited, never added or removed.
@@ -10,15 +13,17 @@ class SmsTemplate < ApplicationRecord
   # Turning the OTP off would lock every candidate out of the app.
   ALWAYS_ENABLED = %w[otp].freeze
   # The values each message sends to its template, which must use these names.
-  # Every progress SMS also sends the candidate's `name`.
+  # A message not listed sends only the candidate's `name`.
   VARIABLES = {
     'otp' => %w[code minutes],
+    'documents_submitted' => [],
+    'visa_issued' => %w[country],
+    'ticket_handover' => [],
     'document_rejected' => %w[name document],
     'medical_appointment' => %w[name date],
     'fee_pending' => %w[name amount],
     'qvc_appointment' => %w[name date],
     'protection_call' => %w[name date],
-    'ticket_handover' => %w[name date],
     'flight_details' => %w[name airline flight sector date time]
   }.freeze
   TEMPLATE_ID_FORMAT = /\A[0-9]{1,20}\z/
@@ -41,8 +46,13 @@ class SmsTemplate < ApplicationRecord
     find_by(message_code: message_code.to_s)
   end
 
+  def self.variables_for(message_code) = VARIABLES.fetch(message_code.to_s, %w[name])
+
+  # The template id set for a locale ('en' or 'ur'), or nil.
+  def template_id_for(locale) = locale.to_s == 'ur' ? template_id_ur : template_id_en
+
   def always_enabled? = ALWAYS_ENABLED.include?(message_code)
-  def variables = VARIABLES.fetch(message_code, %w[name])
+  def variables = self.class.variables_for(message_code)
 
   private
 
