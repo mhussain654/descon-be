@@ -82,9 +82,14 @@ module CandidateWorkflows
       return requirements_not_verified_result if required_requirements.empty?
 
       documents_by_type = current_documents(required_requirements)
-      return allowed_result if requirements_verified?(required_requirements, documents_by_type)
+      return allowed_result if requirements_verified?(required_requirements, documents_by_type) && bank_detail_verified?
 
       requirements_not_verified_result(required_requirements:, documents_by_type:)
+    end
+
+    # The bank account is one of the items the candidate must provide, so it is verified too.
+    def bank_detail_verified?
+      CandidateBankDetail.current_version.exists?(candidate_assignment: @assignment, status_code: 'verified')
     end
 
     def required_requirements_for_verification

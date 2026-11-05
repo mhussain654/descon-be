@@ -9,6 +9,7 @@ RSpec.describe Idempotency::RequestHandler do
     AuthenticationEvent.delete_all
     AuditEvent.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -22,6 +23,7 @@ RSpec.describe Idempotency::RequestHandler do
     AuditEvent.delete_all
     IdempotencyKey.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all

@@ -10,6 +10,11 @@ module Admin
       view_unmasked?
     end
 
+    # Reviewing needs the proof and the full account number, so the same permission.
+    def review?
+      view_unmasked?
+    end
+
     def view_unmasked?
       permission_granted?('manage_payments')
     end

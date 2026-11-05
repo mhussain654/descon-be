@@ -34,6 +34,7 @@ module PaymentWorkflowHelpers
 
   def create_all_verified_required_documents(assignment:)
     create_verified_requirement(assignment:, code: 'passport')
+    create_verified_bank_detail(assignment:)
 
     required_requirements_for(assignment).each do |requirement|
       next if current_document_exists?(assignment:, requirement:)

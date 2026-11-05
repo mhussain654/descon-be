@@ -95,6 +95,8 @@ en:
   # Candidate progress SMS (CandidateSms). send.pk sends the wording of the
   # approved template, so these mirror those templates; the app uses them only
   # for the test SMS provider. Keep them in step with docs/candidate-sms.md.
+  candidate_bank_details:
+    document_name: "Bank Account Details"
   candidate_sms:
     registered: "Descon: Dear %{name}, you are registered for overseas employment. Download MPS Connect, log in with your CNIC and upload your documents."
     documents_submitted: "Dear candidate, all your required documents have been uploaded successfully. Please keep logging in to the MPS Connect app for more information and the latest updates. Thank you."

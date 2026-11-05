@@ -53,6 +53,8 @@ Rails.application.routes.draw do
             resource :proof_access,
                      only: :create,
                      controller: :candidate_bank_detail_proof_accesses
+            resource :verification, only: :create, controller: :candidate_bank_detail_verifications
+            resource :rejection, only: :create, controller: :candidate_bank_detail_rejections
           end
         end
         resources :countries, only: %i[index create update], param: :code do

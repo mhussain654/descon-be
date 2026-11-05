@@ -9,6 +9,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
     AuthenticationEvent.delete_all
     AuditEvent.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateOtpChallenge.delete_all
     CandidateRefreshToken.delete_all
@@ -23,6 +24,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
     AuthenticationEvent.delete_all
     AuditEvent.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateOtpChallenge.delete_all
     CandidateRefreshToken.delete_all

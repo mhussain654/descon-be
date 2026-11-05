@@ -627,13 +627,17 @@ components:
         updated_at:
           type: string
           format: date-time
+        rejection_reason:
+          type: [string, 'null']
+          description: Why staff rejected these details; null unless `status` is rejected.
       required: [id, status, account_title, account_number, bank_name, proof, submitted_at, updated_at]
     CandidateBankDetailState:
       type: object
       properties:
         status:
           type: string
-          enum: [missing, submitted]
+          description: '`submitted` awaits staff review; staff then verify it or reject it with a reason.'
+          enum: [missing, submitted, verified, rejected]
         bank_detail:
           anyOf:
             - $ref: '#/components/schemas/CandidateBankDetailRecord'
@@ -9368,6 +9372,146 @@ paths:
           description: Authenticated staff user lacks bank-detail permission or is inactive
         '404':
           description: Candidate bank details not found for the candidate's current assignment
+  /api/v1/admin/candidates/{candidate_id}/bank_details/verification:
+    post:
+      summary: Verify a candidate's bank details
+      description: >-
+        Marks the candidate's current bank details (status `submitted`) as `verified`. Verified
+        details can no longer be changed by the candidate. Like a document decision, this may
+        complete the candidate's document review and move them on to Verified, which now also
+        requires verified bank details. Requires the `manage_payments` permission (the same
+        staff who can see the full account number and the proof) and an Idempotency-Key header.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      responses:
+        '201':
+          description: Bank details verified, or replayed idempotently
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                verified:
+                  value:
+                    data:
+                      id: d86f5c87-4379-433a-9a29-c8c3d51f859a
+                      status: verified
+                      rejection_reason: null
+                      reviewed_at: '2026-11-05T08:00:00Z'
+                      reviewed_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: finance
+                      candidate:
+                        id: 1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+                        full_name: Ahmed Ali
+                      assignment:
+                        id: 5a6b7c8d-9e0f-1a2b-3c4d-5e6f1c2d3e4f
+                        reference_number: DES-100013
+                      account_title: Ahmed Ali
+                      account_number: '****************6702'
+                      bank_name: Meezan Bank
+                      proof:
+                        file_name: cheque.pdf
+                        content_type: application/pdf
+                        file_size: 123456
+                        uploaded_at: '2026-11-05T07:00:00Z'
+                      submitted_at: '2026-11-05T07:00:00Z'
+                      updated_at: '2026-11-05T08:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-05T08:00:00Z'
+                    errors: []
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_payments, or is inactive
+        '404':
+          description: Candidate or their current bank details not found
+        '422':
+          description: The bank details were already reviewed (`document_already_reviewed`)
+  /api/v1/admin/candidates/{candidate_id}/bank_details/rejection:
+    post:
+      summary: Reject a candidate's bank details
+      description: >-
+        Marks the candidate's current bank details (status `submitted`) as `rejected` with a
+        reason the candidate sees (10-500 characters of plain text, the same rule as a document
+        rejection). The candidate can then send corrected details, which start a new review.
+        Queues the "document not accepted" SMS naming the bank details when that SMS is set to
+        send automatically. Requires the `manage_payments` permission and an Idempotency-Key header.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/RequiredIdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejection]
+              properties:
+                rejection:
+                  type: object
+                  required: [reason]
+                  properties:
+                    reason:
+                      type: string
+                      minLength: 10
+                      maxLength: 500
+            examples:
+              rejection:
+                value:
+                  rejection:
+                    reason: The IBAN does not match the cheque.
+      responses:
+        '201':
+          description: Bank details rejected, or replayed idempotently. Same shape as the verification response, with `status` rejected and the `rejection_reason`.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayedHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '400':
+          description: Missing Idempotency-Key header
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_payments, or is inactive
+        '404':
+          description: Candidate or their current bank details not found
+        '422':
+          description: >-
+            Missing or invalid reason (`rejection_reason_required`, `rejection_reason_invalid`,
+            field `rejection.reason`), or the bank details were already reviewed
   /api/v1/admin/candidates/{candidate_id}/bank_details/proof_access:
     post:
       summary: Generate a short-lived private proof access path for candidate bank details

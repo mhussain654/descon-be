@@ -42,6 +42,33 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
       expect(response.body).not_to include('/storage/')
     end
 
+    it 'tells the candidate why their bank details were rejected' do
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+      create(:candidate_bank_detail, candidate_assignment: assignment, status_code: 'rejected',
+                                     rejection_reason: 'The IBAN does not match the cheque.')
+
+      get '/api/v1/candidate/bank_details', headers: candidate_auth_headers(candidate)
+
+      expect(response.parsed_body.dig('data', 'status')).to eq('rejected')
+      expect(response.parsed_body.dig('data', 'bank_detail',
+                                      'rejection_reason')).to eq('The IBAN does not match the cheque.')
+    end
+
+    it 'refuses to change bank details that are already verified' do
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+      create(:candidate_bank_detail, candidate_assignment: assignment, status_code: 'verified')
+
+      put '/api/v1/candidate/bank_details',
+          params: { bank_detail: { account_title: 'Ahmed Ali', account_number: 'PK36SCBL0000001123456702',
+                                   bank_name: 'Meezan Bank', proof: fixture_upload('test.pdf', 'application/pdf') } },
+          headers: candidate_auth_headers(candidate, { 'Idempotency-Key' => 'candidate-bank-detail-verified' })
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('bank_detail_already_verified')
+    end
+
     it 'rejects inactive candidates and staff tokens' do
       inactive_candidate = create(:candidate, active: false)
 

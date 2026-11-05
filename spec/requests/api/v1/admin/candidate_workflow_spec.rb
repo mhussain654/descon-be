@@ -28,6 +28,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     DocumentType.delete_all
     Payment.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -53,6 +54,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
     DocumentType.delete_all
     Payment.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -104,15 +106,9 @@ RSpec.describe 'API V1 Admin Candidate Workflow', type: :request do
 
   def create_verified_requirement(assignment:, code:, issued_on: nil)
     document_type = requirement_for(assignment:, code:)
-    create(
-      :candidate_document,
-      candidate_assignment: assignment,
-      document_type:,
-      status_code: 'verified',
-      verified_by: create(:user, role: 'admin'),
-      verified_at: Time.current,
-      issued_on:
-    )
+    create_verified_bank_detail(assignment:)
+    create(:candidate_document, candidate_assignment: assignment, document_type:, status_code: 'verified',
+                                verified_by: create(:user, role: 'admin'), verified_at: Time.current, issued_on:)
   end
 
   # rubocop:disable Metrics/MethodLength

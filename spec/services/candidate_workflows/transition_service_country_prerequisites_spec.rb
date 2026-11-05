@@ -109,6 +109,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
   it 'shares a Qatar candidate with the BU only when verified, paid and medically fit' do
     candidate, assignment = candidate_at('fee_paid')
     create(:document_requirement, country: assignment.country, required: true)
+    create_verified_bank_detail(assignment:)
     Candidates::Documents::RequirementResolver.call(candidate:, assignment:).select(&:required).each do |requirement|
       assignment.candidate_documents.current_version
                 .where(document_type: requirement.document_type)

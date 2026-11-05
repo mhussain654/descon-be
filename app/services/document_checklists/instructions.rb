@@ -55,9 +55,9 @@ module DocumentChecklists
       ],
       'police_character' => [
         'Upload your valid Police Character Certificate as a scanned PDF and enter its issue date. It must have ' \
-        'been issued within the last 5 months. The original should be posted to Descon.',
+        'been issued within the last 5 months. The original should be posted to Descon MPS.',
         'اپنا کارآمد پولیس کریکٹر سرٹیفکیٹ اسکین کر کے PDF میں اپ لوڈ کریں اور اس کے اجرا کی تاریخ درج کریں۔ ' \
-        'یہ پچھلے 5 ماہ کے اندر جاری ہوا ہو۔ اصل سرٹیفکیٹ ڈیسکون کو بذریعہ ڈاک بھیجیں۔'
+        'یہ پچھلے 5 ماہ کے اندر جاری ہوا ہو۔ اصل سرٹیفکیٹ ڈیسکون ایم پی ایس کو بذریعہ ڈاک بھیجیں۔'
       ],
       'polio_certificate' => [
         'Upload your polio vaccination certificate or card as a PDF.',

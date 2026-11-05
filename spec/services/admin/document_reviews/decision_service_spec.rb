@@ -17,6 +17,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -34,6 +35,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -84,6 +86,7 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     )
     requirements = resolved_required_requirements(candidate:, assignment:)
     pending_requirement = requirements.first
+    create_verified_bank_detail(assignment:)
 
     requirements.drop(1).each do |requirement|
       create(

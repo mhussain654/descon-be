@@ -44,7 +44,8 @@ module Candidates
     def identity_attributes
       {
         id: bank_detail.public_id,
-        status: bank_detail.status_code
+        status: bank_detail.status_code,
+        rejection_reason: bank_detail.rejection_reason
       }
     end
 

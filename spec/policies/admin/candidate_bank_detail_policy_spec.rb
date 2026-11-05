@@ -31,6 +31,15 @@ RSpec.describe Admin::CandidateBankDetailPolicy do
     expect(hr_policy.access_proof?).to be(false)
   end
 
+  it 'lets only staff who can see full bank details verify or reject them' do
+    bank_detail = create(:candidate_bank_detail)
+
+    expect(described_class.new(create(:user, role: 'finance'), bank_detail).review?).to be(true)
+    expect(described_class.new(create(:user, role: 'admin'), bank_detail).review?).to be(true)
+    expect(described_class.new(create(:user, role: 'management'), bank_detail).review?).to be(false)
+    expect(described_class.new(create(:user, role: 'hr'), bank_detail).review?).to be(false)
+  end
+
   it 'scopes only current bank-detail versions for authorized staff' do
     current_record = create(:candidate_bank_detail)
     create(:candidate_bank_detail, superseded_at: Time.current)

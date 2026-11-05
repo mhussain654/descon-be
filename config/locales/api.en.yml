@@ -85,6 +85,7 @@ en:
       candidate_cnic_not_found: "Sorry, you are not registered for the current mobilization."
       document_not_pending_review: "This document is not pending review."
       document_already_reviewed: "This document has already been reviewed."
+      bank_detail_already_verified: "Your bank details are already verified, so they can no longer be changed. Contact Descon MPS if they are wrong."
       rejection_reason_required: "Enter a rejection reason."
       rejection_reason_invalid: "Enter a valid rejection reason."
       document_attachment_missing: "The requested document file is unavailable."

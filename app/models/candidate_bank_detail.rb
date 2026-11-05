@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
 # A version of a candidate's bank account details (encrypted at rest) submitted with a proof
-# document, superseded by a new row whenever the details are updated.
+# document, superseded by a new row whenever the details are updated. Staff verify it, or
+# reject it with a reason (Admin::CandidateBankDetails::DecisionService); verified details
+# can no longer be changed by the candidate.
 class CandidateBankDetail < ApplicationRecord
-  STATUS_CODES = %w[submitted].freeze
+  STATUS_CODES = %w[submitted verified rejected].freeze
 
   belongs_to :candidate_assignment
   belongs_to :reviewed_by, class_name: 'User', optional: true
@@ -32,6 +34,7 @@ class CandidateBankDetail < ApplicationRecord
 
   # Whether this row is the active bank detail version (not yet replaced by a newer submission).
   def current_version? = superseded_at.blank?
+  def verified? = status_code == 'verified'
 
   # Whether the proof-of-account file has actually been uploaded and stored.
   def proof_accessible?

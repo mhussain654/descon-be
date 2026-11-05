@@ -18,6 +18,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -35,6 +36,7 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
     CandidateDocumentFile.delete_all
     CandidateDocument.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all

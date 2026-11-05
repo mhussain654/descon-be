@@ -25,8 +25,16 @@ module Admin
     def primary_attributes
       {
         id: @bank_detail.public_id,
-        status: @bank_detail.status_code
+        status: @bank_detail.status_code,
+        rejection_reason: @bank_detail.rejection_reason,
+        reviewed_at: @bank_detail.reviewed_at&.utc&.iso8601,
+        reviewed_by: reviewed_by
       }
+    end
+
+    def reviewed_by
+      reviewer = @bank_detail.reviewed_by
+      reviewer && { id: reviewer.public_id, role: reviewer.role }
     end
 
     def serialized_candidate

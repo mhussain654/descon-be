@@ -23,6 +23,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     CandidateProtectionRecord.delete_all
     Payment.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
@@ -43,6 +44,7 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     CandidateProtectionRecord.delete_all
     Payment.delete_all
     CandidateSmsDelivery.delete_all
+    CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all

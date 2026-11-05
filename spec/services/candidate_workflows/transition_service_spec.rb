@@ -61,6 +61,7 @@ RSpec.describe CandidateWorkflows::TransitionService do
   end
 
   def create_required_documents(candidate:, assignment:, default_status:, overrides: {})
+    create_verified_bank_detail(assignment:) if default_status == 'verified'
     resolved_required_requirements(candidate:, assignment:).each do |requirement|
       create_required_document(
         assignment:,
@@ -116,10 +117,15 @@ RSpec.describe CandidateWorkflows::TransitionService do
                               overrides: { 'passport' => { skip_create: true } })
     transition!(candidate:, actor:, to_stage_code: 'documents_uploaded')
     transition!(candidate:, actor:, to_stage_code: 'under_verification')
+    verify_everything!(assignment:, actor:)
+    transition!(candidate:, actor:, to_stage_code: 'verified')
+  end
+
+  def verify_everything!(assignment:, actor:)
     CandidateDocument.current_version.where(candidate_assignment: assignment).find_each do |document|
       document.update!(status_code: 'verified', verified_by: actor, verified_at: Time.current)
     end
-    transition!(candidate:, actor:, to_stage_code: 'verified')
+    create_verified_bank_detail(assignment:)
   end
 
   def record_paid_fee!(assignment)

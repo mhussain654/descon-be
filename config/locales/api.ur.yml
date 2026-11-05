@@ -84,6 +84,7 @@ ur:
       candidate_cnic_not_found: "معذرت، آپ موجودہ موبلائزیشن کے لیے رجسٹرڈ نہیں ہیں۔"
       document_not_pending_review: "یہ دستاویز جانچ کے انتظار میں نہیں ہے۔"
       document_already_reviewed: "اس دستاویز کا جائزہ پہلے ہی لیا جا چکا ہے۔"
+      bank_detail_already_verified: "آپ کی بینک تفصیلات کی تصدیق ہو چکی ہے، اس لیے اب انہیں تبدیل نہیں کیا جا سکتا۔ اگر یہ غلط ہیں تو ڈیسکون ایم پی ایس سے رابطہ کریں۔"
       rejection_reason_required: "مسترد کرنے کی وجہ درج کریں۔"
       rejection_reason_invalid: "مسترد کرنے کی درست وجہ درج کریں۔"
       document_attachment_missing: "درخواست کردہ دستاویز کی فائل دستیاب نہیں ہے۔"

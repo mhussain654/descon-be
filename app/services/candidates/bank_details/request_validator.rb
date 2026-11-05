@@ -12,6 +12,7 @@ module Candidates
 
       def call
         raise NoCurrentAssignmentError if @candidate.current_assignment.blank?
+        raise BankDetailAlreadyVerifiedError if current_bank_detail&.verified?
 
         validate_account_fields!
         validate_proof!
@@ -30,6 +31,10 @@ module Candidates
         raise MissingBankProofError if proof.blank?
         raise EmptyFileError if proof.size.to_i.zero?
         raise FileTooLargeError if proof.size.to_i > MAX_FILE_BYTES
+      end
+
+      def current_bank_detail
+        CandidateBankDetail.current_version.find_by(candidate_assignment: @candidate.current_assignment)
       end
 
       def account_title
