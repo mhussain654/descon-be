@@ -20,7 +20,7 @@ gem 'puma', '>= 5.0'
 gem 'pundit'
 gem 'rack-attack'
 gem 'rack-cors'
-gem 'rails', '~> 8.1.3', '>= 8.1.3.1'
+gem 'rails', '~> 8.1.4', '>= 8.1.4.1'
 gem 'sentry-rails'
 gem 'sentry-ruby'
 
