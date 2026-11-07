@@ -39,7 +39,7 @@ module Api
           authorize candidate, :show?, policy_class: ::Admin::CandidatePolicy
 
           set_state_headers
-          render_success(data: serialized_candidate(candidate))
+          render_success(data: ::Admin::CandidateSerializer.new(candidate, include_profile_photo: true).as_json)
         end
 
         # Registers a new candidate, idempotently, based on the submitted identity and assignment fields.

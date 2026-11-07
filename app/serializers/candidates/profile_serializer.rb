@@ -10,6 +10,8 @@ module Candidates
       profile_attributes.merge(
         country: serialized_country,
         photo_url: ProfilePhotos::UrlBuilder.call(candidate: @candidate),
+        photo_status: @candidate.profile_photo_status,
+        photo_reviewed_at: @candidate.profile_photo_reviewed_at&.utc&.iso8601,
         current_workflow_stage: serialized_workflow_stage,
         payment: serialized_payment,
         consent: serialized_consent

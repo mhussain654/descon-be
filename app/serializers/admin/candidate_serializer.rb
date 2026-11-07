@@ -6,12 +6,17 @@ module Admin
   # which masks the CNIC and omits mobile/passport). Staff with
   # view_candidates/manage_candidates are trusted with the real values.
   class CandidateSerializer
-    def initialize(candidate)
+    # `include_profile_photo`: only the single-candidate view carries the photo
+    # (a signed link per row would cost the list a query per candidate).
+    def initialize(candidate, include_profile_photo: false)
       @candidate = candidate
+      @include_profile_photo = include_profile_photo
     end
 
     def as_json(*)
-      candidate_attributes.merge(updated_at: candidate_updated_at, assignment: serialized_assignment)
+      json = candidate_attributes.merge(updated_at: candidate_updated_at, assignment: serialized_assignment)
+      json[:profile_photo] = ::Admin::CandidateProfilePhotoSerializer.new(@candidate).as_json if @include_profile_photo
+      json
     end
 
     private

@@ -7,7 +7,7 @@ module Candidates
     # Documents::UploadService does, attaches under a fixed filename (the
     # original name is irrelevant and may carry personal text), and records an
     # audit event. Replacing simply re-attaches -- Active Storage purges the
-    # previous blob.
+    # previous blob. A new photo waits for staff to approve it.
     class UpdateService < ApplicationService
       ALLOWED_CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
       MAX_FILE_BYTES = ENV.fetch('CANDIDATE_PROFILE_PHOTO_MAX_BYTES', 5.megabytes).to_i
@@ -25,6 +25,7 @@ module Candidates
 
         ::Candidate.transaction do
           @candidate.profile_photo.attach(io: rewound_tempfile, filename: filename_for(content_type), content_type:)
+          @candidate.record_profile_photo_review!('pending')
           create_audit_event!
         end
 

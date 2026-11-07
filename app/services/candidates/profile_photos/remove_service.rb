@@ -15,14 +15,21 @@ module Candidates
 
         ::Candidate.transaction do
           @candidate.profile_photo.purge_later
-          AuditEvent.create!(
-            actor: nil, candidate: @candidate, entity_type: 'Candidate', entity_id: @candidate.id,
-            action_code: 'candidate_profile_photo_removed', request_id: @request_id,
-            metadata: { candidate_public_id: @candidate.public_id }, occurred_at: Time.current
-          )
+          @candidate.record_profile_photo_review!(nil)
+          create_audit_event!
         end
 
         @candidate
+      end
+
+      private
+
+      def create_audit_event!
+        AuditEvent.create!(
+          actor: nil, candidate: @candidate, entity_type: 'Candidate', entity_id: @candidate.id,
+          action_code: 'candidate_profile_photo_removed', request_id: @request_id,
+          metadata: { candidate_public_id: @candidate.public_id }, occurred_at: Time.current
+        )
       end
     end
   end

@@ -7,6 +7,7 @@ class Candidate < ApplicationRecord
   # Used to talk to a candidate (e.g. AI calls) before they've chosen a language.
   DEFAULT_COMMUNICATION_LOCALE = 'en'
   SOURCE_CODES = %w[admin_ui csv_import].freeze
+  PROFILE_PHOTO_STATUSES = %w[pending approved rejected].freeze
   STATUS_CODE_FORMAT = /\A[a-z0-9_]+\z/
   CNIC_FORMAT = /\A\d{5}-\d{7}-\d\z/
   MOBILE_NUMBER_FORMAT = /\A\+?\d{10,15}\z/
@@ -22,6 +23,7 @@ class Candidate < ApplicationRecord
   encrypts :passport_number, deterministic: true
 
   belongs_to :created_by, class_name: 'User'
+  belongs_to :profile_photo_reviewed_by, class_name: 'User', optional: true
 
   has_many :candidate_assignments, dependent: :restrict_with_exception
   has_many :audit_events, dependent: :restrict_with_exception
@@ -35,6 +37,14 @@ class Candidate < ApplicationRecord
   # Candidates::ProfilePhotos::UpdateService). Served only through short-lived
   # signed URLs -- never a public link.
   has_one_attached :profile_photo
+  validates :profile_photo_status, inclusion: { in: PROFILE_PHOTO_STATUSES }, allow_nil: true
+
+  # Sets the photo's review status. `reviewer` is the staff member deciding;
+  # without one (a new upload or a removal) the previous review is cleared.
+  def record_profile_photo_review!(status, reviewer: nil)
+    update!(profile_photo_status: status, profile_photo_reviewed_by: reviewer,
+            profile_photo_reviewed_at: reviewer && Time.current)
+  end
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_cnic

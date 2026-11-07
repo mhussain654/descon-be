@@ -108,6 +108,7 @@ en:
       flight_detail_already_mobilized: "This candidate has already been mobilized."
       flight_mobilization_date_invalid: "The mobilization date must be on or after the flight date."
       candidate_bank_detail_not_found: "Candidate bank details not found."
+      candidate_profile_photo_not_found: "This candidate has no profile photo to review."
       bank_detail_proof_access_forbidden: "You are not allowed to access this bank proof."
       bank_proof_attachment_missing: "The requested bank proof file is unavailable."
       missing_account_title: "Enter the account title."

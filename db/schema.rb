@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -732,15 +732,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
     t.string "source_code", null: false
     t.string "status_code", default: "registered", null: false
     t.datetime "updated_at", null: false
+    t.string "profile_photo_status"
+    t.datetime "profile_photo_reviewed_at"
+    t.bigint "profile_photo_reviewed_by_id"
     t.index ["cnic"], name: "index_candidates_on_cnic", unique: true
     t.index ["created_by_id", "created_at"], name: "index_candidates_on_created_by_id_and_created_at"
     t.index ["created_by_id"], name: "index_candidates_on_created_by_id"
     t.index ["mobile_number"], name: "index_candidates_on_mobile_number_unique", unique: true
     t.index ["passport_number"], name: "index_candidates_on_passport_number", unique: true, where: "(passport_number IS NOT NULL)"
+    t.index ["profile_photo_reviewed_by_id"], name: "index_candidates_on_profile_photo_reviewed_by_id"
     t.index ["public_id"], name: "index_candidates_on_public_id", unique: true
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
+    t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[]))", name: "candidates_profile_photo_status"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"
   end
@@ -1320,6 +1325,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
   add_foreign_key "candidate_workflow_events", "candidates"
   add_foreign_key "candidate_workflow_events", "users", column: "actor_id"
   add_foreign_key "candidates", "users", column: "created_by_id"
+  add_foreign_key "candidates", "users", column: "profile_photo_reviewed_by_id"
   add_foreign_key "communications", "candidate_assignments"
   add_foreign_key "communications", "users", column: "initiated_by_id"
   add_foreign_key "document_extractions", "candidate_documents"

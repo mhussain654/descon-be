@@ -564,6 +564,19 @@ components:
             photo (null when none is set). Valid for about an hour; the profile
             is served no-store, so clients simply refetch for a fresh link.
           example: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnt9fQ--abc/profile-photo.jpg
+        photo_status:
+          type: string
+          nullable: true
+          enum: [pending, approved, rejected, null]
+          description: >-
+            Staff review of the photo. `pending` after an upload, `approved`, or `rejected`
+            (the photo was removed because it did not clearly show the candidate's own face;
+            the app asks for a new one). Null when no photo has been added.
+        photo_reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When staff last decided on the photo.
       required:
         - id
         - full_name
@@ -2530,7 +2543,31 @@ components:
           description: The more recent of the candidate's and its current assignment's own updated_at -- echo this back as expected_updated_at on a subsequent update to guard against a stale write.
         assignment:
           $ref: '#/components/schemas/AdminCandidateAssignmentSummary'
+        profile_photo:
+          allOf:
+            - $ref: '#/components/schemas/AdminCandidateProfilePhoto'
+          description: Returned by GET /api/v1/admin/candidates/{id} only, not in the list.
       required: [id, full_name, cnic, mobile_number, preferred_locale, candidate_status, active, created_at]
+    AdminCandidateProfilePhoto:
+      type: object
+      description: >-
+        The candidate's profile photo and staff review. A new upload is `pending`; staff
+        approve it or reject it (a rejected photo is removed, so `url` is null). `status`
+        is null when the candidate has never added a photo or removed it themselves.
+      properties:
+        status:
+          type: string
+          nullable: true
+          enum: [pending, approved, rejected, null]
+        url:
+          type: string
+          nullable: true
+          description: Short-lived, signed relative path to the photo (null when there is none).
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [status, url, reviewed_at]
     AdminCandidateCreateRequest:
       type: object
       properties:
@@ -9512,6 +9549,64 @@ paths:
           description: >-
             Missing or invalid reason (`rejection_reason_required`, `rejection_reason_invalid`,
             field `rejection.reason`), or the bank details were already reviewed
+  /api/v1/admin/candidates/{candidate_id}/profile_photo/approval:
+    post:
+      summary: Approve a candidate's profile photo
+      description: >-
+        Marks the candidate's current profile photo `approved`. Requires the `manage_candidate_documents` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '201':
+          description: Decision recorded. `data` is an AdminCandidateProfilePhoto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_candidate_documents, or is inactive
+        '404':
+          description: Candidate not found, or the candidate has no photo (`candidate_profile_photo_not_found`)
+  /api/v1/admin/candidates/{candidate_id}/profile_photo/rejection:
+    post:
+      summary: Reject a candidate's profile photo
+      description: >-
+        Removes the candidate's profile photo and marks it `rejected`, so the app asks them to upload a clear photo of their own face. Requires the `manage_candidate_documents` permission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '201':
+          description: Decision recorded. `data` is an AdminCandidateProfilePhoto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_candidate_documents, or is inactive
+        '404':
+          description: Candidate not found, or the candidate has no photo (`candidate_profile_photo_not_found`)
   /api/v1/admin/candidates/{candidate_id}/bank_details/proof_access:
     post:
       summary: Generate a short-lived private proof access path for candidate bank details

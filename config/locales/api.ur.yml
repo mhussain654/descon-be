@@ -107,6 +107,7 @@ ur:
       flight_detail_already_mobilized: "یہ امیدوار پہلے ہی موبلائز کیا جا چکا ہے۔"
       flight_mobilization_date_invalid: "موبلائزیشن کی تاریخ پرواز کی تاریخ کے برابر یا اس کے بعد ہونی چاہیے۔"
       candidate_bank_detail_not_found: "امیدوار کے بینک کی تفصیلات نہیں ملیں۔"
+      candidate_profile_photo_not_found: "اس امیدوار کی جائزے کے لیے کوئی پروفائل تصویر نہیں ہے۔"
       bank_detail_proof_access_forbidden: "آپ کو اس بینک پروف تک رسائی کی اجازت نہیں ہے۔"
       bank_proof_attachment_missing: "درخواست کردہ بینک پروف فائل دستیاب نہیں ہے۔"
       missing_account_title: "اکاؤنٹ کا عنوان درج کریں۔"

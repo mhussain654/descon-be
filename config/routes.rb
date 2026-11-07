@@ -56,6 +56,10 @@ Rails.application.routes.draw do
             resource :verification, only: :create, controller: :candidate_bank_detail_verifications
             resource :rejection, only: :create, controller: :candidate_bank_detail_rejections
           end
+          resource :profile_photo, only: [] do
+            resource :approval, only: :create, controller: :candidate_profile_photo_approvals
+            resource :rejection, only: :create, controller: :candidate_profile_photo_rejections
+          end
         end
         resources :countries, only: %i[index create update], param: :code do
           post :retirement, on: :member
