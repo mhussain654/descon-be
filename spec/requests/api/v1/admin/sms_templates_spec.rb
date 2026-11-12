@@ -30,8 +30,10 @@ RSpec.describe 'API V1 SMS Templates', type: :request do
       expect(data.pluck('message_code')).to eq(SmsTemplate::MESSAGE_CODES)
       expect(data.first).to include('message_code' => 'otp', 'enabled' => true, 'can_disable' => false,
                                     'variables' => %w[code minutes], 'template_id_en' => nil, 'updated_by' => nil)
+      expect(data.find { |row| row['message_code'] == 'medical_appointment' })
+        .to include('can_disable' => true, 'variables' => %w[name date])
       expect(data.find { |row| row['message_code'] == 'fee_pending' })
-        .to include('can_disable' => true, 'variables' => %w[name amount])
+        .to include('can_disable' => true, 'variables' => [])
     end
 
     it 'forbids an admin: SMS settings are developer-only' do

@@ -51,6 +51,11 @@ module Payments
       kuickpay_setting(:hybrid_base_url)
     end
 
+    # Where KuickPay's sendSMS lives; it uses the voucher (Hybrid) login.
+    def kuickpay_sms_base_url
+      kuickpay_setting(:sms_base_url)
+    end
+
     def kuickpay_hybrid_username
       kuickpay_setting(:hybrid_username)
     end

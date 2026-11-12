@@ -108,5 +108,6 @@ en:
     visa_issued: "Dear candidate, your %{country} visa has been received. Log in to the MPS Connect app and check your status for the protector date, time and office address. Thank you."
     visa_rejected: "Descon: Your visa was not approved. Please contact Descon for details."
     protection_call: "Descon: Please come for protection on %{date}. Contact Descon for details."
+    ticket_and_flight_details: "Dear Candidate, Assalamu Alaikum! You are requested to log in to the MPS Connect application and check your status for information regarding your ticket collection date and flight departure details. Thank you."
     ticket_handover: "Dear candidate, please log in to the MPS Connect app now and check your status for the date and time to collect your ticket. Thank you."
     flight_details: "Descon: Your flight %{airline} %{flight}, %{sector}, on %{date} at %{time}. Details in MPS Connect."

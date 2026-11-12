@@ -35,16 +35,17 @@ audited.
 | Message (`message_code`) | When | Countries | Template variables |
 |---|---|---|---|
 | `otp` | Candidate asks for a login code | All | `code`, `minutes` (no `name`) |
-| `registered` | Candidate added and asked for documents (enters Documents Pending) | All | `name` |
+| `registered` | Candidate added and asked for documents (enters Documents Pending) | All | none |
 | `documents_submitted` | Candidate submits their documents for review (every submission) -- **automatic** | All | none |
 | `document_rejected` | HR rejects a document | All | `name`, `document` (document name, in the candidate's language) |
 | `medical_appointment` | Enters a medical appointment stage (Medical Pending, Medical Appointment, GAMCA Medical Pending) **with** an appointment date | All | `name`, `date` |
-| `fee_pending` | Enters Fee Pending | All | `name`, `amount` (rupees) |
+| `fee_pending` | Enters Fee Pending, **after** the candidate's KuickPay code is issued and KuickPay has texted it to them (see below) | All | none |
 | `medical_unfit` | Medical result recorded as unfit | All | `name` |
-| `qvc_appointment` | QVC appointment booked, including a follow-up after re-medical | Qatar | `name`, `date` |
+| `qvc_appointment` | QVC appointment booked, including a follow-up after re-medical | Qatar | none |
 | `visa_issued` | Visa issued, including a re-decision -- **automatic** | All | `country` (in the SMS's language) |
 | `visa_rejected` | Visa rejected, including a re-decision | All | `name` |
 | `protection_call` | Enters Protection Call with status "scheduled" | Qatar | `name`, `date` |
+| `ticket_and_flight_details` | Enters Protection Day (candidate appeared for protection), the step before the ticket: asks them to check the app for ticket collection and flight details -- **automatic** | All | none |
 | `ticket_handover` | Enters Ticket Handover -- **automatic** | All | none |
 | `flight_details` | Flight details added | Qatar | `name`, `airline`, `flight`, `sector`, `date`, `time` (Pakistan time) |
 
@@ -54,8 +55,22 @@ written `#name#`, `#date#`, and so on. The suggested wording is in
 `config/locales/en.yml` and `ur.yml` under `candidate_sms` (used only by the
 test SMS provider; send.pk sends its own approved text).
 
-Not sent: Protection Day (recorded after the candidate appeared) and a fit
-medical result (the Fee Pending SMS follows instead).
+### The fee stage and the KuickPay code
+
+Entering Fee Pending queues `Payments::IssueFeeVoucherJob`. It issues the
+candidate's KuickPay voucher (the candidate no longer has to press "Get code"
+in the app: the payment screen shows the open code), asks KuickPay's
+`sendSMS` to text that code, the fee and the due date to the candidate
+(KuickPay does not text it by itself), and only then queues the
+`fee_pending` SMS, whose approved text says the code has been sent. KuickPay's
+SMS is sent once per voucher (recorded as a `voucher_sms_sent` payment
+event). If KuickPay is down the job retries five times, five minutes apart;
+after that no fee SMS goes out and the candidate can still get the code from
+the app. Nothing happens when voucher payments are switched off or the
+candidate can no longer pay. `sendSMS` is on KuickPay's live host
+(`sms_base_url` in `config/kuickpay.yml`) and uses the voucher (Hybrid) login.
+
+Not sent: a fit medical result (the Fee Pending SMS follows instead).
 
 ## How it works
 

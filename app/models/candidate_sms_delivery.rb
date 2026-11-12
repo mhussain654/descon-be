@@ -7,7 +7,7 @@
 class CandidateSmsDelivery < ApplicationRecord
   MESSAGE_CODES = %w[
     registered documents_submitted document_rejected medical_appointment fee_pending medical_unfit qvc_appointment
-    visa_issued visa_rejected protection_call ticket_handover flight_details
+    visa_issued visa_rejected protection_call ticket_and_flight_details ticket_handover flight_details
   ].freeze
   STATUSES = %w[pending sent failed skipped].freeze
   LOCALES = %w[en ur].freeze

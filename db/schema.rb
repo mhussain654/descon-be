@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_07_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -324,7 +324,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_100000) do
     t.index ["public_id"], name: "index_candidate_bank_details_on_public_id", unique: true
     t.index ["reviewed_by_id"], name: "index_candidate_bank_details_on_reviewed_by_id"
     t.check_constraint "proof_byte_size > 0", name: "candidate_bank_details_proof_byte_size_positive"
-    t.check_constraint "status_code::text = ANY (ARRAY['submitted'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])", name: "candidate_bank_details_status_code"
+    t.check_constraint "status_code::text = ANY (ARRAY['submitted'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_bank_details_status_code"
   end
 
   create_table "candidate_consents", force: :cascade do |t|
@@ -745,7 +745,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_100000) do
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
-    t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[]))", name: "candidates_profile_photo_status"
+    t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text]))", name: "candidates_profile_photo_status"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"
   end
@@ -1143,7 +1143,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_100000) do
     t.index ["message_code"], name: "index_sms_templates_on_message_code", unique: true
     t.index ["updated_by_id"], name: "index_sms_templates_on_updated_by_id"
     t.check_constraint "message_code::text <> 'otp'::text OR enabled", name: "sms_templates_otp_always_enabled"
-    t.check_constraint "message_code::text = ANY (ARRAY['otp'::character varying::text, 'registered'::character varying::text, 'document_rejected'::character varying::text, 'medical_appointment'::character varying::text, 'fee_pending'::character varying::text, 'medical_unfit'::character varying::text, 'qvc_appointment'::character varying::text, 'visa_issued'::character varying::text, 'visa_rejected'::character varying::text, 'protection_call'::character varying::text, 'ticket_handover'::character varying::text, 'flight_details'::character varying::text, 'documents_submitted'::character varying::text])", name: "sms_templates_message_code_known"
+    t.check_constraint "message_code::text = ANY (ARRAY['otp'::character varying, 'registered'::character varying, 'document_rejected'::character varying, 'medical_appointment'::character varying, 'fee_pending'::character varying, 'medical_unfit'::character varying, 'qvc_appointment'::character varying, 'visa_issued'::character varying, 'visa_rejected'::character varying, 'protection_call'::character varying, 'ticket_handover'::character varying, 'flight_details'::character varying, 'documents_submitted'::character varying, 'ticket_and_flight_details'::character varying]::text[])", name: "sms_templates_message_code_known"
   end
 
   create_table "support_settings", force: :cascade do |t|

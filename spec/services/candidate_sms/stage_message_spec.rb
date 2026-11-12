@@ -55,10 +55,10 @@ RSpec.describe CandidateSms::StageMessage do
     expect(CandidateSmsDelivery.count).to eq(0)
   end
 
-  it 'asks for the fee with its amount in whole rupees' do
+  it 'sends no fee SMS itself: Payments::IssueFeeVoucherService sends it once the KuickPay code is texted' do
     enter('fee_pending')
 
-    expect(delivery).to have_attributes(message_code: 'fee_pending', variables: include('amount' => '1500'))
+    expect(CandidateSmsDelivery.count).to eq(0)
   end
 
   it 'tells the candidate their QVC date, once per attempt' do
@@ -109,6 +109,13 @@ RSpec.describe CandidateSms::StageMessage do
           evidence: { 'protection_call_status' => 'completed', 'protection_call_on' => '2026-11-10' })
 
     expect(CandidateSmsDelivery.count).to eq(0)
+  end
+
+  it 'asks the candidate on Protection Day to check the app for their ticket and flight details' do
+    enter('appeared_for_protection', evidence: { 'appeared_for_protection_on' => '2026-11-12' })
+
+    expect(delivery).to have_attributes(message_code: 'ticket_and_flight_details',
+                                        dedupe_key: start_with('ticket_and_flight_details:'))
   end
 
   it 'tells the candidate the ticket is ready to collect' do

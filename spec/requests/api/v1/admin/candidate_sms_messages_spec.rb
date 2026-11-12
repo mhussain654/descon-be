@@ -22,7 +22,7 @@ RSpec.describe 'API V1 Admin Candidate SMS Messages', type: :request do
   describe 'GET /api/v1/admin/candidates/:candidate_id/sms_messages' do
     it 'lists the sendable messages with their languages and filled-in values, and the SMS history' do
       create(:sms_template, message_code: 'visa_issued', template_id_en: '30010', template_id_ur: '30011')
-      create(:sms_template, message_code: 'fee_pending', template_id_en: '20010', enabled: false)
+      create(:sms_template, message_code: 'medical_unfit', template_id_en: '20010', enabled: false)
       create(:sms_template, message_code: 'flight_details', template_id_en: nil)
       CandidateSmsDelivery.create!(candidate:, candidate_assignment: assignment, message_code: 'registered',
                                    dedupe_key: 'registered:1', locale: 'ur', status: 'sent')
@@ -32,7 +32,7 @@ RSpec.describe 'API V1 Admin Candidate SMS Messages', type: :request do
       expect(response).to have_http_status(:ok)
       data = response.parsed_body.fetch('data')
       expect(data['default_locale']).to eq('ur')
-      expect(data['messages'].pluck('message_code')).to eq(%w[fee_pending visa_issued])
+      expect(data['messages'].pluck('message_code')).to eq(%w[medical_unfit visa_issued])
       expect(data['messages'].last).to include(
         'automatic' => true, 'locales' => %w[en ur], 'variables' => %w[country],
         'prefilled' => { 'en' => { 'country' => assignment.country.name_en },

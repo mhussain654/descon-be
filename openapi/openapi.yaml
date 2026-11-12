@@ -10669,7 +10669,7 @@ paths:
                         template_id_ur: '20011'
                         enabled: true
                         can_disable: true
-                        variables: [name, amount]
+                        variables: []
                         updated_by:
                           id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                           role: developer
@@ -10699,8 +10699,8 @@ paths:
           schema:
             type: string
             enum: [otp, registered, document_rejected, medical_appointment, fee_pending, medical_unfit,
-                   qvc_appointment, visa_issued, visa_rejected, protection_call, ticket_handover,
-                   flight_details]
+                   qvc_appointment, visa_issued, visa_rejected, protection_call, ticket_and_flight_details,
+                   ticket_handover, flight_details, documents_submitted]
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       requestBody:
@@ -10732,7 +10732,7 @@ paths:
                       template_id_ur: '20011'
                       enabled: true
                       can_disable: true
-                      variables: [name, amount]
+                      variables: []
                       updated_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                         role: developer

@@ -116,6 +116,66 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
     end
   end
 
+  describe '#send_voucher_sms' do
+    before do
+      payment.update!(voucher_number: '0000832249220', checkout_expires_at: Time.zone.parse('2026-04-15 18:59:59 UTC'))
+    end
+
+    it 'asks KuickPay to text the code, amount and due date to the candidate, with the voucher login' do
+      requests = []
+      reply = nil
+      with_kuickpay_voucher_configured do
+        stub_kuickpay_hybrid(requests:)
+
+        reply = adapter.send_voucher_sms(payment:, candidate:)
+      end
+
+      request = requests.sole
+      expect(request.uri.to_s).to eq('https://api.kuickpay.com/api/sendSMS')
+      expect([request['username'], request['password']]).to eq(%w[test-hybrid-user test-hybrid-password])
+      expect(JSON.parse(request.body)).to eq(
+        'InstitutionID' => '00008', 'duedate' => '15-Apr-2026', 'amount' => '1500',
+        'consumerNo' => '0000832249220', 'cellNumberSMS' => '03001234567'
+      )
+      expect(reply).to include('response_Code' => '00')
+    end
+
+    it 'accepts a successful reply that is not JSON' do
+      with_kuickpay_voucher_configured do
+        stub_sms_reply(Net::HTTPOK.new('1.1', '200', 'OK'), 'SMS sent')
+
+        expect(adapter.send_voucher_sms(payment:, candidate:)).to eq('reply' => 'SMS sent')
+      end
+    end
+
+    it 'raises when KuickPay refuses, fails or cannot be reached' do
+      with_kuickpay_voucher_configured do
+        stub_sms_reply(Net::HTTPOK.new('1.1', '200', 'OK'), { response_Code: '01' }.to_json)
+        expect { adapter.send_voucher_sms(payment:, candidate:) }
+          .to raise_error(PaymentCheckoutUnavailableError)
+
+        stub_sms_reply(Net::HTTPInternalServerError.new('1.1', '500', 'Error'), '')
+        expect { adapter.send_voucher_sms(payment:, candidate:) }
+          .to raise_error(PaymentCheckoutUnavailableError)
+
+        allow(Net::HTTP).to receive(:start).and_raise(SocketError)
+        expect { adapter.send_voucher_sms(payment:, candidate:) }
+          .to raise_error(PaymentCheckoutUnavailableError)
+      end
+    end
+
+    it 'refuses when vouchers are switched off' do
+      expect { adapter.send_voucher_sms(payment:, candidate:) }
+        .to raise_error(PaymentCheckoutUnavailableError)
+    end
+
+    def stub_sms_reply(response, body)
+      allow(response).to receive(:body).and_return(body)
+      http = instance_double(Net::HTTP, request: response)
+      allow(Net::HTTP).to receive(:start).and_yield(http)
+    end
+  end
+
   describe '#settlements_on' do
     it 'returns the day\'s paid vouchers -- settled or not yet -- and skips malformed ones' do
       requests = []

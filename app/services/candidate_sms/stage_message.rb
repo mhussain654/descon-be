@@ -4,7 +4,8 @@ module CandidateSms
   # Queues the progress SMS, if any, for a candidate entering a workflow stage,
   # using what the transition just recorded (medical date, QVC attempt, visa
   # decision, flight). Called by CandidateWorkflows::TransitionSideEffectRecorder
-  # after those records exist. Stages not handled here send nothing.
+  # after those records exist. Stages not handled here send nothing; the fee
+  # stage's SMS is queued by Payments::IssueFeeVoucherService instead.
   class StageMessage < ApplicationService
     TIME_ZONE = 'Asia/Karachi'
 
@@ -23,14 +24,14 @@ module CandidateSms
 
     private
 
-    # rubocop:disable Metrics/CyclomaticComplexity
+    # rubocop:disable Metrics/CyclomaticComplexity -- one branch per stage that sends an SMS
     def stage_message
       case @context.fetch(:destination_stage).code
       when 'documents_pending' then stage_entry('registered')
-      when 'fee_pending' then stage_entry('fee_pending', amount: fee_amount)
       when 'qvc_appointment_booked' then qvc_appointment_message
       when 'visa_issued_or_rejected' then visa_message
       when 'protection_call' then protection_call_message
+      when 'appeared_for_protection' then stage_entry('ticket_and_flight_details')
       when 'ticket_handover' then stage_entry('ticket_handover')
       when 'flight_details_uploaded' then flight_message
       end
@@ -83,11 +84,6 @@ module CandidateSms
       detail = assignment.candidate_flight_detail
       stage_entry('flight_details', airline: detail.airline, flight: detail.flight_number, sector: detail.sector,
                                     date: ScheduleDelivery.format_date(departure), time: departure.strftime('%H:%M'))
-    end
-
-    def fee_amount
-      amount = Payments::FeeResolver.amount(assignment)
-      amount == amount.to_i ? amount.to_i : amount
     end
 
     def date_from(field)

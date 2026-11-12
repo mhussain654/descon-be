@@ -109,6 +109,7 @@ RSpec.describe Payments::Configuration do
 
       expect(configuration).not_to be_kuickpay_voucher_enabled
       expect(configuration.kuickpay_hybrid_base_url).to eq('https://uat-adminapi.kuickpay.com')
+      expect(configuration.kuickpay_sms_base_url).to eq('https://api.kuickpay.com')
       expect([configuration.kuickpay_hybrid_username, configuration.kuickpay_hybrid_password])
         .to eq(%w[test-hybrid-user test-hybrid-password])
       expect([configuration.kuickpay_payment_status_username, configuration.kuickpay_payment_status_password])

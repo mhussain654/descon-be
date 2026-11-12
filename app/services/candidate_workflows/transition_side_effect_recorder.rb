@@ -24,10 +24,18 @@ module CandidateWorkflows
 
     private
 
-    # The automatic call and the progress SMS, each a no-op for a stage without one.
+    # The automatic call and the progress SMS, each a no-op for a stage without one. The fee stage's SMS
+    # goes out from Payments::IssueFeeVoucherJob, once the candidate's KuickPay code has been texted to them.
     def notify_candidate!
       trigger_workflow_stage_call!
       CandidateSms::StageMessage.call(history_entry: @history_entry, context: @context, evidence:)
+      issue_fee_voucher! if destination_stage_code == 'fee_pending'
+    end
+
+    # Enqueued inside this transaction, like the call job: it only exists if the transition commits.
+    def issue_fee_voucher!
+      Payments::IssueFeeVoucherJob.perform_later(candidate_assignment_id: assignment.id,
+                                                 history_entry_id: @history_entry.id)
     end
 
     # Enqueued unconditionally -- AiCalls::TriggerWorkflowStageCallService

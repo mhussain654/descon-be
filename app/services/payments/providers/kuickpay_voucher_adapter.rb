@@ -16,6 +16,12 @@ module Payments
       # `consumer_number` is the payable voucher number; `system_voucher_number` is KuickPay's own.
       Voucher = Struct.new(:consumer_number, :system_voucher_number, :raw_response, keyword_init: true)
 
+      # KuickPay wants the local form (03001234567), our stored number is +923001234567.
+      def self.local_mobile(number)
+        normalized = PhoneNumbers::Normalizer.call(number).to_s
+        normalized.start_with?('+92') ? "0#{normalized.delete_prefix('+92')}" : normalized.delete_prefix('+')
+      end
+
       def initialize(configuration:)
         @configuration = configuration
         @http_client = KuickpayHybridHttpClient.new(configuration:)
@@ -39,6 +45,13 @@ module Payments
                     system_voucher_number: system_voucher_number(body))
       rescue KeyError
         reject!('insert voucher response had no voucher number')
+      end
+
+      # Has KuickPay text the candidate their voucher number, amount and due date (KuickpayVoucherSms).
+      def send_voucher_sms(payment:, candidate:)
+        raise PaymentCheckoutUnavailableError unless available? && @configuration.kuickpay_sms_base_url.present?
+
+        KuickpayVoucherSms.new(configuration: @configuration).deliver(payment:, candidate:)
       end
 
       # Every payment KuickPay reports for one day (Pakistan time), settled or not yet.
@@ -114,11 +127,7 @@ module Payments
         name.to_s.gsub(/[^[:alpha:] ]/, '').squish.presence || 'Candidate'
       end
 
-      # KuickPay wants the local form (03001234567), our stored number is +923001234567.
-      def local_mobile(number)
-        normalized = PhoneNumbers::Normalizer.call(number).to_s
-        normalized.start_with?('+92') ? "0#{normalized.delete_prefix('+92')}" : normalized.delete_prefix('+')
-      end
+      def local_mobile(number) = self.class.local_mobile(number)
     end
   end
 end

@@ -7,7 +7,8 @@ RSpec.describe CandidateSms::DeliveryService do
   let(:assignment) { create(:candidate_assignment, candidate:) }
   let(:delivery) do
     CandidateSmsDelivery.create!(
-      candidate:, candidate_assignment: assignment, message_code: 'qvc_appointment', dedupe_key: 'qvc_appointment:1',
+      candidate:, candidate_assignment: assignment, message_code: 'medical_appointment',
+      dedupe_key: 'medical_appointment:1',
       locale: 'ur', variables: { 'name' => 'Daim Javed', 'date' => '04-11-2026' }
     )
   end
@@ -25,7 +26,7 @@ RSpec.describe CandidateSms::DeliveryService do
 
     expect(Sms::SendMessage).to have_received(:call).with(
       to: candidate.mobile_number, variables: { 'name' => 'Daim Javed', 'date' => '04-11-2026' },
-      template: 'qvc_appointment', locale: 'ur', body: include('04-11-2026')
+      template: 'medical_appointment', locale: 'ur', body: include('04-11-2026')
     )
     expect(delivery.reload).to have_attributes(status: 'sent', provider_reference: '29346', sent_at: be_present)
   end
@@ -40,6 +41,18 @@ RSpec.describe CandidateSms::DeliveryService do
     described_class.call(candidate_sms_delivery_id: visa.id)
 
     expect(Sms::SendMessage).to have_received(:call).with(hash_including(variables: { 'country' => 'Qatar' }))
+  end
+
+  it 'sends no values for a fixed-text template, even when the delivery recorded some' do
+    stub_send(Sms::DeliveryResult.new(success: true, provider_reference: '29348'))
+    fee = CandidateSmsDelivery.create!(
+      candidate:, candidate_assignment: assignment, message_code: 'fee_pending', dedupe_key: 'fee_pending:9',
+      locale: 'en', variables: { 'name' => 'Daim Javed', 'amount' => '1500' }
+    )
+
+    described_class.call(candidate_sms_delivery_id: fee.id)
+
+    expect(Sms::SendMessage).to have_received(:call).with(hash_including(template: 'fee_pending', variables: {}))
   end
 
   it 'never sends a delivery that is no longer pending' do

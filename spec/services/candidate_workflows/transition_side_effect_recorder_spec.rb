@@ -39,6 +39,21 @@ RSpec.describe CandidateWorkflows::TransitionSideEffectRecorder do
     expect(CandidateSmsDelivery.sole.message_code).to eq('registered')
   end
 
+  it 'queues the fee voucher job when the candidate enters the fee stage, and only then' do
+    fee_stage = WorkflowStage.find_by!(code: 'fee_pending')
+    fee_entry = create(:candidate_stage_history, candidate_assignment: assignment, to_workflow_stage: fee_stage)
+
+    expect { call_recorder }.not_to have_enqueued_job(Payments::IssueFeeVoucherJob)
+    expect do
+      described_class.call(
+        history_entry: fee_entry,
+        context: { candidate:, assignment:, destination_stage: fee_stage, current_stage: nil },
+        transition: { request_id: 'req-3', transitioned_at:, evidence: {} }
+      )
+    end.to have_enqueued_job(Payments::IssueFeeVoucherJob)
+      .with(candidate_assignment_id: assignment.id, history_entry_id: fee_entry.id)
+  end
+
   it 'enqueues the job for every destination stage, not only ones with other side effects' do
     other_stage = WorkflowStage.find_by!(code: 'documents_pending')
     other_transitioned_at = Time.current

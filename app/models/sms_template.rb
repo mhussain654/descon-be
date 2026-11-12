@@ -13,16 +13,21 @@ class SmsTemplate < ApplicationRecord
   # Turning the OTP off would lock every candidate out of the app.
   ALWAYS_ENABLED = %w[otp].freeze
   # The values each message sends to its template, which must use these names.
-  # A message not listed sends only the candidate's `name`.
+  # A message not listed sends only the candidate's `name`. The client's
+  # approved templates for registered, fee_pending, qvc_appointment,
+  # ticket_and_flight_details and ticket_handover are fixed text, so they send
+  # no values.
   VARIABLES = {
     'otp' => %w[code minutes],
+    'registered' => [],
     'documents_submitted' => [],
     'visa_issued' => %w[country],
+    'ticket_and_flight_details' => [],
     'ticket_handover' => [],
     'document_rejected' => %w[name document],
     'medical_appointment' => %w[name date],
-    'fee_pending' => %w[name amount],
-    'qvc_appointment' => %w[name date],
+    'fee_pending' => [],
+    'qvc_appointment' => [],
     'protection_call' => %w[name date],
     'flight_details' => %w[name airline flight sector date time]
   }.freeze
