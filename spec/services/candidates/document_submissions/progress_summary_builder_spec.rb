@@ -19,6 +19,7 @@ RSpec.describe Candidates::DocumentSubmissions::ProgressSummaryBuilder do
   it 'delegates to the application progress summary using the provided submission context' do
     candidate = create(:candidate)
     assignment = create(:candidate_assignment, candidate:)
+    create(:candidate_bank_detail, candidate_assignment: assignment)
     passport = create_requirement(assignment:, code: "passport_#{SecureRandom.hex(4)}")
     document = create(
       :candidate_document,

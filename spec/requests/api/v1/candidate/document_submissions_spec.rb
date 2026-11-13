@@ -46,11 +46,11 @@ RSpec.describe 'API V1 Candidate Document Submissions', type: :request do
   def create_required_documents(
     candidate:, assignment:, default_status: 'uploaded', overrides: {}
   )
+    # Bank details are required for submission too, alongside the documents.
+    create(:candidate_bank_detail, candidate_assignment: assignment)
     resolved_required_requirements(candidate:, assignment:).each do |requirement|
-      attributes =
-        compliance_attributes_for(requirement.document_type).merge(
-          overrides.fetch(requirement.document_type.code, {})
-        )
+      code = requirement.document_type.code
+      attributes = compliance_attributes_for(requirement.document_type).merge(overrides.fetch(code, {}))
 
       create(:candidate_document, candidate_assignment: assignment,
                                   document_type: requirement.document_type,

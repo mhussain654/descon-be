@@ -115,6 +115,7 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
     it 'returns blocking requirements and localized names for the authenticated candidate only' do
       candidate = create(:candidate, preferred_locale: 'ur')
       assignment = create(:candidate_assignment, candidate:)
+      create(:candidate_bank_detail, candidate_assignment: assignment)
       other_candidate = create(:candidate)
       other_assignment = create(:candidate_assignment, candidate: other_candidate)
       create_requirement(assignment:, code: 'passport')

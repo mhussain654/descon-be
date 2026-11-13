@@ -27,11 +27,20 @@ module Candidates
       end
 
       def can_submit
-        return false if @assignment.blank? || required_requirements.empty?
-        return false if blocking_requirements.present?
-        return false unless allowed_for_submission?
+        return false unless submission_prerequisites_met?
 
         required_documents.any? { |document| document&.api_status == 'uploaded' }
+      end
+
+      def submission_prerequisites_met?
+        @assignment.present? && required_requirements.any? && blocking_requirements.empty? &&
+          allowed_for_submission? && bank_details_provided?
+      end
+
+      # Bank details are required too, though they are kept apart from the documents
+      # (CandidateBankDetail): submitted or verified, not missing or rejected.
+      def bank_details_provided?
+        @assignment.candidate_bank_details.current_version.where.not(status_code: 'rejected').exists?
       end
 
       def completion_percentage

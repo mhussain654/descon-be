@@ -71,6 +71,8 @@ RSpec.describe Candidates::DocumentSubmissions::SubmitService do
   end
 
   def create_required_documents(candidate:, assignment:, default_status:, overrides: {})
+    # Bank details are required for submission too, alongside the documents.
+    create(:candidate_bank_detail, candidate_assignment: assignment)
     resolved_required_requirements(candidate:, assignment:).each do |requirement|
       create_required_document(
         assignment:,

@@ -66,6 +66,7 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
     it 'returns ready when all required documents are present and at least one is uploaded' do
       candidate = create(:candidate, preferred_locale: 'ur')
       assignment = create(:candidate_assignment, candidate:)
+      create(:candidate_bank_detail, candidate_assignment: assignment)
       passport = create_requirement(assignment:, code: 'passport')
       cv = create_requirement(assignment:, code: 'cv')
       requirements = [
@@ -104,6 +105,44 @@ RSpec.describe Candidates::ApplicationProgress::SummaryService do
       expect(progress.documents.submitted_total).to eq(2)
       expect(progress.documents.completion_percentage).to eq(100)
       expect(progress.documents.can_submit).to be(true)
+    end
+
+    context 'when every document is uploaded but the bank details are not ready' do
+      def uploaded_passport_progress(candidate:, assignment:)
+        passport = create_requirement(assignment:, code: 'passport')
+        document = create(:candidate_document, candidate_assignment: assignment, document_type: passport,
+                                               status_code: 'uploaded')
+        progress_for(candidate:, assignment:, requirements: [build_requirement(document_type: passport)],
+                     current_documents_by_type: { passport.id => document })
+      end
+
+      it 'cannot be submitted for review while the bank details are missing' do
+        candidate = create(:candidate)
+        assignment = create(:candidate_assignment, candidate:)
+
+        documents = uploaded_passport_progress(candidate:, assignment:).documents
+
+        expect(documents.can_submit).to be(false)
+        expect(documents.submission_state).to eq('incomplete')
+      end
+
+      it 'cannot be submitted for review while the bank details are rejected' do
+        candidate = create(:candidate)
+        assignment = create(:candidate_assignment, candidate:)
+        create(:candidate_bank_detail, candidate_assignment: assignment, status_code: 'rejected')
+
+        expect(uploaded_passport_progress(candidate:, assignment:).documents.can_submit).to be(false)
+      end
+
+      it 'can be submitted once corrected bank details replace the rejected ones' do
+        candidate = create(:candidate)
+        assignment = create(:candidate_assignment, candidate:)
+        create(:candidate_bank_detail, candidate_assignment: assignment, status_code: 'rejected',
+                                       superseded_at: 1.hour.ago)
+        create(:candidate_bank_detail, candidate_assignment: assignment)
+
+        expect(uploaded_passport_progress(candidate:, assignment:).documents.can_submit).to be(true)
+      end
     end
 
     it 'ignores optional requirements when calculating readiness' do
