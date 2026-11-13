@@ -6,8 +6,11 @@ require Rails.root.join('db/migrate/20261112100000_add_ticket_and_flight_details
 RSpec.describe AddTicketAndFlightDetailsSms do
   subject(:migration) { described_class.new }
 
+  # The seeded test database (CI runs db:prepare) already has every SMS, so each example starts from an
+  # empty table. The example's transaction puts the rows back.
   around do |example|
     ActiveRecord::Migration.suppress_messages do
+      ActiveRecord::Base.connection.execute('DELETE FROM sms_templates')
       migration.down
       example.run
     end

@@ -8,8 +8,12 @@ RSpec.describe LimitAutomaticSmsAndAddManualSms do
 
   let(:connection) { ActiveRecord::Base.connection }
 
+  # The seeded test database (CI runs db:prepare) already has every SMS, including ones added by later
+  # migrations that this older down would refuse, so each example starts from an empty table. The
+  # example's transaction puts the rows back.
   around do |example|
     ActiveRecord::Migration.suppress_messages do
+      connection.execute('DELETE FROM sms_templates')
       migration.down
       example.run
     end
