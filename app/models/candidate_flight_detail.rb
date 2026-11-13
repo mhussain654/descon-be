@@ -13,7 +13,7 @@ class CandidateFlightDetail < ApplicationRecord
   before_validation :assign_public_id, on: :create
 
   validates :public_id, presence: true, uniqueness: true
-  validates :airline, :flight_number, :sector, presence: true
+  validates :airline, :flight_number, presence: true
   validates :flight_departure_at, presence: true
   validate :mobilization_fields_are_consistent
   validate :mobilized_on_is_not_before_flight_departure

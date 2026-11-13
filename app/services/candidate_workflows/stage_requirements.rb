@@ -92,7 +92,8 @@ module CandidateWorkflows
         field_types: { 'appeared_for_protection_on' => :iso_date }
       },
       'flight_details_uploaded' => {
-        required_fields: %w[airline flight_reference sector flight_date],
+        # The route (sector) is optional: the airline, flight number and departure identify the flight.
+        required_fields: %w[airline flight_reference flight_date],
         allowed_fields: %w[airline flight_reference sector flight_date],
         field_types: {
           'airline' => :string,

@@ -4,13 +4,21 @@ module CandidateWorkflows
   # Advances a candidate, one step at a time along their own process, up to the
   # stage an event implies (stopping early at any step whose prerequisites
   # aren't met). An event whose target isn't in the candidate's process -- or
-  # is already behind them -- does nothing.
+  # is already behind them -- does nothing. A target listed as several codes is
+  # the first of them the candidate's process has.
+  #
+  # Moves that need nothing typed and no decision from staff happen here, so
+  # staff only act where they have something to enter (client request, Nov 2026):
+  # approved documents carry on to Campaign Nomination, and a paid fee carries on
+  # to the first step of the country's next phase -- Tasheer registration (KSA),
+  # the QVC steps (Qatar) or the visa (UAE, Oman and the common process).
   class AutomaticTransitionService < ApplicationService
     EVENT_TARGETS = {
       assignment_created: 'documents_pending',
       documents_uploaded: 'documents_uploaded',
       documents_submitted: 'under_verification',
-      documents_reviewed: 'verified'
+      documents_reviewed: 'campaign_nomination',
+      fee_paid: %w[e_number_processing documents_shared_with_qatar_bu visa_processing]
     }.freeze
 
     def initialize(candidate:, event:, actor: nil, request_id: nil)
@@ -61,7 +69,10 @@ module CandidateWorkflows
     def target_process_stage
       return @target_process_stage if defined?(@target_process_stage)
 
-      @target_process_stage = assignment.mobilization_process.stage_with_code(EVENT_TARGETS.fetch(@event))
+      process = assignment.mobilization_process
+      @target_process_stage = Array(EVENT_TARGETS.fetch(@event)).lazy.filter_map do |code|
+        process.stage_with_code(code)
+      end.first
     end
 
     def next_stage_allowed?(next_stage)

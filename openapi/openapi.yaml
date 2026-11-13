@@ -2011,6 +2011,24 @@ components:
               example: '09:30'
           additionalProperties: false
       required: [medical_appointment_setting]
+    AdminFlightDetailSettingRequest:
+      type: object
+      properties:
+        flight_detail_setting:
+          type: object
+          description: departure_on and departure_time are set (or cleared) together.
+          properties:
+            airline: { type: string, nullable: true, maxLength: 100, example: Qatar Airways }
+            flight_number: { type: string, nullable: true, maxLength: 100, example: QR-615 }
+            sector: { type: string, nullable: true, maxLength: 100, example: LHE-DOH }
+            departure_on: { type: string, format: date, nullable: true, example: '2026-11-20' }
+            departure_time:
+              type: string
+              nullable: true
+              pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+              example: '14:30'
+          additionalProperties: false
+      required: [flight_detail_setting]
     AdminAppFeatureSettingRequest:
       type: object
       properties:
@@ -2347,7 +2365,10 @@ components:
         flight_number:
           type: string
         sector:
-          type: string
+          description: The route, e.g. LHE-DOH (shown to staff as "Route (from – to)"). Optional; null when not given.
+          anyOf:
+            - type: string
+            - type: 'null'
         flight_departure_at:
           type: string
           format: date-time
@@ -2399,7 +2420,7 @@ components:
       properties:
         candidate_flight_detail:
           type: object
-          required: [airline, flight_number, sector, flight_date, ticket, expected_current_stage_code]
+          required: [airline, flight_number, flight_date, ticket, expected_current_stage_code]
           properties:
             airline:
               type: string
@@ -2407,10 +2428,13 @@ components:
               type: string
             sector:
               type: string
+              description: Optional route, e.g. LHE-DOH.
             flight_date:
               type: string
               format: date-time
-              description: Full flight date and time, ISO 8601.
+              description: >-
+                Full flight date and time, ISO 8601. Without an offset (2026-11-20T14:30) it is read as
+                Pakistan time.
             ticket:
               type: string
               format: binary
@@ -10945,6 +10969,81 @@ paths:
           description: Authenticated staff user lacks manage_workflow, or is inactive
         '422':
           description: appointment_time is not HH:MM, or a value is too long
+  /api/v1/admin/flight_detail_setting:
+    get:
+      summary: Read the default flight details
+      description: >-
+        Returns the single admin-editable default flight details (airline, flight number, sector,
+        departure date and time), filled in when staff add a candidate's flight details. The
+        allowed transitions also offer them as the flight_details_uploaded fields' `default`
+        (flight_date as a local date and time, e.g. 2026-11-20T14:30). Requires `manage_workflow`
+        (Admin and MPS by default).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current defaults (each null until set)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      airline: Qatar Airways
+                      flight_number: QR-615
+                      sector: LHE-DOH
+                      departure_on: '2026-11-20'
+                      departure_time: '14:30'
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-11-14T09:00:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-11-14T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_workflow, or is inactive
+    patch:
+      summary: Edit the default flight details
+      description: >-
+        Sets or clears any of the defaults. Only candidates whose flight details are added
+        afterwards get the new values; a candidate already added keeps what was saved for them.
+        Requires `manage_workflow`; a change is recorded as an AuditEvent with the before/after
+        values.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminFlightDetailSettingRequest'
+      responses:
+        '200':
+          description: Defaults updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_workflow, or is inactive
+        '422':
+          description: >-
+            departure_time is not HH:MM, only one of departure_on/departure_time is set, or a
+            value is too long
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)

@@ -61,7 +61,8 @@ module CandidateWorkflows
       }
     end
 
-    # Only the medical appointment fields have defaults (MedicalAppointmentSetting).
+    # Only the medical appointment fields (MedicalAppointmentSetting) and the flight
+    # details (FlightDetailSetting) have defaults; their field names do not overlap.
     def fields_with_defaults(stage_code)
       StageRequirements.fields_for(stage_code).map do |field|
         default = evidence_defaults[field[:name]]
@@ -71,6 +72,7 @@ module CandidateWorkflows
 
     def evidence_defaults
       @evidence_defaults ||= MedicalAppointmentSetting.current.evidence_defaults
+                                                      .merge(FlightDetailSetting.current.evidence_defaults)
     end
 
     def blocked_for_unauthorized_actor(process_stage)

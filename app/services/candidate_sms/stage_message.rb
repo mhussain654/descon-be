@@ -82,7 +82,7 @@ module CandidateSms
     def flight_message
       departure = assignment.candidate_flight_detail.flight_departure_at.in_time_zone(TIME_ZONE)
       detail = assignment.candidate_flight_detail
-      stage_entry('flight_details', airline: detail.airline, flight: detail.flight_number, sector: detail.sector,
+      stage_entry('flight_details', airline: detail.airline, flight: detail.flight_number, sector: detail.sector.to_s,
                                     date: ScheduleDelivery.format_date(departure), time: departure.strftime('%H:%M'))
     end
 

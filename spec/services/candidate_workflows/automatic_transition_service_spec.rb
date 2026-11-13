@@ -151,7 +151,7 @@ RSpec.describe CandidateWorkflows::AutomaticTransitionService do
       expect(assignment.reload.current_workflow_stage.code).to eq('under_verification')
     end
 
-    it 'moves to verified when every mandatory document is approved' do
+    it 'moves through verified to campaign nomination when every mandatory document is approved' do
       candidate = create(:candidate)
       assignment = create(:candidate_assignment, candidate:, current_workflow_stage: stage_for('under_verification'))
       create_requirement(assignment:, code: 'passport')
@@ -164,8 +164,10 @@ RSpec.describe CandidateWorkflows::AutomaticTransitionService do
         request_id: 'auto-doc-review-2'
       )
 
-      expect(assignment.reload.current_workflow_stage.code).to eq('verified')
-      expect(candidate.reload.status_code).to eq('verified')
+      expect(assignment.reload.current_workflow_stage.code).to eq('campaign_nomination')
+      expect(candidate.reload.status_code).to eq('campaign_nomination')
+      expect(assignment.candidate_stage_histories.order(:id).last(2).map { |entry| entry.to_workflow_stage.code })
+        .to eq(%w[verified campaign_nomination])
     end
 
     it 'is idempotent when the same event is retried at the already-reached stage' do
@@ -199,6 +201,44 @@ RSpec.describe CandidateWorkflows::AutomaticTransitionService do
 
       expect(assignment.reload.current_workflow_stage.code).to eq('documents_uploaded')
       expect(assignment.candidate_stage_histories.where(reason_code: 'auto_documents_uploaded').count).to eq(1)
+    end
+  end
+
+  describe 'after the fee is paid' do
+    def candidate_at_fee_paid(country_code)
+      candidate = create(:candidate, status_code: 'fee_paid')
+      assignment = create(:candidate_assignment, candidate:, country: process_country(country_code),
+                                                 current_workflow_stage: stage_for('fee_paid'))
+      [candidate, assignment]
+    end
+
+    it 'moves a UAE candidate on to the visa' do
+      candidate, assignment = candidate_at_fee_paid(:uae)
+
+      described_class.call(candidate:, event: :fee_paid, request_id: 'auto-fee-uae')
+
+      expect(assignment.reload.current_workflow_stage.code).to eq('visa_processing')
+    end
+
+    it 'moves a KSA candidate on to Tasheer registration (e-number processing)' do
+      candidate, assignment = candidate_at_fee_paid(:saudi_arabia)
+
+      described_class.call(candidate:, event: :fee_paid, request_id: 'auto-fee-ksa')
+
+      expect(assignment.reload.current_workflow_stage.code).to eq('e_number_processing')
+    end
+
+    it 'moves a paid, medically fit Qatar candidate on to the QVC steps' do
+      candidate, assignment = candidate_at_fee_paid(:qatar)
+      create_requirement(assignment:, code: 'passport')
+      create_required_documents(candidate:, assignment:, status_code: 'verified')
+      create(:payment, candidate_assignment: assignment, status_code: 'paid', paid_at: Time.current,
+                       external_reference: 'TXN-AUTO-1')
+      create(:candidate_medical_result, candidate_assignment: assignment)
+
+      described_class.call(candidate:, event: :fee_paid, request_id: 'auto-fee-qatar')
+
+      expect(assignment.reload.current_workflow_stage.code).to eq('documents_shared_with_qatar_bu')
     end
   end
 end

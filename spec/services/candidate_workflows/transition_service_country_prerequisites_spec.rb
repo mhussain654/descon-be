@@ -206,4 +206,27 @@ RSpec.describe CandidateWorkflows::TransitionService do
         end
     end
   end
+
+  describe 'the flight details defaults' do
+    before { FlightDetailSetting.delete_all }
+
+    def flight_fields(candidate)
+      CandidateWorkflows::AllowedTransitionsService.call(actor:, candidate:)
+                                                   .find { |transition| transition[:code] == 'flight_details_uploaded' }
+                                                   .fetch(:fields)
+    end
+
+    it 'fills in the admin defaults that are set, the departure as a local date and time' do
+      FlightDetailSetting.current.update!(airline: 'Qatar Airways', sector: 'LHE-DOH',
+                                          departure_on: '2026-11-20', departure_time: '14:30')
+      candidate, = candidate_at('ticket_handover')
+
+      expect(flight_fields(candidate)).to eq(
+        [{ name: 'airline', type: 'string', required: true, default: 'Qatar Airways' },
+         { name: 'flight_reference', type: 'string', required: true },
+         { name: 'sector', type: 'string', required: false, default: 'LHE-DOH' },
+         { name: 'flight_date', type: 'iso_datetime', required: true, default: '2026-11-20T14:30' }]
+      )
+    end
+  end
 end

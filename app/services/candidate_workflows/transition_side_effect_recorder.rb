@@ -146,7 +146,7 @@ module CandidateWorkflows
         recorded_by: actor,
         airline: evidence.fetch('airline'),
         flight_number: evidence.fetch('flight_reference'),
-        sector: evidence.fetch('sector'),
+        sector: evidence['sector'],
         flight_departure_at: DateTime.iso8601(evidence.fetch('flight_date'))
       }
     end

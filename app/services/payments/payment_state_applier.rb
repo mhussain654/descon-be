@@ -37,10 +37,15 @@ module Payments
     end
 
     # Checkout is only offered at Fee Pending, so a successful payment moves
-    # the candidate straight on to Fee Paid in their process.
+    # the candidate straight on to Fee Paid in their process, and from there to
+    # the first step of the country's next phase (AutomaticTransitionService).
     def ensure_fee_workflow!
       @assignment.reload
-      transition_to_fee_paid! if @assignment.current_workflow_stage.code == 'fee_pending'
+      return unless @assignment.current_workflow_stage.code == 'fee_pending'
+
+      transition_to_fee_paid!
+      CandidateWorkflows::AutomaticTransitionService.call(candidate: @candidate, event: :fee_paid,
+                                                          request_id: "#{@request_id}:after_fee_paid")
     end
 
     def transition_to_fee_paid!

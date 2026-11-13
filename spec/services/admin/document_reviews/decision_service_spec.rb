@@ -123,8 +123,9 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     expect(result.document.verified_by).to eq(actor)
     expect(result.summary.review_state).to eq('verified')
     expect(AuditEvent.where(action_code: 'candidate_document_verified').count).to eq(1)
-    expect(document.candidate_assignment.reload.current_workflow_stage.code).to eq('verified')
-    expect(document.candidate_assignment.candidate.reload.status_code).to eq('verified')
+    # Approving the last item moves the candidate through Verified to Campaign Nomination.
+    expect(document.candidate_assignment.reload.current_workflow_stage.code).to eq('campaign_nomination')
+    expect(document.candidate_assignment.candidate.reload.status_code).to eq('campaign_nomination')
   end
 
   it 'applies HR-confirmed issued_on/expires_on when verifying' do

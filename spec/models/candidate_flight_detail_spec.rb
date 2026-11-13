@@ -15,13 +15,13 @@ RSpec.describe CandidateFlightDetail, type: :model do
     expect(detail.public_id).to be_present
   end
 
-  it 'requires airline, flight number and sector' do
+  it 'requires airline and flight number, the route (sector) being optional' do
     detail = build(:candidate_flight_detail, airline: nil, flight_number: nil, sector: nil)
 
     expect(detail).not_to be_valid
     expect(detail.errors[:airline]).to include("can't be blank")
     expect(detail.errors[:flight_number]).to include("can't be blank")
-    expect(detail.errors[:sector]).to include("can't be blank")
+    expect(detail.errors[:sector]).to be_empty
   end
 
   it 'requires a recorded actor and stage history when mobilized_on is present' do

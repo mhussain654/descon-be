@@ -130,6 +130,32 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
     expect(CandidateFlightDetail.where(candidate_assignment: assignment).count).to eq(1)
   end
 
+  it 'reads a departure typed without an offset as Pakistan time' do
+    candidate, assignment = candidate_ready_to_fly
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/flight_detail",
+         params: { candidate_flight_detail: flight_detail_payload(flight_date: '2026-09-20T14:30') },
+         headers: { 'Authorization' => "Bearer #{access_token_for(create(:user, role: 'mps'))}",
+                    'Idempotency-Key' => 'flight-local-time' }
+
+    expect(response).to have_http_status(:created)
+    expect(response.parsed_body.dig('data', 'flight_detail', 'flight_departure_at')).to eq('2026-09-20T09:30:00Z')
+    expect(assignment.candidate_stage_histories.order(:id).last.metadata.fetch('flight_date'))
+      .to eq('2026-09-20T14:30:00+05:00')
+  end
+
+  it 'records flight details without a route (sector), which is optional' do
+    candidate, = candidate_ready_to_fly
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/flight_detail",
+         params: { candidate_flight_detail: flight_detail_payload.except(:sector) },
+         headers: { 'Authorization' => "Bearer #{access_token_for(create(:user, role: 'mps'))}",
+                    'Idempotency-Key' => 'flight-no-route' }
+
+    expect(response).to have_http_status(:created)
+    expect(response.parsed_body.dig('data', 'flight_detail', 'sector')).to be_nil
+  end
+
   it 'requires the ticket file and validates required fields and flight date format' do
     actor = create(:user, role: 'mps')
     candidate, = candidate_ready_to_fly

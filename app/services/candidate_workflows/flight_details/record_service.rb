@@ -23,7 +23,7 @@ module CandidateWorkflows
           airline: normalized_string(params[:airline]),
           flight_number: normalized_string(params[:flight_number]),
           sector: normalized_string(params[:sector]),
-          flight_date: params[:flight_date].to_s,
+          flight_date: PakistanDepartureTime.normalize(params[:flight_date]),
           note: params[:note].to_s.strip.presence
         )
       end
@@ -48,7 +48,6 @@ module CandidateWorkflows
         validate_expected_current_stage_code!
         validate_presence!('airline', @params.airline)
         validate_presence!('flight_number', @params.flight_number)
-        validate_presence!('sector', @params.sector)
         validate_flight_date!
         raise DocumentAttachmentMissingError if @params.ticket.blank?
       end
@@ -109,7 +108,7 @@ module CandidateWorkflows
           flight_reference: @params.flight_number,
           sector: @params.sector,
           flight_date: @params.flight_date
-        }
+        }.compact
       end
 
       def locate_detail(history_entry)
