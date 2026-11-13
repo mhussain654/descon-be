@@ -13,10 +13,15 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
   end
 
   describe '#available?' do
+    # Sets the switch itself and reads a fresh configuration each time (it caches its settings), so the
+    # result does not depend on what earlier examples left in ENV.
     it 'needs the voucher switch on' do
-      expect(adapter).not_to be_available
+      with_kuickpay_voucher_configured do
+        expect(described_class.new(configuration: Payments::Configuration.new)).to be_available
 
-      with_kuickpay_voucher_configured { expect(adapter).to be_available }
+        ENV['KUICKPAY_VOUCHER_ENABLED'] = 'false'
+        expect(described_class.new(configuration: Payments::Configuration.new)).not_to be_available
+      end
     end
 
     it 'needs the voucher login, the payment-status login and an institution id' do
