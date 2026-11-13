@@ -15,7 +15,6 @@ default: &default
   base_url: https://sandbox-api.kuickpay.com
   return_url: <%= ENV.fetch('KUICKPAY_RETURN_URL', '').to_json %>
   hybrid_base_url: https://uat-adminapi.kuickpay.com
-  # KuickPay's sendSMS (texts the candidate their voucher code) is only on the live API host.
   sms_base_url: https://api.kuickpay.com
 
   company_id: <%= ENV.fetch('KUICKPAY_COMPANY_ID', '').to_json %>

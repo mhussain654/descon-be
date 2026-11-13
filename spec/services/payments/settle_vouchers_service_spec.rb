@@ -76,16 +76,32 @@ RSpec.describe Payments::SettleVouchersService do
     expect(payment.reload.status_code).to eq('checkout_pending')
   end
 
-  it 'asks KuickPay for today and yesterday only when a voucher is waiting' do
+  it 'makes one call, for today in Pakistan time, and only when a voucher is waiting' do
     requests = []
     run_with([], requests:)
 
     dates = requests.map { |request| JSON.parse(request.body)['transactionDate'] }
-    today = Time.current.in_time_zone('Asia/Karachi').to_date
-    expect(dates).to eq([today.strftime('%Y%m%d'), (today - 1).strftime('%Y%m%d')])
+    expect(dates).to eq([Time.current.in_time_zone('Asia/Karachi').to_date.strftime('%Y%m%d')])
 
     payment.update!(status_code: 'cancelled')
-    expect(run_with([], requests: [])).to eq(0)
+    requests.clear
+    run_with([], requests:)
+    expect(requests).to be_empty
+  end
+
+  it 'asks about yesterday instead when told to (the 10:00 run)' do
+    requests = []
+    with_kuickpay_voucher_configured do
+      stub_kuickpay_hybrid(settlements: [], requests:)
+      described_class.call(days_ago: 1)
+    end
+
+    yesterday = Time.current.in_time_zone('Asia/Karachi').to_date - 1
+    expect(requests.map { |request| JSON.parse(request.body)['transactionDate'] }).to eq([yesterday.strftime('%Y%m%d')])
+  end
+
+  it 'refuses any day other than today or yesterday' do
+    expect { described_class.new(days_ago: 2) }.to raise_error(ArgumentError)
   end
 
   it 'does nothing when voucher payments are switched off' do

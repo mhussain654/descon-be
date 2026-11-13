@@ -53,6 +53,8 @@ module CandidateWorkflows
         validate_decision_date!
         validate_rejection_reason! if rejected?
         raise DocumentAttachmentMissingError if issued? && @params.visa_copy.blank?
+
+        VisaCopyValidator.call(visa_copy: @params.visa_copy) if @params.visa_copy.present?
       end
 
       def validate_expected_current_stage_code!

@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 module Payments
-  # Closes vouchers that were never paid. A voucher is given a day of grace after its
-  # expiry (a payment can settle late) and is then marked cancelled, which also lets
-  # the candidate get a new code or pay by card. The candidate never sees the grace
-  # day: the app already treats a voucher past its expiry as expired.
+  # Closes vouchers that were never paid. A voucher is given two days of grace after
+  # its expiry and is then marked cancelled. A payment made on its last day is only
+  # checked for at 10:00 the next day (Payments::PollVoucherSettlementsJob), so one day
+  # of grace could close it first. The candidate never sees the grace: the app already
+  # treats a voucher past its expiry as expired and lets them get a new code.
   class ExpireVouchersService < ApplicationService
-    GRACE = 1.day
+    GRACE = 2.days
 
     def call
       Payment.where(provider_code: 'kuickpay_voucher', status_code: 'checkout_pending')

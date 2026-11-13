@@ -3,7 +3,7 @@
 module CandidateWorkflows
   # The evidence each destination stage accepts and requires, by stage code. A
   # stage absent here takes no evidence. Fields are dates (`iso_date`),
-  # datetimes, non-blank strings or enums; `allowed_fields` beyond
+  # datetimes, times of day (`time`, HH:MM), non-blank strings or enums; `allowed_fields` beyond
   # `required_fields` are optional.
   # rubocop:disable Metrics/ModuleLength
   module StageRequirements
@@ -15,10 +15,15 @@ module CandidateWorkflows
       document_discrepancy medical_issue security_clearance embassy_rejection incomplete_application other
     ].freeze
 
+    # Where and when the candidate goes for their medical, saved on the stage
+    # history of this move. Staff get MedicalAppointmentSetting's defaults filled in.
     MEDICAL_APPOINTMENT_RULE = {
       required_fields: [],
-      allowed_fields: %w[medical_appointment_date],
-      field_types: { 'medical_appointment_date' => :iso_date }
+      allowed_fields: %w[medical_center_name medical_center_address medical_appointment_date medical_appointment_time],
+      field_types: {
+        'medical_center_name' => :string, 'medical_center_address' => :string,
+        'medical_appointment_date' => :iso_date, 'medical_appointment_time' => :time
+      }
     }.freeze
 
     MEDICAL_OUTCOME_RULE = {

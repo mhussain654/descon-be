@@ -97,6 +97,7 @@ en:
       workflow_transition_expected_stage_required: "Provide the expected current workflow stage before confirming Qatar BU sharing."
       workflow_transition_evidence_field_unexpected: "This evidence field is not allowed for the requested workflow stage."
       workflow_transition_evidence_date_invalid: "Enter a valid date in YYYY-MM-DD format."
+      workflow_transition_evidence_time_invalid: "Enter a valid time in HH:MM format (24-hour)."
       workflow_transition_evidence_enum_invalid: "Select a supported value for this evidence field."
       workflow_transition_evidence_value_invalid: "Enter a valid value for this evidence field."
       qvc_open_attempt_exists: "Complete the current QVC attempt before scheduling another one."

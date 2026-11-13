@@ -731,13 +731,18 @@ separately against throwaway local databases (see the PR description).
     chooses which to pay; the screen tells them to pay only one. If both get paid, the
     nightly reconciliation flags `duplicate_fee_payment` on both payments, and finance
     refunds one outside the system and records a note on the finding.
-  * KuickPay never calls us. The job `poll_kuickpay_vouchers` (every 5 minutes, in
-    `config/recurring.yml`) asks KuickPay which codes were paid today and yesterday
-    and marks them paid; the candidate then moves to Fee Paid like a card payment. A code
-    counts as paid as soon as KuickPay lists it, before KuickPay settles the money to
-    Descon (`isSettled` turns true about a working day later). A payment with the wrong
-    amount is logged and left unpaid for finance. An unpaid code is closed a day after it
-    expires.
+  * KuickPay never calls us, and allows only **five** Bill Payment Bulk Inquiry calls a
+    day. The jobs `poll_kuickpay_vouchers_today` (13:00, 16:00, 19:00, 23:00) and
+    `poll_kuickpay_vouchers_yesterday` (10:00), all Pakistan time, in
+    `config/recurring.yml`, make one call each and mark paid codes paid; the candidate
+    then moves to Fee Paid like a card payment. So a voucher payment shows within a few
+    hours, and a payment after 23:00 shows at 10:00 the next morning. Manual calls to
+    that endpoint (curl, testing) use up the same five. Runs are skipped when no code is
+    waiting to be paid. A code counts as paid as soon as KuickPay lists it, before
+    KuickPay settles the money to Descon (`isSettled` turns true about a working day
+    later). A payment with the wrong amount is logged and left unpaid for finance. An
+    unpaid code is closed two days after it expires (a payment on its last day is only
+    checked for at 10:00 the next day).
   * The fee must be a whole number of rupees (KuickPay takes integers).
   * KuickPay's own fee (a flat 50 PKR per payment in its UAT) comes out of the amount
     paid, so Descon receives the fee minus that. The admin sets the fee including it;

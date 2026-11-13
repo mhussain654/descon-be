@@ -54,10 +54,23 @@ module CandidateWorkflows
         action_type: process_stage.action_type,
         required: process_stage.required,
         required_fields: TransitionService.required_fields_for(process_stage.code),
-        # Every accepted evidence field with its type, whether it's required and
-        # (for enums) its values -- enough for a client to build the form.
-        fields: StageRequirements.fields_for(process_stage.code)
+        # Every accepted evidence field with its type, whether it's required,
+        # (for enums) its values and any default to fill in -- enough for a
+        # client to build the form.
+        fields: fields_with_defaults(process_stage.code)
       }
+    end
+
+    # Only the medical appointment fields have defaults (MedicalAppointmentSetting).
+    def fields_with_defaults(stage_code)
+      StageRequirements.fields_for(stage_code).map do |field|
+        default = evidence_defaults[field[:name]]
+        default ? field.merge(default:) : field
+      end
+    end
+
+    def evidence_defaults
+      @evidence_defaults ||= MedicalAppointmentSetting.current.evidence_defaults
     end
 
     def blocked_for_unauthorized_actor(process_stage)

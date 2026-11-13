@@ -163,4 +163,47 @@ RSpec.describe CandidateWorkflows::TransitionService do
        { name: 'e_number_received_on', type: 'iso_date', required: true }]
     )
   end
+
+  describe 'the medical appointment details' do
+    before { MedicalAppointmentSetting.delete_all }
+
+    def medical_appointment_fields(candidate)
+      CandidateWorkflows::AllowedTransitionsService.call(actor:, candidate:).sole.fetch(:fields)
+    end
+
+    it 'offers the centre, address, date and time, filled in with the admin defaults that are set' do
+      MedicalAppointmentSetting.current.update!(center_name: 'Al Shifa Medical Centre', appointment_on: '2026-11-20',
+                                                appointment_time: '09:30')
+      candidate, = candidate_at('campaign_nomination')
+
+      expect(medical_appointment_fields(candidate)).to eq(
+        [{ name: 'medical_center_name', type: 'string', required: false, default: 'Al Shifa Medical Centre' },
+         { name: 'medical_center_address', type: 'string', required: false },
+         { name: 'medical_appointment_date', type: 'iso_date', required: false, default: '2026-11-20' },
+         { name: 'medical_appointment_time', type: 'time', required: false, default: '09:30' }]
+      )
+    end
+
+    it "saves the details sent with the move on the candidate's history, untouched by later default changes" do
+      MedicalAppointmentSetting.current.update!(center_name: 'Old Centre', appointment_time: '09:30')
+      candidate, assignment = candidate_at('campaign_nomination')
+      details = { 'medical_center_name' => 'Al Shifa Medical Centre',
+                  'medical_center_address' => '12 Mall Road, Lahore',
+                  'medical_appointment_date' => '2026-11-20', 'medical_appointment_time' => '10:15' }
+
+      transition!(candidate, 'medical_appointment', details)
+      MedicalAppointmentSetting.current.update!(center_name: 'New Centre', appointment_time: '14:00')
+
+      expect(assignment.candidate_stage_histories.order(:id).last.metadata).to eq(details)
+    end
+
+    it 'refuses a time that is not HH:MM on a 24-hour clock' do
+      candidate, = candidate_at('campaign_nomination')
+
+      expect { transition!(candidate, 'medical_appointment', { 'medical_appointment_time' => '9:30 am' }) }
+        .to raise_error(ValidationError) do |error|
+          expect(error.field).to eq('candidate_workflow_transition.evidence.medical_appointment_time')
+        end
+    end
+  end
 end

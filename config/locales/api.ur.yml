@@ -96,6 +96,7 @@ ur:
       workflow_transition_expected_stage_required: "قطر بی یو شیئرنگ کی توثیق سے پہلے متوقع موجودہ ورک فلو مرحلہ فراہم کریں۔"
       workflow_transition_evidence_field_unexpected: "یہ ثبوتی فیلڈ درخواست کردہ ورک فلو مرحلے کے لیے مجاز نہیں ہے۔"
       workflow_transition_evidence_date_invalid: "YYYY-MM-DD فارمیٹ میں درست تاریخ درج کریں۔"
+      workflow_transition_evidence_time_invalid: "HH:MM فارمیٹ (24 گھنٹے) میں درست وقت درج کریں۔"
       workflow_transition_evidence_enum_invalid: "اس ثبوتی فیلڈ کے لیے معاونت یافتہ قدر منتخب کریں۔"
       workflow_transition_evidence_value_invalid: "اس ثبوتی فیلڈ کے لیے درست قدر درج کریں۔"
       qvc_open_attempt_exists: "نئی کیو وی سی کوشش شیڈول کرنے سے پہلے موجودہ کوشش مکمل کریں۔"

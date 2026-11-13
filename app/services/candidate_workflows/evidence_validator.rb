@@ -30,17 +30,18 @@ module CandidateWorkflows
       end
     end
 
+    VALUE_VALIDATORS = {
+      iso_date: :validate_iso_date!, iso_datetime: :validate_iso_datetime!, time: :validate_time!,
+      string: :validate_string!
+    }.freeze
+    private_constant :VALUE_VALIDATORS
+
     def validate_field_value!(field_name, value)
-      case StageRequirements.field_type_for(@destination_stage.code, field_name)
-      when :iso_date
-        validate_iso_date!(field_name, value)
-      when :iso_datetime
-        validate_iso_datetime!(field_name, value)
-      when :string
-        validate_string!(field_name, value)
-      when Hash
-        validate_enum!(field_name, value)
-      end
+      field_type = StageRequirements.field_type_for(@destination_stage.code, field_name)
+      return validate_enum!(field_name, value) if field_type.is_a?(Hash)
+
+      validator = VALUE_VALIDATORS[field_type]
+      send(validator, field_name, value) if validator
     end
 
     def validate_iso_date!(field_name, value)
@@ -58,6 +59,15 @@ module CandidateWorkflows
       raise ValidationError.new(
         field: evidence_field(field_name),
         message: I18n.t('api.errors.workflow_transition_evidence_date_invalid')
+      )
+    end
+
+    def validate_time!(field_name, value)
+      return if value.is_a?(String) && value.match?(MedicalAppointmentSetting::TIME_FORMAT)
+
+      raise ValidationError.new(
+        field: evidence_field(field_name),
+        message: I18n.t('api.errors.workflow_transition_evidence_time_invalid')
       )
     end
 

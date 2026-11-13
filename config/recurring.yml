@@ -27,10 +27,19 @@ production:
     class: AiCalls::PollRobocallCallsJob
     queue: default
     schedule: every minute
-  poll_kuickpay_vouchers:
+  # KuickPay allows only five Bill Payment Bulk Inquiry calls a day: one per run,
+  # five runs a day, in Pakistan time. 10:00 checks yesterday (payments after the
+  # 23:00 check); the rest check today.
+  poll_kuickpay_vouchers_yesterday:
     class: Payments::PollVoucherSettlementsJob
     queue: default
-    schedule: every 5 minutes
+    args: [ "yesterday" ]
+    schedule: "0 10 * * * Asia/Karachi"
+  poll_kuickpay_vouchers_today:
+    class: Payments::PollVoucherSettlementsJob
+    queue: default
+    args: [ "today" ]
+    schedule: "0 13,16,19,23 * * * Asia/Karachi"
   purge_expired_ai_call_transcripts:
     class: AiCalls::PurgeExpiredTranscriptsJob
     queue: default

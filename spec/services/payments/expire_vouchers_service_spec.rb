@@ -8,12 +8,13 @@ RSpec.describe Payments::ExpireVouchersService do
                      provider_order_id: SecureRandom.hex(6), checkout_expires_at: expires_at)
   end
 
-  it 'closes unpaid vouchers a day after they expired, and leaves everything else alone' do
-    stale = voucher(expires_at: 2.days.ago)
-    in_grace = voucher(expires_at: 6.hours.ago)
+  it 'closes unpaid vouchers two days after they expired, and leaves everything else alone' do
+    stale = voucher(expires_at: 3.days.ago)
+    # Paid on its last day, a voucher is only checked for at 10:00 the next day.
+    in_grace = voucher(expires_at: 36.hours.ago)
     open = voucher(expires_at: 3.days.from_now)
-    paid = voucher(expires_at: 2.days.ago, status_code: 'paid')
-    card = voucher(expires_at: 2.days.ago, provider_code: 'kuickpay')
+    paid = voucher(expires_at: 3.days.ago, status_code: 'paid')
+    card = voucher(expires_at: 3.days.ago, provider_code: 'kuickpay')
 
     described_class.call
 
@@ -24,7 +25,7 @@ RSpec.describe Payments::ExpireVouchersService do
   end
 
   it 'does not touch a voucher that was paid while it was being closed' do
-    stale = voucher(expires_at: 2.days.ago)
+    stale = voucher(expires_at: 3.days.ago)
     allow(stale).to receive(:with_lock).and_yield
     stale.update_columns(status_code: 'paid') # rubocop:disable Rails/SkipsModelValidations
     allow(Payment).to receive(:where).and_call_original

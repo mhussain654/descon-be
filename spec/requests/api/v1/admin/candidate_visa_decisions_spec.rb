@@ -244,6 +244,50 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('document_attachment_missing')
   end
 
+  context 'when checking the visa file' do
+    def record_issued_visa(visa_copy, key)
+      actor = create(:user, role: 'mps')
+      candidate, = candidate_at_qvc_approved
+      post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
+           params: { candidate_visa_decision: { outcome_code: 'issued', decision_date: '2026-09-05', visa_copy:,
+                                                expected_current_stage_code: 'qvc_completed_outcome_received' } },
+           headers: { 'Authorization' => "Bearer #{access_token_for(actor)}", 'Idempotency-Key' => key }
+      candidate
+    end
+
+    def error_code = response.parsed_body.dig('errors', 0, 'code')
+
+    it 'accepts a scanned visa image' do
+      record_issued_visa(fixture_upload('test.jpg', 'image/jpeg'), 'visa-scan-jpg')
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body.dig('data', 'visa_decision', 'visa_copy_attached')).to be(true)
+    end
+
+    it 'refuses a file that is not a PDF or image, even when it claims to be a PDF, and moves no one' do
+      candidate = record_issued_visa(fixture_upload('not_pdf.txt', 'application/pdf'), 'visa-not-pdf')
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(error_code).to eq('unsupported_file_type')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_visa_decision.visa_copy')
+      expect(candidate.current_assignment.candidate_visa_decisions).to be_empty
+    end
+
+    it 'refuses an empty file' do
+      record_issued_visa(fixture_upload('empty.pdf', 'application/pdf'), 'visa-empty')
+
+      expect(error_code).to eq('empty_file')
+    end
+
+    it 'refuses a file over the size limit' do
+      stub_const('CandidateWorkflows::VisaDecisions::VisaCopyValidator::MAX_FILE_BYTES', 10)
+
+      record_issued_visa(fixture_upload('test.pdf', 'application/pdf'), 'visa-too-large')
+
+      expect(error_code).to eq('file_too_large')
+    end
+  end
+
   it 'requires a structured rejection reason for a rejected outcome, localized to Urdu' do
     actor = create(:user, role: 'mps')
     candidate, = candidate_at_qvc_approved

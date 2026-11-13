@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 module Payments
-  # Asks KuickPay which vouchers were paid (Bill Payment Bulk Inquiry, for today and
-  # yesterday in Pakistan time, since a payment can be noticed after midnight) and marks
-  # the matching unpaid voucher payments paid -- through the same state applier,
+  # Asks KuickPay which vouchers were paid on one day in Pakistan time (Bill Payment Bulk
+  # Inquiry: one call per run, as KuickPay allows only five a day -- see
+  # Payments::PollVoucherSettlementsJob for the schedule) and marks the matching unpaid
+  # voucher payments paid -- through the same state applier,
   # validation and event trail as a card payment. A voucher counts as paid as soon as it
   # is listed -- KuickPay lists it before it settles the money to Descon. KuickPay never calls us, so this
   # is how a voucher payment is noticed. Safe to run repeatedly: a settlement already
@@ -11,9 +12,12 @@ module Payments
   # voucher) is logged and left for finance to see; it never stops the others.
   class SettleVouchersService < ApplicationService
     TIME_ZONE = 'Asia/Karachi'
-    DAYS_BACK = 1
 
-    def initialize(request_id: SecureRandom.uuid)
+    # `days_ago` is 0 for today or 1 for yesterday (Pakistan time).
+    def initialize(days_ago: 0, request_id: SecureRandom.uuid)
+      raise ArgumentError, "days_ago must be 0 or 1, got #{days_ago.inspect}" unless [0, 1].include?(days_ago)
+
+      @days_ago = days_ago
       @request_id = request_id
       @configuration = Payments::Configuration.new
     end
@@ -28,8 +32,7 @@ module Payments
     private
 
     def settlements
-      today = Time.current.in_time_zone(TIME_ZONE).to_date
-      (0..DAYS_BACK).flat_map { |back| adapter.settlements_on(date: today - back) }
+      adapter.settlements_on(date: Time.current.in_time_zone(TIME_ZONE).to_date - @days_ago)
     end
 
     # True only when this call marked a payment paid.

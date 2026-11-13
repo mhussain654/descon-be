@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -66,16 +66,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   end
 
   create_table "app_feature_settings", force: :cascade do |t|
+    t.boolean "singleton_guard", default: true, null: false
+    t.boolean "card_payment_enabled", default: true, null: false
+    t.boolean "voucher_payment_enabled", default: true, null: false
+    t.boolean "progress_sms_enabled", default: true, null: false
     t.boolean "automatic_calls_enabled", default: true, null: false
     t.boolean "bulk_calls_enabled", default: true, null: false
-    t.boolean "card_payment_enabled", default: true, null: false
-    t.datetime "created_at", null: false
     t.boolean "document_ocr_enabled", default: true, null: false
-    t.boolean "progress_sms_enabled", default: true, null: false
-    t.boolean "singleton_guard", default: true, null: false
-    t.datetime "updated_at", null: false
     t.bigint "updated_by_id"
-    t.boolean "voucher_payment_enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["singleton_guard"], name: "index_app_feature_settings_on_singleton_guard", unique: true
     t.index ["updated_by_id"], name: "index_app_feature_settings_on_updated_by_id"
   end
@@ -127,12 +127,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
 
   create_table "bulk_call_batch_items", force: :cascade do |t|
     t.bigint "bulk_call_batch_id", null: false
-    t.bigint "candidate_ai_call_id"
-    t.bigint "candidate_assignment_id", null: false
     t.bigint "candidate_id", null: false
-    t.datetime "created_at", null: false
-    t.string "skip_reason"
+    t.bigint "candidate_assignment_id", null: false
+    t.bigint "candidate_ai_call_id"
     t.string "status", default: "queued", null: false
+    t.string "skip_reason"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["bulk_call_batch_id", "candidate_id"], name: "index_bulk_call_items_on_batch_and_candidate", unique: true
     t.index ["bulk_call_batch_id"], name: "index_bulk_call_batch_items_on_bulk_call_batch_id"
@@ -140,21 +140,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.index ["candidate_assignment_id", "status"], name: "index_bulk_call_items_on_assignment_and_status"
     t.index ["candidate_assignment_id"], name: "index_bulk_call_batch_items_on_candidate_assignment_id"
     t.index ["candidate_id"], name: "index_bulk_call_batch_items_on_candidate_id"
-    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying::text, 'placed'::character varying::text, 'skipped'::character varying::text, 'failed'::character varying::text])", name: "bulk_call_batch_items_status"
+    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'placed'::character varying, 'skipped'::character varying, 'failed'::character varying]::text[])", name: "bulk_call_batch_items_status"
   end
 
   create_table "bulk_call_batches", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.bigint "created_by_id", null: false
-    t.jsonb "filters", default: {}, null: false
-    t.string "provider_voice_id", null: false
     t.string "public_id", null: false
-    t.integer "requested_limit", null: false
+    t.bigint "created_by_id", null: false
     t.bigint "robocall_voice_id", null: false
-    t.integer "selected_count", null: false
-    t.datetime "updated_at", null: false
+    t.string "provider_voice_id", null: false
     t.string "voice_name", null: false
     t.string "workflow_stage_code", null: false
+    t.jsonb "filters", default: {}, null: false
+    t.integer "requested_limit", null: false
+    t.integer "selected_count", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_bulk_call_batches_on_created_at"
     t.index ["created_by_id"], name: "index_bulk_call_batches_on_created_by_id"
     t.index ["public_id"], name: "index_bulk_call_batches_on_public_id", unique: true
@@ -224,13 +224,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.string "prompt_template_version"
     t.string "provider_code", default: "elevenlabs", null: false
     t.string "provider_status"
-    t.string "provider_voice_id"
     t.string "public_id", null: false
     t.text "review_notes"
     t.string "review_resolution"
     t.datetime "reviewed_at"
     t.bigint "reviewed_by_id"
-    t.string "robocall_call_id"
     t.datetime "started_at"
     t.string "status", default: "requested", null: false
     t.text "summary"
@@ -240,6 +238,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.integer "verification_attempts", default: 0, null: false
     t.string "verification_status", default: "not_applicable", null: false
     t.string "workflow_stage_code"
+    t.string "robocall_call_id"
+    t.string "provider_voice_id"
     t.index ["candidate_assignment_id", "workflow_stage_code"], name: "index_candidate_ai_calls_on_assignment_and_workflow_stage"
     t.index ["candidate_assignment_id"], name: "index_candidate_ai_calls_on_candidate_assignment_id"
     t.index ["candidate_id", "created_at"], name: "index_candidate_ai_calls_on_candidate_and_created_at"
@@ -273,15 +273,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.bigint "created_by_id", null: false
     t.bigint "current_mobilization_process_stage_id", null: false
     t.bigint "current_workflow_stage_id", null: false
-    t.integer "fee_version", default: 0, null: false
     t.bigint "mobilization_process_id", null: false
-    t.decimal "onboarding_fee_amount", precision: 10, scale: 2
     t.bigint "project_id", null: false
     t.string "public_id", null: false
     t.string "qvc_outcome_code"
     t.date "qvc_outcome_date"
     t.string "reference_number", null: false
     t.datetime "updated_at", null: false
+    t.decimal "onboarding_fee_amount", precision: 10, scale: 2
+    t.integer "fee_version", default: 0, null: false
     t.index ["candidate_id", "created_at"], name: "index_candidate_assignments_on_candidate_id_and_created_at"
     t.index ["candidate_id"], name: "index_candidate_assignments_on_candidate_id"
     t.index ["country_id"], name: "index_candidate_assignments_on_country_id"
@@ -324,7 +324,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.index ["public_id"], name: "index_candidate_bank_details_on_public_id", unique: true
     t.index ["reviewed_by_id"], name: "index_candidate_bank_details_on_reviewed_by_id"
     t.check_constraint "proof_byte_size > 0", name: "candidate_bank_details_proof_byte_size_positive"
-    t.check_constraint "status_code::text = ANY (ARRAY['submitted'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_bank_details_status_code"
+    t.check_constraint "status_code::text = ANY (ARRAY['submitted'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])", name: "candidate_bank_details_status_code"
   end
 
   create_table "candidate_consents", force: :cascade do |t|
@@ -395,7 +395,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.bigint "document_type_id", null: false
     t.date "expires_on"
     t.date "issued_on"
-    t.string "next_of_kin_relation"
     t.string "public_id", null: false
     t.text "rejection_reason"
     t.string "status_code", null: false
@@ -405,6 +404,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.bigint "uploaded_by_id"
     t.datetime "verified_at"
     t.bigint "verified_by_id"
+    t.string "next_of_kin_relation"
     t.index ["candidate_assignment_id", "document_type_id", "status_code"], name: "index_candidate_documents_on_assignment_type_status"
     t.index ["candidate_assignment_id", "document_type_id"], name: "index_candidate_documents_on_current_requirement", unique: true, where: "(superseded_at IS NULL)"
     t.index ["candidate_assignment_id"], name: "index_candidate_documents_on_candidate_assignment_id"
@@ -414,7 +414,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
     t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL OR status_code::text = 'rejected'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL", name: "candidate_documents_status_consistency"
-    t.check_constraint "next_of_kin_relation IS NULL OR (next_of_kin_relation::text = ANY (ARRAY['father'::character varying::text, 'mother'::character varying::text, 'brother'::character varying::text, 'wife'::character varying::text, 'son'::character varying::text, 'unmarried_sister'::character varying::text, 'unmarried_daughter'::character varying::text]))", name: "candidate_documents_next_of_kin_relation_known"
+    t.check_constraint "next_of_kin_relation IS NULL OR (next_of_kin_relation::text = ANY (ARRAY['father'::character varying, 'mother'::character varying, 'brother'::character varying, 'wife'::character varying, 'son'::character varying, 'unmarried_sister'::character varying, 'unmarried_daughter'::character varying]::text[]))", name: "candidate_documents_next_of_kin_relation_known"
     t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_documents_status_code"
   end
 
@@ -478,7 +478,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
     t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying::text, 'queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
+    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying, 'queued'::character varying, 'processing'::character varying, 'completed'::character varying, 'partial'::character varying, 'failed'::character varying, 'invalidated'::character varying]::text[])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_import_row_results", force: :cascade do |t|
@@ -486,10 +486,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.datetime "created_at", null: false
     t.string "error_code"
     t.string "error_field"
-    t.string "error_value"
     t.integer "row_number", null: false
     t.string "status", null: false
     t.datetime "updated_at", null: false
+    t.string "error_value"
     t.index ["candidate_import_batch_id", "row_number"], name: "index_import_row_results_on_batch_and_row", unique: true
     t.index ["candidate_import_batch_id"], name: "idx_on_candidate_import_batch_id_3bd4f60271"
     t.check_constraint "status::text = ANY (ARRAY['accepted'::character varying::text, 'rejected'::character varying::text, 'skipped'::character varying::text, 'committed'::character varying::text])", name: "candidate_import_row_results_status"
@@ -612,28 +612,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   end
 
   create_table "candidate_sms_deliveries", force: :cascade do |t|
-    t.bigint "candidate_assignment_id", null: false
-    t.bigint "candidate_id", null: false
-    t.datetime "created_at", null: false
-    t.string "dedupe_key", null: false
-    t.string "error_code"
-    t.string "locale", null: false
-    t.string "message_code", null: false
-    t.string "provider_reference"
     t.string "public_id", null: false
-    t.datetime "sent_at"
-    t.bigint "sent_by_id"
-    t.string "status", default: "pending", null: false
-    t.datetime "updated_at", null: false
+    t.bigint "candidate_id", null: false
+    t.bigint "candidate_assignment_id", null: false
+    t.string "message_code", null: false
+    t.string "dedupe_key", null: false
+    t.string "locale", null: false
     t.jsonb "variables", default: {}, null: false
+    t.string "status", default: "pending", null: false
+    t.string "error_code"
+    t.string "provider_reference"
+    t.datetime "sent_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "sent_by_id"
     t.index ["candidate_assignment_id"], name: "index_candidate_sms_deliveries_on_candidate_assignment_id"
     t.index ["candidate_id"], name: "index_candidate_sms_deliveries_on_candidate_id"
     t.index ["dedupe_key"], name: "index_candidate_sms_deliveries_on_dedupe_key", unique: true
     t.index ["public_id"], name: "index_candidate_sms_deliveries_on_public_id", unique: true
     t.index ["sent_by_id"], name: "index_candidate_sms_deliveries_on_sent_by_id"
     t.index ["status"], name: "index_candidate_sms_deliveries_on_status"
-    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidate_sms_deliveries_locale_values"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text, 'skipped'::character varying::text])", name: "candidate_sms_deliveries_status_values"
+    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidate_sms_deliveries_locale_values"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'sent'::character varying, 'failed'::character varying, 'skipped'::character varying]::text[])", name: "candidate_sms_deliveries_status_values"
   end
 
   create_table "candidate_stage_histories", force: :cascade do |t|
@@ -745,7 +745,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
-    t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text]))", name: "candidates_profile_photo_status"
+    t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[]))", name: "candidates_profile_photo_status"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"
   end
@@ -837,10 +837,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.bigint "maximum_file_size", default: 5242880, null: false
     t.integer "maximum_files", default: 1, null: false
     t.integer "minimum_files", default: 1, null: false
-    t.boolean "next_of_kin_spouse_only", default: false, null: false
     t.bigint "project_id"
     t.string "requirement_level", default: "required", null: false
     t.datetime "updated_at", null: false
+    t.boolean "next_of_kin_spouse_only", default: false, null: false
     t.index "document_type_id, COALESCE(country_id, (0)::bigint), COALESCE(project_id, (0)::bigint), COALESCE(craft_id, (0)::bigint)", name: "index_document_requirements_on_unique_scope", unique: true
     t.index ["country_id"], name: "index_document_requirements_on_country_id"
     t.index ["craft_id"], name: "index_document_requirements_on_craft_id"
@@ -888,6 +888,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.check_constraint "status::text = ANY (ARRAY['processing'::character varying::text, 'completed'::character varying::text])", name: "idempotency_keys_status"
   end
 
+  create_table "medical_appointment_settings", force: :cascade do |t|
+    t.boolean "singleton_guard", default: true, null: false
+    t.string "center_name"
+    t.text "center_address"
+    t.date "appointment_on"
+    t.string "appointment_time"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["singleton_guard"], name: "index_medical_appointment_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_medical_appointment_settings_on_updated_by_id"
+    t.check_constraint "appointment_time IS NULL OR appointment_time::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text", name: "medical_appointment_settings_time_format"
+  end
+
   create_table "mobilization_process_stages", force: :cascade do |t|
     t.string "action_type", default: "none", null: false
     t.jsonb "configuration", default: {}, null: false
@@ -930,12 +944,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   end
 
   create_table "onboarding_fee_settings", force: :cascade do |t|
-    t.decimal "amount", precision: 10, scale: 2, null: false
-    t.datetime "created_at", null: false
-    t.integer "lock_version", default: 0, null: false
     t.boolean "singleton_guard", default: true, null: false
-    t.datetime "updated_at", null: false
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.integer "lock_version", default: 0, null: false
     t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["singleton_guard"], name: "index_onboarding_fee_settings_on_singleton_guard", unique: true
     t.index ["updated_by_id"], name: "index_onboarding_fee_settings_on_updated_by_id"
     t.check_constraint "amount > 0::numeric", name: "onboarding_fee_positive"
@@ -1080,15 +1094,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   end
 
   create_table "robocall_voices", force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.datetime "created_at", null: false
-    t.bigint "created_by_id"
+    t.string "public_id", null: false
     t.string "name_en", null: false
     t.string "name_ur"
-    t.string "public_id", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "updated_by_id"
     t.string "voice_id", null: false
+    t.boolean "active", default: true, null: false
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index "lower((name_en)::text)", name: "index_robocall_voices_on_lower_name_en", unique: true
     t.index ["created_by_id"], name: "index_robocall_voices_on_created_by_id"
     t.index ["public_id"], name: "index_robocall_voices_on_public_id", unique: true
@@ -1133,13 +1147,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   end
 
   create_table "sms_templates", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.boolean "enabled", default: true, null: false
     t.string "message_code", null: false
     t.string "template_id_en"
     t.string "template_id_ur"
-    t.datetime "updated_at", null: false
+    t.boolean "enabled", default: true, null: false
     t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["message_code"], name: "index_sms_templates_on_message_code", unique: true
     t.index ["updated_by_id"], name: "index_sms_templates_on_updated_by_id"
     t.check_constraint "message_code::text <> 'otp'::text OR enabled", name: "sms_templates_otp_always_enabled"
@@ -1173,14 +1187,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   end
 
   create_table "training_videos", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.bigint "created_by_id", null: false
+    t.string "title_en", null: false
+    t.string "title_ur", null: false
     t.text "description_en"
     t.text "description_ur"
     t.integer "position", default: 0, null: false
     t.boolean "published", default: false, null: false
-    t.string "title_en", null: false
-    t.string "title_ur", null: false
+    t.bigint "created_by_id", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["created_by_id"], name: "index_training_videos_on_created_by_id"
     t.index ["published", "position", "id"], name: "index_training_videos_on_published_and_position_and_id"
@@ -1226,8 +1240,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "updated_by_id"
-    t.string "voice_id"
     t.string "workflow_stage_code", null: false
+    t.string "voice_id"
     t.index ["updated_by_id"], name: "index_workflow_stage_call_scripts_on_updated_by_id"
     t.index ["workflow_stage_code"], name: "index_workflow_stage_call_scripts_on_workflow_stage_code", unique: true
     t.check_constraint "workflow_stage_code::text ~ '^[a-z0-9_]+$'::text", name: "workflow_stage_call_scripts_stage_code_format"
@@ -1333,6 +1347,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_100000) do
   add_foreign_key "document_requirements", "crafts"
   add_foreign_key "document_requirements", "document_types"
   add_foreign_key "document_requirements", "projects"
+  add_foreign_key "medical_appointment_settings", "users", column: "updated_by_id"
   add_foreign_key "mobilization_process_stages", "mobilization_processes"
   add_foreign_key "mobilization_process_stages", "workflow_stages"
   add_foreign_key "mobilization_processes", "countries"

@@ -1006,9 +1006,19 @@ components:
         visa_outcome_date:
           type: string
           format: date
+        medical_center_name:
+          type: string
+          description: Where the candidate goes for their medical (medical appointment stages).
+        medical_center_address:
+          type: string
         medical_appointment_date:
           type: string
           format: date
+        medical_appointment_time:
+          type: string
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+          description: Time of day, HH:MM on a 24-hour clock.
+          example: '09:30'
         medical_outcome_code:
           type: string
           enum: [fit, unfit]
@@ -1063,9 +1073,19 @@ components:
         visa_outcome_date:
           type: string
           format: date
+        medical_center_name:
+          type: string
+          description: Where the candidate goes for their medical (medical appointment stages).
+        medical_center_address:
+          type: string
         medical_appointment_date:
           type: string
           format: date
+        medical_appointment_time:
+          type: string
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+          description: Time of day, HH:MM on a 24-hour clock.
+          example: '09:30'
         medical_outcome_code:
           type: string
           enum: [fit, unfit]
@@ -1677,7 +1697,8 @@ components:
                 type: string
               type:
                 type: string
-                enum: [iso_date, iso_datetime, string, enum]
+                enum: [iso_date, iso_datetime, time, string, enum]
+                description: '`time` is a time of day, HH:MM on a 24-hour clock.'
               required:
                 type: boolean
               values:
@@ -1685,6 +1706,12 @@ components:
                 items:
                   type: string
                 description: Present for enum fields.
+              default:
+                type: string
+                description: >-
+                  Value to fill in, when one is set -- the admin's default medical appointment
+                  (centre, address, date, time) for medical appointment stages. Staff may change it;
+                  what is sent with the move is saved for that candidate.
             required: [name, type, required]
         allowed:
           type: boolean
@@ -1968,6 +1995,22 @@ components:
           additionalProperties: false
           required: [phone_number]
       required: [support_setting]
+    AdminMedicalAppointmentSettingRequest:
+      type: object
+      properties:
+        medical_appointment_setting:
+          type: object
+          properties:
+            center_name: { type: string, nullable: true, maxLength: 150, example: Al Shifa Medical Centre }
+            center_address: { type: string, nullable: true, maxLength: 500, example: '12 Mall Road, Lahore' }
+            appointment_on: { type: string, format: date, nullable: true, example: '2026-11-20' }
+            appointment_time:
+              type: string
+              nullable: true
+              pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+              example: '09:30'
+          additionalProperties: false
+      required: [medical_appointment_setting]
     AdminAppFeatureSettingRequest:
       type: object
       properties:
@@ -2247,7 +2290,11 @@ components:
             visa_copy:
               type: string
               format: binary
-              description: Required when outcome_code is issued. Stored privately; never returned as a permanent URL.
+              description: >-
+                Required when outcome_code is issued. A PDF, or a scanned JPEG or PNG image (checked by the
+                file's content, not its name), not empty and at most 10 MB; otherwise 422 with
+                unsupported_file_type, empty_file or file_too_large on candidate_visa_decision.visa_copy.
+                Stored privately; never returned as a permanent URL.
             expected_current_stage_code:
               type: string
               description: Required for stale-state protection.
@@ -10829,6 +10876,75 @@ paths:
           description: Authenticated staff user lacks manage_support_settings, or is inactive
         '422':
           description: phone_number is not a valid phone number
+  /api/v1/admin/medical_appointment_setting:
+    get:
+      summary: Read the default medical appointment
+      description: >-
+        Returns the single admin-editable default medical appointment (centre, address, date,
+        time), filled in when staff move a candidate into a medical appointment stage. Requires
+        `manage_workflow` (Admin and MPS by default).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The current defaults (each null until set)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                setting:
+                  value:
+                    data:
+                      center_name: Al Shifa Medical Centre
+                      center_address: '12 Mall Road, Lahore'
+                      appointment_on: '2026-11-20'
+                      appointment_time: '09:30'
+                      updated_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: admin
+                      updated_at: '2026-11-13T09:00:00Z'
+                    meta:
+                      request_id: 3c9b6f5e-1a2d-4c8e-9f7a-5b6d4e3c2a10
+                      timestamp: '2026-11-13T09:00:01Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_workflow, or is inactive
+    patch:
+      summary: Edit the default medical appointment
+      description: >-
+        Sets or clears any of the defaults. Only candidates moved afterwards get the new values;
+        a candidate already moved keeps what was saved with their move. Requires `manage_workflow`;
+        a change is recorded as an AuditEvent with the before/after values.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMedicalAppointmentSettingRequest'
+      responses:
+        '200':
+          description: Defaults updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_workflow, or is inactive
+        '422':
+          description: appointment_time is not HH:MM, or a value is too long
   /api/v1/admin/system_database_backups:
     get:
       summary: Browse the daily database backup history (MPS-903)
