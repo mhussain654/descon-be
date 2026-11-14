@@ -3,14 +3,15 @@
 module Admin
   module WorkflowCorrections
     # The Overview tab's correction boxes: for the medical appointment, the QVC
-    # appointment and the flight, the current values, whether a developer may
+    # appointment, the flight and the visa copy, the current values, whether a developer may
     # change them (and if not, why), and the latest changes made.
     class WorkflowCorrectionSerializer
       RECENT_CHANGES_LIMIT = 5
       ACTION_CODES = {
         medical_appointment: 'medical_appointment_corrected',
         qvc_appointment: 'qvc_appointment_corrected',
-        flight_detail: 'flight_detail_corrected'
+        flight_detail: 'flight_detail_corrected',
+        visa_copy: 'visa_copy_corrected'
       }.freeze
 
       def initialize(candidate:, assignment:)
@@ -25,7 +26,8 @@ module Admin
           assignment_id: @assignment&.public_id,
           medical_appointment: box(:medical_appointment, @status.medical_values, @status.medical_blocked_reason),
           qvc_appointment: box(:qvc_appointment, @status.qvc_values, @status.qvc_blocked_reason),
-          flight_detail: box(:flight_detail, @status.flight_values, @status.flight_blocked_reason)
+          flight_detail: box(:flight_detail, @status.flight_values, @status.flight_blocked_reason),
+          visa_copy: box(:visa_copy, @status.visa_values, @status.visa_blocked_reason)
         }
       end
 

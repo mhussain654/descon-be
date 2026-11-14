@@ -2032,6 +2032,43 @@ components:
               example: '09:30'
           additionalProperties: false
       required: [medical_appointment_setting]
+    AdminJobLog:
+      type: object
+      description: >-
+        One background job run recorded by Solid Queue. Never includes the job's arguments.
+      properties:
+        id: { type: integer, description: Solid Queue job id }
+        active_job_id: { type: string, nullable: true }
+        job_class: { type: string, example: CandidateSms::DeliveryJob }
+        queue_name: { type: string }
+        priority: { type: integer }
+        status: { type: string, enum: [pending, scheduled, running, finished, failed] }
+        attempt:
+          type: integer
+          nullable: true
+          description: Which attempt this run is (1 for the first run, higher for a retry).
+        enqueued_at: { type: string, format: date-time }
+        scheduled_at: { type: string, format: date-time, nullable: true }
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When a worker picked up a running job.
+        finished_at: { type: string, format: date-time, nullable: true }
+        failed_at: { type: string, format: date-time, nullable: true }
+        error:
+          type: object
+          nullable: true
+          description: Present only for a failed run.
+          properties:
+            exception_class: { type: string }
+            message: { type: string, description: Redacted, at most 1000 characters. }
+            backtrace:
+              type: array
+              description: The first 15 lines, without server paths.
+              items: { type: string }
+          required: [exception_class, message, backtrace]
+      required: [id, job_class, queue_name, priority, status, enqueued_at, error]
     AdminQvcAppointmentSettingRequest:
       type: object
       properties:
@@ -2095,14 +2132,17 @@ components:
       properties:
         values:
           type: object
-          description: The current values (medical/QVC appointment fields, or the flight's fields and has_ticket).
+          description: >-
+            The current values (medical/QVC appointment fields; the flight's fields and has_ticket;
+            or the visa's outcome_code, decision_date, has_visa_copy and visa_copy_stored -- false
+            when a copy is recorded but its file is missing from storage).
           additionalProperties: true
         editable:
           type: boolean
         blocked_reason:
           anyOf:
             - type: string
-              enum: [not_recorded, past_medical, qvc_result_recorded, mobilized]
+              enum: [not_recorded, past_medical, qvc_result_recorded, mobilized, visa_rejected]
             - type: 'null'
         recent_changes:
           type: array
@@ -2132,7 +2172,21 @@ components:
         medical_appointment: { $ref: '#/components/schemas/AdminWorkflowCorrectionBox' }
         qvc_appointment: { $ref: '#/components/schemas/AdminWorkflowCorrectionBox' }
         flight_detail: { $ref: '#/components/schemas/AdminWorkflowCorrectionBox' }
-      required: [candidate_id, assignment_id, medical_appointment, qvc_appointment, flight_detail]
+        visa_copy: { $ref: '#/components/schemas/AdminWorkflowCorrectionBox' }
+      required: [candidate_id, assignment_id, medical_appointment, qvc_appointment, flight_detail, visa_copy]
+    AdminVisaCopyCorrectionRequest:
+      type: object
+      properties:
+        workflow_correction:
+          type: object
+          properties:
+            reason: { type: string, maxLength: 500 }
+            visa_copy:
+              type: string
+              format: binary
+              description: The new visa copy -- a PDF, JPEG or PNG, at most 10 MB.
+          required: [reason, visa_copy]
+      required: [workflow_correction]
     AdminFlightDetailSettingRequest:
       type: object
       properties:
@@ -9980,6 +10034,102 @@ paths:
           description: Missing, invalid, expired, or revoked staff access token
         '403':
           description: Authenticated staff user lacks view_audit_events, or is inactive
+  /api/v1/admin/job_logs:
+    get:
+      summary: Browse background job runs and failures (developer only)
+      description: >-
+        Read-only, paginated view over the background jobs recorded by Solid Queue (SMS
+        delivery, KuickPay fee vouchers, OCR date extraction, automatic calls, ...), newest
+        enqueued first. Each row is an AdminJobLog: class, queue, status (pending, scheduled,
+        running, finished, failed), times, the attempt number and, for a failed run, the error
+        class, the message (redacted and cut to 1000 characters) and the first 15 backtrace
+        lines. A job retried by `retry_on` shows each attempt as its own row; only the final
+        failure is `failed`. Finished runs are cleared by Solid Queue after a day, failed runs
+        stay until retried or discarded. The job's arguments are never returned (they can carry
+        personal data). `meta.job_classes` lists every job under app/jobs plus any other class
+        Solid Queue has recorded, for the job filter; `meta.statuses` lists the status values.
+        Developer only (`view_job_logs`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - name: page[size]
+          in: query
+          description: Rows per page; defaults to 25, at most 100.
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: filter[job_class]
+          in: query
+          description: One of `meta.job_classes`.
+          schema: { type: string, example: CandidateSms::DeliveryJob }
+        - name: filter[status]
+          in: query
+          schema: { type: string, enum: [pending, scheduled, running, finished, failed] }
+        - name: filter[enqueued_from]
+          in: query
+          description: First enqueued day (inclusive, application time zone).
+          schema: { type: string, format: date }
+        - name: filter[enqueued_to]
+          in: query
+          description: Last enqueued day (inclusive, application time zone).
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Paginated AdminJobLog collection
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/AdminJobLog' }
+              examples:
+                failedRun:
+                  value:
+                    data:
+                      - id: 812
+                        active_job_id: 0f6b2c1e-8c51-4a55-9e4b-6f0d2f7d1a90
+                        job_class: Payments::IssueFeeVoucherJob
+                        queue_name: default
+                        priority: 0
+                        status: failed
+                        attempt: 5
+                        enqueued_at: '2026-11-14T08:00:00Z'
+                        scheduled_at: '2026-11-14T08:00:00Z'
+                        started_at: null
+                        finished_at: null
+                        failed_at: '2026-11-14T08:00:03Z'
+                        error:
+                          exception_class: Faraday::TimeoutError
+                          message: execution expired
+                          backtrace:
+                            - app/services/payments/kuickpay/client.rb:41:in 'post'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-14T09:00:00Z'
+                      pagination: { page: 1, per_page: 25, total_count: 1, total_pages: 1 }
+                      applied_filters: { status: failed }
+                      job_classes: [CandidateSms::DeliveryJob, Payments::IssueFeeVoucherJob]
+                      statuses: [pending, scheduled, running, finished, failed]
+                    errors: []
+        '400':
+          description: >-
+            Unsupported filter, unknown job class or status, malformed or reversed date range,
+            or a page size above 100
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks view_job_logs), or inactive
   /api/v1/admin/communications:
     get:
       summary: Browse the central cross-channel communications log
@@ -11154,10 +11304,11 @@ paths:
     get:
       summary: Read a candidate's correctable details
       description: >-
-        The candidate's medical appointment, QVC appointment and flight details, each with its
-        current values, whether a developer may change it now (`editable`), why not
+        The candidate's medical appointment, QVC appointment, flight details and visa copy, each
+        with its current values, whether a developer may change it now (`editable`), why not
         (`blocked_reason`: not_recorded, past_medical -- medically fit or past the medical
-        stages, qvc_result_recorded, mobilized) and the latest changes. Developer only
+        stages, qvc_result_recorded, mobilized, visa_rejected -- the latest visa decision is a
+        rejection) and the latest changes. Developer only
         (`correct_workflow_details`); the data is an AdminWorkflowCorrections.
       security:
         - bearerAuth: []
@@ -11169,7 +11320,7 @@ paths:
         - $ref: '#/components/parameters/XLocaleHeader'
       responses:
         '200':
-          description: The three boxes (AdminWorkflowCorrections) in `data`
+          description: The four boxes (AdminWorkflowCorrections) in `data`
           content:
             application/json:
               schema:
@@ -11288,6 +11439,46 @@ paths:
           description: Candidate not found
         '422':
           description: No reason, nothing changed, an invalid value, or the step can no longer be changed
+  /api/v1/admin/candidates/{candidate_id}/workflow_corrections/visa_copy:
+    patch:
+      summary: Replace the visa copy
+      description: >-
+        Replaces the visa copy on the candidate's latest visa decision, which must be an issued
+        visa -- for a copy uploaded wrongly, or one whose file is missing from storage. The
+        decision (outcome, date) and the candidate's stage stay as they are, and no SMS is sent.
+        Needs a reason; recorded as an AuditEvent (`visa_copy_corrected`, with the previous
+        state: none, attached or missing_from_storage). Developer only (`correct_workflow_details`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XLocaleHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminVisaCopyCorrectionRequest'
+      responses:
+        '200':
+          description: Saved; returns the refreshed boxes (AdminWorkflowCorrections) in `data`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks correct_workflow_details), or inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: >-
+            No reason, no file, an empty, oversized or unsupported file, no visa decision, or the
+            latest decision is a rejection
   /api/v1/admin/flight_detail_setting:
     get:
       summary: Read the default flight details

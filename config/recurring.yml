@@ -19,6 +19,12 @@ production:
     # "End of day" = the start of the next day, UTC -- stated explicitly since
     # the phrase is otherwise timezone-ambiguous.
     schedule: at midnight every day
+  # Keeps the 14 newest daily backups plus the first of each of the last 6
+  # months; deletes the rest and their S3 files (Backups::PruneDatabaseBackupsJob).
+  prune_database_backups:
+    class: Backups::PruneDatabaseBackupsJob
+    queue: default
+    schedule: at 2am every day
   reconcile_stuck_ai_calls:
     class: AiCalls::ReconcileStuckCallsJob
     queue: default

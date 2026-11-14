@@ -106,6 +106,7 @@ en:
       workflow_correction_past_medical: "The candidate is past the medical stage, so the appointment can no longer be changed."
       workflow_correction_qvc_result_recorded: "The QVC result is already recorded, so this appointment can no longer be changed."
       workflow_correction_mobilized: "The candidate is already mobilized, so the flight can no longer be changed."
+      workflow_correction_visa_rejected: "The latest visa decision is a rejection, so there is no visa copy to replace."
       qvc_open_attempt_exists: "Complete the current QVC attempt before scheduling another one."
       qvc_no_show_outcome_conflict: "Record either a no-show or an outcome, not both."
       qvc_outcome_required: "Record a supported QVC outcome or mark the attempt as a no-show."

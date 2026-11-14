@@ -228,7 +228,7 @@ RSpec.describe CandidateWorkflows::AutomaticTransitionService do
       expect(assignment.reload.current_workflow_stage.code).to eq('e_number_processing')
     end
 
-    it 'moves a paid, medically fit Qatar candidate on to the QVC steps' do
+    it 'keeps a paid, medically fit Qatar candidate at Fee Paid until staff confirm the Qatar BU sharing' do
       candidate, assignment = candidate_at_fee_paid(:qatar)
       create_requirement(assignment:, code: 'passport')
       create_required_documents(candidate:, assignment:, status_code: 'verified')
@@ -238,7 +238,8 @@ RSpec.describe CandidateWorkflows::AutomaticTransitionService do
 
       described_class.call(candidate:, event: :fee_paid, request_id: 'auto-fee-qatar')
 
-      expect(assignment.reload.current_workflow_stage.code).to eq('documents_shared_with_qatar_bu')
+      expect(assignment.reload.current_workflow_stage.code).to eq('fee_paid')
+      expect(assignment.candidate_stage_histories.where(reason_code: 'auto_fee_paid')).not_to exist
     end
   end
 end

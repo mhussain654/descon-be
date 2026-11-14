@@ -10,15 +10,17 @@ module CandidateWorkflows
   # Moves that need nothing typed and no decision from staff happen here, so
   # staff only act where they have something to enter (client request, Nov 2026):
   # approved documents carry on to Campaign Nomination, and a paid fee carries on
-  # to the first step of the country's next phase -- Tasheer registration (KSA),
-  # the QVC steps (Qatar) or the visa (UAE, Oman and the common process).
+  # to the first step of the country's next phase -- Tasheer registration (KSA)
+  # or the visa (UAE, Oman and the common process). A Qatar candidate stays at
+  # Fee Paid: staff must share the documents with the Qatar BU first and then
+  # confirm "Documents Shared with Qatar BU" themselves.
   class AutomaticTransitionService < ApplicationService
     EVENT_TARGETS = {
       assignment_created: 'documents_pending',
       documents_uploaded: 'documents_uploaded',
       documents_submitted: 'under_verification',
       documents_reviewed: 'campaign_nomination',
-      fee_paid: %w[e_number_processing documents_shared_with_qatar_bu visa_processing]
+      fee_paid: %w[e_number_processing visa_processing fee_paid]
     }.freeze
 
     def initialize(candidate:, event:, actor: nil, request_id: nil)

@@ -202,6 +202,7 @@ RSpec.describe 'API V1 Admin Candidate Workflow Corrections', type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(detail.reload.ticket).to be_attached
+      expect(ActiveStorage::Blob.service.exist?(detail.ticket.blob.key)).to be(true)
     end
 
     it 'is locked once the candidate is mobilized' do
@@ -213,6 +214,73 @@ RSpec.describe 'API V1 Admin Candidate Workflow Corrections', type: :request do
       correct(:flight_detail, { reason: 'x', airline: 'PIA', flight_number: 'PK-1', flight_date: '2026-12-10T14:30' })
 
       expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
+
+  describe 'PATCH visa_copy' do
+    let(:stage_code) { 'visa_issued_or_rejected' }
+
+    # A decision whose copy is recorded but whose file never reached storage.
+    def decision_with_missing_file!
+      decision = create(:candidate_visa_decision, candidate_assignment: assignment)
+      decision.visa_copy.attach(io: StringIO.new('%PDF-1.4 old'), filename: 'old.pdf', content_type: 'application/pdf')
+      ActiveStorage::Blob.service.delete(decision.visa_copy.blob.key)
+      decision
+    end
+
+    it 'shows when the stored visa copy is missing from storage' do
+      decision_with_missing_file!
+
+      get base_path, headers: auth_headers(developer)
+
+      expect(response.parsed_body.dig('data', 'visa_copy')).to include(
+        'editable' => true, 'blocked_reason' => nil,
+        'values' => include('outcome_code' => 'issued', 'has_visa_copy' => true, 'visa_copy_stored' => false)
+      )
+    end
+
+    it 'replaces the copy, stores the file, keeps the decision and stage, audits it and sends no SMS' do
+      decision = decision_with_missing_file!
+
+      correct(:visa_copy, { reason: 'Original upload never reached storage',
+                            visa_copy: fixture_file_upload('test.pdf', 'application/pdf') })
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'visa_copy', 'values'))
+        .to include('has_visa_copy' => true, 'visa_copy_stored' => true)
+      new_blob = decision.reload.visa_copy.blob
+      expect(ActiveStorage::Blob.service.exist?(new_blob.key)).to be(true)
+      expect(decision.outcome_code).to eq('issued')
+      expect(assignment.reload.current_workflow_stage.code).to eq('visa_issued_or_rejected')
+      audit = AuditEvent.find_by!(action_code: 'visa_copy_corrected')
+      expect(audit.metadata['changes']).to eq('visa_copy' => %w[missing_from_storage replaced])
+      expect(audit.note).to eq('Original upload never reached storage')
+      expect(CandidateSmsDelivery.count).to eq(0)
+    end
+
+    it 'requires a valid file' do
+      create(:candidate_visa_decision, candidate_assignment: assignment)
+
+      correct(:visa_copy, { reason: 'No file' })
+      expect(response).to have_http_status(:unprocessable_content)
+
+      correct(:visa_copy, { reason: 'Not a PDF', visa_copy: fixture_file_upload('not_pdf.txt', 'application/pdf') })
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(AuditEvent.where(action_code: 'visa_copy_corrected')).not_to exist
+    end
+
+    it 'is refused when the latest decision is a rejection, or no decision is recorded' do
+      correct(:visa_copy, { reason: 'x', visa_copy: fixture_file_upload('test.pdf', 'application/pdf') })
+      expect(response).to have_http_status(:unprocessable_content)
+
+      create(:candidate_visa_decision, :rejected, candidate_assignment: assignment)
+      get base_path, headers: auth_headers(developer)
+      expect(response.parsed_body.dig('data', 'visa_copy'))
+        .to include('editable' => false, 'blocked_reason' => 'visa_rejected')
+
+      correct(:visa_copy, { reason: 'x', visa_copy: fixture_file_upload('test.pdf', 'application/pdf') })
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(ActiveStorage::Blob.where.missing(:attachments)).not_to exist
     end
   end
 end

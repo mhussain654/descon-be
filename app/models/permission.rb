@@ -34,16 +34,19 @@ class Permission < ApplicationRecord
     { code: 'manage_support_settings' },
     { code: 'manage_app_settings' },
     { code: 'access_communications_menu' },
-    { code: 'correct_workflow_details' }
+    { code: 'correct_workflow_details' },
+    { code: 'view_job_logs' }
   ].freeze
 
   # Granted only to the developer role: the App Settings feature switches, the
   # automated call limits, and setting up calls (bulk call types, automatic
   # calls), and correcting a candidate's recorded medical appointment, QVC
-  # appointment or flight details. The communications log and placing bulk
+  # appointment or flight details, and reading the background job logs
+  # (runs, failures and why). The communications log and placing bulk
   # calls are open to staff.
   DEVELOPER_ONLY_PERMISSIONS = %w[
     manage_app_settings access_communications_menu manage_ai_call_settings correct_workflow_details
+    view_job_logs
   ].freeze
 
   has_many :role_permissions, dependent: :destroy

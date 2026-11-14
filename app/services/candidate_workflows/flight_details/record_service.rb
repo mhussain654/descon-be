@@ -32,8 +32,9 @@ module CandidateWorkflows
         validate_actor!
         validate_payload!
 
-        CandidateAssignment.transaction do
-          record_flight_detail!
+        UploadedFileBlob.storing(@params.ticket) do |blob|
+          @ticket_blob = blob
+          CandidateAssignment.transaction { record_flight_detail! }
         end
       end
 
@@ -86,7 +87,7 @@ module CandidateWorkflows
       def record_flight_detail!
         result = transition_to_flight_details_uploaded
         detail = locate_detail(result.fetch(:history_entry))
-        detail.ticket.attach(@params.ticket)
+        detail.ticket.attach(@ticket_blob)
         flight_detail_result(detail, result.fetch(:snapshot))
       end
 

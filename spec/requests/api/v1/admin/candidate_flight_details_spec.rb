@@ -331,5 +331,9 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
     expect(body.fetch('airline')).to eq('Qatar Airways')
     expect(body.fetch('ticket_attached')).to be(true)
     expect(body.keys).not_to include('ticket_url', 'url')
+    # The ticket itself must reach storage, not only its database record.
+    ticket_blob = CandidateFlightDetail.joins(:candidate_assignment)
+                                       .find_by!(candidate_assignments: { candidate_id: candidate.id }).ticket.blob
+    expect(ActiveStorage::Blob.service.exist?(ticket_blob.key)).to be(true)
   end
 end

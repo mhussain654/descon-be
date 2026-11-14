@@ -156,6 +156,9 @@ RSpec.describe 'API V1 Admin Candidate Visa Decisions', type: :request do
     expect(CandidateVisaDecision.where(candidate_assignment: assignment).count).to eq(1)
     expect(AuditEvent.where(action_code: 'candidate_visa_decision_recorded').count).to eq(1)
     expect(assignment.reload.current_workflow_stage.code).to eq('visa_issued_or_rejected')
+    # The file itself must reach storage, not only its database record.
+    visa_blob = CandidateVisaDecision.find_by!(candidate_assignment: assignment).visa_copy.blob
+    expect(ActiveStorage::Blob.service.exist?(visa_blob.key)).to be(true)
 
     post "/api/v1/admin/candidates/#{candidate.public_id}/visa_decisions",
          params: {

@@ -32,6 +32,7 @@ ur:
       manage_app_settings: "ایپ سیٹنگز کا انتظام"
       access_communications_menu: "کمیونیکیشن مینو تک رسائی"
       correct_workflow_details: "میڈیکل، کیو وی سی اور پرواز کی تفصیلات درست کرنا"
+      view_job_logs: "بیک گراؤنڈ جاب لاگز دیکھنا"
     workflow_stages:
       registered: "رجسٹرڈ"
       documents_pending: "دستاویزات زیر التوا"

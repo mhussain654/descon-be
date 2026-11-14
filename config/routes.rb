@@ -95,6 +95,7 @@ Rails.application.routes.draw do
             patch :medical_appointment
             patch :qvc_appointment
             patch :flight_detail
+            patch :visa_copy
           end
           resource :flight_detail, only: %i[show create update], controller: :candidate_flight_details do
             resource :ticket_access, only: :create, controller: :candidate_flight_detail_ticket_accesses
@@ -109,6 +110,7 @@ Rails.application.routes.draw do
           resource :extraction, only: :show, controller: :candidate_document_extractions
         end
         resources :audit_events, only: :index
+        resources :job_logs, only: :index
         resources :communications, only: :index
         resources :ai_calls, only: %i[index show] do
           resource :review, only: :create, controller: :ai_call_reviews

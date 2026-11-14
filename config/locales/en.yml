@@ -62,6 +62,7 @@ en:
       manage_app_settings: "Manage app settings"
       access_communications_menu: "Access the communications menu"
       correct_workflow_details: "Correct medical, QVC and flight details"
+      view_job_logs: "View background job logs"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"

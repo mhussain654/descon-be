@@ -9,6 +9,17 @@ module CandidateWorkflows
       TICKET_FIELD = 'workflow_correction.ticket'
       TICKET_MAX_BYTES = 10.megabytes
 
+      # The new ticket (if any) is checked and stored before the correction's
+      # transaction; see UploadedFileBlob.
+      def call
+        validate_actor!
+        validate_ticket!(@values[:ticket]) if @values[:ticket].present?
+        UploadedFileBlob.storing(@values[:ticket]) do |blob|
+          @ticket_blob = blob
+          super
+        end
+      end
+
       private
 
       def blocked_reason = status.flight_blocked_reason
@@ -48,11 +59,9 @@ module CandidateWorkflows
       end
 
       def replace_ticket!(detail, changes)
-        ticket = @values[:ticket]
-        return if ticket.blank?
+        return if @ticket_blob.blank?
 
-        validate_ticket!(ticket)
-        detail.ticket.attach(ticket)
+        detail.ticket.attach(@ticket_blob)
         changes['ticket'] = [nil, 'replaced']
       end
 

@@ -3,7 +3,8 @@
 module CandidateWorkflows
   module Corrections
     # What a developer may correct for a candidate right now -- the medical
-    # appointment, the QVC appointment and the flight details -- with each one's
+    # appointment, the QVC appointment, the flight details and the visa copy --
+    # with each one's
     # current values, whether it can be changed, and if not, why
     # (`blocked_reason`). Read by the Overview tab and checked again by each
     # correction service before it changes anything.
@@ -12,6 +13,7 @@ module CandidateWorkflows
       BLOCKED_PAST_MEDICAL = 'past_medical'
       BLOCKED_QVC_RESULT_RECORDED = 'qvc_result_recorded'
       BLOCKED_MOBILIZED = 'mobilized'
+      BLOCKED_VISA_REJECTED = 'visa_rejected'
       PAKISTAN_TIME_ZONE = 'Asia/Karachi'
       MEDICAL_FIELDS = %w[medical_center_name medical_center_address medical_appointment_date
                           medical_appointment_time].freeze
@@ -36,6 +38,12 @@ module CandidateWorkflows
 
       def flight_detail = @assignment&.candidate_flight_detail
 
+      def visa_decision
+        return if @assignment.blank?
+
+        @visa_decision ||= @assignment.candidate_visa_decisions.latest_first.first
+      end
+
       def medical_blocked_reason
         return BLOCKED_NOT_RECORDED if medical_entry.blank?
 
@@ -52,6 +60,14 @@ module CandidateWorkflows
         return BLOCKED_NOT_RECORDED if flight_detail.blank?
 
         BLOCKED_MOBILIZED if flight_detail.mobilized? || @assignment.current_workflow_stage&.code == 'mobilized'
+      end
+
+      # The visa copy can be replaced whenever the latest decision is an issued
+      # visa (a rejection has no copy).
+      def visa_blocked_reason
+        return BLOCKED_NOT_RECORDED if visa_decision.blank?
+
+        BLOCKED_VISA_REJECTED if visa_decision.rejected?
       end
 
       def medical_values
@@ -80,7 +96,28 @@ module CandidateWorkflows
         }
       end
 
+      # `visa_copy_stored` is false when the decision says a copy is attached but
+      # the file is missing from storage (nil when there is no copy, or storage
+      # could not be asked).
+      def visa_values
+        decision = visa_decision
+        {
+          outcome_code: decision&.outcome_code, decision_date: decision&.decision_date&.iso8601,
+          has_visa_copy: decision.present? && decision.visa_copy.attached?,
+          visa_copy_stored: stored_state(decision)
+        }
+      end
+
       private
+
+      def stored_state(decision)
+        return unless decision&.visa_copy&.attached?
+
+        blob = decision.visa_copy.blob
+        blob.service.exist?(blob.key)
+      rescue StandardError
+        nil
+      end
 
       # Medically fit, or moved on beyond the process's medical stages (an unfit
       # candidate is held at the result stage, so may still be rebooked).

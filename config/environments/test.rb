@@ -24,6 +24,9 @@ Rails.application.configure do
   config.consider_all_requests_local = true
   config.cache_store = :null_store
   config.active_job.queue_adapter = :test
+  # Jobs are not run through Solid Queue in tests, but the admin Job logs
+  # endpoint reads Solid Queue's tables, which live in the queue database.
+  config.solid_queue.connects_to = { database: { writing: :queue } }
   config.active_storage.service = :test
 
   # Render exception templates for rescuable exceptions and raise for other exceptions.

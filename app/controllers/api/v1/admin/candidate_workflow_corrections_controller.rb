@@ -4,20 +4,23 @@ module Api
   module V1
     module Admin
       # Lets a developer see and correct a candidate's recorded medical
-      # appointment, QVC appointment and flight details from the Overview tab,
-      # without moving the candidate. Each change needs a reason, is audited,
-      # and texts the candidate unless `notify_candidate` is false.
+      # appointment, QVC appointment and flight details, and replace the visa
+      # copy, from the Overview tab, without moving the candidate. Each change
+      # needs a reason and is audited; the first three text the candidate unless
+      # `notify_candidate` is false.
       class CandidateWorkflowCorrectionsController < ProtectedStaffController
         COMMON_PARAMS = %i[reason notify_candidate].freeze
         SERVICES = {
           medical_appointment: ::CandidateWorkflows::Corrections::MedicalAppointmentService,
           qvc_appointment: ::CandidateWorkflows::Corrections::QvcAppointmentService,
-          flight_detail: ::CandidateWorkflows::Corrections::FlightDetailService
+          flight_detail: ::CandidateWorkflows::Corrections::FlightDetailService,
+          visa_copy: ::CandidateWorkflows::Corrections::VisaCopyService
         }.freeze
         VALUE_PARAMS = {
           medical_appointment: %i[center_name center_address appointment_date appointment_time],
           qvc_appointment: %i[center_name center_address appointment_date appointment_time],
-          flight_detail: %i[airline flight_number sector flight_date ticket]
+          flight_detail: %i[airline flight_number sector flight_date ticket],
+          visa_copy: %i[visa_copy]
         }.freeze
 
         def show
@@ -29,6 +32,7 @@ module Api
         def medical_appointment = correct(:medical_appointment)
         def qvc_appointment = correct(:qvc_appointment)
         def flight_detail = correct(:flight_detail)
+        def visa_copy = correct(:visa_copy)
 
         private
 

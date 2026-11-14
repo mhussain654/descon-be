@@ -35,8 +35,9 @@ module CandidateWorkflows
         validate_actor!
         validate_payload!
 
-        CandidateAssignment.transaction do
-          record_decision!
+        UploadedFileBlob.storing(@params.visa_copy) do |blob|
+          @visa_copy_blob = blob
+          CandidateAssignment.transaction { record_decision! }
         end
       end
 
@@ -179,9 +180,9 @@ module CandidateWorkflows
       end
 
       def attach_visa_copy!(decision)
-        return if @params.visa_copy.blank?
+        return if @visa_copy_blob.blank?
 
-        decision.visa_copy.attach(@params.visa_copy)
+        decision.visa_copy.attach(@visa_copy_blob)
       end
 
       def normalized_code(value) = value.to_s.strip.downcase.presence
