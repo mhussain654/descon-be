@@ -12,7 +12,7 @@
 # (or the bare number for the two real integer defaults), so this file's
 # values only ever come out however the app actually gave them.
 default: &default
-  base_url: https://sandbox-api.kuickpay.com
+  base_url: https://sandbox-api.kuickpay.com # Sandbox card base URL
   return_url: <%= ENV.fetch('KUICKPAY_RETURN_URL', '').to_json %>
   hybrid_base_url: https://uat-adminapi.kuickpay.com
   sms_base_url: https://api.kuickpay.com
@@ -44,10 +44,25 @@ test:
   sms_username: test-sms-user
   sms_password: test-sms-password
 
+# UAT hosts are used in this production, rename it to staging and go live with the real production hosts.
 production:
   <<: *default
-  base_url: https://sandbox-api.kuickpay.com
+  base_url: https://sandbox-api.kuickpay.com # Sandbox card base URL
   hybrid_base_url: https://uat-adminapi.kuickpay.com
+  secured_key: <%= Rails.application.credentials.fetch(:kuickpay).fetch(:staging).fetch(:secured_key)).to_json %>
+
+  hybrid_username: <%= Rails.application.credentials.dig(:kuickpay, :staging, :hybrid_username).to_json %>
+  hybrid_password: <%= Rails.application.credentials.dig(:kuickpay, :staging, :hybrid_password).to_json %>
+  payment_status_username: <%= Rails.application.credentials.dig(:kuickpay, :staging, :payment_status_username).to_json %>
+  payment_status_password: <%= Rails.application.credentials.dig(:kuickpay, :staging, :payment_status_password).to_json %>
+  sms_username: <%= Rails.application.credentials.dig(:kuickpay, :staging, :sms_username).to_json %>
+  sms_password: <%= Rails.application.credentials.dig(:kuickpay, :staging, :sms_password).to_json %>
+
+# Actual live KuickPay hosts, used only in this block (rename it to production and goes live)
+staging:
+  <<: *default
+  base_url: https://sandbox-api.kuickpay.com # Sandbox card base URL
+  hybrid_base_url: https://api.kuickpay.com
   secured_key: <%= (Rails.env.production? ? Rails.application.credentials.fetch(:kuickpay).fetch(:production).fetch(:secured_key) : '').to_json %>
 
   hybrid_username: <%= Rails.application.credentials.dig(:kuickpay, :production, :hybrid_username).to_json %>
