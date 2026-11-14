@@ -51,9 +51,20 @@ module Payments
       kuickpay_setting(:hybrid_base_url)
     end
 
-    # Where KuickPay's sendSMS lives; it uses the voucher (Hybrid) login.
+    # Where KuickPay's sendSMS lives.
     def kuickpay_sms_base_url
       kuickpay_setting(:sms_base_url)
+    end
+
+    # The login for sendSMS, which KuickPay issues separately from the Insert Voucher and
+    # Bulk Inquiry logins. Until it is set, the voucher (Hybrid) login is used, as before,
+    # so voucher SMS keep going out while the credentials are being added.
+    def kuickpay_sms_username
+      kuickpay_setting(:sms_username) || kuickpay_hybrid_username
+    end
+
+    def kuickpay_sms_password
+      kuickpay_setting(:sms_username) ? kuickpay_setting(:sms_password) : kuickpay_hybrid_password
     end
 
     def kuickpay_hybrid_username

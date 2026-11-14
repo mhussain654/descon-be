@@ -21,7 +21,7 @@ module CandidateWorkflows
         to_stage: HistoryStageReference.to(history_entry),
         occurred_at: history_entry.occurred_at.utc.iso8601,
         reason_code: history_entry.reason_code,
-        details: history_entry.metadata.presence
+        details: history_entry.details.presence
       }.compact
     end
   end

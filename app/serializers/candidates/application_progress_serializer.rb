@@ -44,8 +44,17 @@ module Candidates
         total_count: @progress.workflow_total_count,
         progress_percentage: @progress.workflow_progress_percentage,
         updated_at: @progress.workflow_updated_at,
-        outcomes: @progress.workflow_outcomes
+        outcomes: @progress.workflow_outcomes,
+        qvc_appointment: serialized_qvc_appointment
       }
+    end
+
+    # The latest QVC booking -- where and when to go -- with its status, so the
+    # app shows it while it is still to happen (Qatar only; nil elsewhere).
+    def serialized_qvc_appointment
+      assignment = @progress.candidate.current_assignment
+      attempt = assignment && assignment.candidate_qvc_attempts.latest_first.first
+      attempt && CandidateWorkflows::QvcAttemptSerializer.new(attempt).as_json
     end
 
     # Its country picks the steps the candidate's app shows (e.g. Qatar's QVC steps).

@@ -84,7 +84,7 @@ module CandidateWorkflows
           to_stage: HistoryStageReference.to(history_entry),
           occurred_at: history_entry.occurred_at.utc.iso8601,
           reason_code: history_entry.reason_code,
-          details: history_entry.metadata.presence
+          details: history_entry.details.presence
         }.compact
       end
     end
@@ -155,7 +155,7 @@ module CandidateWorkflows
       return [] if @assignment.blank?
 
       # Entries are served from their own snapshot columns -- no stage joins needed.
-      relation = @assignment.candidate_stage_histories.order(:occurred_at, :id)
+      relation = @assignment.candidate_stage_histories.includes(:correction).order(:occurred_at, :id)
       relation = relation.includes(:actor) if @include_history_actor
       relation.to_a
     end

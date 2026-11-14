@@ -112,6 +112,25 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       expect(response.parsed_body.dig('data', 'workflow', 'outcomes')).to eq('medical' => 'fit', 'visa' => 'rejected')
     end
 
+    it 'reports the latest QVC booking with where and when to go' do
+      candidate = create(:candidate)
+      assignment = create(:candidate_assignment, candidate:)
+
+      get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
+      expect(response.parsed_body.dig('data', 'workflow', 'qvc_appointment')).to be_nil
+
+      create(:candidate_qvc_attempt, candidate_assignment: assignment, scheduled_by: assignment.created_by,
+                                     attempt_number: 1, appointment_date: Date.new(2026, 12, 3),
+                                     appointment_time: '08:30', center_name: 'QVC Islamabad',
+                                     center_address: 'Blue Area')
+
+      get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
+      expect(response.parsed_body.dig('data', 'workflow', 'qvc_appointment')).to include(
+        'appointment_date' => '2026-12-03', 'appointment_time' => '08:30', 'center_name' => 'QVC Islamabad',
+        'center_address' => 'Blue Area', 'status' => 'scheduled'
+      )
+    end
+
     it 'returns blocking requirements and localized names for the authenticated candidate only' do
       candidate = create(:candidate, preferred_locale: 'ur')
       assignment = create(:candidate_assignment, candidate:)

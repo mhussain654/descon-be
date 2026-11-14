@@ -8,6 +8,9 @@ module CandidateWorkflows
         :actor,
         :candidate,
         :appointment_date,
+        :center_name,
+        :center_address,
+        :appointment_time,
         :expected_current_stage_code,
         :request_id,
         :note,
@@ -18,6 +21,7 @@ module CandidateWorkflows
         @params = Params.new(
           **params,
           appointment_date: params[:appointment_date].to_s,
+          **normalized_place_and_time(params),
           note: params[:note].to_s.strip.presence
         )
       end
@@ -25,6 +29,7 @@ module CandidateWorkflows
       def call
         validate_actor!
         validate_appointment_date!
+        validate_appointment_time!
 
         CandidateAssignment.transaction do
           schedule_attempt!
@@ -32,6 +37,12 @@ module CandidateWorkflows
       end
 
       private
+
+      def normalized_place_and_time(params)
+        { center_name: params[:center_name].to_s.squish.presence,
+          center_address: params[:center_address].to_s.strip.presence,
+          appointment_time: params[:appointment_time].to_s.strip.presence }
+      end
 
       def validate_actor!
         raise InactiveAccountError unless @params.actor&.active_staff_account?
@@ -46,6 +57,23 @@ module CandidateWorkflows
           message: I18n.t('api.errors.workflow_transition_evidence_date_invalid')
         )
       end
+
+      def validate_appointment_time!
+        return if @params.appointment_time.nil? || @params.appointment_time.match?(QvcAppointmentSetting::TIME_FORMAT)
+
+        raise ValidationError.new(
+          field: 'candidate_qvc_attempt.appointment_time',
+          message: I18n.t('api.errors.workflow_transition_evidence_value_invalid')
+        )
+      end
+
+      # The centre, address and time, leaving out any not given.
+      def place_and_time
+        { center_name: @params.center_name, center_address: @params.center_address,
+          appointment_time: @params.appointment_time }.compact
+      end
+
+      def place_and_time_evidence = place_and_time.transform_keys { |key| :"qvc_#{key}" }
 
       def locked_assignment
         candidate = Candidate.lock.find(@params.candidate.id)
@@ -69,7 +97,7 @@ module CandidateWorkflows
           expected_current_stage_code: @params.expected_current_stage_code,
           request_id: @params.request_id,
           note: @params.note,
-          evidence: { appointment_date: @params.appointment_date }
+          evidence: { appointment_date: @params.appointment_date, **place_and_time_evidence }
         )
       end
 
@@ -105,10 +133,8 @@ module CandidateWorkflows
         ensure_no_open_attempt!(assignment)
 
         attempt = assignment.candidate_qvc_attempts.create!(
-          scheduled_by: @params.actor,
-          attempt_number: next_attempt_number(assignment),
-          appointment_date: Date.iso8601(@params.appointment_date),
-          internal_note: @params.note
+          scheduled_by: @params.actor, attempt_number: next_attempt_number(assignment),
+          appointment_date: Date.iso8601(@params.appointment_date), internal_note: @params.note, **place_and_time
         )
         assignment.update!(updated_at: Time.current)
         record_follow_up!(assignment, attempt)

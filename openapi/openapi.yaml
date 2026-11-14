@@ -1162,6 +1162,13 @@ components:
                   enum: [issued, rejected]
                 - type: 'null'
           required: [medical, visa]
+        qvc_appointment:
+          description: >-
+            The latest QVC booking (Qatar only) -- where and when to go, with its status -- so the
+            app can show it while it is `scheduled`. Null when there is none.
+          anyOf:
+            - $ref: '#/components/schemas/CandidateQvcAttempt'
+            - type: 'null'
       required: [mobilization_process, timeline, completed_count, total_count, progress_percentage, updated_at, outcomes]
     CandidatePaymentRecord:
       type: object
@@ -1736,6 +1743,20 @@ components:
         appointment_date:
           type: string
           format: date
+        appointment_time:
+          anyOf:
+            - type: string
+              pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+            - type: 'null'
+          description: HH:MM, Pakistan time.
+        center_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+        center_address:
+          anyOf:
+            - type: string
+            - type: 'null'
         outcome_code:
           anyOf:
             - type: string
@@ -2011,6 +2032,107 @@ components:
               example: '09:30'
           additionalProperties: false
       required: [medical_appointment_setting]
+    AdminQvcAppointmentSettingRequest:
+      type: object
+      properties:
+        qvc_appointment_setting:
+          type: object
+          properties:
+            center_name: { type: string, nullable: true, maxLength: 150, example: QVC Islamabad }
+            center_address: { type: string, nullable: true, maxLength: 500, example: 'Blue Area, Islamabad' }
+            appointment_on: { type: string, format: date, nullable: true, example: '2026-12-03' }
+            appointment_time:
+              type: string
+              nullable: true
+              pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+              example: '08:30'
+          additionalProperties: false
+      required: [qvc_appointment_setting]
+    AdminAppointmentCorrectionRequest:
+      type: object
+      description: >-
+        The appointment's full set of values after the change (a blank value clears it), the
+        reason, and whether to text the candidate (default true).
+      properties:
+        workflow_correction:
+          type: object
+          required: [reason]
+          properties:
+            reason: { type: string, maxLength: 500, example: Candidate cannot reach this centre }
+            notify_candidate: { type: boolean, default: true }
+            center_name: { type: string, maxLength: 150 }
+            center_address: { type: string, maxLength: 500 }
+            appointment_date:
+              type: string
+              format: date
+              description: Required for a QVC appointment; optional for a medical appointment.
+            appointment_time: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+          additionalProperties: false
+      required: [workflow_correction]
+    AdminFlightCorrectionRequest:
+      type: object
+      properties:
+        workflow_correction:
+          type: object
+          required: [reason, airline, flight_number, flight_date]
+          properties:
+            reason: { type: string, maxLength: 500 }
+            notify_candidate: { type: boolean, default: true }
+            airline: { type: string }
+            flight_number: { type: string }
+            sector: { type: string, description: Optional route; blank clears it. }
+            flight_date:
+              type: string
+              description: Departure; without an offset it is read as Pakistan time (e.g. 2026-12-10T14:30).
+            ticket:
+              type: string
+              format: binary
+              description: Optional replacement ticket (PDF, JPEG or PNG, up to 10 MB).
+          additionalProperties: false
+      required: [workflow_correction]
+    AdminWorkflowCorrectionBox:
+      type: object
+      properties:
+        values:
+          type: object
+          description: The current values (medical/QVC appointment fields, or the flight's fields and has_ticket).
+          additionalProperties: true
+        editable:
+          type: boolean
+        blocked_reason:
+          anyOf:
+            - type: string
+              enum: [not_recorded, past_medical, qvc_result_recorded, mobilized]
+            - type: 'null'
+        recent_changes:
+          type: array
+          description: The latest five changes, newest first.
+          items:
+            type: object
+            properties:
+              occurred_at: { type: string, format: date-time }
+              reason: { type: string, nullable: true }
+              changes:
+                type: object
+                description: field -> [old, new]
+                additionalProperties: true
+              sms_requested: { type: boolean }
+              actor:
+                type: object
+                nullable: true
+                properties:
+                  id: { type: string, format: uuid }
+                  role: { type: string }
+      required: [values, editable, blocked_reason, recent_changes]
+    AdminWorkflowCorrections:
+      type: object
+      properties:
+        candidate_id: { type: string, format: uuid }
+        assignment_id: { type: string, format: uuid, nullable: true }
+        medical_appointment: { $ref: '#/components/schemas/AdminWorkflowCorrectionBox' }
+        qvc_appointment: { $ref: '#/components/schemas/AdminWorkflowCorrectionBox' }
+        flight_detail: { $ref: '#/components/schemas/AdminWorkflowCorrectionBox' }
+      required: [candidate_id, assignment_id, medical_appointment, qvc_appointment, flight_detail]
     AdminFlightDetailSettingRequest:
       type: object
       properties:
@@ -2084,6 +2206,16 @@ components:
             appointment_date:
               type: string
               format: date
+            appointment_time:
+              type: string
+              pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+              description: Optional, HH:MM Pakistan time. Staff get the QVC appointment setting's default.
+            center_name:
+              type: string
+              maxLength: 150
+            center_address:
+              type: string
+              maxLength: 500
             expected_current_stage_code:
               type: string
             note:
@@ -10969,6 +11101,193 @@ paths:
           description: Authenticated staff user lacks manage_workflow, or is inactive
         '422':
           description: appointment_time is not HH:MM, or a value is too long
+  /api/v1/admin/qvc_appointment_setting:
+    get:
+      summary: Read the default QVC appointment
+      description: >-
+        Returns the single admin-editable default QVC appointment (centre, address, date, time),
+        filled in when staff book a candidate's QVC appointment. Requires `manage_workflow`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+      responses:
+        '200':
+          description: The current defaults (each null until set), plus updated_by and updated_at
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_workflow, or is inactive
+    patch:
+      summary: Edit the default QVC appointment
+      description: >-
+        Sets or clears any of the defaults. Only bookings made afterwards get the new values.
+        Requires `manage_workflow`; recorded as an AuditEvent with the before/after values.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminQvcAppointmentSettingRequest'
+      responses:
+        '200':
+          description: Defaults updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks manage_workflow, or is inactive
+        '422':
+          description: appointment_time is not HH:MM, or a value is too long
+  /api/v1/admin/candidates/{candidate_id}/workflow_corrections:
+    get:
+      summary: Read a candidate's correctable details
+      description: >-
+        The candidate's medical appointment, QVC appointment and flight details, each with its
+        current values, whether a developer may change it now (`editable`), why not
+        (`blocked_reason`: not_recorded, past_medical -- medically fit or past the medical
+        stages, qvc_result_recorded, mobilized) and the latest changes. Developer only
+        (`correct_workflow_details`); the data is an AdminWorkflowCorrections.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XLocaleHeader'
+      responses:
+        '200':
+          description: The three boxes (AdminWorkflowCorrections) in `data`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks correct_workflow_details), or inactive
+        '404':
+          description: Candidate not found
+  /api/v1/admin/candidates/{candidate_id}/workflow_corrections/medical_appointment:
+    patch:
+      summary: Correct a medical appointment
+      description: >-
+        Changes the centre, address, date or time of the candidate's medical appointment until they are medically fit or past the medical stages. The original stage move is kept; the corrected values are shown wherever its details are read. The candidate stays at the same stage. Needs a reason; recorded as an AuditEvent
+        (`medical_appointment_corrected`, with old and new values); texts the candidate (`medical_appointment_changed`)
+        unless notify_candidate is false. Developer only (`correct_workflow_details`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XLocaleHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAppointmentCorrectionRequest'
+      responses:
+        '200':
+          description: Saved; returns the refreshed boxes (AdminWorkflowCorrections) in `data`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks correct_workflow_details), or inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: No reason, nothing changed, an invalid value, or the step can no longer be changed
+  /api/v1/admin/candidates/{candidate_id}/workflow_corrections/qvc_appointment:
+    patch:
+      summary: Correct a QVC appointment
+      description: >-
+        Changes the date, time, centre or address of the candidate's latest QVC booking until its result or a no-show is recorded. The candidate stays at the same stage. Needs a reason; recorded as an AuditEvent
+        (`qvc_appointment_corrected`, with old and new values); texts the candidate (`qvc_appointment_changed`)
+        unless notify_candidate is false. Developer only (`correct_workflow_details`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XLocaleHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAppointmentCorrectionRequest'
+      responses:
+        '200':
+          description: Saved; returns the refreshed boxes (AdminWorkflowCorrections) in `data`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks correct_workflow_details), or inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: No reason, nothing changed, an invalid value, or the step can no longer be changed
+  /api/v1/admin/candidates/{candidate_id}/workflow_corrections/flight_detail:
+    patch:
+      summary: Correct flight details
+      description: >-
+        Changes the airline, flight number, route or departure, and optionally replaces the ticket, until the candidate is mobilized. The candidate stays at the same stage. Needs a reason; recorded as an AuditEvent
+        (`flight_detail_corrected`, with old and new values); texts the candidate (`flight_details_changed`)
+        unless notify_candidate is false. Developer only (`correct_workflow_details`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XLocaleHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminFlightCorrectionRequest'
+      responses:
+        '200':
+          description: Saved; returns the refreshed boxes (AdminWorkflowCorrections) in `data`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks correct_workflow_details), or inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: No reason, nothing changed, an invalid value, or the step can no longer be changed
   /api/v1/admin/flight_detail_setting:
     get:
       summary: Read the default flight details

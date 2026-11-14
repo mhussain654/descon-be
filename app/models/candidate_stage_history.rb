@@ -18,6 +18,8 @@ class CandidateStageHistory < ApplicationRecord
   belongs_to :to_mobilization_process_stage, class_name: 'MobilizationProcessStage'
 
   has_many :candidate_workflow_events, dependent: :restrict_with_exception
+  # Values a developer corrected after the move (see CandidateStageHistoryCorrection).
+  has_one :correction, class_name: 'CandidateStageHistoryCorrection', dependent: :restrict_with_exception
 
   before_validation :link_mobilization_process, on: :create
 
@@ -26,6 +28,14 @@ class CandidateStageHistory < ApplicationRecord
   validates :metadata, exclusion: { in: [nil] }
   validates :reason_code, format: { with: CODE_FORMAT }, allow_blank: true
   validate :transition_stages_are_distinct
+
+  # The details recorded with the move, with any later correction laid over
+  # them (a corrected value of nil removes that detail).
+  def details
+    return metadata if correction.blank?
+
+    metadata.merge(correction.details).compact
+  end
 
   # The destination (`:to`) or origin (`:from`) as recorded at transition time,
   # named in the current locale; nil for the origin of a first entry.

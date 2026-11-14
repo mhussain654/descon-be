@@ -164,6 +164,34 @@ RSpec.describe 'API V1 Admin Candidate QVC Attempts', type: :request do
     expect(response.parsed_body.dig('errors', 0, 'code')).to eq('idempotency_conflict')
   end
 
+  it 'saves the centre, address and time with the booking, and refuses a time that is not HH:MM' do
+    actor = create(:user, role: 'mps')
+    candidate = create(:candidate, status_code: 'documents_shared_with_qatar_bu')
+    assignment = create(:candidate_assignment, candidate:,
+                                               current_workflow_stage: workflow_stage('documents_shared_with_qatar_bu'))
+    token = access_token_for(actor)
+    booking = { appointment_date: '2026-09-01', expected_current_stage_code: 'documents_shared_with_qatar_bu',
+                center_name: 'QVC Islamabad', center_address: 'Blue Area, Islamabad', appointment_time: '08:30' }
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/qvc_attempts",
+         params: { candidate_qvc_attempt: booking.merge(appointment_time: '8.30') },
+         headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'qvc-place-bad' }
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_qvc_attempt.appointment_time')
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/qvc_attempts",
+         params: { candidate_qvc_attempt: booking },
+         headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'qvc-place-ok' }
+
+    expect(response).to have_http_status(:created)
+    expect(CandidateQvcAttempt.find_by!(candidate_assignment: assignment)).to have_attributes(
+      center_name: 'QVC Islamabad', center_address: 'Blue Area, Islamabad', appointment_time: '08:30'
+    )
+    expect(response.parsed_body.dig('data', 'workflow', 'qvc_attempts', 0)).to include(
+      'center_name' => 'QVC Islamabad', 'appointment_time' => '08:30'
+    )
+  end
+
   it 'validates appointment dates and localizes the response' do
     actor = create(:user, role: 'mps')
     candidate = create(:candidate, status_code: 'documents_shared_with_qatar_bu')

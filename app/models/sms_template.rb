@@ -29,7 +29,10 @@ class SmsTemplate < ApplicationRecord
     'fee_pending' => [],
     'qvc_appointment' => [],
     'protection_call' => %w[name date],
-    'flight_details' => %w[name airline flight sector date time]
+    'flight_details' => %w[name airline flight sector date time],
+    'medical_appointment_changed' => %w[name date],
+    'qvc_appointment_changed' => %w[name date],
+    'flight_details_changed' => %w[name date time]
   }.freeze
   TEMPLATE_ID_FORMAT = /\A[0-9]{1,20}\z/
 

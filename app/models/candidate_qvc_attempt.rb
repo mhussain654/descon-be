@@ -11,12 +11,16 @@ class CandidateQvcAttempt < ApplicationRecord
 
   before_validation :assign_public_id, on: :create
   before_validation :normalize_outcome_code
+  before_validation :normalize_place_and_time
 
   validates :public_id, presence: true, uniqueness: true
   validates :attempt_number, numericality: { only_integer: true, greater_than: 0 }, uniqueness: {
     scope: :candidate_assignment_id
   }
   validates :appointment_date, presence: true
+  validates :center_name, length: { maximum: MedicalAppointmentSetting::CENTER_NAME_MAX_LENGTH }
+  validates :center_address, length: { maximum: MedicalAppointmentSetting::CENTER_ADDRESS_MAX_LENGTH }
+  validates :appointment_time, format: { with: MedicalAppointmentSetting::TIME_FORMAT }, allow_nil: true
   validates :outcome_code, inclusion: { in: OUTCOME_CODES }, allow_nil: true
   validates :no_show, inclusion: { in: [true, false] }
   validate :no_show_and_outcome_are_exclusive
@@ -37,6 +41,13 @@ class CandidateQvcAttempt < ApplicationRecord
   # Assigns a public-facing UUID identifier on creation, if one isn't already set.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
+  end
+
+  # Blank centre, address or time are stored as nil.
+  def normalize_place_and_time
+    self.center_name = center_name.to_s.squish.presence
+    self.center_address = center_address.to_s.strip.presence
+    self.appointment_time = appointment_time.to_s.strip.presence
   end
 
   # Trims and lowercases the outcome code, mapping the legacy 're_medical_required' value

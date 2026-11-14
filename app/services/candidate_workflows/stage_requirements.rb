@@ -65,10 +65,14 @@ module CandidateWorkflows
         allowed_fields: %w[ticket_handed_over_on ticket_reference],
         field_types: { 'ticket_handed_over_on' => :iso_date, 'ticket_reference' => :string }
       },
+      # The centre, address and time are optional; staff get QvcAppointmentSetting's defaults filled in.
       'qvc_appointment_booked' => {
         required_fields: %w[appointment_date],
-        allowed_fields: %w[appointment_date],
-        field_types: { 'appointment_date' => :iso_date }
+        allowed_fields: %w[appointment_date qvc_center_name qvc_center_address qvc_appointment_time],
+        field_types: {
+          'appointment_date' => :iso_date, 'qvc_center_name' => :string,
+          'qvc_center_address' => :string, 'qvc_appointment_time' => :time
+        }
       },
       'qvc_completed_outcome_received' => {
         required_fields: %w[qvc_outcome_code],
@@ -108,6 +112,11 @@ module CandidateWorkflows
         field_types: { 'mobilized_on' => :iso_date }
       }
     }.freeze
+
+    # The stages a candidate enters for their medical appointment, and the ones
+    # that record its result, across every country's process.
+    MEDICAL_APPOINTMENT_STAGE_CODES = STAGE_RULES.select { |_, rule| rule.equal?(MEDICAL_APPOINTMENT_RULE) }.keys.freeze
+    MEDICAL_OUTCOME_STAGE_CODES = STAGE_RULES.select { |_, rule| rule.equal?(MEDICAL_OUTCOME_RULE) }.keys.freeze
 
     module_function
 

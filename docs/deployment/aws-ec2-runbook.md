@@ -724,6 +724,8 @@ separately against throwaway local databases (see the PR description).
   voucher and `payment_status_username` / `payment_status_password` to check payments (the voucher
   login is refused by the payment-status call, so there is no fallback). Both pairs are required: the
   codes stay off if either is missing, so no code is issued that could not be seen as paid.
+  The voucher SMS (sendSMS) has a third login, `kuickpay.production.sms_username` /
+  `sms_password`; until it is set, the SMS uses the voucher (hybrid) login.
   Off until `KUICKPAY_VOUCHER_ENABLED=true`.
   * Opening the code tab creates one code for the fee (`POST /api/v1/candidate/payment/voucher`),
     valid `PAYMENT_VOUCHER_VALID_DAYS` days (14). No late fee: the due date is the expiry.

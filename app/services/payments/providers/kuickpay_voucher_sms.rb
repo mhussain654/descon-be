@@ -4,7 +4,8 @@ module Payments
   module Providers
     # KuickPay's Send SMS: KuickPay texts the candidate their voucher (consumer) number, the fee and the due date.
     # KuickPay does not text it when the voucher is created, so we ask. It lives on KuickPay's live API host and
-    # uses the voucher (Hybrid) login. Only KuickpayVoucherAdapter#send_voucher_sms uses it, after checking that
+    # uses its own SMS login (falling back to the voucher login until that is set; see Payments::Configuration).
+    # Only KuickpayVoucherAdapter#send_voucher_sms uses it, after checking that
     # vouchers are set up. Returns KuickPay's reply, which is kept as the payment's event.
     class KuickpayVoucherSms
       PATH = '/api/sendSMS'
@@ -19,7 +20,7 @@ module Payments
       def deliver(payment:, candidate:)
         response = @http_client.post(
           path: PATH, payload: payload(payment:, candidate:), step: 'send_sms',
-          username: @configuration.kuickpay_hybrid_username, password: @configuration.kuickpay_hybrid_password
+          username: @configuration.kuickpay_sms_username, password: @configuration.kuickpay_sms_password
         )
         reply!(response)
       rescue SocketError, SystemCallError, Timeout::Error => e

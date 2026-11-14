@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_070400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -564,6 +564,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
     t.string "public_id", null: false
     t.bigint "scheduled_by_id", null: false
     t.datetime "updated_at", null: false
+    t.string "center_name"
+    t.text "center_address"
+    t.string "appointment_time"
     t.index ["candidate_assignment_id", "appointment_date"], name: "index_qvc_attempts_on_assignment_and_appointment_date"
     t.index ["candidate_assignment_id", "attempt_number"], name: "index_qvc_attempts_on_assignment_and_attempt_number", unique: true
     t.index ["candidate_assignment_id"], name: "index_qvc_attempts_on_assignment_when_open", unique: true, where: "(outcome_recorded_at IS NULL)"
@@ -574,6 +577,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
     t.index ["public_id"], name: "index_candidate_qvc_attempts_on_public_id", unique: true
     t.index ["scheduled_by_id"], name: "index_candidate_qvc_attempts_on_scheduled_by_id"
     t.check_constraint "NOT (no_show = true AND outcome_code IS NOT NULL)", name: "candidate_qvc_attempts_no_show_outcome_exclusive"
+    t.check_constraint "appointment_time IS NULL OR appointment_time::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text", name: "candidate_qvc_attempts_time_format"
     t.check_constraint "attempt_number > 0", name: "candidate_qvc_attempts_attempt_number_positive"
     t.check_constraint "outcome_code IS NULL AND no_show = false AND outcome_recorded_at IS NULL AND outcome_recorded_by_id IS NULL OR (outcome_code IS NOT NULL OR no_show = true) AND outcome_recorded_at IS NOT NULL AND outcome_recorded_by_id IS NOT NULL", name: "candidate_qvc_attempts_outcome_fields_consistent"
     t.check_constraint "outcome_code IS NULL OR (outcome_code::text = ANY (ARRAY['approved'::text, 're_medical'::text, 'rejected'::text]))", name: "candidate_qvc_attempts_outcome_code_values"
@@ -671,6 +675,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
     t.index ["to_workflow_stage_id"], name: "index_candidate_stage_histories_on_to_workflow_stage_id"
     t.check_constraint "from_workflow_stage_id IS NULL OR from_workflow_stage_id <> to_workflow_stage_id", name: "candidate_stage_histories_distinct_transition"
     t.check_constraint "reason_code IS NULL OR reason_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_stage_histories_reason_code_format"
+  end
+
+  create_table "candidate_stage_history_corrections", force: :cascade do |t|
+    t.bigint "candidate_stage_history_id", null: false
+    t.jsonb "details", default: {}, null: false
+    t.bigint "updated_by_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["candidate_stage_history_id"], name: "idx_on_candidate_stage_history_id_2eb66fd208", unique: true
+    t.index ["updated_by_id"], name: "index_candidate_stage_history_corrections_on_updated_by_id"
   end
 
   create_table "candidate_visa_decisions", force: :cascade do |t|
@@ -1092,6 +1106,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
     t.check_constraint "code::text ~ '^[a-z0-9_]+$'::text", name: "projects_code_format"
   end
 
+  create_table "qvc_appointment_settings", force: :cascade do |t|
+    t.boolean "singleton_guard", default: true, null: false
+    t.string "center_name"
+    t.text "center_address"
+    t.date "appointment_on"
+    t.string "appointment_time"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["singleton_guard"], name: "index_qvc_appointment_settings_on_singleton_guard", unique: true
+    t.index ["updated_by_id"], name: "index_qvc_appointment_settings_on_updated_by_id"
+    t.check_constraint "appointment_time IS NULL OR appointment_time::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text", name: "qvc_appointment_settings_time_format"
+  end
+
   create_table "refresh_tokens", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "expires_at", null: false
@@ -1172,7 +1200,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
     t.index ["message_code"], name: "index_sms_templates_on_message_code", unique: true
     t.index ["updated_by_id"], name: "index_sms_templates_on_updated_by_id"
     t.check_constraint "message_code::text <> 'otp'::text OR enabled", name: "sms_templates_otp_always_enabled"
-    t.check_constraint "message_code::text = ANY (ARRAY['otp'::character varying::text, 'registered'::character varying::text, 'document_rejected'::character varying::text, 'medical_appointment'::character varying::text, 'fee_pending'::character varying::text, 'medical_unfit'::character varying::text, 'qvc_appointment'::character varying::text, 'visa_issued'::character varying::text, 'visa_rejected'::character varying::text, 'protection_call'::character varying::text, 'ticket_handover'::character varying::text, 'flight_details'::character varying::text, 'documents_submitted'::character varying::text, 'ticket_and_flight_details'::character varying::text])", name: "sms_templates_message_code_known"
+    t.check_constraint "message_code::text = ANY (ARRAY['otp'::character varying, 'registered'::character varying, 'document_rejected'::character varying, 'medical_appointment'::character varying, 'fee_pending'::character varying, 'medical_unfit'::character varying, 'qvc_appointment'::character varying, 'visa_issued'::character varying, 'visa_rejected'::character varying, 'protection_call'::character varying, 'ticket_handover'::character varying, 'flight_details'::character varying, 'documents_submitted'::character varying, 'ticket_and_flight_details'::character varying, 'medical_appointment_changed'::character varying, 'qvc_appointment_changed'::character varying, 'flight_details_changed'::character varying]::text[])", name: "sms_templates_message_code_known"
   end
 
   create_table "support_settings", force: :cascade do |t|
@@ -1346,6 +1374,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
   add_foreign_key "candidate_stage_histories", "users", column: "actor_id"
   add_foreign_key "candidate_stage_histories", "workflow_stages", column: "from_workflow_stage_id"
   add_foreign_key "candidate_stage_histories", "workflow_stages", column: "to_workflow_stage_id"
+  add_foreign_key "candidate_stage_history_corrections", "candidate_stage_histories"
+  add_foreign_key "candidate_stage_history_corrections", "users", column: "updated_by_id"
   add_foreign_key "candidate_visa_decisions", "candidate_assignments"
   add_foreign_key "candidate_visa_decisions", "candidate_stage_histories"
   add_foreign_key "candidate_visa_decisions", "users", column: "recorded_by_id"
@@ -1379,6 +1409,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_110000) do
   add_foreign_key "payment_reconciliation_runs", "users", column: "initiated_by_id"
   add_foreign_key "payments", "candidate_assignments"
   add_foreign_key "payments", "users", column: "recorded_by_id"
+  add_foreign_key "qvc_appointment_settings", "users", column: "updated_by_id"
   add_foreign_key "refresh_tokens", "refresh_tokens", column: "replaced_by_id"
   add_foreign_key "refresh_tokens", "sessions"
   add_foreign_key "robocall_voices", "users", column: "created_by_id"

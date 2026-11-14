@@ -181,6 +181,9 @@ module CandidateWorkflows
         scheduled_by: actor,
         attempt_number: next_attempt_number,
         appointment_date: Date.iso8601(evidence.fetch('appointment_date')),
+        center_name: evidence['qvc_center_name'],
+        center_address: evidence['qvc_center_address'],
+        appointment_time: evidence['qvc_appointment_time'],
         internal_note: @history_entry.note
       }
     end

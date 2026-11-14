@@ -61,6 +61,7 @@ en:
       manage_support_settings: "Manage support contact number"
       manage_app_settings: "Manage app settings"
       access_communications_menu: "Access the communications menu"
+      correct_workflow_details: "Correct medical, QVC and flight details"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"

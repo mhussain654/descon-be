@@ -30,6 +30,8 @@ development:
   hybrid_password: <%= Rails.application.credentials.dig(:kuickpay, :development, :hybrid_password).to_json %>
   payment_status_username: <%= Rails.application.credentials.dig(:kuickpay, :development, :payment_status_username).to_json %>
   payment_status_password: <%= Rails.application.credentials.dig(:kuickpay, :development, :payment_status_password).to_json %>
+  sms_username: <%= Rails.application.credentials.dig(:kuickpay, :development, :sms_username).to_json %>
+  sms_password: <%= Rails.application.credentials.dig(:kuickpay, :development, :sms_password).to_json %>
 
 # Fake value: tests never reach KuickPay.
 test:
@@ -39,6 +41,8 @@ test:
   hybrid_password: test-hybrid-password
   payment_status_username: test-payment-status-user
   payment_status_password: test-payment-status-password
+  sms_username: test-sms-user
+  sms_password: test-sms-password
 
 production:
   <<: *default
@@ -50,3 +54,5 @@ production:
   hybrid_password: <%= Rails.application.credentials.dig(:kuickpay, :production, :hybrid_password).to_json %>
   payment_status_username: <%= Rails.application.credentials.dig(:kuickpay, :production, :payment_status_username).to_json %>
   payment_status_password: <%= Rails.application.credentials.dig(:kuickpay, :production, :payment_status_password).to_json %>
+  sms_username: <%= Rails.application.credentials.dig(:kuickpay, :production, :sms_username).to_json %>
+  sms_password: <%= Rails.application.credentials.dig(:kuickpay, :production, :sms_password).to_json %>

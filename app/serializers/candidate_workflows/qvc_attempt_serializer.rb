@@ -15,10 +15,16 @@ module CandidateWorkflows
         no_show: @attempt.no_show,
         outcome_recorded_at: @attempt.outcome_recorded_at&.utc&.iso8601,
         status: status
-      }
+      }.merge(place_and_time)
     end
 
     private
+
+    # Where and at what time the appointment is (each optional).
+    def place_and_time
+      { appointment_time: @attempt.appointment_time, center_name: @attempt.center_name,
+        center_address: @attempt.center_address }
+    end
 
     def status
       return 'no_show' if @attempt.no_show?

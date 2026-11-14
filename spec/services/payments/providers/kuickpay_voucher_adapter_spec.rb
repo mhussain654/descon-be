@@ -126,7 +126,7 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
       payment.update!(voucher_number: '0000832249220', checkout_expires_at: Time.zone.parse('2026-04-15 18:59:59 UTC'))
     end
 
-    it 'asks KuickPay to text the code, amount and due date to the candidate, with the voucher login' do
+    it 'asks KuickPay to text the code, amount and due date to the candidate, with the SMS login' do
       requests = []
       reply = nil
       with_kuickpay_voucher_configured do
@@ -137,12 +137,25 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
 
       request = requests.sole
       expect(request.uri.to_s).to eq('https://api.kuickpay.com/api/sendSMS')
-      expect([request['username'], request['password']]).to eq(%w[test-hybrid-user test-hybrid-password])
+      expect([request['username'], request['password']]).to eq(%w[test-sms-user test-sms-password])
       expect(JSON.parse(request.body)).to eq(
         'InstitutionID' => '00008', 'duedate' => '15-Apr-2026', 'amount' => '1500',
         'consumerNo' => '0000832249220', 'cellNumberSMS' => '03001234567'
       )
       expect(reply).to include('response_Code' => '00')
+    end
+
+    it 'uses the voucher login until a separate SMS login is set' do
+      requests = []
+      allow(configuration).to receive(:kuickpay_setting).and_call_original
+      allow(configuration).to receive(:kuickpay_setting).with(:sms_username).and_return(nil)
+      with_kuickpay_voucher_configured do
+        stub_kuickpay_hybrid(requests:)
+
+        adapter.send_voucher_sms(payment:, candidate:)
+      end
+
+      expect([requests.sole['username'], requests.sole['password']]).to eq(%w[test-hybrid-user test-hybrid-password])
     end
 
     it 'accepts a successful reply that is not JSON' do

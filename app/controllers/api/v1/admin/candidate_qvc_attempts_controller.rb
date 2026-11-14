@@ -11,6 +11,9 @@ module Api
 
         QVC_ATTEMPT_PARAMS = %i[
           appointment_date
+          center_name
+          center_address
+          appointment_time
           outcome_code
           no_show
           expected_current_stage_code
@@ -108,6 +111,7 @@ module Api
             actor: current_user,
             candidate: candidate,
             appointment_date: qvc_attempt_params.fetch(:appointment_date),
+            **qvc_attempt_params.slice(:center_name, :center_address, :appointment_time),
             expected_current_stage_code: qvc_attempt_params[:expected_current_stage_code],
             request_id: request.request_id,
             note: qvc_attempt_params[:note]

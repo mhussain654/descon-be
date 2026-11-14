@@ -91,6 +91,11 @@ Rails.application.routes.draw do
           resources :visa_decisions, only: %i[index create], controller: :candidate_visa_decisions do
             resource :visa_copy_access, only: :create, controller: :candidate_visa_decision_visa_copy_accesses
           end
+          resource :workflow_corrections, only: :show, controller: :candidate_workflow_corrections do
+            patch :medical_appointment
+            patch :qvc_appointment
+            patch :flight_detail
+          end
           resource :flight_detail, only: %i[show create update], controller: :candidate_flight_details do
             resource :ticket_access, only: :create, controller: :candidate_flight_detail_ticket_accesses
           end
@@ -120,6 +125,7 @@ Rails.application.routes.draw do
         resource :onboarding_fee_setting, only: %i[show update]
         resource :support_setting, only: %i[show update]
         resource :medical_appointment_setting, only: %i[show update]
+        resource :qvc_appointment_setting, only: %i[show update]
         resource :flight_detail_setting, only: %i[show update]
         resource :app_feature_setting, only: %i[show update]
         resources :sms_templates, only: %i[index update], param: :message_code
