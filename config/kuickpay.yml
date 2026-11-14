@@ -49,7 +49,7 @@ production:
   <<: *default
   base_url: https://sandbox-api.kuickpay.com # Sandbox card base URL
   hybrid_base_url: https://uat-adminapi.kuickpay.com
-  secured_key: <%= Rails.application.credentials.fetch(:kuickpay).fetch(:staging).fetch(:secured_key).to_json %>
+  secured_key: <%= (Rails.env.production? ? Rails.application.credentials.fetch(:kuickpay).fetch(:staging).fetch(:secured_key) : '').to_json %>
 
   hybrid_username: <%= Rails.application.credentials.dig(:kuickpay, :staging, :hybrid_username).to_json %>
   hybrid_password: <%= Rails.application.credentials.dig(:kuickpay, :staging, :hybrid_password).to_json %>
