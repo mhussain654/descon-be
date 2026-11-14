@@ -36,6 +36,13 @@ RSpec.describe DocumentOcr::TextractAdapter do
     described_class.new(client: instance_double(Aws::Textract::Client, analyze_document: response))
   end
 
+  def line_block(text, confidence: 98.0)
+    Aws::Textract::Types::Block.new(block_type: 'LINE', text:, confidence:)
+  end
+
+  # A made-up passport MRZ second line: born 1991-12-08, expiring 2028-11-11.
+  let(:passport_mrz_line) { 'AB12345674PAK9112089F2811110123451234567<<12' }
+
   describe '.enabled?' do
     it 'reflects the DOCUMENT_OCR_ENABLED env var' do
       ENV['DOCUMENT_OCR_ENABLED'] = 'true'
@@ -68,6 +75,38 @@ RSpec.describe DocumentOcr::TextractAdapter do
         document: { bytes: 'image-bytes' }, feature_types: ['QUERIES'],
         queries_config: { queries: described_class::QUERIES }
       )
+    end
+
+    context 'when Textract answers with the date of birth (passport data page)' do
+      it 'drops an issue or expiry answer that is the birth date' do
+        response = response_with(answer_blocks('ISSUE_DATE', '08 DEC 1991'),
+                                 answer_blocks('EXPIRY_DATE', '11 NOV 2028'),
+                                 answer_blocks('BIRTH_DATE', '08 DEC 1991'))
+
+        expect(adapter_for(response).extract(bytes: 'x')).to include(issued_on: nil, expires_on: Date.new(2028, 11, 11))
+      end
+
+      it "takes a passport's expiry from its MRZ and its issue date from the printed dates" do
+        response = response_with(answer_blocks('ISSUE_DATE', '08 DEC 1991'),
+                                 answer_blocks('EXPIRY_DATE', '08 DEC 1991'),
+                                 line_block('08 DEC 1991'), line_block('13 NOV 2023', confidence: 97.0),
+                                 line_block('11 NOV 2028'), line_block(passport_mrz_line, confidence: 99.0))
+
+        expect(adapter_for(response).extract(bytes: 'x')).to eq(
+          issued_on: Date.new(2023, 11, 13), expires_on: Date.new(2028, 11, 11),
+          confidence_issued_on: 97.0, confidence_expires_on: 99.0
+        )
+      end
+
+      it 'drops an issue date in the future or not before the expiry' do
+        future = response_with(answer_blocks('ISSUE_DATE', (Date.current + 30).strftime('%d.%m.%Y')),
+                               answer_blocks('EXPIRY_DATE', '06.12.2031'))
+        after_expiry = response_with(answer_blocks('ISSUE_DATE', '06.12.2021'),
+                                     answer_blocks('EXPIRY_DATE', '06.12.2020'))
+
+        expect(adapter_for(future).extract(bytes: 'x')[:issued_on]).to be_nil
+        expect(adapter_for(after_expiry).extract(bytes: 'x')[:issued_on]).to be_nil
+      end
     end
 
     it 'parses the date formats printed on CNICs and passports' do

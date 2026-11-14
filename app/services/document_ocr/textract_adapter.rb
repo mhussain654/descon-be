@@ -8,8 +8,11 @@ module DocumentOcr
   # date of issue?" / "What is the date of expiry?"). AnalyzeID, Textract's
   # identity-document operation, only supports US driver's licenses and
   # passports, so it cannot read a Pakistani CNIC; Queries works on any
-  # layout and was verified against a real CNIC. Printed dates are parsed
-  # here (see DATE_FORMATS).
+  # layout and was verified against a real CNIC. Printed dates are parsed by
+  # PrintedDate.
+  #
+  # The birth date is also asked, only to rule it out: DatePicker chooses the
+  # dates (a passport's MRZ, and dropping answers that cannot be right).
   #
   # Storage here is local Disk in dev/test (no S3 migration needed):
   # the synchronous API accepts raw in-memory image bytes directly, so the
@@ -19,13 +22,13 @@ module DocumentOcr
     PROVIDER_NAME = 'aws_textract'
     ISSUE_DATE_ALIAS = 'ISSUE_DATE'
     EXPIRY_DATE_ALIAS = 'EXPIRY_DATE'
+    BIRTH_DATE_ALIAS = 'BIRTH_DATE'
     QUERIES = [
       { text: 'What is the date of issue?', alias: ISSUE_DATE_ALIAS },
-      { text: 'What is the date of expiry?', alias: EXPIRY_DATE_ALIAS }
+      { text: 'What is the date of expiry?', alias: EXPIRY_DATE_ALIAS },
+      { text: 'What is the date of birth?', alias: BIRTH_DATE_ALIAS }
     ].freeze
     NO_DATES_MESSAGE = 'Textract found no issue or expiry date in the uploaded document'
-    # CNICs print DD.MM.YYYY; passports commonly print "06 DEC 2021".
-    DATE_FORMATS = ['%d.%m.%Y', '%d/%m/%Y', '%d-%m-%Y', '%d %b %Y', '%d %B %Y', '%Y-%m-%d'].freeze
 
     RETRYABLE_ERRORS = [
       Aws::Textract::Errors::ThrottlingException,
@@ -80,17 +83,28 @@ module DocumentOcr
     end
 
     def build_result(response)
-      answers = answers_by_alias(response.blocks || [])
-      issued_on = answer_date(answers[ISSUE_DATE_ALIAS])
-      expires_on = answer_date(answers[EXPIRY_DATE_ALIAS])
-      raise PermanentError, NO_DATES_MESSAGE if issued_on.nil? && expires_on.nil?
+      blocks = response.blocks || []
+      picked = DatePicker.call(answers: answers(blocks), lines: text_lines(blocks))
+      issue = picked[:issue]
+      expiry = picked[:expiry]
+      raise PermanentError, NO_DATES_MESSAGE if issue.nil? && expiry.nil?
 
-      {
-        issued_on:,
-        expires_on:,
-        confidence_issued_on: issued_on && answers[ISSUE_DATE_ALIAS].confidence,
-        confidence_expires_on: expires_on && answers[EXPIRY_DATE_ALIAS].confidence
-      }
+      { issued_on: issue&.first, expires_on: expiry&.first,
+        confidence_issued_on: issue&.last, confidence_expires_on: expiry&.last }
+    end
+
+    # Each query's answer as [text, confidence] (nil when unanswered).
+    def answers(blocks)
+      by_alias = answers_by_alias(blocks)
+      { issue: ISSUE_DATE_ALIAS, expiry: EXPIRY_DATE_ALIAS, birth: BIRTH_DATE_ALIAS }.transform_values do |name|
+        answer = by_alias[name]
+        answer && [answer.text, answer.confidence]
+      end
+    end
+
+    # The page's text lines with their confidence, read only to find a passport MRZ.
+    def text_lines(blocks)
+      blocks.select { |block| block.block_type == 'LINE' }.map { |block| [block.text, block.confidence] }
     end
 
     # Maps each query alias to its answer block, discarding every other block
@@ -104,18 +118,6 @@ module DocumentOcr
 
     def answer_id(query)
       query.relationships&.find { |relationship| relationship.type == 'ANSWER' }&.ids&.first
-    end
-
-    def answer_date(answer)
-      text = answer&.text&.strip
-      return unless text&.match?(/\d{4}/)
-
-      DATE_FORMATS.each do |format|
-        return Date.strptime(text, format)
-      rescue ArgumentError
-        next
-      end
-      nil
     end
   end
 end
