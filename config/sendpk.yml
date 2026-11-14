@@ -11,9 +11,11 @@
 default: &default
   base_url: <%= ENV.fetch('SENDPK_BASE_URL', 'https://sendpk.com').to_json %>
   # The approved senders: the short code the login code (OTP) is sent from,
-  # and the brand name (mask) every other SMS is sent from.
+  # and the sender every other SMS is sent from. The "Descon" brand name
+  # (mask) is not approved in send.pk yet, so progress SMS also use the short
+  # code for now; set sms_sender_id back to "Descon" once send.pk approves it.
   otp_sender_id: "8062050"
-  sms_sender_id: "Descon"
+  sms_sender_id: "8062050" # "Descon"
   open_timeout: <%= ENV.fetch('SENDPK_OPEN_TIMEOUT_SECONDS', 5).to_i %>
   read_timeout: <%= ENV.fetch('SENDPK_READ_TIMEOUT_SECONDS', 10).to_i %>
 
