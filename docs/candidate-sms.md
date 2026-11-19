@@ -51,9 +51,10 @@ audited.
 
 Dates are sent as `dd-mm-yyyy`. Only the variables listed are sent to
 send.pk (`SmsTemplate::VARIABLES`). In send.pk a variable is
-written `#name#`, `#date#`, and so on. The suggested wording is in
-`config/locales/en.yml` and `ur.yml` under `candidate_sms` (used only by the
-test SMS provider; send.pk sends its own approved text).
+written `#name#`, `#date#`, and so on. The wording of every message (the OTP
+included) lives only in its approved send.pk template: the app sends the
+template id for the candidate's language and the values above, never any text,
+so it keeps no copy of the wording.
 
 ### The fee stage and the KuickPay code
 

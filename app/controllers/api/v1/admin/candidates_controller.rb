@@ -26,12 +26,8 @@ module Api
           query = ::Admin::Candidates::IndexQuery.new(
             scope: policy_scope(::Candidate, policy_scope_class: ::Admin::CandidatePolicy::Scope), params:
           )
-          candidates = query.call
-          data = candidates.map { |candidate| serialized_candidate(candidate) }
-          render_collection(
-            data:, pagination: query.pagination, meta: { applied_filters: query.applied_filters,
-                                                         summary: query.summary }
-          )
+          data = query.call.map { |candidate| serialized_candidate(candidate) }
+          render_collection(data:, pagination: query.pagination, meta: index_meta(query))
         end
 
         # Returns the details of a single candidate identified by public id.
@@ -68,6 +64,12 @@ module Api
         end
 
         private
+
+        # The list's applied filters plus its per-stage and boarding pass counts.
+        def index_meta(query)
+          { applied_filters: query.applied_filters, summary: query.summary,
+            boarding_pass_summary: query.boarding_pass_summary }
+        end
 
         # Creates the candidate via the create service and builds the 201 response body.
         def create_payload

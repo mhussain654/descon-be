@@ -30,7 +30,11 @@ module CandidateWorkflows
     end
 
     def mobilization_attributes
-      { mobilized_on: @detail.mobilized_on&.iso8601, mobilized: @detail.mobilized? }
+      {
+        mobilized_on: @detail.mobilized_on&.iso8601,
+        mobilized: @detail.mobilized?,
+        boarding_pass_uploaded_at: @detail.boarding_pass_uploaded_at&.utc&.iso8601
+      }
     end
   end
 end

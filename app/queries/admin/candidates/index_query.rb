@@ -7,7 +7,8 @@ module Admin
     class IndexQuery < ApplicationQuery
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
-      ALLOWED_FILTERS = %w[status country_code project_code craft_code].freeze
+      ALLOWED_FILTERS = %w[status country_code project_code craft_code boarding_pass].freeze
+      BOARDING_PASS_FILTERS = %w[uploaded missing].freeze
       ALLOWED_SORTS = %w[created_at full_name reference_number].freeze
       REFERENCE_FILTER_SQL = {
         'country_code' => 'current_assignments.country_id = ?',
@@ -43,6 +44,16 @@ module Admin
         scope = filters.except('status').reduce(preloaded_scope) { |s, (name, value)| filter_scope(s, name, value) }
         counts = scope.group(:status_code).count
         WorkflowStage::CANONICAL_STAGES.map { |stage| { code: stage.fetch(:code), count: counts.fetch(stage.fetch(:code), 0) } }
+      end
+
+      # Among candidates whose flight is recorded: how many have uploaded their
+      # boarding pass and how many have not, under every active filter except
+      # `boarding_pass` itself (same convention as #summary).
+      def boarding_pass_summary
+        scope = filters.except('boarding_pass').reduce(preloaded_scope) do |current, (name, value)|
+          filter_scope(current, name, value)
+        end
+        BOARDING_PASS_FILTERS.to_h { |state| [state.to_sym, boarding_pass_scope(scope, state).count] }
       end
 
       private
@@ -97,6 +108,8 @@ module Admin
       end
 
       def filter_scope(scope, name, value)
+        return boarding_pass_scope(scope, value.to_s.strip.downcase) if name == 'boarding_pass'
+
         if name == 'status'
           status = value.to_s.strip.downcase
           raise InvalidQueryParameterError.new(field: 'filter.status') unless WorkflowStage.exists?(code: status)
@@ -105,6 +118,15 @@ module Admin
         end
 
         scope.where(REFERENCE_FILTER_SQL.fetch(name), reference_id(name, value))
+      end
+
+      # `uploaded` / `missing` among candidates whose flight staff have recorded.
+      def boarding_pass_scope(scope, state)
+        raise InvalidQueryParameterError.new(field: 'filter.boarding_pass') unless BOARDING_PASS_FILTERS.include?(state)
+
+        details = CandidateFlightDetail.where(boarding_pass_uploaded_at: nil)
+        details = CandidateFlightDetail.where.not(boarding_pass_uploaded_at: nil) if state == 'uploaded'
+        scope.where(current_assignments: { id: details.select(:candidate_assignment_id) })
       end
 
       def reference_id(filter_name, value)

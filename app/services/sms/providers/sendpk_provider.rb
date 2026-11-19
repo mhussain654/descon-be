@@ -48,9 +48,8 @@ module Sms
         @configuration = configuration
       end
 
-      # The full text is fixed in the approved template, so the caller's
-      # `body:` is intentionally ignored here -- only `variables` are sent.
-      def deliver(to:, variables:, template:, locale: 'en', **)
+      # The full text is fixed in the approved template; only `variables` are sent.
+      def deliver(to:, variables:, template:, locale: 'en')
         return DeliveryResult.new(success: false, error_code: 'not_configured') unless configured?(template)
         return DeliveryResult.new(success: false, error_code: 'insecure_endpoint_rejected') unless secure_endpoint?
 

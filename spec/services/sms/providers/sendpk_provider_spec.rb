@@ -57,8 +57,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
       block.call(http)
     end
 
-    provider.deliver(to: '923001234567', template: :otp, body: 'ignored free text',
-                     variables: { code: '482731', minutes: 5 })
+    provider.deliver(to: '923001234567', template: :otp, variables: { code: '482731', minutes: 5 })
 
     form = query_params(captured_request)
     expect(form['template_id']).to eq('10743')

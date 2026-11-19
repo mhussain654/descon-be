@@ -102,14 +102,16 @@ RSpec.describe 'API V1 Candidate Application Progress', type: :request do
       assignment = create(:candidate_assignment, candidate:)
 
       get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
-      expect(response.parsed_body.dig('data', 'workflow', 'outcomes')).to eq('medical' => nil, 'visa' => nil)
+      expect(response.parsed_body.dig('data', 'workflow', 'outcomes'))
+        .to eq('medical' => nil, 'visa' => nil, 'boarding_pass' => nil)
 
       create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'unfit')
       create(:candidate_medical_result, candidate_assignment: assignment, outcome_code: 'fit')
       create(:candidate_visa_decision, :rejected, candidate_assignment: assignment)
 
       get '/api/v1/candidate/application_progress', headers: candidate_auth_headers(candidate)
-      expect(response.parsed_body.dig('data', 'workflow', 'outcomes')).to eq('medical' => 'fit', 'visa' => 'rejected')
+      expect(response.parsed_body.dig('data', 'workflow', 'outcomes'))
+        .to eq('medical' => 'fit', 'visa' => 'rejected', 'boarding_pass' => nil)
     end
 
     it 'reports the latest QVC booking with where and when to go' do

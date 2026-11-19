@@ -1149,7 +1149,11 @@ components:
             - type: 'null'
         outcomes:
           type: object
-          description: The latest recorded medical result and visa decision, null until one exists -- lets the candidate's journey show the Medical or Visa step as rejected.
+          description: >-
+            The latest recorded medical result and visa decision, null until one exists -- lets the
+            candidate's journey show the Medical or Visa step as rejected. `boarding_pass` is
+            `uploaded` once the candidate has uploaded their boarding pass photo, which completes
+            the Mobilize Status step.
           properties:
             medical:
               anyOf:
@@ -1160,6 +1164,11 @@ components:
               anyOf:
                 - type: string
                   enum: [issued, rejected]
+                - type: 'null'
+            boarding_pass:
+              anyOf:
+                - type: string
+                  enum: [uploaded]
                 - type: 'null'
           required: [medical, visa]
         qvc_appointment:
@@ -2567,6 +2576,12 @@ components:
             - type: 'null'
         mobilized:
           type: boolean
+        boarding_pass_uploaded_at:
+          description: When the candidate uploaded their boarding pass photo; null until they do.
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
       required: [id, airline, flight_number, sector, flight_departure_at, ticket_attached, mobilized_on, mobilized]
     AdminFlightDetail:
       allOf:
@@ -5953,6 +5968,10 @@ paths:
         Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports
         partial matching. `meta.summary` returns a zero-filled count per canonical workflow stage
         (every catalog stage, the same set as `filter[status]`), scoped by every active filter except `filter[status]`.
+        `filter[boarding_pass]` keeps only candidates whose flight is recorded and who have
+        (`uploaded`) or have not (`missing`) uploaded their boarding pass photo;
+        `meta.boarding_pass_summary` gives both counts, scoped by every active filter except
+        `filter[boarding_pass]`.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: search
@@ -5970,6 +5989,9 @@ paths:
         - name: filter[craft_code]
           in: query
           schema: { type: string }
+        - name: filter[boarding_pass]
+          in: query
+          schema: { type: string, enum: [uploaded, missing] }
         - name: sort
           in: query
           schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, reference_number, -reference_number] }
@@ -8310,6 +8332,63 @@ paths:
           description: Flight detail not found
         '422':
           description: Flight detail exists but has no attached ticket
+  /api/v1/admin/candidates/{candidate_id}/flight_detail/boarding_pass_access:
+    post:
+      summary: Generate a short-lived private access path for the candidate's boarding pass photo
+      description: >-
+        Returns a private Active Storage proxy path for the boarding pass photo
+        the candidate uploaded from the app. The path is time-limited, does not
+        expose storage keys, and every successful access is audited
+        (`candidate_boarding_pass_accessed`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      flight_detail_id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/boarding-pass.jpg?disposition=inline
+                      expires_at: '2026-09-15T10:05:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-15T10:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Not authorized to view workflow history
+        '404':
+          description: Flight detail not found
+        '422':
+          description: "`document_attachment_missing`: the candidate has not uploaded a boarding pass yet"
   /api/v1/candidate/flight_detail:
     get:
       summary: Show the authenticated candidate's own structured flight detail
@@ -8356,6 +8435,73 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+  /api/v1/candidate/flight_detail/boarding_pass:
+    put:
+      summary: Upload or replace the candidate's own boarding pass photo
+      description: >-
+        Uploads a JPEG, PNG or WebP photo (detected from the file's content,
+        not the declared type), up to 10 MiB by default
+        (CANDIDATE_BOARDING_PASS_MAX_BYTES), onto the candidate's recorded
+        flight. Always acts on the authenticated candidate. Replaces any earlier
+        photo, records when it was uploaded and an audit event
+        (`candidate_boarding_pass_uploaded`). Does not change the candidate's
+        workflow stage. Returns the updated flight detail.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                boarding_pass[photo]:
+                  type: string
+                  format: binary
+              required: ['boarding_pass[photo]']
+      responses:
+        '200':
+          description: Boarding pass saved
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                saved:
+                  value:
+                    data:
+                      id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                      airline: Qatar Airways
+                      flight_number: QR-123
+                      sector: LHE-DOH
+                      flight_departure_at: '2026-09-20T14:30:00Z'
+                      ticket_attached: true
+                      mobilized_on: null
+                      mobilized: false
+                      boarding_pass_uploaded_at: '2026-09-20T11:05:00Z'
+                    meta:
+                      request_id: 6a3e1d2c-0b8f-4e57-9a61-2f4c8d0b1e77
+                      timestamp: '2026-09-20T11:05:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '404':
+          description: Staff have not recorded the candidate's flight yet
+        '422':
+          description: >-
+            `missing_file`, `empty_file`, `file_too_large`, or
+            `unsupported_file_type` (not a JPEG/PNG/WebP image), each with
+            field `boarding_pass.photo`
   /api/v1/candidate/flight_detail/ticket_access:
     post:
       summary: Generate a short-lived private access path for the candidate's own flight ticket

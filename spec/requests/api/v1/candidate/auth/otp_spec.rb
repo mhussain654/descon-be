@@ -92,10 +92,10 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
       expect(response).to have_http_status(:too_many_requests)
     end
 
-    it 'uses Urdu for the OTP SMS when X-Locale is ur' do
-      delivered_body = nil
+    it 'picks the Urdu OTP template when X-Locale is ur' do
+      delivered_locale = nil
       allow(Sms::SendMessage).to receive(:call) do |**kwargs|
-        delivered_body = kwargs.fetch(:body)
+        delivered_locale = kwargs.fetch(:locale).to_s
         Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
       end
 
@@ -104,13 +104,13 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
            headers: { 'X-Locale' => 'ur' }
 
       expect(response).to have_http_status(:ok)
-      expect(delivered_body).to start_with('ڈیسکون MPS Connect میں لاگ اِن کے لیے آپ کا تصدیقی کوڈ ')
+      expect(delivered_locale).to eq('ur')
     end
 
-    it 'uses English for the OTP SMS when X-Locale is en' do
-      delivered_body = nil
+    it 'picks the English OTP template when X-Locale is en' do
+      delivered_locale = nil
       allow(Sms::SendMessage).to receive(:call) do |**kwargs|
-        delivered_body = kwargs.fetch(:body)
+        delivered_locale = kwargs.fetch(:locale).to_s
         Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
       end
 
@@ -119,7 +119,7 @@ RSpec.describe 'API V1 Candidate Auth OTP', type: :request do
            headers: { 'X-Locale' => 'en' }
 
       expect(response).to have_http_status(:ok)
-      expect(delivered_body).to start_with('Your verification code to log in to Descon MPS Connect is ')
+      expect(delivered_locale).to eq('en')
     end
 
     it "returns the not-found error in the request's selected locale for an unknown CNIC" do

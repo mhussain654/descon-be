@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_070500) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -420,6 +420,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_070500) do
 
   create_table "candidate_flight_details", force: :cascade do |t|
     t.string "airline", null: false
+    t.datetime "boarding_pass_uploaded_at"
     t.bigint "candidate_assignment_id", null: false
     t.bigint "candidate_stage_history_id", null: false
     t.datetime "created_at", null: false
@@ -432,6 +433,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_070500) do
     t.bigint "recorded_by_id", null: false
     t.string "sector"
     t.datetime "updated_at", null: false
+    t.index ["boarding_pass_uploaded_at"], name: "index_candidate_flight_details_on_boarding_pass_uploaded_at"
     t.index ["candidate_assignment_id"], name: "index_candidate_flight_details_on_candidate_assignment_id", unique: true
     t.index ["candidate_stage_history_id"], name: "index_candidate_flight_details_on_candidate_stage_history_id", unique: true
     t.index ["flight_departure_at"], name: "index_candidate_flight_details_on_flight_departure_at"

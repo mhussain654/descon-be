@@ -18,6 +18,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateVisaDecision.delete_all
+    CandidateFlightDetail.delete_all
     CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
@@ -41,6 +42,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateRefreshToken.delete_all
     CandidateWorkflowEvent.delete_all
     CandidateVisaDecision.delete_all
+    CandidateFlightDetail.delete_all
     CandidateMedicalResult.delete_all
     CandidateStageHistory.delete_all
     CandidateQvcAttempt.delete_all
@@ -105,6 +107,29 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       summary = response.parsed_body.dig('meta', 'summary')
       expect(summary.size).to eq(WorkflowStage::CANONICAL_STAGES.size)
       expect(summary.find { |row| row['code'] == 'fee_paid' }).to eq('code' => 'fee_paid', 'count' => 1)
+    end
+
+    it 'filters by boarding pass among candidates with a recorded flight and counts both groups' do
+      admin = create(:user, role: 'admin')
+      uploaded = create(:candidate, full_name: 'Uploaded Candidate')
+      create(:candidate_flight_detail, candidate_assignment: create(:candidate_assignment, candidate: uploaded),
+                                       boarding_pass_uploaded_at: Time.current)
+      missing = create(:candidate, full_name: 'Missing Candidate')
+      create(:candidate_flight_detail, candidate_assignment: create(:candidate_assignment, candidate: missing))
+      create(:candidate_assignment, candidate: create(:candidate, full_name: 'No Flight Candidate'))
+      headers = { 'Authorization' => "Bearer #{access_token_for(admin)}" }
+
+      get '/api/v1/admin/candidates', params: { filter: { boarding_pass: 'missing' } }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.fetch('data').pluck('full_name')).to eq(['Missing Candidate'])
+      expect(response.parsed_body.dig('meta', 'boarding_pass_summary')).to eq('uploaded' => 1, 'missing' => 1)
+
+      get '/api/v1/admin/candidates', params: { filter: { boarding_pass: 'uploaded' } }, headers: headers
+      expect(response.parsed_body.fetch('data').pluck('full_name')).to eq(['Uploaded Candidate'])
+
+      get '/api/v1/admin/candidates', params: { filter: { boarding_pass: 'sometimes' } }, headers: headers
+      expect(response).to have_http_status(:bad_request)
     end
 
     it 'forbids a staff member without view_candidates/manage_candidates' do

@@ -39,6 +39,7 @@ Rails.application.routes.draw do
         resource :workflow_history, only: :show
         resource :flight_detail, only: :show, controller: :flight_details do
           resource :ticket_access, only: :create, controller: :flight_detail_ticket_accesses
+          resource :boarding_pass, only: :update, controller: :flight_detail_boarding_passes
         end
         resources :visa_decisions, only: :index do
           resource :visa_copy_access, only: :create, controller: :visa_decision_visa_copy_accesses
@@ -99,6 +100,8 @@ Rails.application.routes.draw do
           end
           resource :flight_detail, only: %i[show create update], controller: :candidate_flight_details do
             resource :ticket_access, only: :create, controller: :candidate_flight_detail_ticket_accesses
+            resource :boarding_pass_access, only: :create,
+                                            controller: :candidate_flight_detail_boarding_pass_accesses
           end
           resources :ai_calls, only: %i[index create], controller: :candidate_ai_calls
           resources :sms_messages, only: %i[index create], controller: :candidate_sms_messages

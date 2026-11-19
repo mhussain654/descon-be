@@ -130,12 +130,7 @@ module CandidateAuthentication
       end
 
       def send_sms(to:, code:, locale:)
-        Sms::SendMessage.call(to:, body: sms_body(code:, locale:), variables: sms_variables(code:), template: :otp,
-                              locale:)
-      end
-
-      def sms_body(code:, locale:)
-        I18n.t('api.authentication.otp_sms_body', code:, expiry_minutes:, locale:)
+        Sms::SendMessage.call(to:, variables: sms_variables(code:), template: :otp, locale:)
       end
 
       # Values for the vendor's approved OTP template (variables #code# and

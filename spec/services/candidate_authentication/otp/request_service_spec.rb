@@ -204,11 +204,11 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       expect(delivered.fetch(:variables)).to match(code: match(/\A\d{6}\z/), minutes: 10)
     end
 
-    it 'uses the current request locale for a real candidate SMS body' do
+    it 'picks the OTP template for the current request locale' do
       candidate = create(:candidate, preferred_locale: 'en')
-      delivered_body = nil
+      delivered_locale = nil
       allow(Sms::SendMessage).to receive(:call) do |**kwargs|
-        delivered_body = kwargs.fetch(:body)
+        delivered_locale = kwargs.fetch(:locale).to_s
         Sms::DeliveryResult.new(success: true, provider_reference: SecureRandom.uuid)
       end
 
@@ -216,8 +216,7 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
         described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
       end
 
-      expect(delivered_body).to start_with('ڈیسکون MPS Connect میں لاگ اِن کے لیے آپ کا تصدیقی کوڈ ')
-      expect(delivered_body).not_to start_with('Your verification code to log in to Descon MPS Connect is ')
+      expect(delivered_locale).to eq('ur')
     end
 
     it 'serializes concurrent requests for the same CNIC so only one challenge is created during cooldown' do

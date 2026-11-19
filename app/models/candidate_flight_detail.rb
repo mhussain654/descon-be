@@ -9,6 +9,8 @@ class CandidateFlightDetail < ApplicationRecord
   belongs_to :recorded_by, class_name: 'User'
   belongs_to :mobilized_recorded_by, class_name: 'User', optional: true
   has_one_attached :ticket
+  # The candidate's own photo of their boarding pass, uploaded from the app.
+  has_one_attached :boarding_pass
 
   before_validation :assign_public_id, on: :create
 
@@ -21,6 +23,9 @@ class CandidateFlightDetail < ApplicationRecord
 
   # Whether the candidate has actually departed/been mobilized on this flight.
   def mobilized? = mobilized_on.present?
+
+  # Whether the candidate has uploaded their boarding pass photo.
+  def boarding_pass_uploaded? = boarding_pass_uploaded_at.present?
 
   private
 

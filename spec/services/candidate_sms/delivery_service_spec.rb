@@ -26,7 +26,7 @@ RSpec.describe CandidateSms::DeliveryService do
 
     expect(Sms::SendMessage).to have_received(:call).with(
       to: candidate.mobile_number, variables: { 'name' => 'Daim Javed', 'date' => '04-11-2026' },
-      template: 'medical_appointment', locale: 'ur', body: include('04-11-2026')
+      template: 'medical_appointment', locale: 'ur'
     )
     expect(delivery.reload).to have_attributes(status: 'sent', provider_reference: '29346', sent_at: be_present)
   end
@@ -53,6 +53,22 @@ RSpec.describe CandidateSms::DeliveryService do
     described_class.call(candidate_sms_delivery_id: fee.id)
 
     expect(Sms::SendMessage).to have_received(:call).with(hash_including(template: 'fee_pending', variables: {}))
+  end
+
+  # Payments::IssueFeeVoucherService queues the fee SMS with only the name.
+  it 'sends the fee SMS queued with only the candidate name' do
+    stub_send(Sms::DeliveryResult.new(success: true, provider_reference: '29350'))
+    fee = CandidateSmsDelivery.create!(
+      candidate:, candidate_assignment: assignment, message_code: 'fee_pending', dedupe_key: 'fee_pending:10',
+      locale: 'en', variables: { 'name' => 'Daim Javed' }
+    )
+
+    described_class.call(candidate_sms_delivery_id: fee.id)
+
+    expect(Sms::SendMessage).to have_received(:call).with(
+      to: candidate.mobile_number, variables: {}, template: 'fee_pending', locale: 'en'
+    )
+    expect(fee.reload.status).to eq('sent')
   end
 
   it 'never sends a delivery that is no longer pending' do

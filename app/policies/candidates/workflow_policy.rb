@@ -14,6 +14,10 @@ module Candidates
       show?
     end
 
+    def upload_boarding_pass?
+      show?
+    end
+
     private
 
     def candidate_authenticated?

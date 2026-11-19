@@ -179,7 +179,6 @@ en:
       login_succeeded: "Login succeeded."
       refresh_succeeded: "Session refreshed."
       logout_succeeded: "Session revoked."
-      otp_sms_body: "Your verification code to log in to Descon MPS Connect is %{code}. It will expire in %{expiry_minutes} minutes. Please do not share this verification code with anyone."
     users:
       invitation_created: "Staff user invited successfully."
       updated: "Staff user updated successfully."
