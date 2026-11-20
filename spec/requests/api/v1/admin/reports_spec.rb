@@ -54,6 +54,23 @@ RSpec.describe 'API V1 Admin Reports', type: :request do
       expect(response.parsed_body['data']).to be_an(Array)
     end
 
+    it 'narrows a report to one import batch by registered date and country' do
+      mps = create(:user, role: 'mps')
+      country = create(:country)
+      create(:candidate_assignment, country:, candidate: create(:candidate, status_code: 'fee_paid',
+                                                                            created_at: Time.utc(2026, 11, 20, 6, 0)))
+      create(:candidate_assignment, country:, candidate: create(:candidate, status_code: 'fee_paid',
+                                                                            created_at: Time.utc(2026, 11, 28, 6, 0)))
+
+      get '/api/v1/admin/reports/status_summary',
+          params: { filter: { country_code: country.code, registered_from: '2026-11-20',
+                              registered_to: '2026-11-20' } },
+          headers: auth_headers(mps)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body['data'].sum { |row| row.fetch('count', 0) }).to eq(1)
+    end
+
     it 'rejects an unknown report type' do
       mps = create(:user, role: 'mps')
 

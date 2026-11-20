@@ -39,6 +39,11 @@ module Admin
       values
     end
 
+    # `registered_from` / `registered_to`, validated (see RegisteredDateFilter).
+    def registered_dates
+      filters.slice(*RegisteredDateFilter::NAMES).tap { |values| RegisteredDateFilter.validate!(values) }
+    end
+
     def submitted_from = parse_time(filter_value(:submitted_from), field: 'filter.submitted_from')
 
     def submitted_to = parse_time(filter_value(:submitted_to), field: 'filter.submitted_to')

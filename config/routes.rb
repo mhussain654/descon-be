@@ -83,6 +83,7 @@ Rails.application.routes.draw do
         resources :payments, only: %i[index show] do
           resources :corrections, only: :create, controller: 'payments/corrections'
         end
+        resources :mobilizations, only: :index
         resources :candidates, only: [] do
           resource :fee, only: %i[show update], controller: :candidate_fees
           resource :workflow_state, only: :show, controller: :candidate_workflow_states

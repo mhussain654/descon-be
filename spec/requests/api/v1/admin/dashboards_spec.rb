@@ -54,6 +54,25 @@ RSpec.describe 'API V1 Admin Dashboard', type: :request do
       expect(response.parsed_body.dig('data', 'candidate_workload', 'total_active_candidates')).to eq(1)
     end
 
+    it 'scopes the dashboard to one import batch by registered date and country' do
+      admin = create(:user, role: 'admin')
+      country = create(:country)
+      create(:candidate_assignment, country:, candidate: create(:candidate, created_at: Time.utc(2026, 11, 20, 6, 0)))
+      create(:candidate_assignment, country:, candidate: create(:candidate, created_at: Time.utc(2026, 11, 28, 6, 0)))
+      create(:candidate_assignment, candidate: create(:candidate, created_at: Time.utc(2026, 11, 20, 7, 0)))
+
+      get '/api/v1/admin/dashboard',
+          params: { filter: { country_code: country.code, registered_from: '2026-11-20',
+                              registered_to: '2026-11-21' } },
+          headers: auth_headers(admin)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'candidate_workload', 'total_active_candidates')).to eq(1)
+
+      get '/api/v1/admin/dashboard', params: { filter: { registered_to: '20-11-2026' } }, headers: auth_headers(admin)
+      expect(response).to have_http_status(:bad_request)
+    end
+
     it 'returns invalid_query_parameter for an unknown filter code' do
       admin = create(:user, role: 'admin')
 

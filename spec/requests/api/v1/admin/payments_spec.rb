@@ -77,6 +77,25 @@ RSpec.describe 'API V1 Admin Payments', type: :request do
       expect(response.parsed_body.dig('meta', 'applied_filters')).to eq('status' => 'paid')
     end
 
+    it "narrows to one import batch's payments by the candidate's registered date and country" do
+      finance = create(:user, role: 'finance')
+      batch = payment_for(full_name: 'Batch Payer')
+      batch.candidate_assignment.candidate.update!(created_at: Time.utc(2026, 11, 20, 6, 0))
+      later = payment_for(full_name: 'Later Batch')
+      later.candidate_assignment.candidate.update!(created_at: Time.utc(2026, 11, 28, 6, 0))
+
+      get '/api/v1/admin/payments',
+          params: { filter: { registered_from: '2026-11-20', registered_to: '2026-11-21',
+                              country_code: batch.candidate_assignment.country.code } },
+          headers: auth_headers(finance)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body['data'].pluck('id')).to eq([batch.public_id])
+
+      get '/api/v1/admin/payments', params: { filter: { country_code: 'atlantis' } }, headers: auth_headers(finance)
+      expect(response).to have_http_status(:bad_request)
+    end
+
     it 'includes a zero-filled payment-status summary in meta' do
       finance = create(:user, role: 'finance')
       payment_for(status_code: 'paid')

@@ -86,8 +86,8 @@ module Admin
         return {} unless raw.respond_to?(:to_unsafe_h)
 
         values = raw.to_unsafe_h.compact_blank
-        unsupported = values.keys - %w[status provider_code payment_type_code currency_code created_from created_to
-                                       reconciliation_state]
+        unsupported = values.keys - (%w[status provider_code payment_type_code currency_code created_from created_to
+                                        reconciliation_state country_code] + RegisteredDateFilter::NAMES)
         raise UnsupportedFilterError.new(filter_name: unsupported.first) if unsupported.any?
 
         validate_filter_values!(values)
@@ -99,6 +99,7 @@ module Admin
         validate_inclusion!(values['reconciliation_state'], ALLOWED_RECONCILIATION_STATES,
                             'filter.reconciliation_state')
         validate_date_range!(values)
+        RegisteredDateFilter.validate!(values)
       end
 
       def validate_inclusion!(value, allowed, field)
@@ -121,8 +122,27 @@ module Admin
         end
         return scope.where(created_at: ..date_for(value, field: 'filter.created_to').end_of_day) if name == 'created_to'
         return apply_reconciliation_state_filter(scope, value) if name == 'reconciliation_state'
+        return scope.where(candidate_assignment_id: candidate_assignments_for(name, value)) if candidate_filter?(name)
 
         scope
+      end
+
+      # The candidate's country and registered (added or imported) day, so a
+      # batch's payments can be seen together.
+      def candidate_filter?(name) = name == 'country_code' || RegisteredDateFilter::NAMES.include?(name)
+
+      def candidate_assignments_for(name, value)
+        return CandidateAssignment.where(country_id: country_id(value)).select(:id) if name == 'country_code'
+
+        CandidateAssignment.where(candidate_id: ::Candidate.where(created_at: RegisteredDateFilter.range(name, value))
+                                                           .select(:id)).select(:id)
+      end
+
+      def country_id(code)
+        country = Country.find_by(code: code.to_s.strip.downcase)
+        raise InvalidQueryParameterError.new(field: 'filter.country_code') if country.blank?
+
+        country.id
       end
 
       def apply_reconciliation_state_filter(scope, value)

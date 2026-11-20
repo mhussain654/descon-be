@@ -12,7 +12,7 @@ module Api
 
         RECENT_BATCH_LIMIT = 50
         CREATE_PARAMS = [:robocall_voice_id, :workflow_stage_code, :limit, :search,
-                         { filter: %i[country_code project_code craft_code] }].freeze
+                         { filter: %i[country_code project_code craft_code registered_from registered_to] }].freeze
 
         def index
           authorize ::BulkCallBatch, policy_class: ::Admin::BulkCallPolicy

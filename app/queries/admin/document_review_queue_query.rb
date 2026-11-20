@@ -58,7 +58,19 @@ module Admin
       scope = filter_country_code(scope)
       scope = filter_project_code(scope)
       scope = filter_submitted_from(scope)
+      scope = filter_registered_dates(scope)
       filter_submitted_to(scope)
+    end
+
+    # Narrows to candidates registered (added or imported) in the given days -- one import batch.
+    def filter_registered_dates(scope)
+      dates = @filters.registered_dates
+      return scope if dates.empty?
+
+      candidates = dates.reduce(::Candidate.all) do |current, (name, value)|
+        current.where(created_at: RegisteredDateFilter.range(name, value))
+      end
+      scope.where(candidate_assignment_id: CandidateAssignment.where(candidate_id: candidates.select(:id)).select(:id))
     end
 
     def filter_candidate_public_id(scope)

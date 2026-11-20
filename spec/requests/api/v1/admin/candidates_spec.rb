@@ -132,42 +132,30 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    it 'filters by flight date in Pakistan time and combines it with the boarding pass filter and counts' do
+    it 'narrows to one import batch by registered date in Pakistan time, with country' do
       admin = create(:user, role: 'admin')
-      flying = lambda do |name, departure, uploaded: false|
-        candidate = create(:candidate, full_name: name)
-        create(:candidate_flight_detail, candidate_assignment: create(:candidate_assignment, candidate:),
-                                         flight_departure_at: departure,
-                                         boarding_pass_uploaded_at: (Time.current if uploaded))
+      country = create(:country)
+      registered = lambda do |name, at, assignment_country = country|
+        candidate = create(:candidate, full_name: name, created_at: at)
+        create(:candidate_assignment, candidate:, country: assignment_country)
       end
-      # 02:00 on 20 Nov in Pakistan is 21:00 UTC on 19 Nov.
-      flying.call('Early Uploaded', Time.utc(2026, 11, 19, 21, 0), uploaded: true)
-      flying.call('Evening Missing', Time.utc(2026, 11, 20, 18, 30))
-      flying.call('Late Night Next Day', Time.utc(2026, 11, 20, 19, 30))
-      flying.call('Day Before', Time.utc(2026, 11, 19, 12, 0))
+      # 01:00 on 20 Nov in Pakistan is 20:00 UTC on 19 Nov.
+      registered.call('Batch Early', Time.utc(2026, 11, 19, 20, 0))
+      registered.call('Batch Late', Time.utc(2026, 11, 20, 18, 30))
+      registered.call('Day Before', Time.utc(2026, 11, 19, 18, 30))
+      registered.call('Other Country', Time.utc(2026, 11, 20, 6, 0), create(:country))
       headers = { 'Authorization' => "Bearer #{access_token_for(admin)}" }
 
-      get '/api/v1/admin/candidates', params: { filter: { flight_date: '2026-11-20' }, sort: 'full_name' },
+      get '/api/v1/admin/candidates', params: { filter: { registered_from: '2026-11-20', registered_to: '2026-11-20',
+                                                          country_code: country.code }, sort: 'full_name' },
                                       headers: headers
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body.fetch('data').pluck('full_name')).to eq(['Early Uploaded', 'Evening Missing'])
-      expect(response.parsed_body.dig('meta', 'boarding_pass_summary')).to eq('uploaded' => 1, 'missing' => 1)
-      expect(response.parsed_body.dig('meta', 'applied_filters')).to eq('flight_date' => '2026-11-20')
+      expect(response.parsed_body.fetch('data').pluck('full_name')).to eq(['Batch Early', 'Batch Late'])
 
-      get '/api/v1/admin/candidates', params: { filter: { flight_date: '2026-11-20', boarding_pass: 'missing' } },
-                                      headers: headers
-      expect(response.parsed_body.fetch('data').pluck('full_name')).to eq(['Evening Missing'])
-    end
-
-    it 'rejects a flight date that is not YYYY-MM-DD' do
-      admin = create(:user, role: 'admin')
-
-      get '/api/v1/admin/candidates', params: { filter: { flight_date: '20/11/2026' } },
-                                      headers: { 'Authorization' => "Bearer #{access_token_for(admin)}" }
-
+      get '/api/v1/admin/candidates', params: { filter: { registered_from: 'yesterday' } }, headers: headers
       expect(response).to have_http_status(:bad_request)
-      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.flight_date')
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.registered_from')
     end
 
     it 'forbids a staff member without view_candidates/manage_candidates' do

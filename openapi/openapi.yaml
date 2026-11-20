@@ -4,6 +4,26 @@ info:
   version: 1.0.0
 components:
   parameters:
+    RegisteredFromFilter:
+      in: query
+      name: filter[registered_from]
+      description: >-
+        Candidates registered (added or imported) on or after this day, a calendar day in
+        Pakistan time (Asia/Karachi). With `filter[registered_to]` it selects one import batch.
+        A value that is not YYYY-MM-DD returns 400 (`filter.registered_from`).
+      schema: { type: string, format: date, example: '2026-11-20' }
+    RegisteredToFilter:
+      in: query
+      name: filter[registered_to]
+      description: >-
+        Candidates registered on or before this day (Pakistan time). A malformed value, or one
+        earlier than `filter[registered_from]`, returns 400 (`filter.registered_to`).
+      schema: { type: string, format: date, example: '2026-11-20' }
+    CandidateCountryFilter:
+      in: query
+      name: filter[country_code]
+      description: Candidates assigned to this country; an unknown code returns 400 (`filter.country_code`).
+      schema: { type: string, example: qatar }
     XLocaleHeader:
       in: header
       name: X-Locale
@@ -5961,6 +5981,85 @@ paths:
             text/csv:
               schema: { type: string, format: binary }
         '403': { description: Staff user lacks candidate-management permission }
+  /api/v1/admin/mobilizations:
+    get:
+      summary: List candidates whose flight is recorded, for mobilization tracking
+      description: >-
+        One row per candidate whose current assignment has a recorded flight, from booking
+        through to mobilization, scoped to the candidates the staff member may view (same
+        permission as the candidate list). Each row carries the candidate, the flight, whether
+        a ticket file is attached, when the boarding pass was uploaded, and the mobilization
+        status and date. `filter[flight_date]` is a calendar day in Pakistan time
+        (Asia/Karachi). `meta.summary` gives the total plus counts per boarding pass state and
+        per status, each counted under every active filter except its own. `search` matches
+        candidate name (partial), reference number (exact) or flight number (partial).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
+        - $ref: '#/components/parameters/CandidateCountryFilter'
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: filter[flight_date]
+          in: query
+          description: Departure day in Pakistan time; a value that is not YYYY-MM-DD returns 400 (`filter.flight_date`).
+          schema: { type: string, format: date, example: '2026-11-20' }
+        - name: filter[boarding_pass]
+          in: query
+          schema: { type: string, enum: [uploaded, missing] }
+        - name: filter[status]
+          in: query
+          schema: { type: string, enum: [awaiting_departure, mobilized] }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [departure_at, -departure_at], default: -departure_at }
+        - name: page[number]
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page[size]
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Paginated mobilization rows with summary counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                todaysFlights:
+                  value:
+                    data:
+                      - id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                        candidate:
+                          id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                          full_name: Ali Raza
+                          reference_number: MPS-2026-000123
+                          country_name: Qatar
+                          project_name: Qatar Infrastructure
+                          craft_name: Electrician
+                        airline: Qatar Airways
+                        flight_number: QR-629
+                        sector: LHE-DOH
+                        flight_departure_at: '2026-11-19T21:00:00Z'
+                        ticket_attached: true
+                        boarding_pass_uploaded_at: '2026-11-19T16:40:00Z'
+                        mobilized_on: null
+                        status: awaiting_departure
+                    meta:
+                      applied_filters: { flight_date: '2026-11-20' }
+                      summary:
+                        total: 300
+                        boarding_pass: { uploaded: 180, missing: 120 }
+                        status: { awaiting_departure: 300, mobilized: 0 }
+                      pagination: { page: 1, per_page: 20, total_count: 300, total_pages: 15 }
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-11-20T04:00:00Z'
+                    errors: []
+        '400': { description: Invalid filter, sort, or pagination parameter }
+        '401': { description: Missing, invalid, or expired staff session }
+        '403': { description: Staff user lacks candidate-view permission }
   /api/v1/admin/candidates:
     get:
       summary: List candidates for authorized staff
@@ -5971,12 +6070,11 @@ paths:
         `filter[boarding_pass]` keeps only candidates whose flight is recorded and who have
         (`uploaded`) or have not (`missing`) uploaded their boarding pass photo;
         `meta.boarding_pass_summary` gives both counts, scoped by every active filter except
-        `filter[boarding_pass]`. `filter[flight_date]` (YYYY-MM-DD) keeps candidates whose recorded
-        flight departs on that calendar day in Pakistan time (Asia/Karachi); combined with
-        `filter[boarding_pass]` and `meta.boarding_pass_summary` it shows, for one day's flights,
-        who has and has not uploaded a boarding pass.
+        `filter[boarding_pass]`.
       security: [{ bearerAuth: [] }]
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
         - name: search
           in: query
           schema: { type: string }
@@ -5995,10 +6093,6 @@ paths:
         - name: filter[boarding_pass]
           in: query
           schema: { type: string, enum: [uploaded, missing] }
-        - name: filter[flight_date]
-          in: query
-          description: Flight departure day in Pakistan time; a value that is not YYYY-MM-DD returns 400 (`filter.flight_date`).
-          schema: { type: string, format: date, example: '2026-11-20' }
         - name: sort
           in: query
           schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, reference_number, -reference_number] }
@@ -9278,6 +9372,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - $ref: '#/components/parameters/PageNumber'
@@ -9510,6 +9606,9 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
+        - $ref: '#/components/parameters/CandidateCountryFilter'
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - $ref: '#/components/parameters/PageNumber'
@@ -10701,6 +10800,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
         - name: robocall_voice_id
           in: query
           required: true
@@ -11905,6 +12006,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - name: filter[country_code]
@@ -12045,6 +12148,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - name: granularity
@@ -12267,6 +12372,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
         - in: path
@@ -12326,6 +12433,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/RegisteredFromFilter'
+        - $ref: '#/components/parameters/RegisteredToFilter'
         - in: path
           name: report_type
           required: true

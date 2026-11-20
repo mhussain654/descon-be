@@ -186,6 +186,25 @@ RSpec.describe 'API V1 Admin Document Reviews', type: :request do
       )
     end
 
+    it 'narrows the queue to one import batch by registered date' do
+      actor = create(:user, role: 'admin')
+      batch = create_submission(review_statuses: %w[under_verification])
+      batch.candidate.update!(created_at: Time.utc(2026, 11, 20, 6, 0))
+      later = create_submission(review_statuses: %w[under_verification])
+      later.candidate.update!(created_at: Time.utc(2026, 11, 28, 6, 0))
+
+      get '/api/v1/admin/document_submissions',
+          params: { filter: { registered_from: '2026-11-20', registered_to: '2026-11-21' } },
+          headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body['data'].pluck('id')).to eq([batch.public_id])
+
+      get '/api/v1/admin/document_submissions', params: { filter: { registered_from: 'soon' } },
+                                                headers: { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      expect(response).to have_http_status(:bad_request)
+    end
+
     it 'counts a candidate with two submissions only once in the summary' do
       actor = create(:user, role: 'admin')
       candidate = create(:candidate)
