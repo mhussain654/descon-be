@@ -576,6 +576,21 @@ components:
               type: string
               example: Qatar
           required: [code, name]
+        craft:
+          type: object
+          nullable: true
+          description: >-
+            The trade (craft) of the current assignment that the candidate is
+            recruited for. Null when there is no current assignment. `name`
+            follows X-Locale.
+          properties:
+            code:
+              type: string
+              example: welder
+            name:
+              type: string
+              example: Welder
+          required: [code, name]
         photo_url:
           type: string
           nullable: true

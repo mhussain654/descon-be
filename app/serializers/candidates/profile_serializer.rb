@@ -9,6 +9,7 @@ module Candidates
     def as_json(*)
       profile_attributes.merge(
         country: serialized_country,
+        craft: serialized_craft,
         photo_url: ProfilePhotos::UrlBuilder.call(candidate: @candidate),
         photo_status: @candidate.profile_photo_status,
         photo_reviewed_at: @candidate.profile_photo_reviewed_at&.utc&.iso8601,
@@ -43,6 +44,14 @@ module Candidates
       return if country.blank?
 
       { code: country.code, name: country.name_for }
+    end
+
+    # The trade the candidate is recruited for (Welder, Driver...), with a localized name.
+    def serialized_craft
+      craft = current_assignment&.craft
+      return if craft.blank?
+
+      { code: craft.code, name: craft.name_for }
     end
 
     def serialized_workflow_stage
