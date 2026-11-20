@@ -7,7 +7,11 @@ module Admin
     class IndexQuery < ApplicationQuery
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
-      ALLOWED_FILTERS = %w[status country_code project_code craft_code boarding_pass].freeze
+      ALLOWED_FILTERS = %w[status country_code project_code craft_code boarding_pass flight_date].freeze
+      # Candidates fly out of Pakistan, so "flights on 20 Nov" means departures
+      # on that calendar day in Pakistan time, not UTC (a 02:00 PKT departure is
+      # stored as 21:00 UTC the day before).
+      FLIGHT_DATE_TIME_ZONE = 'Asia/Karachi'
       BOARDING_PASS_FILTERS = %w[uploaded missing].freeze
       ALLOWED_SORTS = %w[created_at full_name reference_number].freeze
       REFERENCE_FILTER_SQL = {
@@ -109,6 +113,7 @@ module Admin
 
       def filter_scope(scope, name, value)
         return boarding_pass_scope(scope, value.to_s.strip.downcase) if name == 'boarding_pass'
+        return flight_date_scope(scope, value) if name == 'flight_date'
 
         if name == 'status'
           status = value.to_s.strip.downcase
@@ -127,6 +132,16 @@ module Admin
         details = CandidateFlightDetail.where(boarding_pass_uploaded_at: nil)
         details = CandidateFlightDetail.where.not(boarding_pass_uploaded_at: nil) if state == 'uploaded'
         scope.where(current_assignments: { id: details.select(:candidate_assignment_id) })
+      end
+
+      # Candidates whose recorded flight departs on the given day (YYYY-MM-DD, Pakistan time).
+      def flight_date_scope(scope, value)
+        date = Date.iso8601(value.to_s.strip)
+        day = Time.find_zone!(FLIGHT_DATE_TIME_ZONE).local(date.year, date.month, date.day).all_day
+        scope.where(current_assignments: { id: CandidateFlightDetail.where(flight_departure_at: day)
+                                                                    .select(:candidate_assignment_id) })
+      rescue Date::Error
+        raise InvalidQueryParameterError.new(field: 'filter.flight_date')
       end
 
       def reference_id(filter_name, value)

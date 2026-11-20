@@ -5971,7 +5971,10 @@ paths:
         `filter[boarding_pass]` keeps only candidates whose flight is recorded and who have
         (`uploaded`) or have not (`missing`) uploaded their boarding pass photo;
         `meta.boarding_pass_summary` gives both counts, scoped by every active filter except
-        `filter[boarding_pass]`.
+        `filter[boarding_pass]`. `filter[flight_date]` (YYYY-MM-DD) keeps candidates whose recorded
+        flight departs on that calendar day in Pakistan time (Asia/Karachi); combined with
+        `filter[boarding_pass]` and `meta.boarding_pass_summary` it shows, for one day's flights,
+        who has and has not uploaded a boarding pass.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: search
@@ -5992,6 +5995,10 @@ paths:
         - name: filter[boarding_pass]
           in: query
           schema: { type: string, enum: [uploaded, missing] }
+        - name: filter[flight_date]
+          in: query
+          description: Flight departure day in Pakistan time; a value that is not YYYY-MM-DD returns 400 (`filter.flight_date`).
+          schema: { type: string, format: date, example: '2026-11-20' }
         - name: sort
           in: query
           schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, reference_number, -reference_number] }
