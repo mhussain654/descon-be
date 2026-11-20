@@ -40,6 +40,7 @@ Rails.application.routes.draw do
         resource :flight_detail, only: :show, controller: :flight_details do
           resource :ticket_access, only: :create, controller: :flight_detail_ticket_accesses
           resource :boarding_pass, only: :update, controller: :flight_detail_boarding_passes
+          resource :boarding_pass_access, only: :create, controller: :flight_detail_boarding_pass_accesses
         end
         resources :visa_decisions, only: :index do
           resource :visa_copy_access, only: :create, controller: :visa_decision_visa_copy_accesses

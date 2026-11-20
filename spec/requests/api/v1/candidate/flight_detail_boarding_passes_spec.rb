@@ -108,6 +108,66 @@ RSpec.describe 'API V1 Candidate Boarding Pass', type: :request do
     end
   end
 
+  describe 'POST /api/v1/candidate/flight_detail/boarding_pass_access' do
+    let(:path) { '/api/v1/candidate/flight_detail/boarding_pass_access' }
+
+    context 'when the flight is recorded' do
+      before { create(:candidate_flight_detail, candidate_assignment: assignment) }
+
+      it 'gives the candidate a short-lived link to their own photo and audits it as theirs' do
+        upload(fixture_upload('test.jpg', 'image/jpeg'))
+
+        post path, headers: candidate_headers
+
+        expect(response).to have_http_status(:ok)
+        expect(response.headers['Cache-Control']).to eq('private, no-store')
+        expect(response.parsed_body.dig('data', 'url')).to start_with('/rails/active_storage/blobs/proxy/')
+        expect(response.parsed_body.dig('data', 'url')).to include('boarding-pass.jpg')
+        event = AuditEvent.find_by!(candidate:, action_code: 'candidate_boarding_pass_accessed')
+        expect(event.actor).to be_nil
+        expect(event.metadata['accessed_by']).to eq('candidate')
+      end
+
+      it 'reports a missing file before the candidate has uploaded one' do
+        post path, headers: candidate_headers
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body.dig('errors', 0, 'code')).to eq('document_attachment_missing')
+      end
+
+      it "never serves another candidate's photo" do
+        upload(fixture_upload('test.jpg', 'image/jpeg'))
+        other = create(:candidate, status_code: 'flight_details_uploaded')
+        create(:candidate_assignment, candidate: other,
+                                      current_workflow_stage: WorkflowStage.find_by!(code: 'flight_details_uploaded'))
+
+        post path, headers: candidate_headers(other)
+
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    it 'returns not found before staff have recorded the flight' do
+      assignment
+
+      post path, headers: candidate_headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects an unauthenticated request' do
+      post path
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'refuses a staff token' do
+      post path, headers: staff_headers
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe 'POST /api/v1/admin/candidates/:candidate_id/flight_detail/boarding_pass_access' do
     let(:path) { "/api/v1/admin/candidates/#{candidate.public_id}/flight_detail/boarding_pass_access" }
 

@@ -8502,6 +8502,56 @@ paths:
             `missing_file`, `empty_file`, `file_too_large`, or
             `unsupported_file_type` (not a JPEG/PNG/WebP image), each with
             field `boarding_pass.photo`
+  /api/v1/candidate/flight_detail/boarding_pass_access:
+    post:
+      summary: Generate a short-lived private access path for the candidate's own boarding pass photo
+      description: >-
+        Returns a private Active Storage proxy path for the boarding pass photo
+        the authenticated candidate uploaded, so they can check it is the right
+        picture. The path is time-limited, does not expose storage keys, and
+        every successful access is audited (`candidate_boarding_pass_accessed`,
+        with `accessed_by: candidate`).
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: Short-lived private access path
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+            Cache-Control:
+              schema:
+                type: string
+                example: private, no-store
+              description: Prevents client or intermediary caching of the access response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                access:
+                  value:
+                    data:
+                      flight_detail_id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                      url: /rails/active_storage/blobs/proxy/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBd0k9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--token/boarding-pass.jpg?disposition=inline
+                      expires_at: '2026-09-20T11:10:00Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-09-20T11:05:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '404':
+          description: Flight detail not found
+        '422':
+          description: Flight detail exists but no boarding pass has been uploaded
   /api/v1/candidate/flight_detail/ticket_access:
     post:
       summary: Generate a short-lived private access path for the candidate's own flight ticket
