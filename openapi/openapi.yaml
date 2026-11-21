@@ -2264,6 +2264,14 @@ components:
             automatic_calls_enabled: { type: boolean, description: Automatic stage calls. }
             bulk_calls_enabled: { type: boolean, description: Starting bulk calls. }
             document_ocr_enabled: { type: boolean, description: Reading dates from uploaded documents. }
+            document_identity_check_enabled:
+              type: boolean
+              description: >-
+                Rejecting a CNIC or passport upload straight away when OCR shows it isn't one
+                (no dates and none of the printed ID markers: a selfie, a random photo, another
+                document, or a photo too blurry to read). Needs document OCR on too. Off by default.
+                Never rejects the same requirement automatically twice in a row, and staff may
+                still approve a rejected one.
           additionalProperties: false
       required: [app_feature_setting]
     AdminSmsTemplateRequest:
@@ -2637,7 +2645,60 @@ components:
               type: string
               enum: [not_yet_open, open, closed]
           required: [opens_on, closes_on, state]
+        boarding_pass_rejection:
+          description: >-
+            Why staff rejected the uploaded boarding pass, shown to the candidate so they
+            can upload a valid one; null when it isn't rejected. A rejection keeps the
+            upload window open until 2 days after it, and the next upload clears it.
+          anyOf:
+            - type: object
+              properties:
+                rejected_at:
+                  type: string
+                  format: date-time
+                reason:
+                  type: string
+                  maxLength: 500
+                  example: This is a ticket, not a boarding pass. Please upload the boarding pass from check-in.
+              required: [rejected_at, reason]
+            - type: 'null'
       required: [id, airline, flight_number, sector, flight_departure_at, ticket_attached, mobilized_on, mobilized]
+    BoardingPassCheck:
+      description: >-
+        Staff-only result of the automatic OCR check of the uploaded boarding pass against
+        the booked flight. `matched`: flight number, date and passenger name found;
+        `needs_review`: only some found; `not_boarding_pass`: neither flight number nor date
+        found; `unavailable`: OCR is off or could not read the photo; `pending`: not checked yet.
+        The seat is read when printed and only adds confidence. A past flight's boarding pass
+        confirms departure when the result is `matched` or `unavailable` and staff haven't
+        rejected it. null before any upload, or for one made before the check existed.
+      anyOf:
+        - type: object
+          properties:
+            result:
+              type: string
+              enum: [pending, matched, needs_review, not_boarding_pass, unavailable]
+            seat:
+              description: The seat as printed (e.g. 23A, or GATE/SBY when assigned at the gate); null when not found.
+              anyOf:
+                - type: string
+                  maxLength: 8
+                - type: 'null'
+            signals:
+              type: object
+              properties:
+                flight_number: { type: boolean }
+                date: { type: boolean }
+                name: { type: boolean }
+                seat: { type: boolean }
+              required: [flight_number, date, name, seat]
+            checked_at:
+              anyOf:
+                - type: string
+                  format: date-time
+                - type: 'null'
+          required: [result, seat, signals, checked_at]
+        - type: 'null'
     AdminFlightDetail:
       allOf:
         - $ref: '#/components/schemas/CandidateFlightDetail'
@@ -2649,6 +2710,8 @@ components:
               anyOf:
                 - $ref: '#/components/schemas/AdminReviewer'
                 - type: 'null'
+            boarding_pass_check:
+              $ref: '#/components/schemas/BoardingPassCheck'
           required: [recorded_by, mobilized_recorded_by]
     AdminCandidateFlightDetailShow:
       type: object
@@ -3119,6 +3182,11 @@ components:
           anyOf:
             - type: string
             - type: 'null'
+        rejected_automatically:
+          type: boolean
+          description: >-
+            Present (true) only when the system rejected the upload as not looking like a CNIC or
+            passport (no reviewer). Staff may still verify it if they disagree.
         reviewer:
           description: Present once the document has been reviewed. Never includes a personal name or email -- role is the only safe reviewer detail available.
           anyOf:
@@ -6048,7 +6116,13 @@ paths:
           schema: { type: string, enum: [uploaded, missing] }
         - name: filter[status]
           in: query
-          schema: { type: string, enum: [awaiting_departure, mobilized] }
+          description: >-
+            Departure status on today's Pakistan date: `scheduled` (flight on a later day),
+            `departing_today`, `departed` (staff recorded the mobilization, or the flight day has
+            passed and the candidate's boarding pass confirms it: not rejected, and its OCR check
+            is `matched` or `unavailable`; see BoardingPassCheck) or `not_confirmed` (flight day
+            passed with neither).
+          schema: { type: string, enum: [scheduled, departing_today, departed, not_confirmed] }
         - name: sort
           in: query
           schema: { type: string, enum: [departure_at, -departure_at], default: -departure_at }
@@ -6083,14 +6157,20 @@ paths:
                         flight_departure_at: '2026-11-19T21:00:00Z'
                         ticket_attached: true
                         boarding_pass_uploaded_at: '2026-11-19T16:40:00Z'
+                        boarding_pass_check:
+                          result: matched
+                          seat: 23A
+                          signals: { flight_number: true, date: true, name: true, seat: true }
+                          checked_at: '2026-11-19T16:40:20Z'
+                        boarding_pass_rejected: false
                         mobilized_on: null
-                        status: awaiting_departure
+                        status: departing_today
                     meta:
                       applied_filters: { flight_date: '2026-11-20' }
                       summary:
                         total: 300
                         boarding_pass: { uploaded: 180, missing: 120 }
-                        status: { awaiting_departure: 300, mobilized: 0 }
+                        status: { scheduled: 0, departing_today: 300, departed: 0, not_confirmed: 0 }
                       pagination: { page: 1, per_page: 20, total_count: 300, total_pages: 15 }
                       request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
                       timestamp: '2026-11-20T04:00:00Z'
@@ -8537,6 +8617,103 @@ paths:
           description: Flight detail not found
         '422':
           description: "`document_attachment_missing`: the candidate has not uploaded a boarding pass yet"
+  /api/v1/admin/candidates/{candidate_id}/flight_detail/boarding_pass_rejection:
+    post:
+      summary: Reject the candidate's boarding pass photo as not a valid boarding pass
+      description: >-
+        For document reviewers (`manage_candidate_documents`) and workflow managers
+        (`manage_workflow`). Records the reason, which the candidate sees in the app, keeps
+        the photo for the record, audits it (`candidate_boarding_pass_rejected`) and sends the
+        candidate the "document rejected" SMS naming the boarding pass. A rejected boarding
+        pass no longer confirms departure; the candidate may upload another until 2 days after
+        the rejection, even if the normal window has closed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                boarding_pass_rejection:
+                  type: object
+                  properties:
+                    reason:
+                      type: string
+                      minLength: 1
+                      maxLength: 500
+                  required: [reason]
+              required: [boarding_pass_rejection]
+            examples:
+              ticketNotBoardingPass:
+                value:
+                  boarding_pass_rejection:
+                    reason: This is a ticket, not a boarding pass. Please upload the boarding pass from check-in.
+      responses:
+        '201':
+          description: Rejected; returns the staff view of the flight detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                rejected:
+                  value:
+                    data:
+                      id: 3fa1d41e-d4aa-4bf3-9838-c0af7080f363
+                      airline: Qatar Airways
+                      flight_number: QR-629
+                      sector: LHE-DOH
+                      flight_departure_at: '2026-11-19T21:00:00Z'
+                      ticket_attached: true
+                      mobilized_on: null
+                      mobilized: false
+                      boarding_pass_uploaded_at: '2026-11-19T18:00:00Z'
+                      boarding_pass_upload: { opens_on: '2026-11-18', closes_on: '2026-11-24', state: open }
+                      boarding_pass_rejection:
+                        rejected_at: '2026-11-22T05:00:00Z'
+                        reason: This is a ticket, not a boarding pass. Please upload the boarding pass from check-in.
+                      recorded_by: { id: 7c9e6679-7425-40de-944b-e07fc1f90ae7, role: mps }
+                      mobilized_recorded_by: null
+                      boarding_pass_check:
+                        result: not_boarding_pass
+                        seat: null
+                        signals: { flight_number: false, date: false, name: true, seat: false }
+                        checked_at: '2026-11-19T18:00:20Z'
+                    meta:
+                      request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                      timestamp: '2026-11-22T05:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff session
+        '403':
+          description: Neither reviews documents nor manages the workflow
+        '404':
+          description: Candidate or flight detail not found
+        '409':
+          description: "`boarding_pass_already_rejected`: wait for the candidate to upload a new one"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: >-
+            `validation_failed` (`boarding_pass_rejection.reason` blank or over 500 characters) or
+            `boarding_pass_not_uploaded`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/candidate/flight_detail:
     get:
       summary: Show the authenticated candidate's own structured flight detail
@@ -11259,6 +11436,7 @@ paths:
                       automatic_calls_enabled: true
                       bulk_calls_enabled: true
                       document_ocr_enabled: false
+                      document_identity_check_enabled: false
                       server_ready:
                         card_payment: true
                         voucher_payment: true
@@ -11266,6 +11444,7 @@ paths:
                         automatic_calls: true
                         bulk_calls: true
                         document_ocr: false
+                        document_identity_check: false
                       updated_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                         role: admin
@@ -11317,6 +11496,7 @@ paths:
                       automatic_calls_enabled: true
                       bulk_calls_enabled: true
                       document_ocr_enabled: false
+                      document_identity_check_enabled: false
                       server_ready:
                         card_payment: true
                         voucher_payment: true
@@ -11324,6 +11504,7 @@ paths:
                         automatic_calls: true
                         bulk_calls: true
                         document_ocr: false
+                        document_identity_check: false
                       updated_by:
                         id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                         role: admin

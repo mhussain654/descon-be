@@ -29,6 +29,7 @@ module DocumentOcr
       { text: 'What is the date of birth?', alias: BIRTH_DATE_ALIAS }
     ].freeze
     NO_DATES_MESSAGE = 'Textract found no issue or expiry date in the uploaded document'
+    NOT_CONFIGURED_MESSAGE = 'AWS Textract is not configured (DOCUMENT_OCR_ENABLED is not true)'
 
     RETRYABLE_ERRORS = [
       Aws::Textract::Errors::ThrottlingException,
@@ -51,8 +52,20 @@ module DocumentOcr
               'AWS Textract is not configured (DOCUMENT_OCR_ENABLED is not true)'
       end
 
-      response = call_textract(bytes)
+      response = call_textract(bytes, QUERIES)
       build_result(response)
+    end
+
+    # The page's text lines and the answers to the given queries, for documents
+    # that are compared with what we already know rather than read for dates
+    # (a boarding pass). Returns { lines: [String], answers: { alias => String } };
+    # the caller must not store either.
+    def read_text(bytes:, queries:)
+      raise PermanentError, NOT_CONFIGURED_MESSAGE unless self.class.enabled?
+
+      blocks = call_textract(bytes, queries).blocks || []
+      { lines: text_lines(blocks).map(&:first),
+        answers: answers_by_alias(blocks).transform_values { |answer| answer&.text }.compact }
     end
 
     private
@@ -68,8 +81,8 @@ module DocumentOcr
     # only a fixed, provider-agnostic message plus the exception's class
     # name (a stable, non-sensitive identifier). The real message is still
     # logged server-side for support/debugging, never persisted or exposed.
-    def call_textract(bytes)
-      @client.analyze_document(document: { bytes: }, feature_types: ['QUERIES'], queries_config: { queries: QUERIES })
+    def call_textract(bytes, queries)
+      @client.analyze_document(document: { bytes: }, feature_types: ['QUERIES'], queries_config: { queries: })
     rescue *RETRYABLE_ERRORS => e
       raise TransientError, sanitized_provider_error('transient', e)
     rescue Aws::Textract::Errors::ServiceError => e
@@ -82,13 +95,18 @@ module DocumentOcr
       "AWS Textract #{action} (#{error.class.name.demodulize})"
     end
 
+    # The dates, plus whether the page looks like an ID at all (IdentityMarkers).
     def build_result(response)
       blocks = response.blocks || []
-      picked = DatePicker.call(answers: answers(blocks), lines: text_lines(blocks))
-      issue = picked[:issue]
-      expiry = picked[:expiry]
-      raise PermanentError, NO_DATES_MESSAGE if issue.nil? && expiry.nil?
+      lines = text_lines(blocks)
+      picked = DatePicker.call(answers: answers(blocks), lines:)
+      identity = IdentityMarkers.call(lines: lines.map(&:first))
+      raise NoDatesError.new(NO_DATES_MESSAGE, identity:) if picked[:issue].nil? && picked[:expiry].nil?
 
+      dates_result(picked[:issue], picked[:expiry]).merge(identity:)
+    end
+
+    def dates_result(issue, expiry)
       { issued_on: issue&.first, expires_on: expiry&.first,
         confidence_issued_on: issue&.last, confidence_expires_on: expiry&.last }
     end

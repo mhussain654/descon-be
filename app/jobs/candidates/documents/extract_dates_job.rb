@@ -33,6 +33,8 @@ module Candidates
         nil
       end
 
+      # A photo that isn't an ID at all (no dates and no ID markers) may then be
+      # rejected straight away (AutomaticRejectionService, behind its own switch).
       def run_extraction(document, extraction)
         result = DocumentOcr::DateExtractor.call(sources: file_bytes(document))
         extraction.update!(success_attributes(result))
@@ -40,7 +42,9 @@ module Candidates
         extraction.update!(failure_attributes(e))
         raise
       rescue DocumentOcr::PermanentError => e
-        extraction.update!(failure_attributes(e))
+        identity = e.identity if e.is_a?(DocumentOcr::NoDatesError)
+        extraction.update!(failure_attributes(e).merge(identity_check: identity))
+        AutomaticRejectionService.call(document:, identity:)
       end
 
       # The representative file first (combined PDF / passport page 1 / CNIC
@@ -64,6 +68,7 @@ module Candidates
           extracted_expires_on: result[:expires_on],
           confidence_issued_on: result[:confidence_issued_on],
           confidence_expires_on: result[:confidence_expires_on],
+          identity_check: result[:identity],
           extracted_at: Time.current
         }
       end

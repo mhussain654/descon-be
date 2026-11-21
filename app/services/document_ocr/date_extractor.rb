@@ -10,8 +10,10 @@ module DocumentOcr
   #
   # Usage: DocumentOcr::DateExtractor.call(sources:) where `sources` is an
   # Enumerable (ideally lazy) of file bytes, most representative file first.
-  # Raises PermanentError when no date could be read anywhere; TransientError
-  # (retryable provider trouble) is not swallowed.
+  # Raises PermanentError when no date could be read anywhere (a NoDatesError
+  # carrying the best IdentityMarkers result when the pages were read);
+  # TransientError (retryable provider trouble) is not swallowed. The result's
+  # `identity` is the best IdentityMarkers result over the pages read.
   class DateExtractor < ApplicationService
     MAX_ATTEMPTS = 3
     DATE_KEYS = %i[issued_on expires_on].freeze
@@ -29,9 +31,9 @@ module DocumentOcr
         result = merge(result, found) if found
         break if complete?(result)
       end
-      return result if DATE_KEYS.any? { |key| result[key] }
+      return result.merge(identity: @identity) if DATE_KEYS.any? { |key| result[key] }
 
-      raise(@last_error || PermanentError.new(NO_DATES_MESSAGE))
+      raise no_dates_error
     end
 
     private
@@ -39,10 +41,21 @@ module DocumentOcr
     # A page that cannot be read is skipped (the next page or file may be
     # readable); the last such error is raised only if nothing is found at all.
     def attempt(page)
-      @adapter.extract(bytes: page)
+      found = @adapter.extract(bytes: page)
+      @identity = IdentityMarkers.strongest(@identity, found[:identity])
+      found
     rescue PermanentError => e
+      @identity = IdentityMarkers.strongest(@identity, e.identity) if e.is_a?(NoDatesError)
       @last_error = e
       nil
+    end
+
+    # What was learnt of the pages is kept, even when the last page failed otherwise.
+    def no_dates_error
+      return NoDatesError.new(NO_DATES_MESSAGE, identity: @identity) if @identity
+      return @last_error if @last_error
+
+      NoDatesError.new(NO_DATES_MESSAGE)
     end
 
     def pages

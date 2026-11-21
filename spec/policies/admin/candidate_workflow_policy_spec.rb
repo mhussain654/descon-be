@@ -46,4 +46,14 @@ RSpec.describe Admin::CandidateWorkflowPolicy do
     expect(described_class.new(management, candidate).create_transition?).to be(false)
     expect(described_class.new(management, candidate).access?).to be(true)
   end
+
+  it 'lets document reviewers and workflow managers reject a boarding pass, and no one else' do
+    allowed = %w[admin hr mps].map { |role| described_class.new(create(:user, role:), candidate).reject_boarding_pass? }
+    refused = %w[finance management].map do |role|
+      described_class.new(create(:user, role:), candidate).reject_boarding_pass?
+    end
+
+    expect(allowed).to all(be(true))
+    expect(refused).to all(be(false))
+  end
 end

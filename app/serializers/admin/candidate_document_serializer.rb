@@ -44,7 +44,9 @@ module Admin
       {
         verified_at: document.verified_at&.utc&.iso8601,
         rejection_reason: document.rejection_reason,
-        reviewer: serialized_reviewer
+        reviewer: serialized_reviewer,
+        # The system rejected it as not looking like a CNIC/passport; staff may still approve it.
+        rejected_automatically: (true if document.rejected_automatically?)
       }.compact
     end
 

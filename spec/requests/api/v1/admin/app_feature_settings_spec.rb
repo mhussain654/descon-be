@@ -26,10 +26,12 @@ RSpec.describe 'API V1 App Feature Setting', type: :request do
       data = response.parsed_body.fetch('data')
       expect(data).to include('card_payment_enabled' => true, 'voucher_payment_enabled' => true,
                               'progress_sms_enabled' => true, 'automatic_calls_enabled' => true,
-                              'bulk_calls_enabled' => true, 'document_ocr_enabled' => true)
+                              'bulk_calls_enabled' => true, 'document_ocr_enabled' => true,
+                              # Rejecting uploads automatically starts off until a developer turns it on.
+                              'document_identity_check_enabled' => false)
       expect(data).not_to have_key('sms_messages')
       expect(data['server_ready'].keys).to match_array(%w[card_payment voucher_payment progress_sms automatic_calls
-                                                          bulk_calls document_ocr])
+                                                          bulk_calls document_ocr document_identity_check])
     end
 
     it 'forbids an admin: the feature switches are developer-only' do

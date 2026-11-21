@@ -69,8 +69,9 @@ RSpec.describe DocumentOcr::TextractAdapter do
 
       result = described_class.new(client:).extract(bytes: 'image-bytes')
 
+      # No printed text came back with the answers, so the page reads as having next to none.
       expect(result).to eq(issued_on: Date.new(2021, 12, 6), expires_on: Date.new(2031, 12, 6),
-                           confidence_issued_on: 96.4, confidence_expires_on: 95.1)
+                           confidence_issued_on: 96.4, confidence_expires_on: 95.1, identity: 'no_text')
       expect(client).to have_received(:analyze_document).with(
         document: { bytes: 'image-bytes' }, feature_types: ['QUERIES'],
         queries_config: { queries: described_class::QUERIES }
@@ -94,7 +95,7 @@ RSpec.describe DocumentOcr::TextractAdapter do
 
         expect(adapter_for(response).extract(bytes: 'x')).to eq(
           issued_on: Date.new(2023, 11, 13), expires_on: Date.new(2028, 11, 11),
-          confidence_issued_on: 97.0, confidence_expires_on: 99.0
+          confidence_issued_on: 97.0, confidence_expires_on: 99.0, identity: 'identity_document'
         )
       end
 
@@ -127,8 +128,20 @@ RSpec.describe DocumentOcr::TextractAdapter do
 
       result = adapter_for(response).extract(bytes: 'x')
 
-      expect(result.keys).to contain_exactly(:issued_on, :expires_on, :confidence_issued_on, :confidence_expires_on)
+      expect(result.keys).to contain_exactly(:issued_on, :expires_on, :confidence_issued_on, :confidence_expires_on,
+                                             :identity)
       expect(result.values.join).not_to match(/AHMED|KHAN|12345/)
+    end
+
+    it 'says what the page looked like when it finds no dates, so a photo that is not an ID can be told apart' do
+      receipt = response_with(line_block('CITY MART'), line_block('MILK 2 X 180'), line_block('TOTAL 360'))
+      selfie = response_with(line_block('ok'))
+      card = response_with(line_block('ISLAMIC REPUBLIC OF PAKISTAN'), line_block('NATIONAL IDENTITY CARD'))
+
+      { receipt => 'other_text', selfie => 'no_text', card => 'identity_document' }.each do |response, identity|
+        expect { adapter_for(response).extract(bytes: 'x') }
+          .to raise_error(DocumentOcr::NoDatesError) { |error| expect(error.identity).to eq(identity) }
+      end
     end
 
     it 'leaves one date nil when only the other was found' do
@@ -184,6 +197,29 @@ RSpec.describe DocumentOcr::TextractAdapter do
         expect(raised.message).not_to include('bad format', 'xyz789')
         expect(raised.message).to include('UnsupportedDocumentException')
       }
+    end
+  end
+
+  describe '#read_text' do
+    let(:queries) { [{ text: 'What is the seat number?', alias: 'SEAT' }] }
+
+    it 'returns the text lines and the answered queries for the caller to compare' do
+      client = instance_double(Aws::Textract::Client)
+      allow(client).to receive(:analyze_document)
+        .and_return(response_with(line_block('BOARDING PASS'), answer_blocks('SEAT', '23A'), unanswered_query('NAME')))
+
+      result = described_class.new(client:).read_text(bytes: 'photo', queries:)
+
+      expect(result).to eq(lines: ['BOARDING PASS'], answers: { 'SEAT' => '23A' })
+      expect(client).to have_received(:analyze_document)
+        .with(document: { bytes: 'photo' }, feature_types: ['QUERIES'], queries_config: { queries: })
+    end
+
+    it 'refuses when OCR is off' do
+      ENV['DOCUMENT_OCR_ENABLED'] = 'false'
+
+      expect { adapter_for(response_with).read_text(bytes: 'photo', queries:) }
+        .to raise_error(DocumentOcr::PermanentError)
     end
   end
 end

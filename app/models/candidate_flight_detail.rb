@@ -11,12 +11,34 @@ class CandidateFlightDetail < ApplicationRecord
   # for a candidate who had no signal at the airport.
   BOARDING_PASS_DAYS_BEFORE_DEPARTURE = 2
   BOARDING_PASS_DAYS_AFTER_DEPARTURE = 2
+  # A rejected boarding pass can be replaced for this many days after the
+  # rejection, even if the normal window has closed by then.
+  BOARDING_PASS_DAYS_AFTER_REJECTION = 2
+  # The automatic OCR check of an uploaded boarding pass against the booked flight
+  # (CandidateWorkflows::FlightDetails::BoardingPassCheckJob): `matched` (flight
+  # number, date and name found), `needs_review` (only some found), `not_boarding_pass`
+  # (neither the flight number nor the date found), `unavailable` (OCR is off or
+  # could not read it) or `pending`. nil for uploads made before the check existed.
+  BOARDING_PASS_CHECKS = %w[pending matched needs_review not_boarding_pass unavailable].freeze
+  # The checks under which an uploaded, unrejected boarding pass confirms departure
+  # once the flight's day has passed. Without OCR the upload alone counts, as before.
+  BOARDING_PASS_CONFIRMING_CHECKS = [nil, 'matched', 'unavailable'].freeze
+  # Where the candidate stands on departure, airport-board style, for a given Pakistan day:
+  # - departed: staff recorded the mobilization, or the flight's day has passed and the
+  #   candidate's boarding pass confirms it (proof they checked in; see
+  #   #boarding_pass_confirms_departure?);
+  # - departing_today: the flight is today and neither of those has happened yet;
+  # - scheduled: the flight is on a later day;
+  # - not_confirmed: the flight's day has passed with no confirming boarding pass and no mobilization,
+  #   so staff need to check whether the candidate flew.
+  DEPARTURE_STATUSES = %w[scheduled departing_today departed not_confirmed].freeze
 
   belongs_to :candidate_assignment
   belongs_to :candidate_stage_history
   belongs_to :mobilized_stage_history, class_name: 'CandidateStageHistory', optional: true
   belongs_to :recorded_by, class_name: 'User'
   belongs_to :mobilized_recorded_by, class_name: 'User', optional: true
+  belongs_to :boarding_pass_rejected_by, class_name: 'User', optional: true
   has_one_attached :ticket
   # The candidate's own photo of their boarding pass, uploaded from the app.
   has_one_attached :boarding_pass
@@ -26,6 +48,8 @@ class CandidateFlightDetail < ApplicationRecord
   validates :public_id, presence: true, uniqueness: true
   validates :airline, :flight_number, presence: true
   validates :flight_departure_at, presence: true
+  validates :boarding_pass_check, inclusion: { in: BOARDING_PASS_CHECKS }, allow_nil: true
+  validates :boarding_pass_rejection_reason, length: { maximum: 500 }
   validate :mobilization_fields_are_consistent
   validate :mobilized_on_is_not_before_flight_departure
   validate :mobilized_on_is_not_in_the_future
@@ -37,6 +61,14 @@ class CandidateFlightDetail < ApplicationRecord
   # Whether the candidate has uploaded their boarding pass photo.
   def boarding_pass_uploaded? = boarding_pass_uploaded_at.present?
 
+  # Whether staff rejected the uploaded boarding pass (cleared by the next upload).
+  def boarding_pass_rejected? = boarding_pass_rejected_at.present?
+
+  # Whether the uploaded boarding pass is good enough to show the candidate checked in.
+  def boarding_pass_confirms_departure?
+    boarding_pass_uploaded? && !boarding_pass_rejected? && BOARDING_PASS_CONFIRMING_CHECKS.include?(boarding_pass_check)
+  end
+
   # Today's date in Pakistan.
   def self.pakistan_today(now = Time.current) = now.in_time_zone(PAKISTAN_TIME_ZONE).to_date
 
@@ -44,7 +76,16 @@ class CandidateFlightDetail < ApplicationRecord
   def departure_date_in_pakistan = flight_departure_at.in_time_zone(PAKISTAN_TIME_ZONE).to_date
 
   def boarding_pass_upload_opens_on = departure_date_in_pakistan - BOARDING_PASS_DAYS_BEFORE_DEPARTURE
-  def boarding_pass_upload_closes_on = departure_date_in_pakistan + BOARDING_PASS_DAYS_AFTER_DEPARTURE
+
+  # Normally 2 days after the flight's day; later when a rejection leaves the candidate
+  # needing time to upload a valid one.
+  def boarding_pass_upload_closes_on
+    closes_on = departure_date_in_pakistan + BOARDING_PASS_DAYS_AFTER_DEPARTURE
+    return closes_on unless boarding_pass_rejected?
+
+    rejected_on = boarding_pass_rejected_at.in_time_zone(PAKISTAN_TIME_ZONE).to_date
+    [closes_on, rejected_on + BOARDING_PASS_DAYS_AFTER_REJECTION].max
+  end
 
   # `not_yet_open`, `open` or `closed`, for the given Pakistan day.
   def boarding_pass_upload_state(today = self.class.pakistan_today)
@@ -52,6 +93,16 @@ class CandidateFlightDetail < ApplicationRecord
     return 'closed' if today > boarding_pass_upload_closes_on
 
     'open'
+  end
+
+  # One of DEPARTURE_STATUSES, for the given Pakistan day.
+  def departure_status(today = self.class.pakistan_today)
+    flight_day = departure_date_in_pakistan
+    return 'departed' if (mobilized_on.present? && mobilized_on <= today) ||
+                         (flight_day < today && boarding_pass_confirms_departure?)
+    return 'departing_today' if flight_day == today
+
+    flight_day > today ? 'scheduled' : 'not_confirmed'
   end
 
   private

@@ -34,8 +34,17 @@ module CandidateWorkflows
         mobilized_on: @detail.mobilized_on&.iso8601,
         mobilized: @detail.mobilized?,
         boarding_pass_uploaded_at: @detail.boarding_pass_uploaded_at&.utc&.iso8601,
-        boarding_pass_upload: boarding_pass_upload_window
+        boarding_pass_upload: boarding_pass_upload_window,
+        boarding_pass_rejection: boarding_pass_rejection
       }
+    end
+
+    # Why staff rejected the uploaded boarding pass, so the candidate can upload
+    # a valid one; nil when it isn't rejected.
+    def boarding_pass_rejection
+      return unless @detail.boarding_pass_rejected?
+
+      { rejected_at: @detail.boarding_pass_rejected_at.utc.iso8601, reason: @detail.boarding_pass_rejection_reason }
     end
 
     # When the candidate may upload their boarding pass (Pakistan days), and

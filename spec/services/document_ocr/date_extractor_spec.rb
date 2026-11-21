@@ -5,13 +5,15 @@ require 'rails_helper'
 RSpec.describe DocumentOcr::DateExtractor do
   let(:both) do
     { issued_on: Date.new(2021, 12, 6), expires_on: Date.new(2031, 12, 6),
-      confidence_issued_on: 96.0, confidence_expires_on: 95.0 }
+      confidence_issued_on: 96.0, confidence_expires_on: 95.0, identity: 'identity_document' }
   end
   let(:issued_only) do
-    { issued_on: Date.new(2021, 12, 6), expires_on: nil, confidence_issued_on: 96.0, confidence_expires_on: nil }
+    { issued_on: Date.new(2021, 12, 6), expires_on: nil, confidence_issued_on: 96.0, confidence_expires_on: nil,
+      identity: 'identity_document' }
   end
   let(:expires_only) do
-    { issued_on: nil, expires_on: Date.new(2031, 12, 6), confidence_issued_on: nil, confidence_expires_on: 94.0 }
+    { issued_on: nil, expires_on: Date.new(2031, 12, 6), confidence_issued_on: nil, confidence_expires_on: 94.0,
+      identity: 'other_text' }
   end
   let(:adapter) { instance_double(DocumentOcr::TextractAdapter) }
 
@@ -48,8 +50,18 @@ RSpec.describe DocumentOcr::DateExtractor do
 
     expect(extract(['front'.b, 'back'.b])).to eq(
       issued_on: Date.new(2021, 12, 6), expires_on: Date.new(2031, 12, 6),
-      confidence_issued_on: 96.0, confidence_expires_on: 94.0
+      confidence_issued_on: 96.0, confidence_expires_on: 94.0, identity: 'identity_document'
     )
+  end
+
+  it "reports the best page's ID markers when no page had dates, for the automatic rejection" do
+    allow(adapter).to receive(:extract).with(bytes: 'front'.b)
+                                       .and_raise(DocumentOcr::NoDatesError.new('none', identity: 'no_text'))
+    allow(adapter).to receive(:extract).with(bytes: 'back'.b)
+                                       .and_raise(DocumentOcr::NoDatesError.new('none', identity: 'other_text'))
+
+    expect { extract(['front'.b, 'back'.b]) }
+      .to raise_error(DocumentOcr::NoDatesError) { |error| expect(error.identity).to eq('other_text') }
   end
 
   it 'reads each page of a two-page PDF as its own single-page document' do

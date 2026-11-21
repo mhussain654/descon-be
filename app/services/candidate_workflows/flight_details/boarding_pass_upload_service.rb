@@ -8,7 +8,9 @@ module CandidateWorkflows
     # the file gets a neutral name, and a new photo replaces the previous one.
     # Uploading doesn't move the candidate's stage: staff still confirm
     # mobilization themselves. Only accepted inside the upload window, from 2
-    # days before the flight's day to 2 days after (CandidateFlightDetail).
+    # days before the flight's day to 2 days after, or later after a staff
+    # rejection (CandidateFlightDetail). A new photo clears any rejection and is
+    # checked again with OCR (BoardingPassCheckJob).
     class BoardingPassUploadService < ApplicationService
       ALLOWED_CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
       MAX_FILE_BYTES = ENV.fetch('CANDIDATE_BOARDING_PASS_MAX_BYTES', 10.megabytes).to_i
@@ -24,14 +26,7 @@ module CandidateWorkflows
         detail = flight_detail
         validate_upload_window!(detail)
         validate_upload!
-        content_type = detected_content_type
-
-        CandidateFlightDetail.transaction do
-          detail.boarding_pass.attach(io: rewound_tempfile, filename: filename_for(content_type), content_type:)
-          detail.update!(boarding_pass_uploaded_at: Time.current)
-          create_audit_event!(detail)
-        end
-
+        store!(detail, detected_content_type)
         detail
       end
 
@@ -39,6 +34,27 @@ module CandidateWorkflows
 
       def flight_detail
         @candidate.current_assignment&.candidate_flight_detail || raise(NotFoundError)
+      end
+
+      def store!(detail, content_type)
+        CandidateFlightDetail.transaction do
+          detail.boarding_pass.attach(io: rewound_tempfile, filename: filename_for(content_type), content_type:)
+          detail.update!(new_upload_attributes)
+          create_audit_event!(detail)
+          enqueue_check(detail)
+        end
+      end
+
+      def enqueue_check(detail)
+        BoardingPassCheckJob.perform_later(detail.id, detail.boarding_pass_uploaded_at.utc.iso8601(6))
+      end
+
+      def new_upload_attributes
+        {
+          boarding_pass_uploaded_at: Time.current, boarding_pass_check: 'pending', boarding_pass_check_signals: {},
+          boarding_pass_seat: nil, boarding_pass_checked_at: nil, boarding_pass_rejected_at: nil,
+          boarding_pass_rejected_by: nil, boarding_pass_rejection_reason: nil
+        }
       end
 
       def validate_upload_window!(detail)

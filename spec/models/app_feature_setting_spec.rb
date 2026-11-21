@@ -3,10 +3,12 @@
 require 'rails_helper'
 
 RSpec.describe AppFeatureSetting do
-  it 'starts with every switch on' do
+  it 'starts with every switch on, except rejecting non-ID uploads, which a developer turns on' do
     setting = described_class.current
+    switches = described_class::SWITCHES - %i[document_identity_check]
 
-    expect(described_class::SWITCHES.map { |switch| setting.public_send(:"#{switch}_enabled") }).to all(be(true))
+    expect(switches.map { |switch| setting.public_send(:"#{switch}_enabled") }).to all(be(true))
+    expect(setting.document_identity_check_enabled).to be(false)
   end
 
   it 'keeps a single row' do

@@ -7,7 +7,7 @@
 # obtain the row.
 class AppFeatureSetting < ApplicationRecord
   SWITCHES = %i[
-    card_payment voucher_payment progress_sms automatic_calls bulk_calls document_ocr
+    card_payment voucher_payment progress_sms automatic_calls bulk_calls document_ocr document_identity_check
   ].freeze
 
   belongs_to :updated_by, class_name: 'User', optional: true
@@ -17,7 +17,8 @@ class AppFeatureSetting < ApplicationRecord
 
   before_destroy :raise_readonly_record
 
-  # Returns the singleton row, creating it (every switch on) on first access
+  # Returns the singleton row, creating it (every switch on, except
+  # document_identity_check, which rejects uploads and so starts off) on first access
   # anywhere. Race-safe: a concurrent first access loses the unique-index race
   # and simply reads back the winner's row instead.
   def self.current

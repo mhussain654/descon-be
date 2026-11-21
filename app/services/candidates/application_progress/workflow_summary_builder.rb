@@ -45,15 +45,21 @@ module Candidates
 
       # The latest medical result and visa decision, so the candidate's journey
       # can show a step as Rejected (unfit, visa refused) and not only as done,
-      # and whether the boarding pass is uploaded, which completes Mobilize Status.
+      # and whether the boarding pass is uploaded (and not rejected by staff),
+      # which completes Mobilize Status.
       def outcomes
         return { medical: nil, visa: nil, boarding_pass: nil } if @assignment.blank?
 
         {
           medical: @assignment.candidate_medical_results.order(:id).last&.outcome_code,
           visa: @assignment.candidate_visa_decisions.order(:id).last&.outcome_code,
-          boarding_pass: @assignment.candidate_flight_detail&.boarding_pass_uploaded? ? 'uploaded' : nil
+          boarding_pass: boarding_pass_accepted? ? 'uploaded' : nil
         }
+      end
+
+      def boarding_pass_accepted?
+        detail = @assignment.candidate_flight_detail
+        detail.present? && detail.boarding_pass_uploaded? && !detail.boarding_pass_rejected?
       end
 
       def documents_summary

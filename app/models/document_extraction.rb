@@ -9,6 +9,7 @@ class DocumentExtraction < ApplicationRecord
 
   validates :provider, presence: true
   validates :status, presence: true, inclusion: { in: STATUSES }
+  validates :identity_check, inclusion: { in: DocumentOcr::IdentityMarkers::RESULTS }, allow_nil: true
 
   scope :latest_first, -> { order(created_at: :desc) }
 

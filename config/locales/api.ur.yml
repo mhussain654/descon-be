@@ -4,6 +4,10 @@ ur:
       messages:
         record_invalid: "توثیق ناکام ہوگئی: %{errors}"
   api:
+    document_identity_check:
+      other_text: "یہ آپ کا %{document} نہیں لگتا۔ اپنے %{document} کی صاف تصویر اپ لوڈ کریں۔"
+      no_text: "ہم یہ تصویر نہیں پڑھ سکے۔ اپنے %{document} کی صاف تصویر اپ لوڈ کریں، جس میں پورا کارڈ نظر آئے اور چمک نہ ہو۔"
+    boarding_pass_document_name: "بورڈنگ پاس"
     training_videos:
       invalid_file: "۲۵۰ ایم بی تک کی MP4 ویڈیو اپ لوڈ کریں۔"
     messages:
@@ -117,6 +121,9 @@ ur:
       flight_mobilization_date_in_future: "موبلائزیشن کی تاریخ مستقبل کی نہیں ہو سکتی۔ امیدوار کی روانگی کے بعد درج کریں۔"
       boarding_pass_upload_not_open: "آپ اپنا بورڈنگ پاس %{date} سے اپ لوڈ کر سکتے ہیں، یعنی پرواز سے 2 دن پہلے۔"
       boarding_pass_upload_closed: "بورڈنگ پاس اپ لوڈ کرنے کی مدت ختم ہو گئی ہے۔ اگر آپ کو اب بھی بھیجنا ہے تو ڈیسکون ایم پی ایس سے رابطہ کریں۔"
+      boarding_pass_not_uploaded: "امیدوار نے بورڈنگ پاس اپ لوڈ نہیں کیا۔"
+      boarding_pass_already_rejected: "یہ بورڈنگ پاس پہلے ہی مسترد ہو چکا ہے۔ امیدوار کے نیا بورڈنگ پاس اپ لوڈ کرنے کا انتظار کریں۔"
+      boarding_pass_rejection_reason_too_long: "مسترد کرنے کی وجہ 500 حروف یا اس سے کم رکھیں۔"
       candidate_bank_detail_not_found: "امیدوار کے بینک کی تفصیلات نہیں ملیں۔"
       candidate_profile_photo_not_found: "اس امیدوار کی جائزے کے لیے کوئی پروفائل تصویر نہیں ہے۔"
       bank_detail_proof_access_forbidden: "آپ کو اس بینک پروف تک رسائی کی اجازت نہیں ہے۔"

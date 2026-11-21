@@ -69,6 +69,20 @@ RSpec.describe 'API V1 Candidate Boarding Pass', type: :request do
         get '/api/v1/candidate/application_progress', headers: candidate_headers
 
         expect(response.parsed_body.dig('data', 'workflow', 'outcomes', 'boarding_pass')).to eq('uploaded')
+
+        detail.reload.update!(boarding_pass_rejected_at: Time.current, boarding_pass_rejected_by: create(:user),
+                              boarding_pass_rejection_reason: 'Not a boarding pass')
+        get '/api/v1/candidate/application_progress', headers: candidate_headers
+        expect(response.parsed_body.dig('data', 'workflow', 'outcomes', 'boarding_pass')).to be_nil
+      end
+
+      it 'queues the OCR check of the new photo' do
+        expect { upload(fixture_upload('test.jpg', 'image/jpeg')) }
+          .to have_enqueued_job(CandidateWorkflows::FlightDetails::BoardingPassCheckJob)
+          .with(detail.id, satisfy { |uploaded_at|
+                             uploaded_at == detail.reload.boarding_pass_uploaded_at.utc.iso8601(6)
+                           })
+        expect(detail.boarding_pass_check).to eq('pending')
       end
 
       it 'rejects a non-image by its real content, whatever the client declares' do

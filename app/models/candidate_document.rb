@@ -110,6 +110,7 @@ class CandidateDocument < ApplicationRecord
 
   # Uploaded/under-review documents must not yet carry any verification or rejection data.
   def require_unreviewed_state
+    require_absent(:rejected_automatically, rejected_automatically?)
     require_absent(:verified_by, verified_by_id)
     require_absent(:verified_at, verified_at)
     require_absent(:rejection_reason, rejection_reason)
@@ -117,14 +118,17 @@ class CandidateDocument < ApplicationRecord
 
   # Verified documents must record who verified them and when, with no rejection reason.
   def require_verified_state
+    require_absent(:rejected_automatically, rejected_automatically?)
     require_present(:verified_by, verified_by_id)
     require_present(:verified_at, verified_at)
     require_absent(:rejection_reason, rejection_reason)
   end
 
-  # Rejected documents must record who reviewed them, when, and why they were rejected.
+  # Rejected documents must record who reviewed them (none when the system rejected
+  # a photo that isn't an ID; Candidates::Documents::AutomaticRejectionService),
+  # when, and why they were rejected.
   def require_rejected_state
-    require_present(:verified_by, verified_by_id)
+    require_present(:verified_by, verified_by_id) unless rejected_automatically?
     require_present(:verified_at, verified_at)
     require_present(:rejection_reason, rejection_reason)
   end

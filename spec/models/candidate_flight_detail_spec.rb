@@ -78,4 +78,58 @@ RSpec.describe CandidateFlightDetail, type: :model do
       expect(detail).to be_valid
     end
   end
+
+  describe '#departure_status' do
+    let(:today) { Date.new(2026, 11, 21) }
+
+    # 12:00 on the given day in Pakistan.
+    def flight_on(day, **attributes)
+      build(:candidate_flight_detail, flight_departure_at: Time.utc(day.year, day.month, day.day, 7, 0), **attributes)
+    end
+
+    it 'is scheduled before the flight day and departing today on it' do
+      expect(flight_on(today + 1).departure_status(today)).to eq('scheduled')
+      expect(flight_on(today, boarding_pass_uploaded_at: Time.current).departure_status(today)).to eq('departing_today')
+    end
+
+    it 'is departed once staff record the mobilization, or once the flight day has passed with a boarding pass' do
+      expect(flight_on(today, mobilized_on: today).departure_status(today)).to eq('departed')
+      expect(flight_on(today - 1, boarding_pass_uploaded_at: Time.current).departure_status(today)).to eq('departed')
+    end
+
+    it 'is not confirmed once the flight day has passed with neither' do
+      expect(flight_on(today - 1).departure_status(today)).to eq('not_confirmed')
+    end
+
+    it 'only counts a boarding pass OCR matched (or could not check) that staff did not reject' do
+      uploaded = { boarding_pass_uploaded_at: Time.current }
+      { 'matched' => 'departed', 'unavailable' => 'departed', nil => 'departed',
+        'needs_review' => 'not_confirmed', 'not_boarding_pass' => 'not_confirmed', 'pending' => 'not_confirmed' }
+        .each do |check, status|
+          flight = flight_on(today - 1, **uploaded, boarding_pass_check: check)
+          expect(flight.departure_status(today)).to eq(status), check.inspect
+        end
+      rejected = flight_on(today - 1, **uploaded, boarding_pass_check: 'matched',
+                                                  boarding_pass_rejected_at: Time.current)
+      expect(rejected.departure_status(today)).to eq('not_confirmed')
+    end
+
+    it 'ignores a mobilization date that is still ahead (recorded before that was refused)' do
+      expect(flight_on(today + 3, mobilized_on: today + 6).departure_status(today)).to eq('scheduled')
+    end
+  end
+
+  describe '#boarding_pass_upload_closes_on' do
+    let(:detail) { build(:candidate_flight_detail, flight_departure_at: Time.utc(2026, 11, 20, 7, 0)) }
+
+    it 'is 2 days after the flight day, or 2 days after a later rejection' do
+      expect(detail.boarding_pass_upload_closes_on).to eq(Date.new(2026, 11, 22))
+
+      detail.boarding_pass_rejected_at = Time.utc(2026, 11, 18, 7, 0)
+      expect(detail.boarding_pass_upload_closes_on).to eq(Date.new(2026, 11, 22))
+
+      detail.boarding_pass_rejected_at = Time.utc(2026, 11, 25, 20, 0) # 26 Nov in Pakistan
+      expect(detail.boarding_pass_upload_closes_on).to eq(Date.new(2026, 11, 28))
+    end
+  end
 end

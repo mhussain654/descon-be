@@ -11,7 +11,8 @@ module CandidateWorkflows
 
       FlightDetailSerializer.new(@detail).as_json.merge(
         recorded_by: serialized_actor(@detail.recorded_by),
-        mobilized_recorded_by: serialized_actor(@detail.mobilized_recorded_by)
+        mobilized_recorded_by: serialized_actor(@detail.mobilized_recorded_by),
+        boarding_pass_check: BoardingPassCheckSerializer.new(@detail).as_json
       )
     end
 

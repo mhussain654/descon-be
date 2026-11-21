@@ -45,6 +45,7 @@ module Admin
       def apply_decision!(document)
         validate_decision!
         validate_rejection_reason! if rejected?
+        @overrode_automatic_rejection = document.rejected_automatically?
 
         document.update!(decision_attributes)
       end
@@ -98,12 +99,13 @@ module Admin
           submission_public_id: document.candidate_document_submission.public_id,
           document_public_id: document.public_id,
           requirement_code: document.submission_item.requirement_code
-        }
+        }.merge(@overrode_automatic_rejection ? { overrode_automatic_rejection: true } : {})
       end
 
       def decision_attributes
         {
           rejection_reason: rejected? ? @rejection_reason : nil,
+          rejected_automatically: false,
           status_code: @decision,
           verified_at: Time.current,
           verified_by: @actor
@@ -125,6 +127,7 @@ module Admin
                    .lock
                    .find_by(id: @document.id)
         raise CandidateDocumentNotFoundError if document.blank?
+        return document if overriding_automatic_rejection?(document)
         raise DocumentAlreadyReviewedError if %w[verified rejected].include?(document.status_code)
 
         raise DocumentNotPendingReviewError unless document.status_code == 'under_verification'
@@ -134,6 +137,12 @@ module Admin
 
       def rejected?
         @decision == 'rejected'
+      end
+
+      # Staff may still approve a document the system rejected as not looking like
+      # an ID (Candidates::Documents::AutomaticRejectionService) when they disagree.
+      def overriding_automatic_rejection?(document)
+        @decision == 'verified' && document.status_code == 'rejected' && document.rejected_automatically?
       end
 
       def validate_decision!

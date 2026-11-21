@@ -29,8 +29,10 @@ module Admin
       {
         ticket_attached: @detail.ticket.attached?,
         boarding_pass_uploaded_at: @detail.boarding_pass_uploaded_at&.utc&.iso8601,
+        boarding_pass_check: CandidateWorkflows::BoardingPassCheckSerializer.new(@detail).as_json,
+        boarding_pass_rejected: @detail.boarding_pass_rejected?,
         mobilized_on: @detail.mobilized_on&.iso8601,
-        status: @detail.mobilized? ? 'mobilized' : 'awaiting_departure'
+        status: @detail.departure_status
       }
     end
 

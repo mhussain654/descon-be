@@ -88,4 +88,33 @@ RSpec.describe Candidates::Documents::ExtractDatesJob, type: :job do
     expect(extraction.status).to eq('failed')
     expect(extraction.error_message).to eq('unsupported document')
   end
+
+  describe 'the automatic rejection of a photo that is not an ID' do
+    before { AppFeatureSetting.current.update!(document_identity_check_enabled: true) }
+
+    it 'records what the page looked like and rejects it when OCR found no dates and no ID markers' do
+      document = passport_document
+      adapter = instance_double(DocumentOcr::TextractAdapter)
+      allow(adapter).to receive(:extract).and_raise(DocumentOcr::NoDatesError.new('none', identity: 'other_text'))
+      allow(DocumentOcr::TextractAdapter).to receive(:new).and_return(adapter)
+
+      described_class.perform_now(document.id)
+
+      expect(document.document_extractions.sole).to have_attributes(status: 'failed', identity_check: 'other_text')
+      expect(document.reload).to have_attributes(status_code: 'rejected', rejected_automatically: true)
+    end
+
+    it 'keeps a real ID whose dates were read' do
+      document = passport_document
+      result = { issued_on: Date.new(2020, 1, 1), expires_on: nil, confidence_issued_on: 90.0,
+                 confidence_expires_on: nil, identity: 'other_text' }
+      allow(DocumentOcr::TextractAdapter).to receive(:new)
+        .and_return(instance_double(DocumentOcr::TextractAdapter, extract: result))
+
+      described_class.perform_now(document.id)
+
+      expect(document.document_extractions.sole.identity_check).to eq('other_text')
+      expect(document.reload.status_code).to eq('uploaded')
+    end
+  end
 end

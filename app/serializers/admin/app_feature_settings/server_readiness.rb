@@ -13,7 +13,8 @@ module Admin
           progress_sms: sendpk_ready?,
           automatic_calls: ai_calls.outbound_enabled?,
           bulk_calls: ai_calls.outbound_enabled? && ai_calls.robocall?,
-          document_ocr: ::DocumentOcr::TextractAdapter.enabled?
+          document_ocr: ::DocumentOcr::TextractAdapter.enabled?,
+          document_identity_check: ::DocumentOcr::TextractAdapter.enabled?
         }
       end
 

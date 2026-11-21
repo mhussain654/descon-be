@@ -30,6 +30,7 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
 
   describe 'GET /api/v1/admin/mobilizations' do
     it 'lists only candidates with a recorded flight, with their flight, ticket, boarding pass and status' do
+      travel_to Time.utc(2026, 11, 21, 6, 0)
       detail = flight_for('Booked Candidate', departure: Time.utc(2026, 12, 1, 9, 30), uploaded: true)
       create(:candidate_assignment, candidate: create(:candidate, full_name: 'No Flight Yet'))
 
@@ -41,7 +42,7 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
         'id' => detail.public_id, 'airline' => 'Qatar Airways', 'flight_number' => 'QR-123', 'sector' => 'LHE-DOH',
         'flight_departure_at' => '2026-12-01T09:30:00Z', 'ticket_attached' => false,
         'boarding_pass_uploaded_at' => detail.boarding_pass_uploaded_at.utc.iso8601,
-        'mobilized_on' => nil, 'status' => 'awaiting_departure'
+        'mobilized_on' => nil, 'status' => 'scheduled'
       )
       expect(row.fetch('candidate')).to include('id' => detail.candidate_assignment.candidate.public_id,
                                                 'full_name' => 'Booked Candidate',
@@ -50,6 +51,7 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
     end
 
     it "shows one day's flights in Pakistan time, filterable by boarding pass, with counts for each option" do
+      travel_to Time.utc(2026, 11, 20, 3, 0) # 08:00 on 20 Nov in Pakistan
       # 02:00 on 20 Nov in Pakistan is 21:00 UTC on 19 Nov.
       flight_for('Early Uploaded', departure: Time.utc(2026, 11, 19, 21, 0), uploaded: true)
       flight_for('Evening Missing', departure: Time.utc(2026, 11, 20, 18, 30))
@@ -61,7 +63,7 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
       expect(names).to eq(['Early Uploaded', 'Evening Missing'])
       expect(response.parsed_body.dig('meta', 'summary')).to eq(
         'total' => 2, 'boarding_pass' => { 'uploaded' => 1, 'missing' => 1 },
-        'status' => { 'awaiting_departure' => 2, 'mobilized' => 0 }
+        'status' => { 'scheduled' => 0, 'departing_today' => 2, 'departed' => 0, 'not_confirmed' => 0 }
       )
 
       get path, params: { filter: { flight_date: '2026-11-20', boarding_pass: 'missing' } }, headers: headers
@@ -69,17 +71,56 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
       expect(response.parsed_body.dig('meta', 'summary', 'boarding_pass')).to eq('uploaded' => 1, 'missing' => 1)
     end
 
-    it 'filters by mobilization status and reports the mobilized date' do
-      flight_for('Still Waiting')
-      mobilized = flight_for('Already Gone', departure: Time.utc(2026, 11, 10, 8, 0), mobilized: true)
-      headers = staff_headers
+    describe 'the departure status' do
+      # 10:00 on 21 Nov in Pakistan.
+      before { travel_to Time.utc(2026, 11, 21, 5, 0) }
 
-      get path, params: { filter: { status: 'mobilized' } }, headers: headers
+      let!(:flights) do
+        {
+          later: flight_for('Flies Tomorrow', departure: Time.utc(2026, 11, 21, 19, 30)), # 00:30 on 22 Nov PKT
+          today: flight_for('Flies Tonight', departure: Time.utc(2026, 11, 21, 18, 30), uploaded: true),
+          confirmed: flight_for('Confirmed By Staff', departure: Time.utc(2026, 11, 10, 8, 0), mobilized: true),
+          checked_in: flight_for('Boarding Pass After Flight', departure: Time.utc(2026, 11, 20, 3, 0), uploaded: true),
+          unknown: flight_for('No Word Since', departure: Time.utc(2026, 11, 20, 18, 0)), # 23:00 on 20 Nov PKT
+          doubtful: needs_review(flight_for('Photo Needs A Look', departure: Time.utc(2026, 11, 20, 3, 0),
+                                                                  uploaded: true))
+        }
+      end
+      let(:headers) { staff_headers }
 
-      expect(names).to eq(['Already Gone'])
-      expect(response.parsed_body.dig('data', 0)).to include('status' => 'mobilized',
-                                                             'mobilized_on' => mobilized.mobilized_on.iso8601)
-      expect(response.parsed_body.dig('meta', 'summary', 'status')).to eq('awaiting_departure' => 1, 'mobilized' => 1)
+      def needs_review(detail)
+        detail.tap { |record| record.update!(boarding_pass_check: 'needs_review', boarding_pass_seat: '12F') }
+      end
+
+      def statuses
+        response.parsed_body.fetch('data').to_h { |row| [row.dig('candidate', 'full_name'), row.fetch('status')] }
+      end
+
+      it 'follows the flight day in Pakistan, and counts a past flight with a boarding pass as departed' do
+        get path, headers: headers
+
+        expect(statuses).to eq(
+          'Flies Tomorrow' => 'scheduled', 'Flies Tonight' => 'departing_today',
+          'Confirmed By Staff' => 'departed', 'Boarding Pass After Flight' => 'departed',
+          'No Word Since' => 'not_confirmed', 'Photo Needs A Look' => 'not_confirmed'
+        )
+        doubtful_row = response.parsed_body['data'].find { |row| row['id'] == flights[:doubtful].public_id }
+        expect(doubtful_row).to include('boarding_pass_rejected' => false)
+        expect(doubtful_row['boarding_pass_check']).to include('result' => 'needs_review', 'seat' => '12F')
+        confirmed_row = response.parsed_body['data'].find { |row| row['id'] == flights[:confirmed].public_id }
+        expect(confirmed_row).to include('mobilized_on' => flights[:confirmed].mobilized_on.iso8601)
+        expect(response.parsed_body.dig('meta', 'summary', 'status'))
+          .to eq('scheduled' => 1, 'departing_today' => 1, 'departed' => 2, 'not_confirmed' => 2)
+      end
+
+      it 'filters by each status with the same rule' do
+        { 'scheduled' => ['Flies Tomorrow'], 'departing_today' => ['Flies Tonight'],
+          'departed' => ['Boarding Pass After Flight', 'Confirmed By Staff'],
+          'not_confirmed' => ['No Word Since', 'Photo Needs A Look'] }.each do |status, expected|
+          get path, params: { filter: { status: }, sort: 'departure_at' }, headers: headers
+          expect(names).to match_array(expected), "filter[status]=#{status}"
+        end
+      end
     end
 
     it 'searches by candidate name, reference number or flight number' do

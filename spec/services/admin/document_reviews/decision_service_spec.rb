@@ -128,6 +128,29 @@ RSpec.describe Admin::DocumentReviews::DecisionService do
     expect(document.candidate_assignment.candidate.reload.status_code).to eq('campaign_nomination')
   end
 
+  it 'lets staff approve a document the system rejected as not an ID, and audits the override' do
+    actor = create(:user, role: 'hr')
+    document = reviewable_document
+    document.update!(status_code: 'rejected', rejected_automatically: true, verified_at: Time.current,
+                     rejection_reason: 'This does not look like your passport.')
+
+    described_class.call(actor:, decision: 'verified', document:, request_id: 'review-override-1')
+
+    expect(document.reload).to have_attributes(status_code: 'verified', rejected_automatically: false,
+                                               rejection_reason: nil, verified_by: actor)
+    expect(AuditEvent.find_by!(action_code: 'candidate_document_verified').metadata)
+      .to include('overrode_automatic_rejection' => true)
+  end
+
+  it 'still refuses to decide again on a document staff rejected themselves' do
+    document = reviewable_document
+    document.update!(status_code: 'rejected', verified_by: create(:user), verified_at: Time.current,
+                     rejection_reason: 'Wrong document uploaded.')
+
+    expect { described_class.call(actor: create(:user, role: 'hr'), decision: 'verified', document:, request_id: 'x') }
+      .to raise_error(DocumentAlreadyReviewedError)
+  end
+
   it 'applies HR-confirmed issued_on/expires_on when verifying' do
     actor = create(:user, role: 'admin')
     document = reviewable_document
