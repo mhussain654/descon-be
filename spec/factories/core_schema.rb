@@ -318,7 +318,9 @@ FactoryBot.define do
     flight_departure_at { 1.week.from_now.change(hour: 14, min: 30) }
     mobilized_on { nil }
 
+    # Mobilization is recorded after the flight, never in the future.
     trait :mobilized do
+      flight_departure_at { 1.week.ago.change(hour: 14, min: 30) }
       mobilized_on { flight_departure_at.to_date + 1.day }
       mobilized_stage_history do
         association(:candidate_stage_history, candidate_assignment:,

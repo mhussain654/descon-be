@@ -243,6 +243,30 @@ RSpec.describe 'API V1 Admin Candidate Flight Details', type: :request do
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_flight_detail.mobilized_on')
   end
 
+  it 'rejects a mobilization date later than today, since mobilization is recorded after the flight' do
+    actor = create(:user, role: 'mps')
+    candidate, assignment = candidate_ready_to_fly
+    token = access_token_for(actor)
+
+    post "/api/v1/admin/candidates/#{candidate.public_id}/flight_detail",
+         params: { candidate_flight_detail: flight_detail_payload },
+         headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'flight-for-future-mobilize' }
+
+    patch "/api/v1/admin/candidates/#{candidate.public_id}/flight_detail",
+          params: {
+            candidate_flight_detail: {
+              mobilized_on: (CandidateFlightDetail.pakistan_today + 1).iso8601,
+              expected_current_stage_code: 'flight_details_uploaded'
+            }
+          },
+          headers: { 'Authorization' => "Bearer #{token}", 'Idempotency-Key' => 'mobilize-future-date' }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('candidate_flight_detail.mobilized_on')
+    expect(response.parsed_body.dig('errors', 0, 'message')).to include("can't be in the future")
+    expect(assignment.reload.current_workflow_stage.code).to eq('flight_details_uploaded')
+  end
+
   it 'requires manage_workflow permission and blocks stale mobilization state' do
     actor = create(:user, role: 'finance')
     candidate, = candidate_ready_to_fly

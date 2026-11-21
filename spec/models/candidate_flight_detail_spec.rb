@@ -62,4 +62,20 @@ RSpec.describe CandidateFlightDetail, type: :model do
 
     expect(detail).to be_valid
   end
+
+  describe 'mobilization date' do
+    it 'cannot be later than today in Pakistan' do
+      detail = create(:candidate_flight_detail, flight_departure_at: 3.days.ago)
+      history = create(:candidate_stage_history, candidate_assignment: detail.candidate_assignment,
+                                                 to_workflow_stage: WorkflowStage.find_by!(code: 'mobilized'))
+
+      detail.assign_attributes(mobilized_on: described_class.pakistan_today + 1, mobilized_stage_history: history,
+                               mobilized_recorded_by: create(:user))
+      expect(detail).not_to be_valid
+      expect(detail.errors[:mobilized_on]).to be_present
+
+      detail.mobilized_on = described_class.pakistan_today
+      expect(detail).to be_valid
+    end
+  end
 end

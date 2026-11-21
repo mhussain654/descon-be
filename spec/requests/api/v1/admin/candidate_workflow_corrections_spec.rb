@@ -208,8 +208,9 @@ RSpec.describe 'API V1 Admin Candidate Workflow Corrections', type: :request do
     it 'is locked once the candidate is mobilized' do
       mobilized_entry = create(:candidate_stage_history, candidate_assignment: assignment,
                                                          to_workflow_stage: stage('mobilized'))
-      detail.update!(mobilized_on: detail.flight_departure_at.to_date + 1, mobilized_stage_history: mobilized_entry,
-                     mobilized_recorded_by: developer)
+      # A mobilization is recorded after the flight, so the flight is in the past here.
+      detail.update!(flight_departure_at: 3.days.ago, mobilized_on: 2.days.ago.to_date,
+                     mobilized_stage_history: mobilized_entry, mobilized_recorded_by: developer)
 
       correct(:flight_detail, { reason: 'x', airline: 'PIA', flight_number: 'PK-1', flight_date: '2026-12-10T14:30' })
 

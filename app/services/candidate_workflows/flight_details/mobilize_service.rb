@@ -104,7 +104,12 @@ module CandidateWorkflows
       end
 
       def validate_date_sequence!(detail)
-        return if Date.iso8601(@params.mobilized_on) >= detail.flight_departure_at.to_date
+        mobilized_on = Date.iso8601(@params.mobilized_on)
+        if mobilized_on > CandidateFlightDetail.pakistan_today
+          raise_validation_error('candidate_flight_detail.mobilized_on',
+                                 'api.errors.flight_mobilization_date_in_future')
+        end
+        return if mobilized_on >= detail.flight_departure_at.to_date
 
         raise_validation_error('candidate_flight_detail.mobilized_on', 'api.errors.flight_mobilization_date_invalid')
       end

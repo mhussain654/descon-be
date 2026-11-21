@@ -14,6 +14,9 @@ RSpec.describe 'API V1 Candidate Boarding Pass', type: :request do
                                   current_workflow_stage: WorkflowStage.find_by!(code: 'flight_details_uploaded'))
   end
 
+  # Inside the upload window (2 days before the flight's day to 2 days after).
+  let(:flight_tomorrow) { 1.day.from_now.change(hour: 14, min: 30) }
+
   def candidate_headers(for_candidate = candidate)
     candidate_session = create(:candidate_session, candidate: for_candidate)
     { 'Authorization' => "Bearer #{CandidateAuthentication::TokenIssuer.call(candidate: for_candidate, candidate_session:)}" }
@@ -31,7 +34,9 @@ RSpec.describe 'API V1 Candidate Boarding Pass', type: :request do
 
   describe 'PUT /api/v1/candidate/flight_detail/boarding_pass' do
     context 'when the flight is recorded' do
-      let!(:detail) { create(:candidate_flight_detail, candidate_assignment: assignment) }
+      let!(:detail) do
+        create(:candidate_flight_detail, candidate_assignment: assignment, flight_departure_at: flight_tomorrow)
+      end
 
       it 'stores the photo under a neutral name, records when, and audits it' do
         freeze_time do
@@ -108,11 +113,60 @@ RSpec.describe 'API V1 Candidate Boarding Pass', type: :request do
     end
   end
 
+  describe 'the upload window (Pakistan days, 2 before to 2 after the flight)' do
+    # A flight at 02:00 Pakistan time on 27 Nov is still 26 Nov in UTC; the window follows Pakistan's day.
+    let!(:detail) do
+      create(:candidate_flight_detail, candidate_assignment: assignment,
+                                       flight_departure_at: Time.find_zone!('Asia/Karachi').local(2026, 11, 27, 2, 0))
+    end
+
+    def upload_on(time)
+      travel_to(time) { upload(fixture_upload('test.jpg', 'image/jpeg')) }
+    end
+
+    def pakistan(day, hour)
+      Time.find_zone!('Asia/Karachi').local(2026, 11, day, hour, 0)
+    end
+
+    it 'refuses an upload before the window opens and says from when' do
+      upload_on(pakistan(24, 23))
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('boarding_pass_upload_not_open')
+      expect(response.parsed_body.dig('errors', 0, 'message')).to include('25/11/2026')
+      expect(detail.reload.boarding_pass).not_to be_attached
+    end
+
+    it 'accepts uploads from the first to the last day of the window' do
+      upload_on(pakistan(25, 0))
+      expect(response).to have_http_status(:ok)
+
+      upload_on(pakistan(29, 23))
+      expect(response).to have_http_status(:ok)
+    end
+
+    it 'refuses an upload after the window closes' do
+      upload_on(pakistan(30, 0))
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('boarding_pass_upload_closed')
+    end
+
+    it 'tells the app the window and where today falls' do
+      travel_to(pakistan(24, 12)) { get '/api/v1/candidate/flight_detail', headers: candidate_headers }
+
+      expect(response.parsed_body.dig('data', 'boarding_pass_upload'))
+        .to eq('opens_on' => '2026-11-25', 'closes_on' => '2026-11-29', 'state' => 'not_yet_open')
+    end
+  end
+
   describe 'POST /api/v1/candidate/flight_detail/boarding_pass_access' do
     let(:path) { '/api/v1/candidate/flight_detail/boarding_pass_access' }
 
     context 'when the flight is recorded' do
-      before { create(:candidate_flight_detail, candidate_assignment: assignment) }
+      before do
+        create(:candidate_flight_detail, candidate_assignment: assignment, flight_departure_at: flight_tomorrow)
+      end
 
       it 'gives the candidate a short-lived link to their own photo and audits it as theirs' do
         upload(fixture_upload('test.jpg', 'image/jpeg'))
@@ -171,7 +225,7 @@ RSpec.describe 'API V1 Candidate Boarding Pass', type: :request do
   describe 'POST /api/v1/admin/candidates/:candidate_id/flight_detail/boarding_pass_access' do
     let(:path) { "/api/v1/admin/candidates/#{candidate.public_id}/flight_detail/boarding_pass_access" }
 
-    before { create(:candidate_flight_detail, candidate_assignment: assignment) }
+    before { create(:candidate_flight_detail, candidate_assignment: assignment, flight_departure_at: flight_tomorrow) }
 
     it 'gives staff a short-lived link to the uploaded photo and audits it' do
       upload(fixture_upload('test.jpg', 'image/jpeg'))

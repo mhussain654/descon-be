@@ -2617,6 +2617,26 @@ components:
             - type: string
               format: date-time
             - type: 'null'
+        boarding_pass_upload:
+          type: object
+          description: >-
+            When the candidate may upload their boarding pass: from 2 days
+            before the flight's day to 2 days after it, as Pakistan calendar
+            days. `state` is where today (in Pakistan) falls, so clients
+            needn't trust the device clock.
+          properties:
+            opens_on:
+              type: string
+              format: date
+              example: '2026-09-18'
+            closes_on:
+              type: string
+              format: date
+              example: '2026-09-22'
+            state:
+              type: string
+              enum: [not_yet_open, open, closed]
+          required: [opens_on, closes_on, state]
       required: [id, airline, flight_number, sector, flight_departure_at, ticket_attached, mobilized_on, mobilized]
     AdminFlightDetail:
       allOf:
@@ -2692,7 +2712,10 @@ components:
             mobilized_on:
               type: string
               format: date
-              description: Must be on or after the recorded flight date.
+              description: >-
+                Must be on or after the recorded flight date, and not later
+                than today in Pakistan (mobilization is recorded after the
+                candidate has flown).
             expected_current_stage_code:
               type: string
               description: Required for stale-state protection.
@@ -8375,8 +8398,9 @@ paths:
           description: Idempotency conflict or stale expected_current_stage_code
         '422':
           description: >-
-            Missing or invalid mobilized_on, mobilized_on before the flight date,
-            already mobilized, or missing expected_current_stage_code
+            Missing or invalid mobilized_on, mobilized_on before the flight date
+            or later than today (Pakistan), already mobilized, or missing
+            expected_current_stage_code
           content:
             application/json:
               schema:
@@ -8389,6 +8413,14 @@ paths:
                         field: candidate_flight_detail.mobilized_on
                         message: The mobilization date must be on or after the flight date.
                     request_id: 92a1d41e-d4aa-4bf3-9838-c0af7080f363
+                    timestamp: '2026-09-21T09:00:00Z'
+                futureDate:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: candidate_flight_detail.mobilized_on
+                        message: The mobilization date can't be in the future. Record it once the candidate has flown.
+                    request_id: 5d0c9a31-7e2b-4f68-b1a4-3c9e8f2d6a10
                     timestamp: '2026-09-21T09:00:00Z'
   /api/v1/admin/candidates/{candidate_id}/flight_detail/ticket_access:
     post:
@@ -8558,10 +8590,12 @@ paths:
         Uploads a JPEG, PNG or WebP photo (detected from the file's content,
         not the declared type), up to 10 MiB by default
         (CANDIDATE_BOARDING_PASS_MAX_BYTES), onto the candidate's recorded
-        flight. Always acts on the authenticated candidate. Replaces any earlier
-        photo, records when it was uploaded and an audit event
-        (`candidate_boarding_pass_uploaded`). Does not change the candidate's
-        workflow stage. Returns the updated flight detail.
+        flight. Always acts on the authenticated candidate. Only accepted inside
+        the upload window, from 2 days before the flight's day to 2 days after
+        it (Pakistan calendar days; see `boarding_pass_upload` on the flight
+        detail). Replaces any earlier photo, records when it was uploaded and
+        an audit event (`candidate_boarding_pass_uploaded`). Does not change
+        the candidate's workflow stage. Returns the updated flight detail.
       security:
         - candidateBearerAuth: []
       parameters:
@@ -8603,6 +8637,10 @@ paths:
                       mobilized_on: null
                       mobilized: false
                       boarding_pass_uploaded_at: '2026-09-20T11:05:00Z'
+                      boarding_pass_upload:
+                        opens_on: '2026-09-18'
+                        closes_on: '2026-09-22'
+                        state: open
                     meta:
                       request_id: 6a3e1d2c-0b8f-4e57-9a61-2f4c8d0b1e77
                       timestamp: '2026-09-20T11:05:00Z'
@@ -8615,7 +8653,9 @@ paths:
           description: Staff have not recorded the candidate's flight yet
         '422':
           description: >-
-            `missing_file`, `empty_file`, `file_too_large`, or
+            `boarding_pass_upload_not_open` (before the window; the message
+            gives the opening date) or `boarding_pass_upload_closed` (after
+            it); otherwise `missing_file`, `empty_file`, `file_too_large`, or
             `unsupported_file_type` (not a JPEG/PNG/WebP image), each with
             field `boarding_pass.photo`
   /api/v1/candidate/flight_detail/boarding_pass_access:

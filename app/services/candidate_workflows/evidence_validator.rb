@@ -44,12 +44,26 @@ module CandidateWorkflows
       send(validator, field_name, value) if validator
     end
 
+    # Evidence dates that record something that has already happened.
+    PAST_ONLY_DATE_FIELDS = %w[mobilized_on].freeze
+    private_constant :PAST_ONLY_DATE_FIELDS
+
     def validate_iso_date!(field_name, value)
-      Date.iso8601(value.to_s)
+      date = Date.iso8601(value.to_s)
+      validate_not_in_future!(field_name, date) if PAST_ONLY_DATE_FIELDS.include?(field_name)
     rescue ArgumentError
       raise ValidationError.new(
         field: evidence_field(field_name),
         message: I18n.t('api.errors.workflow_transition_evidence_date_invalid')
+      )
+    end
+
+    def validate_not_in_future!(field_name, date)
+      return if date <= CandidateFlightDetail.pakistan_today
+
+      raise ValidationError.new(
+        field: evidence_field(field_name),
+        message: I18n.t('api.errors.flight_mobilization_date_in_future')
       )
     end
 

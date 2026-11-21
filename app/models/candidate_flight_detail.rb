@@ -3,6 +3,15 @@
 # The travel itinerary booked for a candidate's assignment, plus the eventual record of when
 # and by whom the candidate was actually mobilized (departed).
 class CandidateFlightDetail < ApplicationRecord
+  # Flight days and the mobilization date are Pakistan calendar days.
+  PAKISTAN_TIME_ZONE = 'Asia/Karachi'
+  # The boarding pass can be uploaded from 2 days before the flight's day to
+  # 2 days after it (client decision, Nov 2026): boarding passes are issued at
+  # check-in, so anything earlier can't be one, and the days after leave time
+  # for a candidate who had no signal at the airport.
+  BOARDING_PASS_DAYS_BEFORE_DEPARTURE = 2
+  BOARDING_PASS_DAYS_AFTER_DEPARTURE = 2
+
   belongs_to :candidate_assignment
   belongs_to :candidate_stage_history
   belongs_to :mobilized_stage_history, class_name: 'CandidateStageHistory', optional: true
@@ -19,6 +28,7 @@ class CandidateFlightDetail < ApplicationRecord
   validates :flight_departure_at, presence: true
   validate :mobilization_fields_are_consistent
   validate :mobilized_on_is_not_before_flight_departure
+  validate :mobilized_on_is_not_in_the_future
   validate :core_fields_are_unchanged_once_mobilized, on: :update
 
   # Whether the candidate has actually departed/been mobilized on this flight.
@@ -26,6 +36,23 @@ class CandidateFlightDetail < ApplicationRecord
 
   # Whether the candidate has uploaded their boarding pass photo.
   def boarding_pass_uploaded? = boarding_pass_uploaded_at.present?
+
+  # Today's date in Pakistan.
+  def self.pakistan_today(now = Time.current) = now.in_time_zone(PAKISTAN_TIME_ZONE).to_date
+
+  # The flight's day in Pakistan, whatever time zone it was stored in.
+  def departure_date_in_pakistan = flight_departure_at.in_time_zone(PAKISTAN_TIME_ZONE).to_date
+
+  def boarding_pass_upload_opens_on = departure_date_in_pakistan - BOARDING_PASS_DAYS_BEFORE_DEPARTURE
+  def boarding_pass_upload_closes_on = departure_date_in_pakistan + BOARDING_PASS_DAYS_AFTER_DEPARTURE
+
+  # `not_yet_open`, `open` or `closed`, for the given Pakistan day.
+  def boarding_pass_upload_state(today = self.class.pakistan_today)
+    return 'not_yet_open' if today < boarding_pass_upload_opens_on
+    return 'closed' if today > boarding_pass_upload_closes_on
+
+    'open'
+  end
 
   private
 
@@ -62,6 +89,14 @@ class CandidateFlightDetail < ApplicationRecord
   def mobilized_on_is_not_before_flight_departure
     return if mobilized_on.blank? || flight_departure_at.blank?
     return if mobilized_on >= flight_departure_at.to_date
+
+    errors.add(:mobilized_on, :invalid)
+  end
+
+  # Mobilization is recorded once the candidate has flown, so its date can't be later than today in Pakistan.
+  def mobilized_on_is_not_in_the_future
+    return if mobilized_on.blank? || !mobilized_on_changed?
+    return if mobilized_on <= self.class.pakistan_today
 
     errors.add(:mobilized_on, :invalid)
   end

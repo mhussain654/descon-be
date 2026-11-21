@@ -7,7 +7,8 @@ module CandidateWorkflows
     # flight. The type is sniffed from the content, not taken from the client,
     # the file gets a neutral name, and a new photo replaces the previous one.
     # Uploading doesn't move the candidate's stage: staff still confirm
-    # mobilization themselves.
+    # mobilization themselves. Only accepted inside the upload window, from 2
+    # days before the flight's day to 2 days after (CandidateFlightDetail).
     class BoardingPassUploadService < ApplicationService
       ALLOWED_CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
       MAX_FILE_BYTES = ENV.fetch('CANDIDATE_BOARDING_PASS_MAX_BYTES', 10.megabytes).to_i
@@ -21,6 +22,7 @@ module CandidateWorkflows
 
       def call
         detail = flight_detail
+        validate_upload_window!(detail)
         validate_upload!
         content_type = detected_content_type
 
@@ -37,6 +39,13 @@ module CandidateWorkflows
 
       def flight_detail
         @candidate.current_assignment&.candidate_flight_detail || raise(NotFoundError)
+      end
+
+      def validate_upload_window!(detail)
+        state = detail.boarding_pass_upload_state
+        opens_on = detail.boarding_pass_upload_opens_on
+        raise BoardingPassUploadNotOpenError.new(opens_on:) if state == 'not_yet_open'
+        raise BoardingPassUploadClosedError if state == 'closed'
       end
 
       def validate_upload!

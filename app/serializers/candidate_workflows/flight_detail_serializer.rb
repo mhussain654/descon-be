@@ -33,7 +33,18 @@ module CandidateWorkflows
       {
         mobilized_on: @detail.mobilized_on&.iso8601,
         mobilized: @detail.mobilized?,
-        boarding_pass_uploaded_at: @detail.boarding_pass_uploaded_at&.utc&.iso8601
+        boarding_pass_uploaded_at: @detail.boarding_pass_uploaded_at&.utc&.iso8601,
+        boarding_pass_upload: boarding_pass_upload_window
+      }
+    end
+
+    # When the candidate may upload their boarding pass (Pakistan days), and
+    # where today falls, so the app needn't trust the phone's clock.
+    def boarding_pass_upload_window
+      {
+        opens_on: @detail.boarding_pass_upload_opens_on.iso8601,
+        closes_on: @detail.boarding_pass_upload_closes_on.iso8601,
+        state: @detail.boarding_pass_upload_state
       }
     end
   end
