@@ -20,7 +20,7 @@ EnvironmentFile=/home/deploy/descon-mps-api/shared/.env
 Environment=RAILS_ENV=production
 Environment=RBENV_ROOT=/home/deploy/.rbenv
 # Keep in step with .ruby-version.
-Environment=RBENV_VERSION=3.4.7
+Environment=RBENV_VERSION=3.4.13
 # PostgreSQL 17 client tools first: Backups::CreateDatabaseBackupJob runs pg_dump.
 Environment=PATH=/usr/lib/postgresql/17/bin:/home/deploy/.rbenv/shims:/home/deploy/.rbenv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=MALLOC_ARENA_MAX=2

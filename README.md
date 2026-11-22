@@ -35,7 +35,7 @@ bundle exec rails db:seed
 bundle exec rails server
 ```
 
-The API runs locally without Docker on Ruby `3.4.7`, Rails `8.1.3.1`, and PostgreSQL `14+`.
+The API runs locally without Docker on Ruby `3.4.13`, Rails `8.1.3.1`, and PostgreSQL `14+`.
 
 Before `db:prepare`, make sure PostgreSQL is running locally and that the `DB_*` credentials in `.env`
 match a local role with permission to create databases.
@@ -154,7 +154,7 @@ excluded from the application bundle on EC2.
 
 ### Deploy from your machine
 
-Use Ruby 3.4.7, Bundler, a committed checkout, and an SSH key authorized for
+Use Ruby 3.4.13, Bundler, a committed checkout, and an SSH key authorized for
 `deploy@52.221.51.231`. Your IP must be allowed by the EC2 SSH security
 group, and you must trust the instance host key. Configure the key in
 `~/.ssh/config` or your SSH agent. The server's repository keys, production

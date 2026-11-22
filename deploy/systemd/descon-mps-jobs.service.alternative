@@ -25,7 +25,7 @@ WorkingDirectory=/home/deploy/descon-mps-api/current
 EnvironmentFile=/home/deploy/descon-mps-api/shared/.env
 Environment=RAILS_ENV=production
 Environment=RBENV_ROOT=/home/deploy/.rbenv
-Environment=RBENV_VERSION=3.4.7
+Environment=RBENV_VERSION=3.4.13
 Environment=PATH=/usr/lib/postgresql/17/bin:/home/deploy/.rbenv/shims:/home/deploy/.rbenv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=MALLOC_ARENA_MAX=2
 # `fork` is Solid Queue's default and isolates workers from the dispatcher;

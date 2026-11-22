@@ -80,7 +80,7 @@ or listed under [Open decisions](#12-open-decisions).
 
 Already done (per the infrastructure handoff, **not** re-verified from this
 repository): AWS account/region, EC2 instance + Elastic IP, security group,
-`deploy` user, rbenv Ruby 3.4.7, nvm Node, Nginx installed, RDS and its four
+`deploy` user, rbenv Ruby 3.4.13, nvm Node, Nginx installed, RDS and its four
 databases, S3 bucket + instance role policy, GitHub deploy keys.
 
 Everything below is still to do. Commands are run on the instance as a user
@@ -342,7 +342,7 @@ sudo -iu deploy
 cd /home/deploy/descon-mps-api/current
 read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD
 /home/deploy/descon-mps-api/shared/bin/with-env env RAILS_ENV=production \
-  RBENV_ROOT=$HOME/.rbenv RBENV_VERSION=3.4.7 PATH=$HOME/.rbenv/bin:$PATH \
+  RBENV_ROOT=$HOME/.rbenv RBENV_VERSION=3.4.13 PATH=$HOME/.rbenv/bin:$PATH \
   rbenv exec bundle exec rails runner \
   "User.create!(email: 'admin@your-domain', password: ENV.fetch('ADMIN_PASSWORD'), role: 'admin', active: true)"
 unset ADMIN_PASSWORD
@@ -357,6 +357,27 @@ the role (`admin hr mps finance management`); `staff_state` defaults to
 ```bash
 bundle exec cap production deploy:rollback       # previous release, restarted and health-checked
 ```
+
+### Upgrading Ruby
+
+Deploys use rbenv's shims, which read `.ruby-version` from the release, and the
+API unit pins `RBENV_VERSION`. Before deploying a commit that changes
+`.ruby-version` (3.4.7 to 3.4.13 in Nov 2026, for CVE-2026-132825), install the
+new Ruby and refresh the unit on the instance, or the release fails to bundle and
+the service fails to start:
+
+```bash
+sudo -iu deploy bash -c 'export RBENV_ROOT=$HOME/.rbenv PATH=$HOME/.rbenv/bin:$HOME/.rbenv/shims:$PATH
+  git -C "$(rbenv root)/plugins/ruby-build" pull   # ruby-build must know 3.4.13 (adjust if it was installed another way)
+  rbenv install 3.4.13
+  RBENV_VERSION=3.4.13 gem install bundler -v 4.0.0 --no-document'
+# From a checkout of the new commit:
+sudo install -m 0644 deploy/systemd/descon-mps-api.service /etc/systemd/system/descon-mps-api.service
+sudo systemctl daemon-reload
+```
+
+Then deploy as usual. The old Ruby can be removed (`rbenv uninstall 3.4.7`) once
+the new release is healthy.
 
 ### Logs and health
 
@@ -576,7 +597,7 @@ stays at Enrolled and can't reach the fee step.
    an existing staff user's email:
 
    ```bash
-   /home/deploy/descon-mps-api/shared/bin/with-env env RAILS_ENV=production RBENV_ROOT=$HOME/.rbenv RBENV_VERSION=3.4.7 PATH=$HOME/.rbenv/bin:$PATH rbenv exec bundle exec rails "store_review:create_candidate[admin@example.com]"
+   /home/deploy/descon-mps-api/shared/bin/with-env env RAILS_ENV=production RBENV_ROOT=$HOME/.rbenv RBENV_VERSION=3.4.13 PATH=$HOME/.rbenv/bin:$PATH rbenv exec bundle exec rails "store_review:create_candidate[admin@example.com]"
    ```
 
    It creates "Store Reviewer" on the Qatar flow at Enrolled and is safe to run
