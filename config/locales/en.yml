@@ -63,6 +63,7 @@ en:
       access_communications_menu: "Access the communications menu"
       correct_workflow_details: "Correct medical, QVC and flight details"
       view_job_logs: "View background job logs"
+      record_manual_payment: "Mark a candidate's fee as paid"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"

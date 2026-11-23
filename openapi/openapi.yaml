@@ -216,6 +216,8 @@ components:
           format: date-time
         pagination:
           $ref: '#/components/schemas/PaginationMeta'
+        paid_total:
+          $ref: '#/components/schemas/AdminPaymentPaidTotal'
         summary:
           description: >-
             Present only on list endpoints that document one of these
@@ -285,6 +287,25 @@ components:
         except `filter[direction]`.
       items:
         $ref: '#/components/schemas/AdminSummaryCount'
+    AdminPaymentPaidTotal:
+      type: object
+      description: >-
+        Present only on the admin payments index. The paid fees under every active filter
+        (including `filter[status]`): how many candidates paid, how many payments, and the
+        amount per currency. With `filter[paid_from]` and `filter[paid_to]` set to today it
+        shows who paid today.
+      required: [candidate_count, payment_count, amounts]
+      properties:
+        candidate_count: { type: integer, minimum: 0 }
+        payment_count: { type: integer, minimum: 0 }
+        amounts:
+          type: array
+          items:
+            type: object
+            required: [currency_code, amount]
+            properties:
+              currency_code: { type: string, example: PKR }
+              amount: { type: string, example: '53600.00' }
     AdminPaymentStatusSummary:
       type: array
       description: >-
@@ -6111,6 +6132,19 @@ paths:
           in: query
           description: Departure day in Pakistan time; a value that is not YYYY-MM-DD returns 400 (`filter.flight_date`).
           schema: { type: string, format: date, example: '2026-11-20' }
+        - name: filter[mobilized_from]
+          in: query
+          description: >-
+            Departed candidates who left on or after this day (Pakistan time): the mobilization
+            date staff recorded or, for a departure the boarding pass confirmed, the flight's day.
+            A value that is not YYYY-MM-DD returns 400 (`filter.mobilized_from`).
+          schema: { type: string, format: date, example: '2026-11-23' }
+        - name: filter[mobilized_to]
+          in: query
+          description: >-
+            Departed candidates who left on or before this day. A malformed value, or one earlier
+            than `filter[mobilized_from]`, returns 400 (`filter.mobilized_to`).
+          schema: { type: string, format: date, example: '2026-11-23' }
         - name: filter[boarding_pass]
           in: query
           schema: { type: string, enum: [uploaded, missing] }
@@ -8617,6 +8651,109 @@ paths:
           description: Flight detail not found
         '422':
           description: "`document_attachment_missing`: the candidate has not uploaded a boarding pass yet"
+  /api/v1/admin/candidates/{candidate_id}/manual_payment:
+    post:
+      summary: Mark the candidate's fee paid by hand (developers only)
+      description: >-
+        Developer only (`record_manual_payment`). For a fee KuickPay took that the system never
+        recorded (the voucher settlement job missed it, or the card result never arrived). Only
+        for a candidate at Fee Pending who has not paid yet, otherwise 422
+        (`manual_payment_not_allowed`). Marks the candidate's open voucher or card checkout paid,
+        or records a `manual` payment for the current fee when there is none, with the KuickPay
+        reference, the paid day (Pakistan time; today records the current time, an earlier day
+        midday), who recorded it and why. Writes a `payment_marked_paid` payment event and a
+        `candidate_payment_marked_paid` audit event, and moves the candidate to Fee Paid as a
+        provider-confirmed payment would. A later KuickPay result for that payment is ignored.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                manual_payment:
+                  type: object
+                  properties:
+                    reference:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                      description: KuickPay transaction or voucher reference; must not be on another payment.
+                    paid_on:
+                      type: string
+                      format: date
+                      description: Day the fee was paid, Pakistan time; not in the future.
+                    reason:
+                      type: string
+                      minLength: 1
+                      maxLength: 500
+                  required: [reference, paid_on, reason]
+              required: [manual_payment]
+            examples:
+              paidAtKuickPay:
+                value:
+                  manual_payment:
+                    reference: '788895'
+                    paid_on: '2026-11-23'
+                    reason: Paid at KuickPay; the settlement job did not pick it up.
+      responses:
+        '201':
+          description: Marked paid; returns the payment as a transaction-list row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                markedPaid:
+                  value:
+                    data:
+                      id: 2b2f5c9b-7f9a-4e2f-9c9e-8e6c2b6a1a11
+                      candidate:
+                        id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
+                        full_name: Ahmed Ali
+                        masked_cnic: 42101-*******-1
+                        reference_number: DES-001001
+                      payment_type_code: onboarding_fee
+                      status: paid
+                      amount: '1500.0'
+                      currency_code: PKR
+                      provider: kuickpay_voucher
+                      external_reference: '788895'
+                      voucher_number: '0000811111'
+                      reconciliation_state: clean
+                      paid_at: '2026-11-23T07:00:00Z'
+                      created_at: '2026-11-20T10:00:00Z'
+                      updated_at: '2026-11-23T07:00:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-23T07:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks record_manual_payment), or inactive
+        '404':
+          description: Candidate not found or not visible to this staff member
+        '422':
+          description: >-
+            `manual_payment_not_allowed` (not at Fee Pending, no current assignment, or already
+            paid), or `validation_failed` for `manual_payment.reference` (missing, too long or
+            already used), `manual_payment.paid_on` (malformed or in the future) or
+            `manual_payment.reason` (missing or too long)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
   /api/v1/admin/candidates/{candidate_id}/flight_detail/boarding_pass_rejection:
     post:
       summary: Reject the candidate's boarding pass photo as not a valid boarding pass
@@ -9835,6 +9972,7 @@ paths:
         (never flagged), `open` (at least one unresolved finding), or `resolved` (every
         finding on this payment has been resolved). `meta.summary` returns a zero-filled
         count per payment status, scoped by every active filter except `filter[status]`.
+        `meta.paid_total` totals the paid fees under every active filter.
       security:
         - bearerAuth: []
       parameters:
@@ -9867,6 +10005,18 @@ paths:
         - name: filter[created_to]
           in: query
           schema: { type: string, format: date }
+        - name: filter[paid_from]
+          in: query
+          description: >-
+            Payments paid on or after this day, a calendar day in Pakistan time (Asia/Karachi).
+            A value that is not YYYY-MM-DD returns 400 (`filter.paid_from`).
+          schema: { type: string, format: date, example: '2026-11-23' }
+        - name: filter[paid_to]
+          in: query
+          description: >-
+            Payments paid on or before this day (Pakistan time). A malformed value, or one earlier
+            than `filter[paid_from]`, returns 400 (`filter.paid_to`).
+          schema: { type: string, format: date, example: '2026-11-23' }
         - name: filter[reconciliation_state]
           in: query
           schema: { type: string, enum: [open, resolved, clean] }
@@ -9927,6 +10077,12 @@ paths:
                           count: 0
                         - code: cancelled
                           count: 0
+                      paid_total:
+                        candidate_count: 1
+                        payment_count: 1
+                        amounts:
+                          - currency_code: PKR
+                            amount: '1500.00'
                     errors: []
         '400':
           description: Unsupported filter or sort parameter

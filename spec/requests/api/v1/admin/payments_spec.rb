@@ -113,6 +113,54 @@ RSpec.describe 'API V1 Admin Payments', type: :request do
       )
     end
 
+    it 'filters by the day the fee was paid (Pakistan time) and totals the paid fees under the filters' do
+      finance = create(:user, role: 'finance')
+      travel_to Time.utc(2026, 11, 23, 7, 0) do # 12:00 on 23 Nov in Pakistan
+        early = payment_for(full_name: 'Paid After Midnight', paid_at: Time.utc(2026, 11, 22, 19, 30)) # 00:30 PKT
+        noon = payment_for(full_name: 'Paid At Noon', amount: 26_800, paid_at: Time.utc(2026, 11, 23, 7, 0))
+        payment_for(full_name: 'Paid Yesterday', paid_at: Time.utc(2026, 11, 22, 18, 30)) # 23:30 PKT on 22 Nov
+        payment_for(full_name: 'Still Pending', status_code: 'checkout_pending', paid_at: nil)
+
+        get '/api/v1/admin/payments', params: { filter: { paid_from: '2026-11-23', paid_to: '2026-11-23' } },
+                                      headers: auth_headers(finance)
+
+        expect(response.parsed_body['data'].pluck('id')).to contain_exactly(early.public_id, noon.public_id)
+        expect(response.parsed_body.dig('meta', 'paid_total')).to eq(
+          'candidate_count' => 2, 'payment_count' => 2,
+          'amounts' => [{ 'currency_code' => 'PKR', 'amount' => '28300.00' }]
+        )
+      end
+    end
+
+    it 'totals every paid fee when no paid date is chosen, and none when nothing matches' do
+      finance = create(:user, role: 'finance')
+      payment_for(status_code: 'paid')
+      payment_for(status_code: 'failed', paid_at: nil)
+
+      get '/api/v1/admin/payments', headers: auth_headers(finance)
+      expect(response.parsed_body.dig('meta', 'paid_total'))
+        .to eq('candidate_count' => 1, 'payment_count' => 1,
+               'amounts' => [{ 'currency_code' => 'PKR', 'amount' => '1500.00' }])
+
+      get '/api/v1/admin/payments', params: { search: 'nobody-matches' }, headers: auth_headers(finance)
+      expect(response.parsed_body.dig('meta', 'paid_total'))
+        .to eq('candidate_count' => 0, 'payment_count' => 0, 'amounts' => [])
+    end
+
+    it 'rejects a malformed or reversed paid date range' do
+      finance = create(:user, role: 'finance')
+      headers = auth_headers(finance)
+
+      get '/api/v1/admin/payments', params: { filter: { paid_from: '23/11/2026' } }, headers: headers
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.paid_from')
+
+      get '/api/v1/admin/payments', params: { filter: { paid_from: '2026-11-23', paid_to: '2026-11-22' } },
+                                    headers: headers
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.paid_to')
+    end
+
     it 'searches by candidate name' do
       finance = create(:user, role: 'finance')
       match = payment_for(full_name: 'Distinctive Name')

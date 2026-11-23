@@ -7,6 +7,7 @@ module Payments
     ACTION_CODES = {
       checkout_initiated: 'candidate_payment_checkout_initiated',
       paid: 'candidate_payment_paid',
+      marked_paid: 'candidate_payment_marked_paid',
       failed: 'candidate_payment_failed',
       cancelled: 'candidate_payment_cancelled'
     }.freeze

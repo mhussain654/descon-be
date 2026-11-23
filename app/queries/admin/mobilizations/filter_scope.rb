@@ -7,11 +7,25 @@ module Admin
     class FilterScope
       BOARDING_PASS_STATES = %w[uploaded missing].freeze
       STATUS_STATES = CandidateFlightDetail::DEPARTURE_STATUSES
+      MOBILIZED_DATE_FILTERS = %w[mobilized_from mobilized_to].freeze
       # Candidates fly out of Pakistan, so a flight date is a calendar day in
       # Pakistan time, not UTC (a 02:00 PKT departure is 21:00 UTC the day before).
       FLIGHT_DATE_TIME_ZONE = 'Asia/Karachi'
 
       def self.call(scope, name, value) = new(scope).apply(name, value)
+
+      def self.date(value, name)
+        Date.iso8601(value.to_s.strip)
+      rescue Date::Error
+        raise InvalidQueryParameterError.new(field: "filter.#{name}")
+      end
+
+      # Rejects a malformed mobilized day, or a `mobilized_to` before `mobilized_from`.
+      def self.validate_mobilized_range!(values)
+        from = date(values['mobilized_from'], 'mobilized_from') if values['mobilized_from'].present?
+        to = date(values['mobilized_to'], 'mobilized_to') if values['mobilized_to'].present?
+        raise InvalidQueryParameterError.new(field: 'filter.mobilized_to') if from && to && from > to
+      end
 
       def initialize(scope)
         @scope = scope
@@ -20,6 +34,7 @@ module Admin
       def apply(name, value)
         case name
         when 'flight_date' then flight_date(value)
+        when *MOBILIZED_DATE_FILTERS then mobilized(name, value)
         when 'country_code' then country(value)
         when *RegisteredDateFilter::NAMES
           @scope.where(candidates: { created_at: RegisteredDateFilter.range(name, value) })
@@ -43,6 +58,16 @@ module Admin
                                               .local(date.year, date.month, date.day).all_day)
       rescue Date::Error
         raise InvalidQueryParameterError.new(field: 'filter.flight_date')
+      end
+
+      # The day the candidate left: the mobilization date staff recorded or, for
+      # a departure the boarding pass confirmed, the flight's day.
+      def mobilized(name, value)
+        day = self.class.date(value, name)
+        start = Time.find_zone!(FLIGHT_DATE_TIME_ZONE).local(day.year, day.month, day.day)
+        on, at = name == 'mobilized_from' ? [day.., start..] : [..day, ..start.end_of_day]
+        @scope.where(id: departed.select(:id))
+              .and(@scope.where(mobilized_on: on).or(@scope.where(mobilized_on: nil, flight_departure_at: at)))
       end
 
       def country(code)

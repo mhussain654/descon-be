@@ -17,7 +17,7 @@ module Api
           render_collection(
             data: payments.map { |payment| ::Admin::Payments::PaymentSummarySerializer.new(payment).as_json },
             pagination: query.pagination,
-            meta: { applied_filters: query.applied_filters, summary: query.summary }
+            meta: { applied_filters: query.applied_filters, summary: query.summary, paid_total: query.paid_total }
           )
         end
 

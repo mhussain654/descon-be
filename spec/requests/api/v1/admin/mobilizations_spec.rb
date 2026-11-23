@@ -121,6 +121,29 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
           expect(names).to match_array(expected), "filter[status]=#{status}"
         end
       end
+
+      it 'filters by the day the candidate left: the recorded date, or the flight day a boarding pass confirms' do
+        { %w[2026-11-11 2026-11-11] => ['Confirmed By Staff'],
+          %w[2026-11-20 2026-11-20] => ['Boarding Pass After Flight'],
+          ['2026-11-12', nil] => ['Boarding Pass After Flight'],
+          [nil, '2026-11-19'] => ['Confirmed By Staff'],
+          %w[2026-11-21 2026-11-21] => [] }.each do |(from, to), expected|
+          get path, params: { filter: { mobilized_from: from, mobilized_to: to }.compact }, headers: headers
+          expect(names).to match_array(expected), "mobilized #{from}..#{to}"
+        end
+        expect(response.parsed_body.dig('meta', 'applied_filters')).to eq('mobilized_from' => '2026-11-21',
+                                                                          'mobilized_to' => '2026-11-21')
+      end
+
+      it 'rejects a malformed or reversed mobilized date range' do
+        get path, params: { filter: { mobilized_from: '21/11/2026' } }, headers: headers
+        expect(response).to have_http_status(:bad_request)
+        expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.mobilized_from')
+
+        get path, params: { filter: { mobilized_from: '2026-11-21', mobilized_to: '2026-11-20' } }, headers: headers
+        expect(response).to have_http_status(:bad_request)
+        expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.mobilized_to')
+      end
     end
 
     it 'searches by candidate name, reference number or flight number' do

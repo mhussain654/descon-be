@@ -9,7 +9,8 @@ module Admin
     class IndexQuery < ApplicationQuery
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
-      ALLOWED_FILTERS = (%w[flight_date boarding_pass status country_code] + RegisteredDateFilter::NAMES).freeze
+      ALLOWED_FILTERS = (%w[flight_date boarding_pass status country_code] + FilterScope::MOBILIZED_DATE_FILTERS +
+                         RegisteredDateFilter::NAMES).freeze
       ALLOWED_SORTS = %w[departure_at -departure_at].freeze
 
       attr_reader :pagination, :applied_filters
@@ -90,6 +91,7 @@ module Admin
           raise UnsupportedFilterError.new(filter_name: invalid.first) if invalid.any?
 
           RegisteredDateFilter.validate!(values)
+          FilterScope.validate_mobilized_range!(values)
           @applied_filters = values
         end
       end

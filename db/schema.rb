@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -141,7 +141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["candidate_assignment_id", "status"], name: "index_bulk_call_items_on_assignment_and_status"
     t.index ["candidate_assignment_id"], name: "index_bulk_call_batch_items_on_candidate_assignment_id"
     t.index ["candidate_id"], name: "index_bulk_call_batch_items_on_candidate_id"
-    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying, 'placed'::character varying, 'skipped'::character varying, 'failed'::character varying]::text[])", name: "bulk_call_batch_items_status"
+    t.check_constraint "status::text = ANY (ARRAY['queued'::character varying::text, 'placed'::character varying::text, 'skipped'::character varying::text, 'failed'::character varying::text])", name: "bulk_call_batch_items_status"
   end
 
   create_table "bulk_call_batches", force: :cascade do |t|
@@ -325,7 +325,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["public_id"], name: "index_candidate_bank_details_on_public_id", unique: true
     t.index ["reviewed_by_id"], name: "index_candidate_bank_details_on_reviewed_by_id"
     t.check_constraint "proof_byte_size > 0", name: "candidate_bank_details_proof_byte_size_positive"
-    t.check_constraint "status_code::text = ANY (ARRAY['submitted'::character varying, 'verified'::character varying, 'rejected'::character varying]::text[])", name: "candidate_bank_details_status_code"
+    t.check_constraint "status_code::text = ANY (ARRAY['submitted'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_bank_details_status_code"
   end
 
   create_table "candidate_consents", force: :cascade do |t|
@@ -415,8 +415,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["public_id"], name: "index_candidate_documents_on_public_id", unique: true
     t.index ["uploaded_by_id"], name: "index_candidate_documents_on_uploaded_by_id"
     t.index ["verified_by_id"], name: "index_candidate_documents_on_verified_by_id"
-    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying, 'under_verification'::character varying]::text[])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL AND NOT rejected_automatically OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL AND NOT rejected_automatically OR status_code::text = 'rejected'::text AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL AND (verified_by_id IS NOT NULL OR rejected_automatically)", name: "candidate_documents_status_consistency"
-    t.check_constraint "next_of_kin_relation IS NULL OR (next_of_kin_relation::text = ANY (ARRAY['father'::character varying, 'mother'::character varying, 'brother'::character varying, 'wife'::character varying, 'son'::character varying, 'unmarried_sister'::character varying, 'unmarried_daughter'::character varying]::text[]))", name: "candidate_documents_next_of_kin_relation_known"
+    t.check_constraint "(status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text])) AND verified_by_id IS NULL AND verified_at IS NULL AND rejection_reason IS NULL AND NOT rejected_automatically OR status_code::text = 'verified'::text AND verified_by_id IS NOT NULL AND verified_at IS NOT NULL AND rejection_reason IS NULL AND NOT rejected_automatically OR status_code::text = 'rejected'::text AND verified_at IS NOT NULL AND rejection_reason IS NOT NULL AND (verified_by_id IS NOT NULL OR rejected_automatically)", name: "candidate_documents_status_consistency"
+    t.check_constraint "next_of_kin_relation IS NULL OR (next_of_kin_relation::text = ANY (ARRAY['father'::character varying::text, 'mother'::character varying::text, 'brother'::character varying::text, 'wife'::character varying::text, 'son'::character varying::text, 'unmarried_sister'::character varying::text, 'unmarried_daughter'::character varying::text]))", name: "candidate_documents_next_of_kin_relation_known"
     t.check_constraint "status_code::text = ANY (ARRAY['uploaded'::character varying::text, 'under_verification'::character varying::text, 'verified'::character varying::text, 'rejected'::character varying::text])", name: "candidate_documents_status_code"
   end
 
@@ -452,7 +452,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["mobilized_stage_history_id"], name: "index_candidate_flight_details_on_mobilized_stage_history_id", unique: true
     t.index ["public_id"], name: "index_candidate_flight_details_on_public_id", unique: true
     t.index ["recorded_by_id"], name: "index_candidate_flight_details_on_recorded_by_id"
-    t.check_constraint "boarding_pass_check IS NULL OR (boarding_pass_check::text = ANY (ARRAY['pending'::character varying, 'matched'::character varying, 'needs_review'::character varying, 'not_boarding_pass'::character varying, 'unavailable'::character varying]::text[]))", name: "candidate_flight_details_boarding_pass_check_values"
+    t.check_constraint "boarding_pass_check IS NULL OR (boarding_pass_check::text = ANY (ARRAY['pending'::character varying::text, 'matched'::character varying::text, 'needs_review'::character varying::text, 'not_boarding_pass'::character varying::text, 'unavailable'::character varying::text]))", name: "candidate_flight_details_boarding_pass_check_values"
     t.check_constraint "boarding_pass_rejected_at IS NULL AND boarding_pass_rejected_by_id IS NULL AND boarding_pass_rejection_reason IS NULL OR boarding_pass_rejected_at IS NOT NULL AND boarding_pass_rejected_by_id IS NOT NULL AND boarding_pass_rejection_reason IS NOT NULL", name: "candidate_flight_details_boarding_pass_rejection_consistent"
     t.check_constraint "mobilized_on IS NULL AND mobilized_stage_history_id IS NULL AND mobilized_recorded_by_id IS NULL OR mobilized_on IS NOT NULL AND mobilized_stage_history_id IS NOT NULL AND mobilized_recorded_by_id IS NOT NULL", name: "candidate_flight_details_mobilization_fields_consistent"
     t.check_constraint "mobilized_on IS NULL OR mobilized_on >= flight_departure_at::date", name: "candidate_flight_details_mobilized_on_sequence"
@@ -492,7 +492,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
     t.index ["template_version", "created_at"], name: "idx_on_template_version_created_at_2c61e1bc9f"
     t.index ["token_digest"], name: "index_candidate_import_batches_on_token_digest", unique: true
-    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying, 'queued'::character varying, 'processing'::character varying, 'completed'::character varying, 'partial'::character varying, 'failed'::character varying, 'invalidated'::character varying]::text[])", name: "candidate_import_batches_status"
+    t.check_constraint "status::text = ANY (ARRAY['awaiting_confirmation'::character varying::text, 'queued'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'partial'::character varying::text, 'failed'::character varying::text, 'invalidated'::character varying::text])", name: "candidate_import_batches_status"
   end
 
   create_table "candidate_import_row_results", force: :cascade do |t|
@@ -650,8 +650,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["public_id"], name: "index_candidate_sms_deliveries_on_public_id", unique: true
     t.index ["sent_by_id"], name: "index_candidate_sms_deliveries_on_sent_by_id"
     t.index ["status"], name: "index_candidate_sms_deliveries_on_status"
-    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying, 'ur'::character varying]::text[])", name: "candidate_sms_deliveries_locale_values"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'sent'::character varying, 'failed'::character varying, 'skipped'::character varying]::text[])", name: "candidate_sms_deliveries_status_values"
+    t.check_constraint "locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidate_sms_deliveries_locale_values"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text, 'skipped'::character varying::text])", name: "candidate_sms_deliveries_status_values"
   end
 
   create_table "candidate_stage_histories", force: :cascade do |t|
@@ -773,7 +773,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.check_constraint "mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_mobile_number_format"
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
-    t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[]))", name: "candidates_profile_photo_status"
+    t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text]))", name: "candidates_profile_photo_status"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"
   end
@@ -847,7 +847,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.string "identity_check"
     t.index ["candidate_document_id"], name: "index_document_extractions_on_active_attempt", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('succeeded'::character varying)::text]))"
     t.index ["candidate_document_id"], name: "index_document_extractions_on_candidate_document_id"
-    t.check_constraint "identity_check IS NULL OR (identity_check::text = ANY (ARRAY['identity_document'::character varying, 'other_text'::character varying, 'no_text'::character varying]::text[]))", name: "document_extractions_identity_check"
+    t.check_constraint "identity_check IS NULL OR (identity_check::text = ANY (ARRAY['identity_document'::character varying::text, 'other_text'::character varying::text, 'no_text'::character varying::text]))", name: "document_extractions_identity_check"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])", name: "document_extractions_status"
   end
 
@@ -1216,7 +1216,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_110000) do
     t.index ["message_code"], name: "index_sms_templates_on_message_code", unique: true
     t.index ["updated_by_id"], name: "index_sms_templates_on_updated_by_id"
     t.check_constraint "message_code::text <> 'otp'::text OR enabled", name: "sms_templates_otp_always_enabled"
-    t.check_constraint "message_code::text = ANY (ARRAY['otp'::character varying, 'registered'::character varying, 'document_rejected'::character varying, 'medical_appointment'::character varying, 'fee_pending'::character varying, 'medical_unfit'::character varying, 'qvc_appointment'::character varying, 'visa_issued'::character varying, 'visa_rejected'::character varying, 'protection_call'::character varying, 'ticket_handover'::character varying, 'flight_details'::character varying, 'documents_submitted'::character varying, 'ticket_and_flight_details'::character varying, 'medical_appointment_changed'::character varying, 'qvc_appointment_changed'::character varying, 'flight_details_changed'::character varying]::text[])", name: "sms_templates_message_code_known"
+    t.check_constraint "message_code::text = ANY (ARRAY['otp'::character varying::text, 'registered'::character varying::text, 'document_rejected'::character varying::text, 'medical_appointment'::character varying::text, 'fee_pending'::character varying::text, 'medical_unfit'::character varying::text, 'qvc_appointment'::character varying::text, 'visa_issued'::character varying::text, 'visa_rejected'::character varying::text, 'protection_call'::character varying::text, 'ticket_handover'::character varying::text, 'flight_details'::character varying::text, 'documents_submitted'::character varying::text, 'ticket_and_flight_details'::character varying::text, 'medical_appointment_changed'::character varying::text, 'qvc_appointment_changed'::character varying::text, 'flight_details_changed'::character varying::text])", name: "sms_templates_message_code_known"
   end
 
   create_table "support_settings", force: :cascade do |t|

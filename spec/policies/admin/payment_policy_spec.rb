@@ -28,6 +28,13 @@ RSpec.describe Admin::PaymentPolicy do
     expect(described_class.new(hr, payment).create_correction?).to be(false)
   end
 
+  it 'lets only the developer mark a fee paid by hand (record_manual_payment is developer-only)' do
+    expect(described_class.new(create(:user, role: 'developer'), Payment).record_manual?).to be(true)
+    %w[admin finance management hr].each do |role|
+      expect(described_class.new(create(:user, role:), Payment).record_manual?).to be(false), role
+    end
+  end
+
   it 'index? mirrors show?' do
     finance = create(:user, role: 'finance')
 
