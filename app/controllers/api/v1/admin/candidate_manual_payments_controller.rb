@@ -19,7 +19,7 @@ module Api
         private
 
         def manual_payment_params
-          params.expect(manual_payment: %i[reference paid_on reason]).to_h.symbolize_keys
+          params.expect(manual_payment: %i[reference paid_on reason payment_id]).to_h.symbolize_keys
         end
 
         def candidate

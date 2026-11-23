@@ -8698,6 +8698,13 @@ paths:
                       type: string
                       minLength: 1
                       maxLength: 500
+                    payment_id:
+                      type: string
+                      format: uuid
+                      description: >-
+                        Optional. The open payment to mark (from a payment's own page). Must be one
+                        of the candidate's checkout-pending fee payments, otherwise 422
+                        (`manual_payment_not_allowed`). Without it, the latest open one is used.
                   required: [reference, paid_on, reason]
               required: [manual_payment]
             examples:

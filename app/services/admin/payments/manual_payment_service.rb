@@ -23,11 +23,13 @@ module Admin
       # Fees are paid in Pakistan, so the paid day is a calendar day there.
       TIME_ZONE = 'Asia/Karachi'
 
-      # `values` holds the form: `reference`, `paid_on` (YYYY-MM-DD) and `reason`.
+      # `values` holds the form: `reference`, `paid_on` (YYYY-MM-DD), `reason` and,
+      # from a payment's own page, `payment_id` (that open payment's public id).
       def initialize(actor:, candidate:, values:, request_id:)
         @actor = actor
         @candidate = candidate
-        @reference, @paid_on, @reason = values.values_at(:reference, :paid_on, :reason).map { |value| value.to_s.strip }
+        @reference, @paid_on, @reason, @payment_id =
+          values.values_at(:reference, :paid_on, :reason, :payment_id).map { |value| value.to_s.strip }
         @request_id = request_id
       end
 
@@ -66,9 +68,12 @@ module Admin
           !@assignment.payments.exists?(payment_type_code: PAYMENT_TYPE, status_code: 'paid')
       end
 
+      # The named payment must be one of the candidate's open fee payments.
       def open_payment
-        @assignment.payments.where(payment_type_code: PAYMENT_TYPE, status_code: 'checkout_pending')
-                   .latest_first.lock.first
+        open = @assignment.payments.where(payment_type_code: PAYMENT_TYPE, status_code: 'checkout_pending')
+        return open.latest_first.lock.first if @payment_id.blank?
+
+        open.lock.find_by(public_id: @payment_id) || raise(ManualPaymentNotAllowedError)
       end
 
       def new_payment

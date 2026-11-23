@@ -50,6 +50,26 @@ RSpec.describe 'API V1 Admin Candidate Manual Payments', type: :request do
     expect(audit.metadata).to include('reference' => '788895', 'paid_on' => '2026-11-23')
   end
 
+  it 'marks the named open payment from its own page, and refuses one that is not open for this candidate' do
+    voucher = open_voucher
+    card = create(:payment, candidate_assignment: assignment, provider_code: 'kuickpay',
+                            status_code: 'checkout_pending', provider_order_id: 'PAY-2',
+                            checkout_expires_at: 1.hour.from_now, paid_at: nil)
+    other = create(:payment, candidate_assignment: create(:candidate_assignment), status_code: 'checkout_pending',
+                             provider_order_id: 'PAY-3', paid_at: nil)
+    headers = headers_for(developer)
+
+    post path, params: { manual_payment: valid_params[:manual_payment].merge(payment_id: other.public_id) },
+               headers: headers
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('manual_payment_not_allowed')
+
+    post path, params: { manual_payment: valid_params[:manual_payment].merge(payment_id: voucher.public_id) },
+               headers: headers
+    expect(response).to have_http_status(:created)
+    expect(voucher.reload.status_code).to eq('paid')
+    expect(card.reload.status_code).to eq('checkout_pending')
+  end
+
   it 'records a manual payment for the current fee when the candidate has no open payment' do
     headers = headers_for(developer)
 
