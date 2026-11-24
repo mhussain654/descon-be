@@ -75,10 +75,10 @@ RSpec.describe Sms::Configuration do
       expect(configuration.sendpk_sender_id).to eq('Descon')
     end
 
-    # The "Descon" mask is not approved in send.pk yet, so every SMS goes out from the short code for now.
-    it 'sends every SMS from the approved short code until the brand name is approved' do
+    # send.pk approved the "DESCON MPS" mask, so every SMS goes out from it.
+    it 'sends every SMS from the approved DESCON MPS mask' do
       expect([configuration.sendpk_sender_id(:otp), configuration.sendpk_sender_id('fee_pending')])
-        .to eq(%w[8062050 8062050])
+        .to eq(['DESCON MPS', 'DESCON MPS'])
     end
   end
 
