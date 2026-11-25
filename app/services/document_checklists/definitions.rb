@@ -7,17 +7,21 @@ module DocumentChecklists
   # documents. The five provisional countries (UAE, Oman, Kuwait, Azerbaijan,
   # South Africa) get the common checklist only.
   module Definitions
-    # Client feedback: every document is a scanned PDF -- no photos, no JPEG or
-    # PNG -- because a poor photo directly affects the visa application.
-    CONTENT_TYPES = %w[application/pdf].freeze
+    # Every document can be one scanned PDF or photos (JPEG or PNG). A photo
+    # must be at least Candidates::Documents::ImageDimensions::MINIMUM_SIDE
+    # pixels on both sides, so it stays readable for the visa application.
+    CONTENT_TYPES = %w[application/pdf image/jpeg image/png].freeze
 
     # How each kind of document is uploaded. A two-page or two-sided document
-    # (passport, CNIC, next of kin's CNIC) is one PDF holding both pages/sides.
+    # (passport, CNIC, next of kin's CNIC, driving licence) is one PDF holding
+    # both pages/sides, or a photo of each page/side.
     UPLOAD_PROFILES = {
       single: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: false, allowed_side_codes: [] },
       photo: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: false, allowed_side_codes: [] },
-      two_pages: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: true, allowed_side_codes: %w[combined] },
-      two_sided: { minimum_files: 1, maximum_files: 1, combined_pdf_allowed: true, allowed_side_codes: %w[combined] },
+      two_pages: { minimum_files: 1, maximum_files: 2, combined_pdf_allowed: true,
+                   allowed_side_codes: %w[combined page_1 page_2] },
+      two_sided: { minimum_files: 1, maximum_files: 2, combined_pdf_allowed: true,
+                   allowed_side_codes: %w[combined front back] },
       certificates: { minimum_files: 1, maximum_files: 10, combined_pdf_allowed: false,
                       allowed_side_codes: %w[certificate] }
     }.freeze

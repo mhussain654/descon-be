@@ -4987,7 +4987,7 @@ paths:
         '409':
           description: Idempotency conflict or in-progress duplicate request
         '422':
-          description: Validation failure for missing banking fields, invalid account number, unsupported proof file, empty proof, oversized proof, or missing current assignment
+          description: Validation failure for missing banking fields, invalid account number, unsupported proof file, empty proof, oversized proof, a proof photo under 500 x 500 pixels (`image_too_small`), or missing current assignment
           content:
             application/json:
               schema:
@@ -5193,7 +5193,7 @@ paths:
         '422':
           description: >-
             Validation failure for missing file, invalid requirement, unsupported content type, empty file,
-            oversized file, forbidden replacement, a file set that breaks the requirement's rules
+            oversized file, a photo under 500 x 500 pixels (`image_too_small`), forbidden replacement, a file set that breaks the requirement's rules
             (`invalid_document_files` with `details.reason` one of too_few_files, too_many_files,
             side_code_required, side_code_not_allowed, duplicate_side_code, incomplete_side_pair,
             combined_must_be_alone, combined_requires_pdf), or a file rejected by scanning (`malware_detected`)
@@ -5244,6 +5244,14 @@ paths:
                     errors:
                       - code: file_too_large
                         message: The uploaded file exceeds the maximum allowed size.
+                    request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
+                    timestamp: '2026-08-26T12:00:00Z'
+                imageTooSmall:
+                  value:
+                    errors:
+                      - code: image_too_small
+                        message: This photo is too small to read. Use a clearer photo at least 500 × 500 pixels, or upload a PDF.
+                        field: candidate_document.files[1].file
                     request_id: 1b95ea56-2222-43d5-80a7-7515d59bfd0d
                     timestamp: '2026-08-26T12:00:00Z'
                 replacementNotAllowed:

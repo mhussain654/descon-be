@@ -45,17 +45,17 @@ RSpec.describe DocumentChecklists::Seeder do
     expect(checklist_codes(country: create(:country))).to eq(common_codes)
   end
 
-  it 'asks for every document as a scanned PDF, with bilingual instructions' do
+  it 'asks for every document as a scanned PDF or photos, with bilingual instructions' do
     passport = DocumentRequirement.joins(:document_type).find_by!(document_types: { code: 'passport' }, country: nil)
 
-    expect(passport).to have_attributes(minimum_files: 1, maximum_files: 1, combined_pdf_allowed: true,
-                                        allowed_side_codes: %w[combined], display_position: 1)
+    expect(passport).to have_attributes(minimum_files: 1, maximum_files: 2, combined_pdf_allowed: true,
+                                        allowed_side_codes: %w[combined page_1 page_2], display_position: 1)
     expect(passport.instructions_for(locale: :en)).to include('latest passport')
     expect(passport.instructions_for(locale: :ur)).to include('پاسپورٹ')
     catalog_codes = DocumentChecklists::Definitions::DOCUMENT_TYPES.pluck(:code)
     catalog_rows = DocumentRequirement.joins(:document_type).where(active: true, project_id: nil, craft_id: nil,
                                                                    document_types: { code: catalog_codes })
-    expect(catalog_rows.pluck(:accepted_content_types).uniq).to eq([%w[application/pdf]])
+    expect(catalog_rows.pluck(:accepted_content_types).uniq).to eq([%w[application/pdf image/jpeg image/png]])
   end
 
   it 'names the next of kin document without "Legal Heir" and explains who can be next of kin' do

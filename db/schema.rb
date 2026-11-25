@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -852,7 +852,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_090000) do
   end
 
   create_table "document_requirements", force: :cascade do |t|
-    t.string "accepted_content_types", default: ["application/pdf"], null: false, array: true
+    t.string "accepted_content_types", default: ["application/pdf", "image/jpeg", "image/png"], null: false, array: true
     t.boolean "active", default: true, null: false
     t.string "allowed_side_codes", default: [], null: false, array: true
     t.boolean "combined_pdf_allowed", default: false, null: false

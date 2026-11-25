@@ -18,6 +18,9 @@ module Candidates
         validate_request!
         file_details = Candidates::Documents::UploadedFileInspector.call(uploaded_file: proof)
         raise UnsupportedFileTypeError unless ALLOWED_CONTENT_TYPES.include?(file_details.content_type)
+        if Candidates::Documents::ImageDimensions.too_small?(proof.tempfile, file_details.content_type)
+          raise ImageTooSmallError
+        end
 
         blob = build_blob(file_details)
         persist!(file_details:, blob:)

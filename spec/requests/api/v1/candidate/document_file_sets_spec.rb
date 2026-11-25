@@ -3,8 +3,9 @@
 require 'rails_helper'
 
 # Uploads against the seeded country checklists: every document is a scanned
-# PDF -- a passport or CNIC as one PDF holding both pages/sides, certificates
-# as one or more PDFs.
+# PDF or photos -- a passport or CNIC as one PDF holding both pages/sides or a
+# photo of each, certificates as one or more files. Photos must be at least
+# 500 x 500 pixels.
 RSpec.describe 'API V1 Candidate Document File Sets', type: :request do
   let(:candidate) { create(:candidate) }
   let!(:assignment) { create(:candidate_assignment, candidate:, country: process_country(:qatar)) }
@@ -35,17 +36,34 @@ RSpec.describe 'API V1 Candidate Document File Sets', type: :request do
     items = response.parsed_body.fetch('data')
     expect(items.pluck('requirement_code').first(2)).to eq(%w[passport cnic])
     expect(items.pluck('display_position')).to eq(items.pluck('display_position').sort)
-    expect(items.first).to include('minimum_files' => 1, 'maximum_files' => 1, 'combined_pdf_allowed' => true,
-                                   'allowed_side_codes' => %w[combined],
-                                   'accepted_content_types' => %w[application/pdf])
+    expect(items.first).to include('minimum_files' => 1, 'maximum_files' => 2, 'combined_pdf_allowed' => true,
+                                   'allowed_side_codes' => %w[combined page_1 page_2],
+                                   'accepted_content_types' => %w[application/pdf image/jpeg image/png])
     expect(items.first.fetch('instructions')).to include('پاسپورٹ')
   end
 
-  it 'rejects a passport photo -- documents are scanned PDFs only -- storing nothing' do
-    expect { upload('passport', [['test.jpg', 'combined']]) }.not_to change(ActiveStorage::Blob, :count)
+  it 'uploads a passport as a photo of each page' do
+    upload('passport', [['document_photo.jpg', 'page_1'], ['document_photo.png', 'page_2']])
+
+    expect(response).to have_http_status(:created)
+    expect(response.parsed_body.dig('data', 'document', 'files').pluck('side_code')).to eq(%w[page_1 page_2])
+  end
+
+  it 'refuses a photo smaller than 500 x 500 pixels, storing nothing' do
+    expect { upload('cnic', [['document_photo.jpg', 'front'], ['small_photo.jpg', 'back']]) }
+      .not_to change(ActiveStorage::Blob, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('unsupported_file_type')
+    expect(response.parsed_body.dig('errors', 0)).to include('code' => 'image_too_small',
+                                                             'field' => 'candidate_document.files[1].file')
+    expect(CandidateDocument.count).to eq(0)
+  end
+
+  it 'refuses a combined passport sent as a photo -- one file with both pages must be a PDF' do
+    expect { upload('passport', [['document_photo.jpg', 'combined']]) }.not_to change(ActiveStorage::Blob, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_document_files')
   end
 
   it 'uploads a passport as one combined PDF, labelling a lone legacy file as combined' do
@@ -57,8 +75,8 @@ RSpec.describe 'API V1 Candidate Document File Sets', type: :request do
     expect(response.parsed_body.dig('data', 'document', 'files', 0, 'side_code')).to eq('combined')
   end
 
-  it 'rejects a CNIC sent as separate sides -- it is one PDF holding both -- storing nothing' do
-    expect { upload('cnic', [['test.pdf', 'front'], ['test.pdf', 'back']]) }.not_to change(ActiveStorage::Blob, :count)
+  it 'rejects a CNIC with only one side, storing nothing' do
+    expect { upload('cnic', [['document_photo.jpg', 'front']]) }.not_to change(ActiveStorage::Blob, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body.dig('errors', 0)).to include('code' => 'invalid_document_files',

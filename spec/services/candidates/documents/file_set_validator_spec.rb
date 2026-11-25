@@ -33,28 +33,24 @@ RSpec.describe Candidates::Documents::FileSetValidator do
     e.details.fetch(:reason)
   end
 
-  describe 'the approved catalog (scanned PDFs only)' do
+  describe 'the approved catalog (scanned PDFs or photos)' do
     it 'accepts a passport or CNIC as one combined PDF' do
       expect(reason_for(catalog_requirement(:two_pages), [entry('combined')])).to be_nil
       expect(reason_for(catalog_requirement(:two_sided), [entry('combined')])).to be_nil
     end
 
-    it 'does not accept separate pages or sides any more' do
-      expect(reason_for(catalog_requirement(:two_pages), [entry('page_1'), entry('page_2')])).to eq('too_many_files')
-      expect(reason_for(catalog_requirement(:two_sided), [entry('front')])).to eq('side_code_not_allowed')
+    it 'accepts a photo of each page or side' do
+      photo = { content_type: 'image/jpeg' }
+      expect(reason_for(catalog_requirement(:two_pages), [entry('page_1', **photo), entry('page_2', **photo)])).to be_nil
+      expect(reason_for(catalog_requirement(:two_sided), [entry('front', **photo), entry('back', **photo)])).to be_nil
     end
 
-    it 'rejects a JPEG or PNG for every kind of document, the photograph included' do
-      side_codes = { two_pages: 'combined', two_sided: 'combined', certificates: 'certificate' }
-      %i[single photo two_pages two_sided certificates].each do |profile|
-        side_code = side_codes[profile]
-        expect do
-          described_class.call(requirement: catalog_requirement(profile),
-                               entries: [entry(side_code, content_type: 'image/jpeg')])
+    it 'accepts a JPEG or PNG for every kind of document' do
+      side_codes = { two_pages: nil, two_sided: nil, certificates: 'certificate' }
+      %i[single photo certificates].each do |profile|
+        %w[image/jpeg image/png].each do |content_type|
+          expect(reason_for(catalog_requirement(profile), [entry(side_codes[profile], content_type:)])).to be_nil
         end
-          .to raise_error(UnsupportedFileTypeError) { |error|
-                expect(error.field).to eq('candidate_document.files[0].file')
-              }
       end
     end
 
@@ -96,6 +92,30 @@ RSpec.describe Candidates::Documents::FileSetValidator do
       expect(reason_for(two_sided_image_requirement, [])).to eq('too_few_files')
       expect(reason_for(two_sided_image_requirement, [entry('front'), entry('back'), entry('front')]))
         .to eq('too_many_files')
+    end
+  end
+
+  describe 'photo size' do
+    def photo_entry(name, content_type)
+      file = Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/files', name), content_type)
+      entry(nil, content_type:).merge(file:)
+    end
+
+    it 'refuses a photo under 500 x 500 pixels and accepts one at least that size' do
+      expect { described_class.call(requirement: catalog_requirement(:single), entries: [photo_entry('small_photo.jpg', 'image/jpeg')]) }
+        .to raise_error(ImageTooSmallError) { |error| expect(error.field).to eq('candidate_document.files[0].file') }
+      expect(reason_for(catalog_requirement(:single), [photo_entry('document_photo.png', 'image/png')])).to be_nil
+    end
+  end
+
+  describe 'a requirement that takes PDFs only' do
+    it 'says a scanned PDF is needed when a photo is sent' do
+      requirement = catalog_requirement(:single).tap { |row| row.accepted_content_types = %w[application/pdf] }
+
+      expect { described_class.call(requirement:, entries: [entry(nil, content_type: 'image/png')]) }
+        .to raise_error(UnsupportedFileTypeError) { |error|
+          expect(error.message).to eq(I18n.t('api.errors.unsupported_file_type_pdf_only'))
+        }
     end
   end
 end

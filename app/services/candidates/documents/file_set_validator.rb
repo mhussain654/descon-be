@@ -38,12 +38,22 @@ module Candidates
         details = entry.fetch(:details)
         raise EmptyFileError.new(field:) if details.byte_size.zero?
         raise FileTooLargeError.new(field:) if details.byte_size > @requirement.maximum_file_size
-        return if @requirement.accepted_content_types.include?(details.content_type)
+        unless @requirement.accepted_content_types.include?(details.content_type)
+          raise UnsupportedFileTypeError.new(field:, message: unsupported_type_message)
+        end
 
-        raise UnsupportedFileTypeError.new(field:, message: unsupported_type_message)
+        validate_image_size!(entry, field)
       end
 
-      # Documents are scanned PDFs only (client rule), so say exactly that rather than the generic list.
+      # A photo too small to read is refused; PDFs, and images whose size can't be read, are not checked.
+      def validate_image_size!(entry, field)
+        file = entry[:file]
+        return unless file && ImageDimensions.too_small?(file.tempfile, entry.fetch(:details).content_type)
+
+        raise ImageTooSmallError.new(field:)
+      end
+
+      # A requirement that takes PDFs only says exactly that rather than the generic list.
       def unsupported_type_message
         if @requirement.accepted_content_types == %w[application/pdf]
           return I18n.t('api.errors.unsupported_file_type_pdf_only')

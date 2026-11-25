@@ -190,31 +190,26 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
   end
 
   describe 'POST /api/v1/candidate/documents' do
-    it 'uploads a PDF document and refuses a photo -- documents are scanned PDFs only' do
+    it 'uploads a PDF or a photo, and refuses a photo under 500 x 500 pixels' do
       candidate = create(:candidate)
-      create_requirement(candidate:, code: 'passport')
-
-      %w[test.png test.jpg].each do |fixture_name|
+      create_requirement(candidate:, code: 'cv')
+      upload = lambda do |fixture_name, content_type|
         post '/api/v1/candidate/documents',
-             params: { candidate_document: { requirement_code: 'passport',
-                                             file: fixture_upload(fixture_name, 'image/png') } },
+             params: { candidate_document: { requirement_code: 'cv', file: fixture_upload(fixture_name, content_type) } },
              headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
-
-        expect(response).to have_http_status(:unprocessable_content)
-        expect(response.parsed_body.dig('errors', 0,
-                                        'message')).to eq(I18n.t('api.errors.unsupported_file_type_pdf_only'))
       end
 
-      { 'test.pdf' => 'application/pdf' }.each do |fixture_name, content_type|
-        post '/api/v1/candidate/documents',
-             params: {
-               candidate_document: {
-                 requirement_code: 'passport',
-                 file: fixture_upload(fixture_name, content_type)
-               }
-             },
-             headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
+      %w[small_photo.png small_photo.jpg].each do |fixture_name|
+        upload.call(fixture_name, 'image/png')
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body.dig('errors', 0)).to include(
+          'code' => 'image_too_small', 'message' => I18n.t('api.errors.image_too_small', minimum: 500)
+        )
+      end
 
+      { 'test.pdf' => 'application/pdf', 'document_photo.jpg' => 'image/jpeg',
+        'document_photo.png' => 'image/png' }.each do |fixture_name, content_type|
+        upload.call(fixture_name, content_type)
         expect(response).to have_http_status(:created)
         expect(response.parsed_body.dig('data', 'status')).to eq('uploaded')
 

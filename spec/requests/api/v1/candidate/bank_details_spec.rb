@@ -127,6 +127,24 @@ RSpec.describe 'API V1 Candidate Bank Details', type: :request do
       expect(response.parsed_body.dig('data', 'bank_detail', 'id')).to eq(first_id)
     end
 
+    it 'accepts a photo as proof, and refuses one under 500 x 500 pixels' do
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:)
+      submit = lambda do |fixture_name|
+        put '/api/v1/candidate/bank_details',
+            params: { bank_detail: { account_title: 'Ahmed Ali', account_number: 'PK36 SCBL 0000 0011 2345 6702',
+                                     bank_name: 'Meezan Bank', proof: fixture_upload(fixture_name, 'image/jpeg') } },
+            headers: candidate_auth_headers(candidate, 'Idempotency-Key' => "bank-photo-#{fixture_name.delete('.')}")
+      end
+
+      expect { submit.call('small_photo.jpg') }.not_to change(CandidateBankDetail, :count)
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('image_too_small')
+
+      submit.call('document_photo.jpg')
+      expect(response).to have_http_status(:created)
+    end
+
     it 'rejects missing proof, invalid account numbers, and same-key reuse with different payload' do
       candidate = create(:candidate)
       create(:candidate_assignment, candidate:)
