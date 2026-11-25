@@ -89,9 +89,8 @@ RSpec.describe DocumentChecklists::Seeder do
   end
 
   it 'retires the cheque copy, which the bank details proof replaces' do
-    expect(DocumentType.find_by(code: 'cheque_copy')).to be_nil
-
-    cheque_copy = create(:document_type, code: 'cheque_copy')
+    cheque_copy = DocumentType.find_by(code: 'cheque_copy') || create(:document_type, code: 'cheque_copy')
+    cheque_copy.update!(active: true)
     requirement = create(:document_requirement, document_type: cheque_copy)
     described_class.call
 

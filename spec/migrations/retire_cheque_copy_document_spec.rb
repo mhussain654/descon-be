@@ -6,7 +6,11 @@ require Rails.root.join('db/migrate/20261125110000_retire_cheque_copy_document')
 RSpec.describe RetireChequeCopyDocument do
   subject(:migration) { described_class.new }
 
-  let(:cheque_copy) { create(:document_type, code: 'cheque_copy', active: true) }
+  let(:cheque_copy) do
+    (DocumentType.find_by(code: 'cheque_copy') || create(:document_type, code: 'cheque_copy')).tap do |type|
+      type.update!(active: true)
+    end
+  end
   let!(:catalog_row) { create(:document_requirement, document_type: cheque_copy) }
   let!(:project_row) { create(:document_requirement, document_type: cheque_copy, project: create(:project)) }
 
@@ -24,11 +28,11 @@ RSpec.describe RetireChequeCopyDocument do
     end
 
     it 'leaves other document requirements untouched' do
-      passport = create(:document_requirement, document_type: create(:document_type, code: 'passport'))
+      other = create(:document_requirement, document_type: create(:document_type))
 
       migration.up
 
-      expect(passport.reload.active).to be(true)
+      expect(other.reload.active).to be(true)
     end
 
     it 'removes the cheque copy from a candidate checklist' do

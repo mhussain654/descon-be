@@ -58,6 +58,17 @@ RSpec.describe Candidate, type: :model do
       expect(candidate.errors[:next_of_kin_cnic]).to be_present
     end
 
+    it 'stores the email trimmed and lowercased, blank as none, and rejects a malformed one' do
+      candidate = create(:candidate, email: ' Name@Example.COM ')
+      expect(candidate.email).to eq('name@example.com')
+
+      candidate.update!(email: ' ')
+      expect(candidate.email).to be_nil
+
+      expect(build(:candidate, email: 'name@example')).not_to be_valid
+      expect(build(:candidate, email: "#{'a' * 250}@example.com")).not_to be_valid
+    end
+
     it 'allows an unset preferred locale until the candidate chooses one' do
       expect(build(:candidate, preferred_locale: nil)).to be_valid
     end

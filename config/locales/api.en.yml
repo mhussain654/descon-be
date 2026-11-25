@@ -228,6 +228,7 @@ en:
         missing_value: "This required field is missing."
         invalid_cnic: "Enter a valid CNIC in the format 00000-0000000-0."
         invalid_mobile_number: "Enter a valid mobile number."
+        invalid_email: "Enter a valid email address, e.g. name@example.com."
         invalid_preferred_locale: "Select a supported preferred language."
         invalid_candidate_status: "Enter a valid candidate status code."
         invalid_active_state: "Select a valid active state."

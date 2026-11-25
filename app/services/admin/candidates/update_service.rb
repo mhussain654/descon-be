@@ -43,9 +43,13 @@ module Admin
       # Symbols, not strings -- `@provided_fields` comes from a
       # double-splatted keyword-argument hash, whose keys are always symbols.
       ASSIGNMENT_FIELD_CODES = %i[country_code project_code craft_code].freeze
+      FIELD_VALIDATIONS = {
+        full_name: :validate_full_name!, mobile_number: :validate_mobile_number!, email: :validate_email!,
+        passport_number: :validate_passport_number!, preferred_locale: :validate_preferred_locale!
+      }.freeze
 
       Params = Struct.new(
-        :actor, :candidate, :full_name, :mobile_number, :passport_number, :preferred_locale,
+        :actor, :candidate, :full_name, :mobile_number, :email, :passport_number, :preferred_locale,
         :next_of_kin_name, :next_of_kin_relationship, :next_of_kin_mobile_number, :next_of_kin_cnic,
         :country_code, :project_code, :craft_code, :expected_updated_at,
         keyword_init: true
@@ -100,10 +104,7 @@ module Admin
       end
 
       def validate_payload!
-        validate_full_name! if @provided_fields.include?(:full_name)
-        validate_mobile_number! if @provided_fields.include?(:mobile_number)
-        validate_passport_number! if @provided_fields.include?(:passport_number)
-        validate_preferred_locale! if @provided_fields.include?(:preferred_locale)
+        FIELD_VALIDATIONS.each { |field, validation| send(validation) if provided?(field) }
         validate_next_of_kin! if next_of_kin_fields_provided?
         validate_assignment_fields! if assignment_fields_provided?
       end
@@ -169,6 +170,12 @@ module Admin
         Candidate.where(mobile_number: value).where.not(id: @params.candidate.id).exists?
       end
 
+      # Blank clears it.
+      def validate_email!
+        email = ::Candidate.normalized_email(@params.email)
+        raise InvalidEmailError.new(field: 'email') if email && !::Candidate.valid_email?(email)
+      end
+
       def validate_passport_number!
         value = normalized_passport_number(@params.passport_number)
         return if value.blank?
@@ -231,16 +238,18 @@ module Admin
       end
 
       def candidate_attributes
+        profile_attributes.merge(next_of_kin_fields.index_with { |field| next_of_kin_value(field) })
+                          .slice(*@provided_fields)
+      end
+
+      def profile_attributes
         {
           full_name: @params.full_name.to_s.strip,
           mobile_number: normalized_mobile_number(@params.mobile_number),
+          email: ::Candidate.normalized_email(@params.email),
           passport_number: normalized_passport_number(@params.passport_number),
-          preferred_locale: @params.preferred_locale.to_s.strip.downcase,
-          next_of_kin_name: next_of_kin_value(:next_of_kin_name),
-          next_of_kin_relationship: next_of_kin_value(:next_of_kin_relationship),
-          next_of_kin_mobile_number: next_of_kin_value(:next_of_kin_mobile_number),
-          next_of_kin_cnic: next_of_kin_value(:next_of_kin_cnic)
-        }.slice(*@provided_fields)
+          preferred_locale: @params.preferred_locale.to_s.strip.downcase
+        }
       end
 
       def update_assignment!

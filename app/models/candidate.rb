@@ -12,6 +12,9 @@ class Candidate < ApplicationRecord
   CNIC_FORMAT = /\A\d{5}-\d{7}-\d\z/
   MOBILE_NUMBER_FORMAT = /\A\+?\d{10,15}\z/
   PASSPORT_NUMBER_FORMAT = /\A[A-Z0-9-]+\z/
+  # Added by the candidate in the app or by staff; optional. Stored trimmed and lowercased.
+  EMAIL_FORMAT = /\A[^@\s]+@[^@\s]+\.[^@\s]+\z/
+  EMAIL_MAX_LENGTH = 254
 
   # Deterministic (not randomized) so the existing uniqueness validation and the OTP-login
   # lookup-by-CNIC (Candidate.active.find_by(cnic:)) keep working as equality queries (MPS-901).
@@ -52,9 +55,15 @@ class Candidate < ApplicationRecord
   before_validation :normalize_next_of_kin_mobile_number
   before_validation :normalize_next_of_kin_cnic
   before_validation :normalize_passport_number
+  before_validation :normalize_email
   before_validation :normalize_status_code
 
   scope :active, -> { where(active: true) }
+
+  # Trimmed and lowercased; blank becomes nil.
+  def self.normalized_email(value) = value.to_s.strip.downcase.presence
+
+  def self.valid_email?(value) = value.length <= EMAIL_MAX_LENGTH && value.match?(EMAIL_FORMAT)
 
   validates :active, inclusion: { in: [true, false] }
   validates :public_id, presence: true, uniqueness: true
@@ -70,6 +79,7 @@ class Candidate < ApplicationRecord
             allow_blank: true,
             format: { with: PASSPORT_NUMBER_FORMAT },
             if: :passport_number?
+  validates :email, format: { with: EMAIL_FORMAT }, length: { maximum: EMAIL_MAX_LENGTH }, allow_nil: true
   # Blank until the candidate chooses a language (see CandidateAuthentication::Otp::VerifyService).
   validates :preferred_locale, inclusion: { in: PREFERRED_LOCALES }, allow_nil: true
   validates :source_code, inclusion: { in: SOURCE_CODES }
@@ -114,6 +124,10 @@ class Candidate < ApplicationRecord
   def normalize_passport_number
     normalized_value = passport_number.to_s.upcase.gsub(/\s+/, '')
     self.passport_number = normalized_value.presence
+  end
+
+  def normalize_email
+    self.email = self.class.normalized_email(email)
   end
 
   # Strips whitespace and keeps only digits (plus a leading '+' if present) in the next of kin's mobile number.

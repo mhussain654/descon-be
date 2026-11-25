@@ -25,7 +25,7 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
       'workflow_stage_code' => 'registered', 'country_code' => 'qatar', 'project_code' => 'qatar_infrastructure',
       'craft_code' => 'electrician', 'active' => 'true', 'passport_number' => 'AB123456',
       'next_of_kin_name' => '', 'next_of_kin_relationship' => '', 'next_of_kin_mobile_number' => '',
-      'next_of_kin_cnic' => '', 'template_version' => 'v1'
+      'next_of_kin_cnic' => '', 'email' => '', 'template_version' => 'v1'
     }.merge(overrides.stringify_keys)
     Admin::Candidates::Imports::CsvFileParser::SUPPORTED_HEADERS.map { |header| values.fetch(header) }
   end
@@ -44,6 +44,26 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
     Admin::Candidates::Imports::BatchExecutionService.call(import_id: result.fetch(:import_id), request_id: 'execute-1')
     candidate = Candidate.find_by!(cnic: '42101-1234567-1')
     expect(candidate.candidate_assignments.find_by!(reference_number: 'DES-001001')).to be_present
+  end
+
+  it 'imports the optional email column, trimmed and lowercased' do
+    preflight = described_class.call(actor:, file: upload([valid_row('email' => ' Imported@Example.COM ')]),
+                                     request_id: 'preflight-email')
+    result = Admin::Candidates::Imports::CommitService.call(
+      actor:, token: preflight.fetch(:preflight_token), request_id: 'commit-email'
+    )
+    Admin::Candidates::Imports::BatchExecutionService.call(import_id: result.fetch(:import_id), request_id: 'run-email')
+
+    expect(Candidate.find_by!(cnic: '42101-1234567-1').email).to eq('imported@example.com')
+  end
+
+  it 'rejects a row with a malformed email, showing the value' do
+    result = described_class.call(actor:, file: upload([valid_row('email' => 'not-an-email')]),
+                                  request_id: 'preflight-bad-email')
+
+    expect(result).to include(accepted_rows: 0, rejected_rows: 1)
+    expect(result.fetch(:errors)).to include(hash_including(field: 'email', code: 'invalid_email',
+                                                            value: 'not-an-email'))
   end
 
   it 'returns field-addressable errors for partial next-of-kin data without scheduling the row' do

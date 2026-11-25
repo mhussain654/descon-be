@@ -6,17 +6,14 @@ module Candidates
     # lowercased; blank clears it) and records an audit event when it changes.
     # The address itself is not put in the audit metadata.
     class EmailUpdateService < ApplicationService
-      MAX_LENGTH = 254
-      FORMAT = /\A[^@\s]+@[^@\s]+\.[^@\s]+\z/
-
       def initialize(candidate:, email:, request_id:)
         @candidate = candidate
-        @email = email.to_s.strip.downcase.presence
+        @email = ::Candidate.normalized_email(email)
         @request_id = request_id
       end
 
       def call
-        raise InvalidEmailError if @email && (@email.length > MAX_LENGTH || !@email.match?(FORMAT))
+        raise InvalidEmailError if @email && !::Candidate.valid_email?(@email)
         return @candidate if @candidate.email == @email
 
         ::Candidate.transaction do

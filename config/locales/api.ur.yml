@@ -227,6 +227,7 @@ ur:
         missing_value: "یہ لازمی فیلڈ غائب ہے۔"
         invalid_cnic: "درست شناختی کارڈ نمبر 00000-0000000-0 کے فارمیٹ میں درج کریں۔"
         invalid_mobile_number: "درست موبائل نمبر درج کریں۔"
+        invalid_email: "درست ای میل ایڈریس درج کریں، مثلاً name@example.com۔"
         invalid_preferred_locale: "معاونت یافتہ ترجیحی زبان منتخب کریں۔"
         invalid_candidate_status: "امیدوار کا درست اسٹیٹس کوڈ درج کریں۔"
         invalid_active_state: "درست فعال حالت منتخب کریں۔"

@@ -181,7 +181,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
         'reference_number' => 'DES-001001', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
         'workflow_stage_code' => 'registered', 'country_code' => 'qatar', 'project_code' => 'qatar_infrastructure',
         'craft_code' => 'electrician', 'active' => 'true', 'passport_number' => '', 'next_of_kin_name' => '',
-        'next_of_kin_relationship' => '', 'next_of_kin_mobile_number' => '', 'next_of_kin_cnic' => '',
+        'next_of_kin_relationship' => '', 'next_of_kin_mobile_number' => '', 'next_of_kin_cnic' => '', 'email' => '',
         'template_version' => 'v1'
       }
       CSV.generate do |csv|

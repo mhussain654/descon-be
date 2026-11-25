@@ -415,6 +415,39 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(AuditEvent.last.metadata.fetch('changed_fields')).to include('next_of_kin_name')
     end
 
+    it "adds, corrects and clears the candidate's email" do
+      actor = create(:user, role: 'hr')
+      candidate = create(:candidate, email: 'old@example.com')
+      create(:candidate_assignment, candidate:)
+      headers = { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      patch "/api/v1/admin/candidates/#{candidate.public_id}", params: { candidate: { email: ' New@Example.com ' } },
+                                                               headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'email')).to eq('new@example.com')
+      expect(AuditEvent.last.metadata.fetch('changed_fields')).to eq(['email'])
+
+      patch "/api/v1/admin/candidates/#{candidate.public_id}", params: { candidate: { email: '' } }, headers: headers
+
+      expect(candidate.reload.email).to be_nil
+    end
+
+    it 'refuses a malformed email on the email field' do
+      actor = create(:user, role: 'hr')
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:)
+
+      headers = { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      patch "/api/v1/admin/candidates/#{candidate.public_id}", params: { candidate: { email: 'bad@' } },
+                                                               headers: headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+      error = response.parsed_body.dig('errors', 0)
+      expect(error.slice('code', 'field')).to eq('code' => 'invalid_email', 'field' => 'email')
+      expect(candidate.reload.email).to be_nil
+    end
+
     it "updates the candidate's own profile fields" do
       actor = create(:user, role: 'hr')
       candidate = create(:candidate)

@@ -3049,6 +3049,13 @@ components:
               type: string
             mobile_number:
               type: string
+            email:
+              type: string
+              maxLength: 254
+              description: >-
+                The candidate's email address (stored trimmed and lowercased).
+                Send blank to clear it. An invalid address is refused with
+                422 `invalid_email` (field `email`).
             passport_number:
               type: string
               description: Send blank to clear a previously recorded passport number.
@@ -6189,7 +6196,9 @@ paths:
       summary: Download the versioned candidate import CSV template
       description: >-
         Returns the UTF-8 `candidate-import-template-v1.csv` file. Required columns
-        match the existing candidate-import parser; passport and next-of-kin columns are optional.
+        match the existing candidate-import parser; passport, next-of-kin and
+        email columns are optional. A row with a malformed email is rejected
+        with the `invalid_email` row error; a blank email imports none.
       security: [{ bearerAuth: [] }]
       responses:
         '200':

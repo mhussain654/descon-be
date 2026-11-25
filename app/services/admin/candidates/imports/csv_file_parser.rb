@@ -27,6 +27,7 @@ module Admin
           next_of_kin_relationship
           next_of_kin_mobile_number
           next_of_kin_cnic
+          email
         ].freeze
         VERSION_HEADER = 'template_version'
         SUPPORTED_HEADERS = (REQUIRED_HEADERS + OPTIONAL_HEADERS + [VERSION_HEADER]).freeze

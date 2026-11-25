@@ -23,6 +23,7 @@ RSpec.describe 'API V1 Admin Candidate Import Template', type: :request do
     expect(rows.headers).to eq(Admin::Candidates::Imports::Template.headers)
     expect(rows.first.fetch('cnic')).to eq('42101-1234567-1')
     expect(rows.first.fetch('next_of_kin_name')).to eq('مثالی سرپرست')
+    expect(rows.first.fetch('email')).to eq('candidate@example.com')
     upload = Struct.new(:body) do
       def read = body
       def size = body.bytesize

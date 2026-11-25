@@ -20,10 +20,10 @@ module Admin
         end
 
         def call(attributes:, row_errors:)
-          required_attributes(attributes,
-                              row_errors:).merge(optional_attributes(attributes)).tap do |candidate_attributes|
-            validate_next_of_kin(candidate_attributes, row_errors:)
-          end
+          required_attributes(attributes, row_errors:)
+            .merge(optional_attributes(attributes))
+            .merge(email: validated_email(attributes['email'], row_errors:))
+            .tap { |candidate_attributes| validate_next_of_kin(candidate_attributes, row_errors:) }
         end
 
         private
@@ -74,6 +74,15 @@ module Admin
           return value if value.match?(::Candidate::CNIC_FORMAT)
 
           row_errors << { field: 'cnic', code: 'invalid_cnic' }
+          nil
+        end
+
+        # Optional: a blank or missing column imports no email.
+        def validated_email(raw_value, row_errors:)
+          email = ::Candidate.normalized_email(raw_value)
+          return email if email.nil? || ::Candidate.valid_email?(email)
+
+          row_errors << { field: 'email', code: 'invalid_email' }
           nil
         end
 
