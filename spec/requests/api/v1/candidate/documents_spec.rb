@@ -195,7 +195,8 @@ RSpec.describe 'API V1 Candidate Documents', type: :request do
       create_requirement(candidate:, code: 'cv')
       upload = lambda do |fixture_name, content_type|
         post '/api/v1/candidate/documents',
-             params: { candidate_document: { requirement_code: 'cv', file: fixture_upload(fixture_name, content_type) } },
+             params: { candidate_document: { requirement_code: 'cv',
+                                             file: fixture_upload(fixture_name, content_type) } },
              headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
       end
 

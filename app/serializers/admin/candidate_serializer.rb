@@ -27,6 +27,7 @@ module Admin
         full_name: @candidate.full_name,
         cnic: @candidate.cnic,
         mobile_number: @candidate.mobile_number,
+        email: @candidate.email,
         passport_number: @candidate.passport_number
       }.merge(next_of_kin_attributes).merge(candidate_status_attributes)
     end

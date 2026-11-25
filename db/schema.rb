@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -763,6 +763,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_090000) do
     t.string "profile_photo_status"
     t.datetime "profile_photo_reviewed_at"
     t.bigint "profile_photo_reviewed_by_id"
+    t.string "email"
     t.index ["cnic"], name: "index_candidates_on_cnic", unique: true
     t.index ["created_by_id", "created_at"], name: "index_candidates_on_created_by_id_and_created_at"
     t.index ["created_by_id"], name: "index_candidates_on_created_by_id"

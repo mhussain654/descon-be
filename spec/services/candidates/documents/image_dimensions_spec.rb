@@ -3,7 +3,7 @@
 require 'rails_helper'
 
 RSpec.describe Candidates::Documents::ImageDimensions do
-  def fixture(name) = File.open(Rails.root.join('spec/fixtures/files', name), 'rb')
+  def fixture(name) = Rails.root.join('spec/fixtures/files', name).open('rb')
 
   describe '.read' do
     it 'reads the width and height of a PNG and a JPEG, leaving the file at its start' do

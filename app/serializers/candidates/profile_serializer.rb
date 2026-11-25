@@ -26,6 +26,7 @@ module Candidates
         id: @candidate.public_id,
         full_name: @candidate.full_name,
         masked_cnic: Candidates::CnicMasker.call(@candidate.cnic),
+        email: @candidate.email,
         reference_number: current_assignment&.reference_number,
         preferred_locale: @candidate.preferred_locale,
         candidate_status: @candidate.status_code,

@@ -19,4 +19,14 @@ RSpec.describe Candidates::ProfilePolicy do
       expect(described_class.new(nil, inactive_candidate).show?).to be(false)
     end
   end
+
+  describe '#update?' do
+    it 'lets an active candidate update only their own profile' do
+      candidate = create(:candidate, active: true)
+
+      expect(described_class.new(candidate, candidate).update?).to be(true)
+      expect(described_class.new(candidate, create(:candidate)).update?).to be(false)
+      expect(described_class.new(create(:candidate, active: false), candidate).update?).to be(false)
+    end
+  end
 end

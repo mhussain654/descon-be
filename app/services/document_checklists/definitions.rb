@@ -36,7 +36,6 @@ module DocumentChecklists
       { code: 'cv', name_en: 'CV / Resume', name_ur: 'سی وی / ریزیومے' },
       { code: 'educational_certificates', name_en: 'Educational Certificates', name_ur: 'تعلیمی اسناد' },
       { code: 'experience_certificates', name_en: 'Experience Certificates', name_ur: 'تجربے کے سرٹیفکیٹس' },
-      { code: 'cheque_copy', name_en: 'Cheque Copy', name_ur: 'چیک کی کاپی' },
       { code: 'gamca_medical_report', name_en: 'GAMCA / Wafid Medical Report',
         name_ur: 'GAMCA / وافد میڈیکل رپورٹ' },
       { code: 'police_character', name_en: 'Police Character Certificate', name_ur: 'پولیس کریکٹر سرٹیفکیٹ',
@@ -46,10 +45,11 @@ module DocumentChecklists
         requires_expiry: true }
     ].freeze
 
-    # Superseded codes from the single-file checklist: kept (inactive) because
-    # existing documents may reference them, never offered again.
+    # Superseded codes: kept (inactive) because existing documents may
+    # reference them, never offered again. The cheque copy is retired because
+    # the Bank Account Details form already takes a cheque as its proof.
     RETIRED_DOCUMENT_TYPE_CODES = %w[cnic_front cnic_back experience_letter certificates cheque_image
-                                     bank_details].freeze
+                                     bank_details cheque_copy].freeze
 
     # [document code, upload profile, extra attributes] in display order.
     # The marriage certificate is asked for only when the next of kin is the
@@ -57,8 +57,7 @@ module DocumentChecklists
     COMMON = [
       ['passport', :two_pages], ['cnic', :two_sided], ['photograph', :photo], ['next_of_kin_cnic', :two_sided],
       ['marriage_certificate', :single, { next_of_kin_spouse_only: true }],
-      ['cv', :single], ['educational_certificates', :certificates], ['experience_certificates', :certificates],
-      ['cheque_copy', :single]
+      ['cv', :single], ['educational_certificates', :certificates], ['experience_certificates', :certificates]
     ].freeze
 
     COUNTRY_ADDITIONS = {

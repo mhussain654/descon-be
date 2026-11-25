@@ -348,7 +348,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
   describe 'GET /api/v1/admin/candidates/:id' do
     it 'returns the full unmasked candidate detail with private no-store headers' do
       actor = create(:user, role: 'mps')
-      candidate = create(:candidate, passport_number: 'AB123456')
+      candidate = create(:candidate, passport_number: 'AB123456', email: 'candidate@example.com')
       assignment = create(:candidate_assignment, candidate:,
                                                  current_workflow_stage: create(:workflow_stage, :registered))
 
@@ -361,6 +361,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       data = response.parsed_body.fetch('data')
       expect(data.fetch('cnic')).to eq(candidate.cnic)
       expect(data.fetch('passport_number')).to eq('AB123456')
+      expect(data.fetch('email')).to eq('candidate@example.com')
       expect(data.dig('assignment', 'reference_number')).to eq(assignment.reference_number)
     end
 

@@ -3,7 +3,8 @@
 module Api
   module V1
     module Candidate
-      # Lets a candidate view their own registration/personal profile details.
+      # Lets a candidate view their own registration/personal profile details and
+      # add or change their email address.
       class ProfilesController < ProtectedController
         # Returns the current candidate's profile, with cache/ETag headers reflecting the
         # assignment's last update time.
@@ -18,13 +19,26 @@ module Api
           render_success(data: ::Candidates::ProfileSerializer.new(profile).as_json)
         end
 
+        # Sets, changes or clears (blank) the candidate's own email address.
+        def update
+          authorize current_candidate, :update?, policy_class: ::Candidates::ProfilePolicy
+
+          email = params.expect(candidate_profile: [:email])[:email]
+          candidate = ::Candidates::Profiles::EmailUpdateService.call(
+            candidate: current_candidate, email:, request_id: request.request_id
+          )
+          response.set_header('Cache-Control', 'private, no-store')
+          render_success(data: ::Candidates::ProfileSerializer.new(candidate).as_json)
+        end
+
         private
 
-        # Changes when the photo, or staff's decision on it, changes.
+        # Changes when the photo, staff's decision on it, or the email changes
+        # (the key is hashed into the ETag, so the email is not exposed).
         def profile_etag_key(profile)
           photo = [profile.profile_photo.attachment&.blob_id, profile.profile_photo_status,
                    profile.profile_photo_reviewed_at&.to_i]
-          "#{profile.public_id}:profile:#{photo.join(':')}"
+          "#{profile.public_id}:profile:#{photo.join(':')}:#{profile.email}"
         end
       end
     end

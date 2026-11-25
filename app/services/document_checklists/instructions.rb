@@ -56,10 +56,6 @@ module DocumentChecklists
         'اپنے تمام تجربے کے سرٹیفکیٹس اسکین شدہ PDF یا واضح تصاویر کی صورت میں اپ لوڈ کریں۔ ' \
         'ہر سرٹیفکیٹ الگ فائل کے طور پر شامل کیا جا سکتا ہے۔'
       ],
-      'cheque_copy' => [
-        'Upload a clear copy of a cheque from your bank account, as a scanned PDF or a clear photo.',
-        'اپنے بینک اکاؤنٹ کے چیک کی واضح کاپی اسکین شدہ PDF یا واضح تصویر کی صورت میں اپ لوڈ کریں۔'
-      ],
       'gamca_medical_report' => [
         'Upload your GAMCA / Wafid medical report as a PDF or a clear photo.',
         'اپنی GAMCA / وافد میڈیکل رپورٹ PDF یا واضح تصویر کی صورت میں اپ لوڈ کریں۔'

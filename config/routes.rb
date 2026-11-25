@@ -32,7 +32,7 @@ Rails.application.routes.draw do
           resource :voucher, only: :create, controller: :payment_vouchers
         end
         resource :application_progress, only: :show, controller: :application_progress
-        resource :profile, only: :show do
+        resource :profile, only: %i[show update] do
           resource :photo, only: %i[update destroy], controller: :profile_photos
         end
         resource :workflow_state, only: :show

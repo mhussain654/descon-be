@@ -556,6 +556,14 @@ components:
         masked_cnic:
           type: string
           example: 42101-*******-1
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: >-
+            The candidate's own email address, added or changed with
+            PATCH /api/v1/candidate/profile. Null until they add one.
+          example: candidate@example.com
         reference_number:
           type: string
         preferred_locale:
@@ -2920,6 +2928,11 @@ components:
           example: 42101-1234567-1
         mobile_number:
           type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Added by the candidate in the app's Profile tab; null until then.
         passport_number:
           type: string
           nullable: true
@@ -4357,6 +4370,75 @@ paths:
           description: Missing, invalid, expired, or revoked candidate session
         '403':
           description: Candidate account inactive
+    patch:
+      summary: Add, change or clear the candidate's own email address
+      description: >-
+        Sets the authenticated candidate's email address, which staff use for
+        mailing. It is trimmed and stored lowercased; a blank value clears it.
+        A change records an audit event (without the address). Returns the
+        updated profile.
+      security:
+        - candidateBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                candidate_profile:
+                  type: object
+                  properties:
+                    email:
+                      type: string
+                      nullable: true
+                      maxLength: 254
+                      example: candidate@example.com
+                  required: [email]
+              required: [candidate_profile]
+            examples:
+              setEmail:
+                value:
+                  candidate_profile:
+                    email: candidate@example.com
+      responses:
+        '200':
+          description: Email saved; the updated profile (see GET)
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlPrivateNoStoreHeader'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '400':
+          description: candidate_profile parameter missing
+        '401':
+          description: Missing, invalid, expired, or revoked candidate session
+        '403':
+          description: Candidate account inactive
+        '422':
+          description: The email address is not valid (`invalid_email`, field `candidate_profile.email`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidEmail:
+                  value:
+                    data: null
+                    meta:
+                      request_id: c0f3c0af-1bf0-48ba-bf9d-6ec0229247f0
+                      timestamp: '2026-11-25T09:00:10Z'
+                    errors:
+                      - code: invalid_email
+                        message: Enter a valid email address, e.g. name@example.com.
+                        field: candidate_profile.email
   /api/v1/candidate/profile/photo:
     put:
       summary: Set or replace the candidate's own profile photo

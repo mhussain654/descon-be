@@ -22,7 +22,7 @@ module Candidates
         when 'image/png' then png(io)
         when 'image/jpeg' then jpeg(io)
         end
-      rescue EOFError, IOError, TypeError, NoMethodError
+      rescue IOError, TypeError, NoMethodError
         nil
       ensure
         io.rewind

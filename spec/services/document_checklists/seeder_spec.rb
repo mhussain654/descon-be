@@ -6,7 +6,7 @@ require 'rails_helper'
 # kind of assignment.
 RSpec.describe DocumentChecklists::Seeder do
   let(:common_codes) do
-    %w[passport cnic photograph next_of_kin_cnic cv educational_certificates experience_certificates cheque_copy]
+    %w[passport cnic photograph next_of_kin_cnic cv educational_certificates experience_certificates]
   end
 
   before { described_class.call }
@@ -86,5 +86,15 @@ RSpec.describe DocumentChecklists::Seeder do
     expect { described_class.call }.not_to change(DocumentRequirement, :count)
     expect(legacy.reload.active).to be(false)
     expect(legacy_requirement.reload.active).to be(false)
+  end
+
+  it 'retires the cheque copy, which the bank details proof replaces' do
+    expect(DocumentType.find_by(code: 'cheque_copy')).to be_nil
+
+    cheque_copy = create(:document_type, code: 'cheque_copy')
+    requirement = create(:document_requirement, document_type: cheque_copy)
+    described_class.call
+
+    expect([cheque_copy.reload.active, requirement.reload.active]).to eq([false, false])
   end
 end

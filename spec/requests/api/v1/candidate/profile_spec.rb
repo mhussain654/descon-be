@@ -131,4 +131,87 @@ RSpec.describe 'API V1 Candidate Profile', type: :request do
       expect(response.headers['Content-Language']).to eq('ur')
     end
   end
+
+  describe 'PATCH /api/v1/candidate/profile' do
+    let(:candidate) { create(:candidate) }
+    let(:headers) { { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" } }
+
+    def update_email(email, extra_headers = {})
+      patch '/api/v1/candidate/profile', params: { candidate_profile: { email: } },
+                                         headers: headers.merge(extra_headers)
+    end
+
+    it 'saves the email lowercased, returns it in the profile and records an audit event' do
+      update_email('  Candidate@Example.COM ')
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers['Cache-Control']).to eq('private, no-store')
+      expect(response.parsed_body.dig('data', 'email')).to eq('candidate@example.com')
+      expect(candidate.reload.email).to eq('candidate@example.com')
+      event = AuditEvent.find_by!(action_code: 'candidate_email_updated', candidate:)
+      expect(event.metadata).to eq('candidate_public_id' => candidate.public_id, 'email_present' => true)
+    end
+
+    it 'shows the saved email in GET /profile' do
+      candidate.update!(email: 'saved@example.com')
+
+      get '/api/v1/candidate/profile', headers: headers
+
+      expect(response.parsed_body.dig('data', 'email')).to eq('saved@example.com')
+    end
+
+    it 'clears the email when blank is sent' do
+      candidate.update!(email: 'old@example.com')
+
+      update_email('')
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'email')).to be_nil
+      expect(candidate.reload.email).to be_nil
+    end
+
+    it 'records no audit event when the email is unchanged' do
+      candidate.update!(email: 'same@example.com')
+
+      expect { update_email('SAME@example.com') }.not_to change(AuditEvent, :count)
+      expect(response).to have_http_status(:ok)
+    end
+
+    it 'refuses an invalid email with a localized message' do
+      update_email('not-an-email', 'X-Locale' => 'ur')
+
+      expect(response).to have_http_status(:unprocessable_content)
+      error = response.parsed_body.dig('errors', 0)
+      expect(error.slice('code', 'field')).to eq('code' => 'invalid_email', 'field' => 'candidate_profile.email')
+      expect(error['message']).to eq(I18n.t('api.errors.invalid_email', locale: :ur))
+      expect(candidate.reload.email).to be_nil
+    end
+
+    it 'refuses an email longer than 254 characters' do
+      update_email("#{'a' * 250}@example.com")
+
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('invalid_email')
+    end
+
+    it 'requires the candidate_profile parameter' do
+      patch '/api/v1/candidate/profile', params: {}, headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it 'rejects an unauthenticated request' do
+      patch '/api/v1/candidate/profile', params: { candidate_profile: { email: 'x@example.com' } }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'rejects an inactive candidate' do
+      candidate.update!(active: false)
+
+      update_email('x@example.com')
+
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('inactive_account')
+      expect(candidate.reload.email).to be_nil
+    end
+  end
 end

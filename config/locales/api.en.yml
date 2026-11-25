@@ -142,6 +142,7 @@ en:
       missing_bank_name: "Enter the bank name."
       missing_proof: "Attach a photo or copy of your cheque."
       invalid_account_number: "Enter your full IBAN: 24 characters starting with PK, e.g. PK36SCBL0000001123456702."
+      invalid_email: "Enter a valid email address, e.g. name@example.com."
       payment_checkout_unavailable: "Hosted checkout is not available right now."
       payment_not_eligible: "This candidate is not eligible to start payment."
       payment_signature_invalid: "The payment signature is invalid."

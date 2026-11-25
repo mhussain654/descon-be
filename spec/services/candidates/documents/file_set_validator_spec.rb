@@ -41,14 +41,16 @@ RSpec.describe Candidates::Documents::FileSetValidator do
 
     it 'accepts a photo of each page or side' do
       photo = { content_type: 'image/jpeg' }
-      expect(reason_for(catalog_requirement(:two_pages), [entry('page_1', **photo), entry('page_2', **photo)])).to be_nil
+      expect(reason_for(catalog_requirement(:two_pages),
+                        [entry('page_1', **photo), entry('page_2', **photo)])).to be_nil
       expect(reason_for(catalog_requirement(:two_sided), [entry('front', **photo), entry('back', **photo)])).to be_nil
     end
 
     it 'accepts a JPEG or PNG for every kind of document' do
       side_codes = { two_pages: nil, two_sided: nil, certificates: 'certificate' }
+      image_types = %w[image/jpeg image/png]
       %i[single photo certificates].each do |profile|
-        %w[image/jpeg image/png].each do |content_type|
+        image_types.each do |content_type|
           expect(reason_for(catalog_requirement(profile), [entry(side_codes[profile], content_type:)])).to be_nil
         end
       end
@@ -102,7 +104,10 @@ RSpec.describe Candidates::Documents::FileSetValidator do
     end
 
     it 'refuses a photo under 500 x 500 pixels and accepts one at least that size' do
-      expect { described_class.call(requirement: catalog_requirement(:single), entries: [photo_entry('small_photo.jpg', 'image/jpeg')]) }
+      expect do
+        described_class.call(requirement: catalog_requirement(:single),
+                             entries: [photo_entry('small_photo.jpg', 'image/jpeg')])
+      end
         .to raise_error(ImageTooSmallError) { |error| expect(error.field).to eq('candidate_document.files[0].file') }
       expect(reason_for(catalog_requirement(:single), [photo_entry('document_photo.png', 'image/png')])).to be_nil
     end
