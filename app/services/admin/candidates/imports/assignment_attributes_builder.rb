@@ -4,6 +4,8 @@ module Admin
   module Candidates
     module Imports
       class AssignmentAttributesBuilder
+        NAMED_LOOKUPS = [Country, Project, Craft].freeze
+
         def initialize(actor:, campaign: nil)
           @actor = actor
           @campaign = campaign
@@ -47,16 +49,8 @@ module Admin
           )
         end
 
-        # Matched by code, or -- since client files carry job titles -- by the
-        # craft's English name, ignoring case and extra spaces (e.g. "HSE Assistant").
         def craft(attributes, row_errors:)
-          crafts = Craft.where(active: true)
-          value = attributes.fetch('craft_code').to_s.squish.downcase
-          record = crafts.find_by(code: value) || (value.present? && crafts.find_by('LOWER(name_en) = ?', value))
-          return record if record
-
-          row_errors << { field: 'craft_code', code: 'unknown_craft_code' }
-          nil
+          referenced_record(Craft.where(active: true), attributes.fetch('craft_code'), field: 'craft_code', row_errors:)
         end
 
         def validated_reference_number(raw_value, row_errors:)
@@ -67,9 +61,13 @@ module Admin
           nil
         end
 
+        # Countries, projects and crafts match by code or -- since client files
+        # carry names -- by English name, ignoring case and extra spaces (e.g.
+        # "Qatar Infrastructure", "HSE Assistant"). Workflow stages match by code.
         def referenced_record(scope, raw_code, field:, row_errors:)
-          code = raw_code.to_s.strip.downcase
-          record = scope.find_by(code:)
+          value = raw_code.to_s.squish.downcase
+          record = scope.find_by(code: value)
+          record ||= scope.find_by('LOWER(name_en) = ?', value) if value.present? && NAMED_LOOKUPS.include?(scope.klass)
           return record if record.present?
 
           row_errors << { field:, code: "unknown_#{field}" }

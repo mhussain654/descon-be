@@ -3389,14 +3389,16 @@ components:
       type: object
       description: >-
         CSV with the headers full_name, cnic, mobile_number, reference_number,
-        preferred_locale, candidate_status, workflow_stage_code, country_code,
-        project_code, craft_code, active. preferred_locale may be blank (the
-        candidate then picks a language on first sign-in) or en/ur.
-        candidate_status and workflow_stage_code may be blank or a "Not
-        Registered" label (any case, spaces/underscores/hyphens, including the
-        "Not Registred" spelling) and then import as registered. craft_code
-        matches a craft's code or its English name, ignoring case and extra
-        spaces (e.g. "HSE Assistant").
+        candidate_status, workflow_stage_code, country_code, project_code,
+        craft_code, active. Optional: passport_number, next_of_kin_name,
+        next_of_kin_relationship, next_of_kin_mobile_number, next_of_kin_cnic,
+        email, and preferred_locale (blank or left out: the candidate picks a
+        language on first sign-in; otherwise en/ur). candidate_status and
+        workflow_stage_code may be blank or a "Not Registered" label (any case,
+        spaces/underscores/hyphens, including the "Not Registred" spelling) and
+        then import as registered. country_code, project_code and craft_code
+        each match a code or the English name, ignoring case and extra spaces
+        (e.g. "Qatar", "Qatar Infrastructure", "HSE Assistant").
       properties:
         candidate_import:
           type: object

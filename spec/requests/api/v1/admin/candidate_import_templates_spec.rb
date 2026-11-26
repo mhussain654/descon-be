@@ -21,6 +21,7 @@ RSpec.describe 'API V1 Admin Candidate Import Template', type: :request do
     expect(response.headers['Content-Disposition']).to include('candidate-import-template-v1.csv')
     rows = CSV.parse(response.body, headers: true)
     expect(rows.headers).to eq(Admin::Candidates::Imports::Template.headers)
+    expect(rows.headers).not_to include('preferred_locale')
     expect(rows.first.fetch('cnic')).to eq('42101-1234567-1')
     expect(rows.first.fetch('next_of_kin_name')).to eq('مثالی سرپرست')
     expect(rows.first.fetch('email')).to eq('candidate@example.com')

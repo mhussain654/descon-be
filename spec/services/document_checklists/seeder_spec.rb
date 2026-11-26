@@ -79,6 +79,30 @@ RSpec.describe DocumentChecklists::Seeder do
     expect(codes.call.each_cons(2)).to include(%w[next_of_kin_cnic marriage_certificate])
   end
 
+  it 'adds a missing document type and its checklist rows' do
+    polio = DocumentType.find_by!(code: 'polio_certificate')
+    DocumentRequirement.where(document_type: polio).delete_all
+    polio.delete
+
+    described_class.call
+
+    added = DocumentType.find_by!(code: 'polio_certificate')
+    expect(added).to have_attributes(active: true, name_en: be_present, name_ur: be_present)
+    expect(DocumentRequirement.where(document_type: added, country: process_country(:qatar))).to exist
+  end
+
+  it 'never overwrites a document type or checklist row a developer edited' do
+    passport = DocumentRequirement.joins(:document_type).find_by!(document_types: { code: 'passport' }, country: nil)
+    passport.update!(instructions_en: 'Edited in admin', maximum_files: 3, requirement_level: 'optional')
+    passport.document_type.update!(name_en: 'Passport (edited)')
+
+    described_class.call
+
+    expect(passport.reload).to have_attributes(instructions_en: 'Edited in admin', maximum_files: 3,
+                                               requirement_level: 'optional')
+    expect(passport.document_type.reload.name_en).to eq('Passport (edited)')
+  end
+
   it 'retires the superseded single-file types and stays idempotent' do
     legacy = create(:document_type, code: 'cnic_front')
     legacy_requirement = create(:document_requirement, document_type: legacy)

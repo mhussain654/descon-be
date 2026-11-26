@@ -13,7 +13,6 @@ module Admin
           cnic
           mobile_number
           reference_number
-          preferred_locale
           candidate_status
           workflow_stage_code
           country_code
@@ -28,6 +27,7 @@ module Admin
           next_of_kin_mobile_number
           next_of_kin_cnic
           email
+          preferred_locale
         ].freeze
         VERSION_HEADER = 'template_version'
         SUPPORTED_HEADERS = (REQUIRED_HEADERS + OPTIONAL_HEADERS + [VERSION_HEADER]).freeze

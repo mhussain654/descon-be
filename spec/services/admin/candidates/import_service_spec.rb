@@ -79,12 +79,14 @@ RSpec.describe Admin::Candidates::ImportService do
       end.to raise_error(ValidationError)
     end
 
-    it 'rejects missing required headers before processing rows' do
+    it 'rejects missing required headers before processing rows, but not a missing language column' do
       file = uploaded_csv("full_name,cnic\nCandidate,42101-1234567-1\n")
+      message = nil
 
-      expect do
-        described_class.call(actor:, file:, request_id: 'req-import-4')
-      end.to raise_error(ValidationError) { |error| expect(error.message).to include('preferred_locale') }
+      expect { described_class.call(actor:, file:, request_id: 'req-import-4') }
+        .to raise_error(ValidationError) { |error| message = error.message }
+      expect(message).to include('candidate_status')
+      expect(message).not_to include('preferred_locale')
     end
 
     it 'rejects malformed csv payloads' do
@@ -180,6 +182,39 @@ RSpec.describe Admin::Candidates::ImportService do
       assignments = CandidateAssignment.where(candidate: candidates.values).includes(:craft, :current_workflow_stage)
       expect(assignments.map { |assignment| assignment.current_workflow_stage.code }).to all(eq('documents_pending'))
       expect(assignments.map { |assignment| assignment.craft.code }).to contain_exactly('electrician', 'welder', 'electrician')
+    end
+
+    it 'imports a file without a language column, matching country and project by English name' do
+      content = CSV.generate do |csv|
+        csv << %w[full_name cnic mobile_number reference_number candidate_status workflow_stage_code country_code
+                  project_code craft_code active email]
+        csv << ['Named Lookups', '42135-1234567-5', '923001234571', 'DES-001034', 'Not Registred', 'Not Registred',
+                'Qatar', ' qatar   INFRASTRUCTURE ', 'Welder', 'TRUE', '']
+      end
+
+      result = described_class.call(actor:, file: uploaded_csv(content), request_id: 'req-import-named')
+
+      expect(result).to include(successful_rows: 1, failed_rows: 0)
+      candidate = Candidate.find_by!(cnic: '42135-1234567-5')
+      expect(candidate.preferred_locale).to be_nil
+      assignment = candidate.candidate_assignments.sole
+      expect([assignment.country.code, assignment.project.code, assignment.craft.code])
+        .to eq(%w[qatar qatar_infrastructure welder])
+    end
+
+    it 'rejects a project that matches neither a code nor an English project name' do
+      result = described_class.call(
+        actor:,
+        file: uploaded_csv(
+          csv_content(['Typo Project', '42136-1234567-6', '923001234572', 'DES-001035', '', '', '', 'Qatar',
+                       'Qatar Infrastracture', 'electrician', 'TRUE'])
+        ),
+        request_id: 'req-import-project-typo'
+      )
+
+      expect(result[:errors]).to contain_exactly(
+        include(row: 2, field: 'project_code', code: 'unknown_project_code', value: 'Qatar Infrastracture')
+      )
     end
 
     it 'rejects a craft that matches neither a code nor an English craft name' do

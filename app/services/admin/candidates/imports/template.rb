@@ -15,7 +15,11 @@ module Admin
           end
         end
 
-        def self.headers = CsvFileParser::SUPPORTED_HEADERS
+        # Every supported column except preferred_locale, which older files may
+        # still carry: candidates pick their language in the app instead.
+        LEFT_OUT_HEADERS = %w[preferred_locale].freeze
+
+        def self.headers = CsvFileParser::SUPPORTED_HEADERS - LEFT_OUT_HEADERS
         def self.filename = "candidate-import-template-#{VERSION}.csv"
 
         private
@@ -24,8 +28,8 @@ module Admin
 
         def example_row
           [
-            'Example Candidate', '42101-1234567-1', '+923001234567', 'DES-EXAMPLE-001', 'en', 'registered',
-            'registered', 'qatar', 'qatar_infrastructure', 'electrician', 'true', 'AB123456', 'مثالی سرپرست',
+            'Example Candidate', '42101-1234567-1', '+923001234567', 'DES-EXAMPLE-001', 'registered',
+            'registered', 'Qatar', 'Qatar Infrastructure', 'Electrician', 'true', 'AB123456', 'مثالی سرپرست',
             'sibling', '+923001234568', '42101-1234567-2', 'candidate@example.com', VERSION
           ]
         end
