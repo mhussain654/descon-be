@@ -20,6 +20,8 @@ class CandidateAssignment < ApplicationRecord
   belongs_to :mobilization_process
   belongs_to :current_mobilization_process_stage, class_name: 'MobilizationProcessStage'
   belongs_to :created_by, class_name: 'User'
+  # Optional only for assignments created before campaigns existed.
+  belongs_to :campaign, optional: true, inverse_of: :candidate_assignments
 
   has_many :candidate_stage_histories, dependent: :restrict_with_exception
   has_many :candidate_bank_details, dependent: :restrict_with_exception

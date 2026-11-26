@@ -30,7 +30,7 @@ module Admin
 
       def validate_actor!
         raise InactiveAccountError unless @params.actor&.active_staff_account?
-        raise ForbiddenError unless @params.actor.permission?('manage_candidates')
+        raise ForbiddenError unless @params.actor.permission?('manage_reference_data')
       end
 
       def locked_record
@@ -55,8 +55,32 @@ module Admin
           @record.save!
         when :update then @record.update!(update_attributes)
         when :retire then @record.update!(active: false)
+        when :restore then @record.update!(active: true)
+        when :destroy then destroy_unused!
         else raise ArgumentError, "unsupported reference-data action: #{@params.action}"
         end
+      end
+
+      # Deleting is only for a value nothing points at (e.g. a typo just
+      # added); a value in use is retired instead, so candidates keep theirs.
+      def destroy_unused!
+        raise ReferenceDataInUseError if in_use?
+
+        @record.destroy!
+      end
+
+      # Any row in any table referencing this value through a foreign key.
+      def in_use?
+        connection = @params.record_class.connection
+        connection.tables.any? do |table|
+          connection.foreign_keys(table).any? do |key|
+            key.to_table == @params.record_class.table_name && referencing_rows?(table, key.column)
+          end
+        end
+      end
+
+      def referencing_rows?(table, column)
+        Class.new(ApplicationRecord) { self.table_name = table }.exists?(column => @record.id)
       end
 
       def create_attributes
@@ -99,7 +123,8 @@ module Admin
       end
 
       def audit_changed_fields
-        return ['active'] if @params.action == :retire
+        return ['active'] if %i[retire restore].include?(@params.action)
+        return [] if @params.action == :destroy
 
         normalized_attributes.keys.map(&:to_s)
       end

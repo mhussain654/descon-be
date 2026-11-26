@@ -14,7 +14,9 @@ module Api
         def index
           authorize CandidateDocumentSubmission, policy_class: ::Admin::DocumentSubmissionPolicy
 
-          query = ::Admin::DocumentReviewQueueQuery.new(scope: document_submission_scope, params:)
+          query = ::Admin::DocumentReviewQueueQuery.new(
+            scope: campaign_selection.apply_to_assignment_records(document_submission_scope), params:
+          )
           submissions = query.call
 
           render_collection(

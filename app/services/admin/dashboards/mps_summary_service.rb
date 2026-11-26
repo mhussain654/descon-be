@@ -8,9 +8,10 @@ module Admin
     # unchanged from the Admin dashboard -- same query, same real data), and
     # the single most recently mobilized candidate.
     class MpsSummaryService < ApplicationService
-      def initialize(trend_granularity: 'monthly', params: ActionController::Parameters.new)
+      def initialize(trend_granularity: 'monthly', params: ActionController::Parameters.new, campaign_selection: nil)
         @trend_granularity = trend_granularity
         @params = params
+        @campaign_selection = campaign_selection
       end
 
       def call
@@ -37,7 +38,7 @@ module Admin
       end
 
       def filtered_scope
-        Reports::DashboardFilterResolution.call(params: @params)
+        Reports::DashboardFilterResolution.call(params: @params, campaign_selection: @campaign_selection)
       end
     end
   end

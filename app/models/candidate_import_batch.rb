@@ -8,6 +8,8 @@ class CandidateImportBatch < ApplicationRecord
   STATUSES = %w[awaiting_confirmation queued processing completed partial failed invalidated].freeze
 
   belongs_to :actor, class_name: 'User'
+  # The campaign the import's candidates go into (none for imports made before campaigns).
+  belongs_to :campaign, optional: true
   has_many :row_results, class_name: 'CandidateImportRowResult', dependent: :restrict_with_exception
 
   encrypts :preflight_payload

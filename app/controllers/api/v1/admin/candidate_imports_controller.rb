@@ -37,7 +37,8 @@ module Api
           result = ::Admin::Candidates::Imports::PreflightService.call(
             actor: current_user,
             file: import_params.fetch(:file),
-            request_id: request.request_id
+            request_id: request.request_id,
+            campaign: chosen_campaign
           )
           render_success_payload(success_payload(data: result, status: :created))
         end
@@ -71,10 +72,7 @@ module Api
 
         # Queries and renders the paginated list of import batches within the staff member's scope.
         def render_history
-          query = ::Admin::CandidateImports::IndexQuery.new(
-            scope: import_batches_scope,
-            params:
-          )
+          query = ::Admin::CandidateImports::IndexQuery.new(scope: history_scope, params:)
           batches = query.call
           set_private_state_headers(
             updated_at: batches.maximum(:updated_at), etag_key: "candidate-imports:#{current_user.public_id}"
@@ -89,7 +87,8 @@ module Api
           result = ::Admin::Candidates::ImportService.call(
             actor: current_user,
             file: import_params.fetch(:file),
-            request_id: request.request_id
+            request_id: request.request_id,
+            campaign: chosen_campaign
           )
 
           success_payload(
@@ -98,9 +97,16 @@ module Api
           )
         end
 
-        # Allowlists the uploaded file field for create/preflight.
+        # Allowlists the uploaded file and the chosen campaign for create/preflight.
         def import_params
-          params.expect(candidate_import: [:file])
+          params.expect(candidate_import: %i[file campaign_id])
+        end
+
+        # The active campaign the import's candidates go into; required.
+        def chosen_campaign
+          ::Campaign.active.find_by(public_id: import_params[:campaign_id].to_s) ||
+            raise(ValidationError.new(field: 'candidate_import.campaign_id',
+                                      message: I18n.t('api.errors.unknown_campaign')))
         end
 
         # Allowlists the preflight token field for commit.
@@ -112,6 +118,11 @@ module Api
         # raising if not found.
         def import_batch
           @import_batch ||= import_batches_scope.find_by!(public_id: params.expect(:id))
+        end
+
+        # The staff member's imports in their working campaign, with each import's campaign preloaded.
+        def history_scope
+          campaign_selection.apply_to_campaign_records(import_batches_scope.includes(:campaign))
         end
 
         # Scopes import batches to what the current staff member is authorized to see.

@@ -10,22 +10,21 @@ module Api
         CREATE_PARAMS = %i[
           full_name cnic mobile_number passport_number preferred_locale
           next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
-          country_code project_code craft_code reference_number
+          country_code project_code craft_code reference_number campaign_id
         ].freeze
 
         UPDATE_PARAMS = %i[
           full_name mobile_number email passport_number preferred_locale
           next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
-          country_code project_code craft_code expected_updated_at
+          country_code project_code craft_code campaign_id expected_updated_at
         ].freeze
 
         # Returns a paginated, filtered list of candidates within the staff member's authorized scope.
         def index
           authorize ::Candidate, :index?, policy_class: ::Admin::CandidatePolicy
 
-          query = ::Admin::Candidates::IndexQuery.new(
-            scope: policy_scope(::Candidate, policy_scope_class: ::Admin::CandidatePolicy::Scope), params:
-          )
+          scope = policy_scope(::Candidate, policy_scope_class: ::Admin::CandidatePolicy::Scope)
+          query = ::Admin::Candidates::IndexQuery.new(scope: campaign_selection.apply(scope), params:)
           data = query.call.map { |candidate| serialized_candidate(candidate) }
           render_collection(data:, pagination: query.pagination, meta: index_meta(query))
         end

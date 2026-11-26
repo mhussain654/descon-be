@@ -63,7 +63,7 @@ module Admin
           candidate_assignment_public_id: @document.candidate_assignment.public_id,
           document_public_id: @document.public_id,
           file_public_id: document_file.public_id,
-          requirement_code: @document.submission_item.requirement_code,
+          requirement_code: @document.submission_item&.requirement_code || @document.document_type.code,
           expires_at: expires_at.utc.iso8601
         }
       end

@@ -8,10 +8,11 @@ module Admin
       class PreflightService < ApplicationService
         EXPIRY = 30.minutes
 
-        def initialize(actor:, file:, request_id:)
+        def initialize(actor:, file:, request_id:, campaign: nil)
           @actor = actor
           @file = file
           @request_id = request_id
+          @campaign = campaign
         end
 
         def call
@@ -37,7 +38,8 @@ module Admin
 
         def batch_attributes(token:, rows:, result:)
           summary = result.summary
-          { actor: @actor, token_digest: digest(token), source_filename: File.basename(@file.original_filename.to_s),
+          { actor: @actor, campaign: @campaign, token_digest: digest(token),
+            source_filename: File.basename(@file.original_filename.to_s),
             file_fingerprint: file_fingerprint, template_version: Template::VERSION, request_id: @request_id,
             status: 'awaiting_confirmation',
             preflight_payload: { rows: }.to_json, total_rows: summary.fetch(:total_rows),
@@ -48,11 +50,12 @@ module Admin
 
         def response(result:, batch:, token:)
           result.to_h.merge(import_id: batch.public_id, preflight_token: token, expires_at: batch.expires_at.iso8601,
+                            campaign: CandidateImports::BatchSerializer.campaign(@campaign),
                             accepted_rows: batch.accepted_rows, rejected_rows: batch.rejected_rows, warning_count: 0)
         end
 
         def plan_rows(rows:, result:)
-          builder = RowBuilder.new(actor: @actor)
+          builder = RowBuilder.new(actor: @actor, campaign: @campaign)
           tracker = DuplicateTracker.new
           rows.each_with_index.filter_map do |row, index|
             process_row(row:, row_number: index + 2, builder:, tracker:, result:)

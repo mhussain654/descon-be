@@ -9,11 +9,18 @@ class User < ApplicationRecord
   STAFF_ROLE_CODES = %w[admin hr mps finance management developer].freeze
   # The developer role is set only from the Rails console; admin can never assign it.
   ASSIGNABLE_ROLE_CODES = (STAFF_ROLE_CODES - %w[developer]).freeze
+  # Staff hierarchy: developer above admin, admin above the functional roles
+  # (peers). Staff see and manage accounts at or below their own level -- a
+  # functional role only its own role.
+  ROLE_LEVELS = { 'developer' => 3, 'admin' => 2 }.freeze
+  FUNCTIONAL_ROLE_LEVEL = 1
   STAFF_STATES = %w[invited active suspended].freeze
   INVITATION_TTL = 72.hours
 
   belongs_to :staff_role, class_name: 'Role', foreign_key: :role, primary_key: :code, inverse_of: :users, optional: true
   belongs_to :invited_by, class_name: 'User', optional: true
+  # The staff member's working campaign; nil means all campaigns (see Admin::CampaignSelection).
+  belongs_to :selected_campaign, class_name: 'Campaign', optional: true
 
   has_many :sessions, dependent: :destroy
   has_many :created_candidates, class_name: 'Candidate', foreign_key: :created_by_id, inverse_of: :created_by,
@@ -120,6 +127,15 @@ class User < ApplicationRecord
   # True if this user has a pending invitation that hasn't expired yet.
   def invitation_active?
     invited? && invitation_token_digest.present? && invitation_expires_at.present? && invitation_expires_at.future?
+  end
+
+  def role_level = ROLE_LEVELS.fetch(role, FUNCTIONAL_ROLE_LEVEL)
+
+  # The staff roles this user may see in the staff list and give to others.
+  def visible_staff_role_codes
+    return [role] if role_level == FUNCTIONAL_ROLE_LEVEL
+
+    STAFF_ROLE_CODES.select { |code| ROLE_LEVELS.fetch(code, FUNCTIONAL_ROLE_LEVEL) <= role_level }
   end
 
   private

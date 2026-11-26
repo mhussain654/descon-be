@@ -12,9 +12,10 @@ module Admin
     # assembles requires_attention from sections computed elsewhere in this
     # same call rather than recomputing them.
     class AdminSummaryService < ApplicationService
-      def initialize(params: ActionController::Parameters.new)
+      def initialize(params: ActionController::Parameters.new, campaign_selection: nil)
         super()
         @params = params
+        @campaign_selection = campaign_selection
       end
 
       def call
@@ -29,7 +30,7 @@ module Admin
       private
 
       def filtered_scope
-        Reports::DashboardFilterResolution.call(params: @params)
+        Reports::DashboardFilterResolution.call(params: @params, campaign_selection: @campaign_selection)
       end
 
       def base_sections(scope)

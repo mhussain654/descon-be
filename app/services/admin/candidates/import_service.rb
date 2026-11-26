@@ -3,10 +3,11 @@
 module Admin
   module Candidates
     class ImportService < ApplicationService
-      def initialize(actor:, file:, request_id:)
+      def initialize(actor:, file:, request_id:, campaign: nil)
         @actor = actor
         @file = file
         @request_id = request_id
+        @campaign = campaign
       end
 
       def call
@@ -21,7 +22,7 @@ module Admin
       private
 
       def plan_rows(rows:, result:)
-        row_builder = Imports::RowBuilder.new(actor: @actor)
+        row_builder = Imports::RowBuilder.new(actor: @actor, campaign: @campaign)
         duplicate_tracker = Imports::DuplicateTracker.new
 
         rows.each_with_index do |row, index|

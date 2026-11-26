@@ -60,11 +60,15 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
     view_reports
   ]
 }.each do |role_code, permission_codes|
+  # Only a role with no permissions yet (a fresh database) gets these defaults:
+  # developers edit role permissions in admin (Reference data), and a later
+  # seed run must not add back one they removed. New permissions reach
+  # existing roles through their own migrations.
+  role_id = role_ids_by_code.fetch(role_code)
+  next if RolePermission.exists?(role_id:)
+
   permission_codes.each do |permission_code|
-    RolePermission.find_or_create_by!(
-      role_id: role_ids_by_code.fetch(role_code),
-      permission_id: permission_ids_by_code.fetch(permission_code)
-    )
+    RolePermission.create!(role_id:, permission_id: permission_ids_by_code.fetch(permission_code))
   end
 end
 
@@ -169,9 +173,10 @@ SupportSetting.current
   { code: 'azerbaijan', name_en: 'Azerbaijan', name_ur: 'آذربائیجان' },
   { code: 'south_africa', name_en: 'South Africa', name_ur: 'جنوبی افریقہ' }
 ].each do |attributes|
-  country = Country.find_or_initialize_by(code: attributes.fetch(:code))
-  country.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
-  country.save!
+  # Added when missing, never overwritten: developers edit countries in admin.
+  Country.find_or_create_by!(code: attributes.fetch(:code)) do |country|
+    country.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
+  end
 end
 
 # Country mobilization processes: publishes each approved version once (needs
@@ -184,9 +189,10 @@ MobilizationProcesses::Seeder.call
   { code: 'qatar_energy', name_en: 'Qatar Energy', name_ur: 'قطر انرجی' },
   { code: 'saudi_construction', name_en: 'Saudi Construction', name_ur: 'سعودی تعمیرات' }
 ].each do |attributes|
-  project = Project.find_or_initialize_by(code: attributes.fetch(:code))
-  project.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
-  project.save!
+  # Added when missing, never overwritten: developers edit projects in admin.
+  Project.find_or_create_by!(code: attributes.fetch(:code)) do |project|
+    project.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true)
+  end
 end
 
 [
@@ -212,10 +218,11 @@ end
   { code: 'painter', name_en: 'Painter', name_ur: 'پینٹر' },
   { code: 'shut_down_manager', name_en: 'Shut Down Manager', name_ur: 'شٹ ڈاؤن مینیجر' }
 ].each do |attributes|
-  craft = Craft.find_or_initialize_by(code: attributes.fetch(:code))
-  craft.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true,
-                          is_driver: attributes.fetch(:is_driver, false))
-  craft.save!
+  # Added when missing, never overwritten: developers edit crafts in admin.
+  Craft.find_or_create_by!(code: attributes.fetch(:code)) do |craft|
+    craft.assign_attributes(name_en: attributes.fetch(:name_en), name_ur: attributes.fetch(:name_ur), active: true,
+                            is_driver: attributes.fetch(:is_driver, false))
+  end
 end
 
 # Document catalog plus the common, KSA and Qatar checklists (with upload
@@ -280,12 +287,20 @@ if Rails.env.development? && ENV.fetch('SEED_DEMO_DATA', 'false') == 'true'
   end
 end
 
+# The permanent Test campaign (also created by the 20261126090000 migration):
+# test candidates live here and stay out of "All campaigns".
+Campaign.find_or_create_by!(kind: Campaign::TEST_KIND) do |campaign|
+  campaign.code = 'TEST'
+  campaign.name = 'Test campaign'
+end
+
 # The Google Play / App Store reviewer's demo candidate (StoreReview::Account),
 # so it comes back after a data reset. Needs the store_review credentials and an
-# active staff administrator to record as its creator (the earliest one); on a
-# fresh database, create that administrator and run db:seed again. Does nothing
-# once the candidate exists.
-store_review_creator = User.where(role: 'admin', active: true).order(:created_at).first
+# active staff administrator or developer to record as its creator (the
+# earliest one); on a fresh database, create that account and run db:seed
+# again. Does nothing once the candidate exists. Developers count too because
+# the pre-launch cleanup (prelaunch_reset:run) keeps only developer accounts.
+store_review_creator = User.where(role: %w[admin developer], active: true).order(:created_at).first
 if StoreReview::Account.enabled? && store_review_creator
   StoreReview::CreateCandidateService.call(created_by: store_review_creator)
 end

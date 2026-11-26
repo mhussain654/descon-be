@@ -33,6 +33,15 @@ module WorkflowReferenceData
       end
     end
     MobilizationProcesses::Seeder.call
+    ensure_test_campaign!
+  end
+
+  # The permanent Test campaign (made by the create_campaigns migration), which
+  # the store reviewer and "all campaigns" filtering rely on.
+  def ensure_test_campaign!
+    Campaign.find_or_create_by!(kind: 'test') do |campaign|
+      campaign.assign_attributes(code: 'TEST', name: 'Test campaign', active: true)
+    end
   end
 
   def process_country(code) = Country.find_by!(code: code.to_s)

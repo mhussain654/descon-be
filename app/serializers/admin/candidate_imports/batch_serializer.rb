@@ -8,6 +8,12 @@ module Admin
         @include_rows = include_rows
       end
 
+      # The campaign an import goes into, or nil.
+      def self.campaign(campaign)
+        campaign && { id: campaign.public_id, code: campaign.code, name: campaign.name,
+                      kind: campaign.kind }
+      end
+
       def as_json(*)
         return attributes unless @include_rows
 
@@ -26,7 +32,8 @@ module Admin
           template_version: @batch.template_version, total_rows: @batch.total_rows,
           accepted_rows: @batch.accepted_rows, rejected_rows: @batch.rejected_rows,
           skipped_rows: @batch.skipped_rows, committed_rows: @batch.committed_rows,
-          imported_rows: @batch.imported_rows, error_code: @batch.error_code
+          imported_rows: @batch.imported_rows, error_code: @batch.error_code,
+          campaign: self.class.campaign(@batch.campaign)
         }
       end
 

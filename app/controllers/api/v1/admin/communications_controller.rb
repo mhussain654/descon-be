@@ -12,7 +12,9 @@ module Api
         def index
           authorize ::Communication, policy_class: ::Admin::CommunicationPolicy
 
-          query = ::Admin::Communications::IndexQuery.new(scope: communication_scope, params:)
+          query = ::Admin::Communications::IndexQuery.new(
+            scope: campaign_selection.apply_to_assignment_records(communication_scope), params:
+          )
           communications = query.call
 
           render_collection(

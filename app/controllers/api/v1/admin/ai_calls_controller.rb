@@ -12,7 +12,9 @@ module Api
         def index
           authorize ::CandidateAiCall, policy_class: ::Admin::CandidateAiCallPolicy
 
-          query = ::Admin::AiCalls::IndexQuery.new(scope: candidate_ai_call_scope, params:)
+          query = ::Admin::AiCalls::IndexQuery.new(
+            scope: campaign_selection.apply_to_assignment_records(candidate_ai_call_scope), params:
+          )
           calls = query.call
 
           render_collection(

@@ -51,6 +51,12 @@ RSpec.describe User, type: :model do
     expect(user.email).to eq('admin@example.com')
   end
 
+  it 'sees staff roles at or below its own level' do
+    expect(build(:user, role: 'developer').visible_staff_role_codes).to match_array(User::STAFF_ROLE_CODES)
+    expect(build(:user, role: 'admin').visible_staff_role_codes).to match_array(User::STAFF_ROLE_CODES - %w[developer])
+    expect(build(:user, role: 'hr').visible_staff_role_codes).to eq(%w[hr])
+  end
+
   it 'answers permission checks through the assigned role' do
     role = Role.find_or_initialize_by(code: 'admin')
     role.system_defined = true

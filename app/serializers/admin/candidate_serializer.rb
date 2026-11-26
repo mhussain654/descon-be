@@ -69,12 +69,19 @@ module Admin
       )
     end
 
+    # The assignment's campaign (null for one created before campaigns existed).
+    def serialized_campaign
+      campaign = assignment.campaign
+      campaign && { id: campaign.public_id, code: campaign.code, name: campaign.name, kind: campaign.kind }
+    end
+
     def assignment_attributes
       {
         id: assignment.public_id,
         reference_number: assignment.reference_number,
         created_at: assignment.created_at.utc.iso8601,
-        fields_editable: ::Admin::Candidates::UpdateService.assignment_fields_editable?(assignment)
+        fields_editable: ::Admin::Candidates::UpdateService.assignment_fields_editable?(assignment),
+        campaign: serialized_campaign
       }
     end
 

@@ -27,13 +27,17 @@ module Admin
         'craft_code' => 'current_assignments.craft_id'
       }.freeze
 
-      def initialize(params:)
+      # `campaign_selection` (Admin::CampaignSelection) narrows to the staff member's
+      # working campaign; without one every candidate is included.
+      def initialize(params:, campaign_selection: nil)
         super()
         @params = params
+        @campaign_selection = campaign_selection
       end
 
       def call
-        filters.reduce(Candidate.all) { |scope, (name, value)| filter_scope(scope, name, value) }
+        base = @campaign_selection ? @campaign_selection.apply(Candidate.all) : Candidate.all
+        filters.reduce(base) { |scope, (name, value)| filter_scope(scope, name, value) }
       end
 
       private

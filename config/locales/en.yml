@@ -64,6 +64,13 @@ en:
       correct_workflow_details: "Correct medical, QVC and flight details"
       view_job_logs: "View background job logs"
       record_manual_payment: "Mark a candidate's fee as paid"
+      view_admin_dashboard: "View admin dashboard"
+      view_mps_dashboard: "View operations dashboard"
+      view_management_dashboard: "View management dashboard"
+      view_reports: "View reports"
+      manage_training_settings: "Manage training videos"
+      view_uploaded_documents: "View documents candidates uploaded but have not submitted"
+      manage_reference_data: "Manage reference data"
     workflow_stages:
       registered: "Registered"
       documents_pending: "Documents Pending"

@@ -9,7 +9,8 @@ module Admin
       end
 
       def call
-        @scope.joins(join_sql).includes(candidate_assignments: %i[country project craft current_workflow_stage])
+        @scope.joins(join_sql).includes(candidate_assignments: %i[country project craft current_workflow_stage
+                                                                  campaign])
       end
 
       private

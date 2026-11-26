@@ -42,7 +42,7 @@ module Admin
 
       # Symbols, not strings -- `@provided_fields` comes from a
       # double-splatted keyword-argument hash, whose keys are always symbols.
-      ASSIGNMENT_FIELD_CODES = %i[country_code project_code craft_code].freeze
+      ASSIGNMENT_FIELD_CODES = %i[country_code project_code craft_code campaign_id].freeze
       FIELD_VALIDATIONS = {
         full_name: :validate_full_name!, mobile_number: :validate_mobile_number!, email: :validate_email!,
         passport_number: :validate_passport_number!, preferred_locale: :validate_preferred_locale!
@@ -51,7 +51,7 @@ module Admin
       Params = Struct.new(
         :actor, :candidate, :full_name, :mobile_number, :email, :passport_number, :preferred_locale,
         :next_of_kin_name, :next_of_kin_relationship, :next_of_kin_mobile_number, :next_of_kin_cnic,
-        :country_code, :project_code, :craft_code, :expected_updated_at,
+        :country_code, :project_code, :craft_code, :campaign_id, :expected_updated_at,
         keyword_init: true
       )
 
@@ -203,6 +203,24 @@ module Admin
         @country = validated_reference(Country, @params.country_code, field: 'country_code') if provided?(:country_code)
         @project = validated_reference(Project, @params.project_code, field: 'project_code') if provided?(:project_code)
         @craft = validated_reference(Craft, @params.craft_code, field: 'craft_code') if provided?(:craft_code)
+        @campaign = validated_campaign if provided?(:campaign_id)
+        validate_campaign_country!
+      end
+
+      def validated_campaign
+        Campaign.active.find_by(public_id: @params.campaign_id.to_s) ||
+          raise_validation_error('campaign_id', 'api.errors.unknown_campaign')
+      end
+
+      # The campaign's country and the assignment's must agree after the change
+      # (the Test campaign and pre-campaign assignments take any country).
+      def validate_campaign_country!
+        campaign = @campaign || assignment.campaign
+        country = @country || assignment.country
+        return if campaign&.country.nil? || campaign.country == country
+
+        raise_validation_error(provided?(:campaign_id) ? 'campaign_id' : 'country_code',
+                               'api.errors.country_not_in_campaign')
       end
 
       def provided?(field) = @provided_fields.include?(field)
@@ -264,9 +282,9 @@ module Admin
       end
 
       def assignment_attributes
-        { country_code: @country, project_code: @project, craft_code: @craft }
+        { country_code: @country, project_code: @project, craft_code: @craft, campaign_id: @campaign }
           .slice(*@provided_fields)
-          .transform_keys { |field| field.to_s.delete_suffix('_code').to_sym }
+          .transform_keys { |field| field.to_s.delete_suffix('_code').delete_suffix('_id').to_sym }
       end
 
       def normalized_mobile_number(raw_value)

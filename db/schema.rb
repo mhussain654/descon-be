@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -163,6 +163,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
     t.check_constraint "requested_limit > 0 AND selected_count > 0", name: "bulk_call_batches_counts_positive"
   end
 
+  create_table "campaigns", force: :cascade do |t|
+    t.string "public_id", null: false
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "kind", default: "regular", null: false
+    t.bigint "country_id"
+    t.boolean "active", default: true, null: false
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_campaigns_on_code", unique: true
+    t.index ["country_id"], name: "index_campaigns_on_country_id"
+    t.index ["created_by_id"], name: "index_campaigns_on_created_by_id"
+    t.index ["kind"], name: "index_campaigns_one_test_campaign", unique: true, where: "((kind)::text = 'test'::text)"
+    t.index ["public_id"], name: "index_campaigns_on_public_id", unique: true
+    t.check_constraint "kind::text = 'test'::text OR country_id IS NOT NULL", name: "campaigns_regular_has_country"
+    t.check_constraint "kind::text = ANY (ARRAY['regular'::character varying::text, 'test'::character varying::text])", name: "campaigns_kind"
+  end
+
   create_table "candidate_ai_call_events", force: :cascade do |t|
     t.bigint "actor_id"
     t.bigint "candidate_ai_call_id", null: false
@@ -283,6 +302,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
     t.datetime "updated_at", null: false
     t.decimal "onboarding_fee_amount", precision: 10, scale: 2
     t.integer "fee_version", default: 0, null: false
+    t.bigint "campaign_id"
+    t.index ["campaign_id"], name: "index_candidate_assignments_on_campaign_id"
     t.index ["candidate_id", "created_at"], name: "index_candidate_assignments_on_candidate_id_and_created_at"
     t.index ["candidate_id"], name: "index_candidate_assignments_on_candidate_id"
     t.index ["country_id"], name: "index_candidate_assignments_on_country_id"
@@ -485,8 +506,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
     t.integer "total_rows", default: 0, null: false
     t.datetime "updated_at", null: false
     t.integer "warning_count", default: 0, null: false
+    t.bigint "campaign_id"
     t.index ["actor_id", "created_at"], name: "index_candidate_import_batches_on_actor_id_and_created_at"
     t.index ["actor_id"], name: "index_candidate_import_batches_on_actor_id"
+    t.index ["campaign_id"], name: "index_candidate_import_batches_on_campaign_id"
     t.index ["expires_at"], name: "index_candidate_import_batches_on_expires_at"
     t.index ["public_id"], name: "index_candidate_import_batches_on_public_id", unique: true
     t.index ["status", "created_at"], name: "index_candidate_import_batches_on_status_and_created_at"
@@ -1281,12 +1304,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
     t.string "staff_state", default: "active", null: false
     t.string "unlock_token"
     t.datetime "updated_at", null: false
+    t.bigint "selected_campaign_id"
     t.index "lower((email)::text)", name: "index_users_on_lower_email", unique: true
     t.index ["invitation_token_digest"], name: "index_users_on_invitation_token_digest", unique: true
     t.index ["invited_by_id"], name: "index_users_on_invited_by_id"
     t.index ["public_id"], name: "index_users_on_public_id", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["role"], name: "index_users_on_role"
+    t.index ["selected_campaign_id"], name: "index_users_on_selected_campaign_id"
     t.index ["staff_state"], name: "index_users_on_staff_state"
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
     t.check_constraint "staff_state::text = 'active'::text AND active = true OR (staff_state::text = ANY (ARRAY['invited'::character varying::text, 'suspended'::character varying::text])) AND active = false", name: "users_staff_state_matches_active"
@@ -1314,6 +1339,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
     t.integer "position", null: false
     t.boolean "system_defined", default: true, null: false
     t.datetime "updated_at", null: false
+    t.string "name_en", limit: 120
+    t.string "name_ur", limit: 120
     t.index ["code"], name: "index_workflow_stages_on_code", unique: true
     t.index ["position"], name: "index_workflow_stages_on_position", unique: true
     t.check_constraint "code::text ~ '^[a-z0-9_]+$'::text", name: "workflow_stages_code_format"
@@ -1334,6 +1361,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
   add_foreign_key "bulk_call_batch_items", "candidates"
   add_foreign_key "bulk_call_batches", "robocall_voices"
   add_foreign_key "bulk_call_batches", "users", column: "created_by_id"
+  add_foreign_key "campaigns", "countries"
+  add_foreign_key "campaigns", "users", column: "created_by_id"
   add_foreign_key "candidate_ai_call_events", "candidate_ai_calls"
   add_foreign_key "candidate_ai_call_events", "users", column: "actor_id"
   add_foreign_key "candidate_ai_call_transcripts", "candidate_ai_calls"
@@ -1342,6 +1371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
   add_foreign_key "candidate_ai_calls", "communications"
   add_foreign_key "candidate_ai_calls", "users", column: "reviewed_by_id"
   add_foreign_key "candidate_ai_calls", "users", column: "triggered_by_id"
+  add_foreign_key "candidate_assignments", "campaigns"
   add_foreign_key "candidate_assignments", "candidates"
   add_foreign_key "candidate_assignments", "countries"
   add_foreign_key "candidate_assignments", "crafts"
@@ -1367,6 +1397,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
   add_foreign_key "candidate_flight_details", "users", column: "boarding_pass_rejected_by_id"
   add_foreign_key "candidate_flight_details", "users", column: "mobilized_recorded_by_id"
   add_foreign_key "candidate_flight_details", "users", column: "recorded_by_id"
+  add_foreign_key "candidate_import_batches", "campaigns"
   add_foreign_key "candidate_import_batches", "users", column: "actor_id"
   add_foreign_key "candidate_import_row_results", "candidate_import_batches"
   add_foreign_key "candidate_medical_results", "candidate_assignments"
@@ -1438,6 +1469,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
   add_foreign_key "sms_templates", "users", column: "updated_by_id"
   add_foreign_key "support_settings", "users", column: "updated_by_id"
   add_foreign_key "training_videos", "users", column: "created_by_id"
+  add_foreign_key "users", "campaigns", column: "selected_campaign_id", on_delete: :nullify
   add_foreign_key "users", "roles", column: "role", primary_key: "code"
   add_foreign_key "users", "users", column: "invited_by_id"
   add_foreign_key "workflow_stage_call_scripts", "users", column: "updated_by_id"

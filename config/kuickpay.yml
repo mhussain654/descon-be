@@ -44,8 +44,8 @@ test:
   sms_username: test-sms-user
   sms_password: test-sms-password
 
-# UAT hosts are used in this production, rename it to staging and go live with the real production hosts.
-production:
+# Fake-payments - UAT hosts are used in this production, rename it to staging and go live with the real production hosts.
+staging:
   <<: *default
   base_url: https://sandbox-api.kuickpay.com # Sandbox card base URL
   hybrid_base_url: https://uat-adminapi.kuickpay.com
@@ -58,8 +58,8 @@ production:
   sms_username: <%= Rails.application.credentials.dig(:kuickpay, :staging, :sms_username).to_json %>
   sms_password: <%= Rails.application.credentials.dig(:kuickpay, :staging, :sms_password).to_json %>
 
-# Actual live KuickPay hosts, used only in this block (rename it to production and goes live)
-staging:
+# Real-Payments - Actual live KuickPay hosts, used only in this block (rename it to production and goes live)
+production:
   <<: *default
   base_url: https://sandbox-api.kuickpay.com # Sandbox card base URL
   hybrid_base_url: https://api.kuickpay.com

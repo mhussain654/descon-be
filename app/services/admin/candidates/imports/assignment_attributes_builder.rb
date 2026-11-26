@@ -4,8 +4,9 @@ module Admin
   module Candidates
     module Imports
       class AssignmentAttributesBuilder
-        def initialize(actor:)
+        def initialize(actor:, campaign: nil)
           @actor = actor
+          @campaign = campaign
         end
 
         def call(attributes:, row_errors:)
@@ -15,6 +16,7 @@ module Admin
             country: country(attributes, row_errors:),
             project: project(attributes, row_errors:),
             craft: craft(attributes, row_errors:),
+            campaign: @campaign,
             created_by: @actor
           }
         end
@@ -26,13 +28,14 @@ module Admin
           referenced_record(WorkflowStage.where(active: true), stage_code, field: 'workflow_stage_code', row_errors:)
         end
 
+        # Must be the campaign's country (the Test campaign takes any country).
         def country(attributes, row_errors:)
-          referenced_record(
-            Country.where(active: true),
-            attributes.fetch('country_code'),
-            field: 'country_code',
-            row_errors:
-          )
+          record = referenced_record(Country.where(active: true), attributes.fetch('country_code'),
+                                     field: 'country_code', row_errors:)
+          if record && @campaign&.country && record != @campaign.country
+            row_errors << { field: 'country_code', code: 'country_not_in_campaign' }
+          end
+          record
         end
 
         def project(attributes, row_errors:)

@@ -4,9 +4,10 @@ module Admin
   module Candidates
     module Imports
       class RowBuilder
-        def initialize(actor:)
+        # `campaign`: the campaign the rows go into (their country must match it).
+        def initialize(actor:, campaign: nil)
           @candidate_attributes_builder = CandidateAttributesBuilder.new(actor:)
-          @assignment_attributes_builder = AssignmentAttributesBuilder.new(actor:)
+          @assignment_attributes_builder = AssignmentAttributesBuilder.new(actor:, campaign:)
         end
 
         def call(row:, row_number:)

@@ -28,6 +28,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateSmsDelivery.delete_all
     CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
+    Campaign.where(kind: 'regular').delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -51,6 +52,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     CandidateSmsDelivery.delete_all
     CandidateBankDetail.delete_all
     CandidateAssignment.delete_all
+    Campaign.where(kind: 'regular').delete_all
     CandidateSession.delete_all
     CandidateConsent.delete_all
     Candidate.delete_all
@@ -78,16 +80,13 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     WorkflowStage.find_by!(code:)
   end
 
+  # A new candidate always goes into a campaign of their country.
   def create_candidate_params(overrides = {})
+    country = Country.order(:id).first
     {
-      full_name: 'Jane Applicant',
-      cnic: '42101-1234567-1',
-      mobile_number: '+923001234567',
-      preferred_locale: 'en',
-      country_code: Country.first.code,
-      project_code: Project.first.code,
-      craft_code: Craft.first.code,
-      reference_number: 'DES-REQ0001'
+      full_name: 'Jane Applicant', cnic: '42101-1234567-1', mobile_number: '+923001234567', preferred_locale: 'en',
+      country_code: country.code, project_code: Project.first.code, craft_code: Craft.first.code,
+      reference_number: 'DES-REQ0001', campaign_id: create(:campaign, country:).public_id
     }.merge(overrides)
   end
 

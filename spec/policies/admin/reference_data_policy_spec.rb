@@ -28,14 +28,29 @@ RSpec.describe Admin::ReferenceDataPolicy do
     expect(described_class.new(actor, :reference_data).index?).to be(false)
   end
 
-  it 'allows mutations only to staff with manage_candidates' do
-    manager = create(:user, role: 'hr')
-    viewer = create(:user, role: 'mps')
+  it 'allows managing reference data only to developers (manage_reference_data)' do
+    developer = create(:user, role: 'developer')
+    policy = described_class.new(developer, :reference_data)
 
-    expect(described_class.new(manager, :reference_data)).to be_create
-    expect(described_class.new(manager, :reference_data)).to be_update
-    expect(described_class.new(manager, :reference_data)).to be_retire
-    expect(described_class.new(viewer, :reference_data)).not_to be_create
+    %i[create? update? retire? manage? restore? destroy?].each { |rule| expect(policy.public_send(rule)).to be(true) }
+    %w[admin hr].each do |role|
+      expect(described_class.new(create(:user, role:), :reference_data)).not_to be_create
+      expect(described_class.new(create(:user, role:), :reference_data)).not_to be_manage
+    end
+  end
+
+  describe 'ManagedScope' do
+    it 'resolves to every row, retired ones too, for a developer' do
+      create(:country, code: 'ref_policy_managed_off', active: false)
+
+      resolved = described_class::ManagedScope.new(create(:user, role: 'developer'), Country.unscope(where: :active))
+
+      expect(resolved.resolve.pluck(:code)).to include('ref_policy_managed_off')
+    end
+
+    it 'resolves to none for an admin' do
+      expect(described_class::ManagedScope.new(create(:user, role: 'admin'), WorkflowStage).resolve.count).to eq(0)
+    end
   end
 
   describe 'Scope' do

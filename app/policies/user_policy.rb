@@ -17,11 +17,15 @@ class UserPolicy < ApplicationPolicy
     staff_authenticated? && self_record?
   end
 
+  # A staff member's own profile settings (the working campaign).
+  def update_profile? = show?
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.none unless permission_granted?('manage_staff_users')
 
-      scope
+      # Only accounts at or below the staff member's own level (User#visible_staff_role_codes).
+      scope.where(role: user.visible_staff_role_codes)
     end
   end
 end

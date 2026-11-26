@@ -2,7 +2,7 @@
 
 module StoreReview
   # Creates the store reviewer's demo candidate (StoreReview::Account) on the
-  # Qatar flow at Enrolled, with obviously fake details. Unlike the admin
+  # Qatar flow at Enrolled, in the Test campaign, with obviously fake details. Unlike the admin
   # form it doesn't move the candidate on to Document Submission. Running it
   # again returns the existing candidate unchanged.
   class CreateCandidateService < ApplicationService
@@ -46,7 +46,8 @@ module StoreReview
       candidate.candidate_assignments.create!(
         reference_number: REFERENCE_NUMBER, country: Country.find_by!(code: COUNTRY_CODE),
         project: Project.find_by!(code: PROJECT_CODE), craft: Craft.find_by!(code: CRAFT_CODE),
-        current_workflow_stage: WorkflowStage.find_by!(code: 'registered'), created_by: @created_by
+        current_workflow_stage: WorkflowStage.find_by!(code: 'registered'), created_by: @created_by,
+        campaign: Campaign.test_campaign
       )
     end
 

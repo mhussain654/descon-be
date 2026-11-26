@@ -408,7 +408,46 @@ components:
           type: array
           items:
             type: string
+        selected_campaign:
+          nullable: true
+          description: >-
+            The staff member's working campaign (set with PATCH
+            /api/v1/users/profile). Null means all campaigns: every candidate
+            except the Test campaign's. Candidate lists, dashboards and reports
+            follow it.
+          allOf:
+            - $ref: '#/components/schemas/Campaign'
       required: [id, email, role, permissions]
+    Campaign:
+      type: object
+      description: >-
+        A group of candidates handled together (one import or intake), coded
+        by date and country. The single `test` campaign holds test candidates.
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: 2026-11-26-QATAR
+        name:
+          type: string
+          example: 2026-11-26 Qatar
+        kind:
+          type: string
+          enum: [regular, test]
+        country:
+          $ref: '#/components/schemas/ReferenceDataItem'
+          nullable: true
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        candidate_count:
+          type: integer
+          description: Candidate assignments in the campaign (listing and create only).
+      required: [id, code, name, kind, country, active, created_at]
     UserSummary:
       type: object
       properties:
@@ -2911,6 +2950,15 @@ components:
             been uploaded against the current requirement set. The frontend
             must render these fields read-only when this is false rather
             than inferring the boundary from workflow stage itself.
+        campaign:
+          type: object
+          nullable: true
+          description: The assignment's campaign; null for one created before campaigns existed.
+          properties:
+            id: { type: string, format: uuid }
+            code: { type: string }
+            name: { type: string }
+            kind: { type: string, enum: [regular, test] }
       required: [id, reference_number, country, project, craft, current_workflow_stage, created_at, fields_editable]
     AdminCandidateDetail:
       type: object
@@ -3000,7 +3048,8 @@ components:
       properties:
         candidate:
           type: object
-          required: [full_name, cnic, mobile_number, preferred_locale, country_code, project_code, craft_code, reference_number]
+          required: [full_name, cnic, mobile_number, preferred_locale, country_code, project_code, craft_code, reference_number,
+                     campaign_id]
           properties:
             full_name:
               type: string
@@ -3031,6 +3080,13 @@ components:
               type: string
             reference_number:
               type: string
+            campaign_id:
+              type: string
+              format: uuid
+              description: >-
+                The active campaign the candidate goes into. Missing or
+                unknown: 422 on `campaign_id`. The country must be the campaign's
+                country (422 on `country_code`); the Test campaign takes any.
           additionalProperties: false
       required: [candidate]
     AdminCandidateUpdateRequest:
@@ -3077,6 +3133,13 @@ components:
               type: string
             craft_code:
               type: string
+            campaign_id:
+              type: string
+              format: uuid
+              description: >-
+                Moves the candidate to another active campaign, under the same
+                lock as country/project/craft. The campaign's country must be the
+                assignment's country (422 `country_not_in_campaign` on `campaign_id`).
             expected_updated_at:
               type: string
               format: date-time
@@ -3337,11 +3400,21 @@ components:
       properties:
         candidate_import:
           type: object
-          required: [file]
+          required: [file, campaign_id]
           properties:
             file:
               type: string
               format: binary
+            campaign_id:
+              type: string
+              format: uuid
+              description: >-
+                The active campaign the imported candidates go into
+                (GET /api/v1/admin/campaigns). Missing or unknown:
+                422 `validation_failed` on `candidate_import.campaign_id`.
+                A row whose country is not the campaign's country is rejected with
+                the row error `country_not_in_campaign` (the Test campaign takes any
+                country).
       required: [candidate_import]
     CandidateImportRowError:
       type: object
@@ -3446,6 +3519,15 @@ components:
         committed_rows: { type: integer }
         imported_rows: { type: integer }
         error_code: { type: string, nullable: true }
+        campaign:
+          type: object
+          nullable: true
+          description: The campaign the import went into (null for imports made before campaigns).
+          properties:
+            id: { type: string, format: uuid }
+            code: { type: string }
+            name: { type: string }
+            kind: { type: string, enum: [regular, test] }
         enqueued_at: { type: string, format: date-time, nullable: true }
         processed_at: { type: string, format: date-time, nullable: true }
         failed_at: { type: string, format: date-time, nullable: true }
@@ -5944,6 +6026,87 @@ paths:
                         message: The current documents have already been submitted for review.
                     request_id: b9d9c18f-1abc-4a4f-a7ba-772727a83aac
                     timestamp: '2026-08-26T12:00:00Z'
+  /api/v1/admin/campaigns:
+    get:
+      summary: List campaigns
+      description: >-
+        Active campaigns (the Test campaign first, then the newest) with their
+        candidate counts, for the working-batch picker and the import and New
+        candidate forms. Any active staff member may list them.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: include_retired
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Also list retired campaigns.
+      responses:
+        '200':
+          description: Campaigns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                campaigns:
+                  value:
+                    data:
+                      - id: 6f1c4a8e-2b7d-4e0a-9c3f-1a2b3c4d5e6f
+                        code: TEST
+                        name: Test campaign
+                        kind: test
+                        country: null
+                        active: true
+                        created_at: '2026-11-26T09:00:00Z'
+                        candidate_count: 1
+                      - id: 0a9b8c7d-6e5f-4a3b-2c1d-0e9f8a7b6c5d
+                        code: 2026-11-26-QATAR
+                        name: 2026-11-26 Qatar
+                        kind: regular
+                        country: { code: qatar, name: Qatar }
+                        active: true
+                        created_at: '2026-11-26T10:00:00Z'
+                        candidate_count: 42
+                    meta:
+                      request_id: 41775a72-a960-4c9c-a319-eb6757ce96d0
+                      timestamp: '2026-11-26T10:05:00Z'
+                    errors: []
+        '401': { description: Missing, invalid, expired, or revoked staff access token }
+    post:
+      summary: Create a campaign
+      description: >-
+        Creates a regular campaign for a country, coded `YYYY-MM-DD-COUNTRY`
+        (`-2`, `-3`... when taken). `start_date` defaults to today and `name`
+        to "<date> <country>". Needs manage_candidates. An Idempotency-Key
+        header is honoured.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                campaign:
+                  type: object
+                  properties:
+                    country_code: { type: string, example: qatar }
+                    name: { type: string, maxLength: 120 }
+                    start_date: { type: string, format: date }
+                  required: [country_code]
+              required: [campaign]
+      responses:
+        '201':
+          description: Campaign created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401': { description: Missing, invalid, expired, or revoked staff access token }
+        '403': { description: Staff member lacks manage_candidates }
+        '422': { description: 'Unknown country (`campaign.country_code`) or malformed date (`campaign.start_date`)' }
   /api/v1/admin/candidate_imports:
     get:
       summary: List the authenticated staff actor's candidate import history
@@ -6219,6 +6382,7 @@ paths:
         (Asia/Karachi). `meta.summary` gives the total plus counts per boarding pass state and
         per status, each counted under every active filter except its own. `search` matches
         candidate name (partial), reference number (exact) or flight number (partial).
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/RegisteredFromFilter'
@@ -6322,6 +6486,7 @@ paths:
         (`uploaded`) or have not (`missing`) uploaded their boarding pass photo;
         `meta.boarding_pass_summary` gives both counts, scoped by every active filter except
         `filter[boarding_pass]`.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/RegisteredFromFilter'
@@ -6622,10 +6787,15 @@ paths:
   /api/v1/admin/countries:
     get:
       summary: List active countries
-      description: Reference data for the candidate creation/edit forms' country selection.
+      description: >-
+        Reference data for the candidate creation/edit forms' country selection. With `include_retired=true` (developers, `manage_reference_data`) it lists every country, retired ones too, with `name_en`, `name_ur`, `active` and `updated_at`.
       security:
         - bearerAuth: []
       parameters:
+        - name: include_retired
+          in: query
+          required: false
+          schema: { type: boolean }
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
@@ -6673,10 +6843,15 @@ paths:
   /api/v1/admin/projects:
     get:
       summary: List active projects
-      description: Reference data for the candidate creation/edit forms' project selection.
+      description: >-
+        Reference data for the candidate creation/edit forms' project selection. With `include_retired=true` (developers, `manage_reference_data`) it lists every project, retired ones too, with `name_en`, `name_ur`, `active` and `updated_at`.
       security:
         - bearerAuth: []
       parameters:
+        - name: include_retired
+          in: query
+          required: false
+          schema: { type: boolean }
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
@@ -6719,10 +6894,15 @@ paths:
   /api/v1/admin/crafts:
     get:
       summary: List active crafts
-      description: Reference data for the candidate creation/edit forms' craft selection.
+      description: >-
+        Reference data for the candidate creation/edit forms' craft selection. With `include_retired=true` (developers, `manage_reference_data`) it lists every craft, retired ones too, with `name_en`, `name_ur`, `active` and `updated_at`.
       security:
         - bearerAuth: []
       parameters:
+        - name: include_retired
+          in: query
+          required: false
+          schema: { type: boolean }
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'
       responses:
@@ -6780,9 +6960,22 @@ paths:
         '200': { description: Country updated }
         '409': { description: Stale reference-data state }
         '422': { description: Invalid reference-data attributes }
+    delete:
+      summary: Delete a country nothing uses
+      description: Developer-only (`manage_reference_data`). A country referenced anywhere is refused with 422 `reference_data_in_use`; retire it instead.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Deleted }
+        '403': { description: Not a developer }
+        '422': { description: In use (`reference_data_in_use`) }
   /api/v1/admin/countries/{code}/retirement:
     post:
-      summary: Retire a country while preserving historical assignments
+      summary: Retire a country while preserving historical assignments (developer-only, `manage_reference_data`)
       security: [{ bearerAuth: [] }]
       parameters:
         - name: code
@@ -6796,6 +6989,19 @@ paths:
       responses:
         '200': { description: Country retired }
         '409': { description: Stale reference-data state }
+  /api/v1/admin/countries/{code}/restoration:
+    post:
+      summary: Bring a retired country back
+      description: Developer-only (`manage_reference_data`).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Restored }
+        '403': { description: Not a developer }
   /api/v1/admin/projects/{code}:
     patch:
       summary: Update a project reference value
@@ -6813,6 +7019,19 @@ paths:
       responses:
         '200': { description: Project updated }
         '409': { description: Stale reference-data state }
+    delete:
+      summary: Delete a project nothing uses
+      description: Developer-only (`manage_reference_data`). A project referenced anywhere is refused with 422 `reference_data_in_use`; retire it instead.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Deleted }
+        '403': { description: Not a developer }
+        '422': { description: In use (`reference_data_in_use`) }
   /api/v1/admin/projects/{code}/retirement:
     post:
       summary: Retire a project while preserving historical assignments
@@ -6825,6 +7044,19 @@ paths:
       responses:
         '200': { description: Project retired }
         '409': { description: Stale reference-data state }
+  /api/v1/admin/projects/{code}/restoration:
+    post:
+      summary: Bring a retired project back
+      description: Developer-only (`manage_reference_data`).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Restored }
+        '403': { description: Not a developer }
   /api/v1/admin/crafts/{code}:
     patch:
       summary: Update a craft reference value
@@ -6842,6 +7074,19 @@ paths:
       responses:
         '200': { description: Craft updated }
         '409': { description: Stale reference-data state }
+    delete:
+      summary: Delete a craft nothing uses
+      description: Developer-only (`manage_reference_data`). A craft referenced anywhere is refused with 422 `reference_data_in_use`; retire it instead.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Deleted }
+        '403': { description: Not a developer }
+        '422': { description: In use (`reference_data_in_use`) }
   /api/v1/admin/crafts/{code}/retirement:
     post:
       summary: Retire a craft while preserving historical assignments
@@ -6854,6 +7099,241 @@ paths:
       responses:
         '200': { description: Craft retired }
         '409': { description: Stale reference-data state }
+  /api/v1/admin/crafts/{code}/restoration:
+    post:
+      summary: Bring a retired craft back
+      description: Developer-only (`manage_reference_data`).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Restored }
+        '403': { description: Not a developer }
+  /api/v1/admin/role_permissions:
+    get:
+      summary: Roles and permissions matrix
+      description: >-
+        Developer-only (`manage_reference_data`). Every active staff role, every
+        active permission (with whether it is developer-only), and the permission
+        codes each role has. The developer role is `locked` (always has all).
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Matrix
+          content:
+            application/json:
+              example:
+                data:
+                  roles:
+                    - { code: hr, name: HR, locked: false }
+                    - { code: developer, name: Developer, locked: true }
+                  permissions:
+                    - { code: view_candidates, name: View candidates, developer_only: false }
+                    - { code: view_job_logs, name: View job logs, developer_only: true }
+                  grants:
+                    hr: [view_candidates]
+                    developer: [view_candidates, view_job_logs]
+        '403': { description: Not a developer }
+  /api/v1/admin/role_permissions/{role_code}:
+    patch:
+      summary: Replace one role's permissions
+      description: >-
+        Developer-only (`manage_reference_data`). Returns the whole matrix. Refused
+        (422, field `role_permission.permission_codes`) for the developer role, an
+        unknown permission, a developer-only permission, or an admin role without
+        `manage_staff_users`. Recorded in the audit log.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: role_code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              role_permission:
+                permission_codes: [view_candidates, view_payments]
+      responses:
+        '200': { description: Saved; the updated matrix }
+        '403': { description: Not a developer }
+        '404': { description: Unknown role }
+        '422':
+          description: Not allowed
+          content:
+            application/json:
+              example:
+                errors:
+                  - code: validation_failed
+                    field: role_permission.permission_codes
+                    message: Developer-only permissions can only belong to the developer role.
+  /api/v1/admin/document_requirements:
+    get:
+      summary: Document checklist rows
+      description: >-
+        Developer-only (`manage_reference_data`). Every checklist row, common
+        (`country` null) and per country, on or off, plus the active document
+        types and the supported file types.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Checklist
+          content:
+            application/json:
+              example:
+                data:
+                  requirements:
+                    - id: '12'
+                      document_type: { code: passport, name: Passport }
+                      country: { code: qatar, name: Qatar }
+                      project: null
+                      craft: null
+                      driver_only: false
+                      requirement_level: required
+                      active: true
+                      minimum_files: 1
+                      maximum_files: 2
+                      accepted_content_types: [application/pdf, image/jpeg, image/png]
+                      instructions_en: Upload the photo page.
+                      instructions_ur: null
+                      updated_at: '2026-11-26T09:00:00Z'
+                  document_types:
+                    - { code: passport, name: Passport }
+                  content_types: [application/pdf, image/jpeg, image/png]
+        '403': { description: Not a developer }
+    post:
+      summary: Add a document to a checklist
+      description: >-
+        Developer-only. `country_code` null adds it to the common checklist.
+        Requires an `Idempotency-Key` header. 422 when that checklist already has
+        the document or the document type is unknown.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              document_requirement:
+                document_type_code: police_character_certificate
+                country_code: qatar
+                requirement_level: optional
+                maximum_files: 1
+                accepted_content_types: [application/pdf]
+                instructions_en: Upload the signed certificate.
+                instructions_ur: دستخط شدہ سرٹیفکیٹ اپ لوڈ کریں۔
+      responses:
+        '201': { description: Added; the new row }
+        '403': { description: Not a developer }
+        '422': { description: Already in the checklist, unknown type or invalid settings }
+  /api/v1/admin/document_requirements/{id}:
+    patch:
+      summary: Edit a checklist row
+      description: >-
+        Developer-only. Only requirement level, on/off, maximum files, file types
+        and instructions change; scope stays as seeded. `expected_updated_at`
+        guards against overwriting a newer edit (409).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              document_requirement:
+                requirement_level: not_applicable
+                active: true
+                maximum_files: 3
+                accepted_content_types: [application/pdf, image/jpeg]
+                instructions_en: Upload both sides.
+                instructions_ur: دونوں اطراف اپ لوڈ کریں۔
+                expected_updated_at: '2026-11-26T09:00:00Z'
+      responses:
+        '200': { description: Saved; the updated row }
+        '403': { description: Not a developer }
+        '404': { description: Unknown row }
+        '409': { description: Changed by someone else since it was loaded }
+        '422': { description: Invalid settings }
+  /api/v1/admin/workflow_stages:
+    get:
+      summary: Workflow stages with their names
+      description: >-
+        Developer-only (`manage_reference_data`). Every stage in catalog order
+        with its built-in names and any custom names set in admin (null when not
+        set). `name` is what is shown now in the request locale.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Stages
+          content:
+            application/json:
+              example:
+                data:
+                  - code: medical_fit
+                    position: 10
+                    name: Medically fit
+                    default_name_en: Medical fit
+                    default_name_ur: میڈیکل فٹ
+                    name_en: Medically fit
+                    name_ur: null
+        '403': { description: Not a developer }
+  /api/v1/admin/workflow_stages/{code}:
+    patch:
+      summary: Set or clear a stage's custom names
+      description: >-
+        Developer-only. A blank name goes back to the built-in one. Names are at
+        most 120 characters. Recorded in the audit log.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              workflow_stage: { name_en: Medically fit, name_ur: '' }
+      responses:
+        '200': { description: Saved; the updated stage }
+        '403': { description: Not a developer }
+        '404': { description: Unknown stage }
+        '422': { description: Name too long }
+  /api/v1/admin/mobilization_processes:
+    get:
+      summary: Mobilization processes (read-only)
+      description: >-
+        Developer-only (`manage_reference_data`). Active and draft processes,
+        common (`country` null) and per country, with their ordered stages.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Processes
+          content:
+            application/json:
+              example:
+                data:
+                  - code: qatar
+                    version: 1
+                    status: active
+                    country: { code: qatar, name: Qatar }
+                    published_at: '2026-11-01T00:00:00Z'
+                    stages:
+                      - { position: 1, code: registered, name: Registered, required: true }
+        '403': { description: Not a developer }
   /api/v1/admin/candidates/{candidate_id}/workflow_state:
     get:
       summary: Fetch a candidate workflow state for authorized staff
@@ -7408,6 +7888,85 @@ paths:
           description: The call provider request failed
         '503':
           description: Outbound AI calling is disabled, or the provider is not configured
+  /api/v1/admin/candidates/{candidate_id}/uploaded_documents:
+    get:
+      summary: List the documents a candidate has uploaded, submitted or not
+      description: >-
+        Every current document (replaced versions left out) on the candidate's current
+        assignment, whether or not the candidate has submitted it, with its files -- so
+        support can check what a candidate sent. `submitted` says whether it is in a
+        submission. View only: approving and rejecting happen only on submitted documents
+        (document reviews). Developer-only (`view_uploaded_documents`); others get 403
+        `document_access_forbidden`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The candidate's current documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                documents:
+                  value:
+                    data:
+                      - id: 4b1f0c9a-0f2e-4d8a-9c1b-2a3b4c5d6e7f
+                        document_type: { code: passport, name: Passport }
+                        status: uploaded
+                        submitted: false
+                        uploaded_at: '2026-11-26T09:00:00Z'
+                        files:
+                          - id: 8e7d6c5b-4a39-4281-b0c1-d2e3f4a5b6c7
+                            side_code: page_1
+                            original_filename: passport-page-1.jpg
+                            content_type: image/jpeg
+                            byte_size: 482133
+                    meta:
+                      request_id: 41775a72-a960-4c9c-a319-eb6757ce96d0
+                      timestamp: '2026-11-26T09:05:00Z'
+                    errors: []
+        '401': { description: Missing, invalid, expired, or revoked staff access token }
+        '403': { description: Not a developer (`document_access_forbidden`) }
+        '404': { description: Candidate not found }
+  /api/v1/admin/candidates/{candidate_id}/uploaded_documents/{id}/access:
+    post:
+      summary: Open one uploaded document's file (view only)
+      description: >-
+        A short-lived signed link to a file of one of the candidate's current documents,
+        submitted or not (`file_id` picks the file; defaults to the document's
+        representative file). The access is recorded in the audit log, as for document
+        reviews. Developer-only (`view_uploaded_documents`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: file_id
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Signed link (`url`, `expires_at`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401': { description: Missing, invalid, expired, or revoked staff access token }
+        '403': { description: Not a developer (`document_access_forbidden`) }
+        '404': { description: No such current document for this candidate }
   /api/v1/admin/candidates/{candidate_id}/sms_messages:
     get:
       summary: List the SMS staff can send a candidate, and the candidate's SMS history
@@ -7586,6 +8145,7 @@ paths:
         (outcome_reason == needs_manual_review, not yet reviewed); pass
         filter[awaiting_review]=false to browse every call instead. Requires the
         `trigger_ai_calls` permission.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -9844,6 +10404,7 @@ paths:
         submissions. Authorization requires the active `manage_candidate_documents`
         permission. Review states are derived from the current statuses of the immutable
         submitted document set captured for each submission.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -10079,6 +10640,7 @@ paths:
         finding on this payment has been resolved). `meta.summary` returns a zero-filled
         count per payment status, scoped by every active filter except `filter[status]`.
         `meta.paid_total` totals the paid fees under every active filter.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -10938,6 +11500,7 @@ paths:
         returns a zero-filled count per direction (inbound/outbound), scoped by every active
         filter except `filter[direction]`. `channel`/`status` are not summarized -- neither
         has a fixed enum yet.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -11291,6 +11854,7 @@ paths:
         current assignment, or one is still queued in a bulk batch. `called` is `not_called` (the
         default), `called` or `all`. `meta.summary` gives how many match, were called, and remain;
         `meta.batch_limit` is the most one batch may call. Requires `trigger_ai_calls`.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -11431,6 +11995,7 @@ paths:
         above the batch ceiling (200 by default), the call type is switched off, nobody is left to
         call, or the batch is larger than what remains of today's account-wide call budget. Call the
         endpoint again to call the next group; candidates already called or queued are skipped.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -12501,6 +13066,7 @@ paths:
         current assignment matches; an unrecognized code returns `invalid_query_parameter` and
         an unsupported filter name returns `unsupported_filter`, matching
         `GET /api/v1/admin/candidates`'s existing filter contract.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -12643,6 +13209,7 @@ paths:
         candidates whose current assignment matches; an unrecognized code returns
         `invalid_query_parameter` and an unsupported filter name returns `unsupported_filter`,
         matching `GET /api/v1/admin/candidates`'s existing filter contract.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -12752,6 +13319,7 @@ paths:
         Docs -> Verified -> Mobilized conversion/bottleneck KPIs, negative-outcome tracking, and
         country/project-wise mobilization insights over time. Requires the active
         `view_management_dashboard` permission.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -12867,6 +13435,7 @@ paths:
       description: >-
         Returns the same aggregated data shown on the MPS/Management dashboards, addressable and
         cacheable per report type. Requires the active `view_reports` permission.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -12928,6 +13497,7 @@ paths:
       description: >-
         Streams the same data as `GET /admin/reports/{report_type}` as a CSV, XLSX, or PDF file
         download. Requires the active `view_reports` permission. Responses are never cached.
+        Narrowed to the staff member's working campaign (`selected_campaign` on GET /api/v1/users/profile; all campaigns leaves the Test campaign out).
       security:
         - bearerAuth: []
       parameters:
@@ -13427,10 +13997,61 @@ paths:
                         message: This account is inactive.
                     request_id: 41775a72-a960-4c9c-a319-eb6757ce96d0
                     timestamp: '2026-08-23T09:00:06Z'
+    patch:
+      summary: Set the working campaign
+      description: >-
+        Sets the authenticated staff member's working campaign. Every candidate
+        list, dashboard and report then shows only that campaign's candidates
+        (by their current assignment). An empty or null `selected_campaign_id`
+        means all campaigns, which leaves the Test campaign out. Returns the
+        updated profile.
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile:
+                  type: object
+                  properties:
+                    selected_campaign_id:
+                      type: string
+                      format: uuid
+                      nullable: true
+              required: [profile]
+      responses:
+        '200':
+          description: Profile with the working campaign
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Inactive account
+        '422':
+          description: Unknown or retired campaign (field `profile.selected_campaign_id`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/users:
     get:
       summary: List staff users
-      description: Returns paginated staff users only for staff accounts granted the active `manage_staff_users` permission. The collection supports allowlisted filtering, sorting, and pagination and exposes canonical `invited`, `active`, and `suspended` staff states.
+      description: >-
+        Returns paginated staff users only for staff accounts granted the active `manage_staff_users`
+        permission. The collection supports allowlisted filtering, sorting, and pagination and exposes
+        canonical `invited`, `active`, and `suspended` staff states. Staff see only accounts at or below
+        their own level: a developer sees everyone, an admin everyone but developers, and any other role
+        only its own role. An account above the caller's level is not found (404) for update, and a role
+        above the caller's own is refused (422 on `user.role`).
       parameters:
         - $ref: '#/components/parameters/XLocaleHeader'
         - $ref: '#/components/parameters/AcceptLanguageHeader'

@@ -10,7 +10,7 @@ module Api
           authorize :mps_dashboard, policy_class: ::Admin::MpsDashboardPolicy
 
           render_success(data: ::Admin::Dashboards::MpsSummaryService.call(trend_granularity: requested_granularity,
-                                                                           params:))
+                                                                           params:, campaign_selection:))
         end
 
         private

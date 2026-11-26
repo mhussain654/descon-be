@@ -71,7 +71,7 @@ module Api
 
         def eligible_query(voice:, query_params:)
           ::Admin::BulkCalls::EligibleCandidatesQuery.new(
-            scope: policy_scope(::Candidate, policy_scope_class: ::Admin::CandidatePolicy::Scope),
+            scope: campaign_selection.apply(policy_scope(::Candidate, policy_scope_class: ::Admin::CandidatePolicy::Scope)),
             params: query_params, voice:
           )
         end

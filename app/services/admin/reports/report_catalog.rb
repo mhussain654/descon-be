@@ -22,11 +22,11 @@ module Admin
       }.freeze
       REPORT_TYPES = HANDLERS.keys.freeze
 
-      def self.data_for(report_type, params: {})
+      def self.data_for(report_type, params: {}, campaign_selection: nil)
         handler = HANDLERS[report_type]
         raise InvalidQueryParameterError.new(field: 'report_type') if handler.blank?
 
-        handler.call(params, DashboardFilterResolution.call(params:))
+        handler.call(params, DashboardFilterResolution.call(params:, campaign_selection:))
       end
     end
   end

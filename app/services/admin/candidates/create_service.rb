@@ -13,13 +13,13 @@ module Admin
       AUDITED_FIELDS = %w[
         full_name cnic mobile_number passport_number preferred_locale
         next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
-        country_code project_code craft_code reference_number
+        country_code project_code craft_code reference_number campaign_id
       ].freeze
 
       Params = Struct.new(
         :actor, :full_name, :cnic, :mobile_number, :passport_number, :preferred_locale,
         :next_of_kin_name, :next_of_kin_relationship, :next_of_kin_mobile_number, :next_of_kin_cnic,
-        :country_code, :project_code, :craft_code, :reference_number, :request_id,
+        :country_code, :project_code, :craft_code, :reference_number, :campaign_id, :request_id,
         keyword_init: true
       )
 
@@ -91,9 +91,25 @@ module Admin
         validate_next_of_kin!
         validate_preferred_locale!
         validate_reference_number!
+        validate_assignment_references!
+      end
+
+      def validate_assignment_references!
         @country = validated_reference(Country, @params.country_code, field: 'country_code')
         @project = validated_reference(Project, @params.project_code, field: 'project_code')
         @craft = validated_reference(Craft, @params.craft_code, field: 'craft_code')
+        @campaign = validated_campaign
+      end
+
+      # Required: an active campaign whose country is the candidate's (the Test
+      # campaign takes any country).
+      def validated_campaign
+        campaign = Campaign.active.find_by(public_id: @params.campaign_id.to_s)
+        raise_validation_error('campaign_id', 'api.errors.unknown_campaign') if campaign.nil?
+        if campaign.country && campaign.country != @country
+          raise_validation_error('country_code', 'api.errors.country_not_in_campaign')
+        end
+        campaign
       end
 
       def validate_full_name!
@@ -188,6 +204,7 @@ module Admin
           country: @country,
           project: @project,
           craft: @craft,
+          campaign: @campaign,
           current_workflow_stage: registered_stage,
           created_by: @params.actor
         )

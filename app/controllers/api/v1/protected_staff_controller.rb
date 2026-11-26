@@ -10,6 +10,12 @@ module Api
 
       private
 
+      # The signed-in staff member's working campaign, for candidate lists,
+      # dashboards and reports (Admin::CampaignSelection).
+      def campaign_selection
+        @campaign_selection ||= ::Admin::CampaignSelection.new(current_user)
+      end
+
       # Fails the request if the action didn't call authorize (and, for index actions, policy_scope).
       def verify_staff_pundit_usage!
         verify_authorized

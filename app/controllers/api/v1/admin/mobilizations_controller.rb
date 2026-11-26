@@ -10,7 +10,9 @@ module Api
           authorize ::Candidate, :index?, policy_class: ::Admin::CandidatePolicy
 
           query = ::Admin::Mobilizations::IndexQuery.new(
-            candidate_scope: policy_scope(::Candidate, policy_scope_class: ::Admin::CandidatePolicy::Scope), params:
+            candidate_scope: campaign_selection.apply(policy_scope(::Candidate,
+                                                                   policy_scope_class: ::Admin::CandidatePolicy::Scope)),
+            params:
           )
           data = query.call.map { |detail| ::Admin::MobilizationSerializer.new(detail).as_json }
           render_collection(data:, pagination: query.pagination,

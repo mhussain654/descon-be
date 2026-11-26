@@ -41,14 +41,33 @@ RSpec.describe 'API V1 Admin Reference Data', type: :request do
   # User row), and this spec doesn't assert on their contents, so deleting
   # them here only risks an FK violation against unrelated data without
   # buying this suite anything.
+  let(:signed_in_users) { [] }
+
   around do |example|
     clean_reference_test_data!
     example.run
   ensure
     clean_reference_test_data!
+    remove_signed_in_users!
+  end
+
+  # Staff accounts this spec signed in with are committed too; left behind, a
+  # developer account would count as a kept developer in later specs (e.g. the
+  # pre-launch reset), so each one and its sign-in records are removed.
+  def remove_signed_in_users!
+    ids = signed_in_users.map(&:id)
+    return if ids.empty?
+
+    sessions = Session.where(user_id: ids)
+    AuditEvent.where(actor_id: ids).delete_all
+    AuthenticationEvent.where(user_id: ids).delete_all
+    RefreshToken.where(session_id: sessions.select(:id)).delete_all
+    sessions.delete_all
+    User.where(id: ids).delete_all
   end
 
   def access_token_for(user)
+    signed_in_users << user
     post '/api/v1/auth/login', params: { auth: { email: user.email, password: 'Password123!' } }
     response.parsed_body.dig('data', 'access_token')
   end
@@ -114,8 +133,8 @@ RSpec.describe 'API V1 Admin Reference Data', type: :request do
         .to include('is_driver' => false)
     end
 
-    it 'lets staff mark a craft as a driver craft' do
-      actor = create(:user, role: 'hr')
+    it 'lets a developer mark a craft as a driver craft' do
+      actor = create(:user, role: 'developer')
       craft = create(:craft, code: 'craft_ref_test')
 
       patch '/api/v1/admin/crafts/craft_ref_test',
@@ -130,7 +149,7 @@ RSpec.describe 'API V1 Admin Reference Data', type: :request do
 
   describe 'reference-data mutations' do
     it 'creates, updates, and retires a country without deleting its historical identity' do
-      actor = create(:user, role: 'hr')
+      actor = create(:user, role: 'developer')
       headers = {
         'Authorization' => "Bearer #{access_token_for(actor)}",
         'Idempotency-Key' => 'reference-country-create'
@@ -177,6 +196,18 @@ RSpec.describe 'API V1 Admin Reference Data', type: :request do
 
       expect(response).to have_http_status(:forbidden)
       expect(Project.find_by(code: 'mps_302_project')).to be_nil
+    end
+
+    it 'keeps managing reference data from HR and admins (developer-only)' do
+      %w[hr admin].each do |role|
+        post '/api/v1/admin/countries',
+             params: { reference_data: { code: "#{role}_country", name_en: 'Country', name_ur: 'ملک' } },
+             headers: { 'Authorization' => "Bearer #{access_token_for(create(:user, role:))}",
+                        'Idempotency-Key' => role }
+
+        expect(response).to have_http_status(:forbidden)
+      end
+      expect(Country.where(code: %w[hr_country admin_country])).to be_empty
     end
   end
 end

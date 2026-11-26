@@ -13,6 +13,11 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
     response.parsed_body.dig('data', 'access_token')
   end
 
+  # Every import goes into a campaign; these files are Qatar candidates.
+  def qatar_campaign
+    @qatar_campaign ||= create(:campaign, country: Country.find_by!(code: 'qatar'))
+  end
+
   def uploaded_csv(content, filename: 'candidates.csv', content_type: 'text/csv')
     tempfile = Tempfile.new([File.basename(filename, '.csv'), '.csv'])
     tempfile.write(content)
@@ -46,6 +51,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       post '/api/v1/admin/candidate_imports',
            params: {
              candidate_import: {
+               campaign_id: qatar_campaign.public_id,
                file: uploaded_csv(
                  csv_content(
                    ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
@@ -67,7 +73,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
         actor = create(:user, role:, email: "#{role}-import@example.com", password: 'Password123!')
 
         post '/api/v1/admin/candidate_imports',
-             params: { candidate_import: { file: uploaded_csv(csv_content) } },
+             params: { candidate_import: { campaign_id: qatar_campaign.public_id, file: uploaded_csv(csv_content) } },
              headers: { 'Authorization' => "Bearer #{login_as(actor)}" }
 
         expect(response).to have_http_status(:forbidden)
@@ -76,14 +82,14 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       inactive_actor = create(:user, role: 'hr', email: 'inactive-import@example.com', password: 'Password123!', active: false)
 
       post '/api/v1/admin/candidate_imports',
-           params: { candidate_import: { file: uploaded_csv(csv_content) } },
+           params: { candidate_import: { campaign_id: qatar_campaign.public_id, file: uploaded_csv(csv_content) } },
            headers: { 'Authorization' => "Bearer #{login_as(inactive_actor)}" }
 
       expect(response).to have_http_status(:unauthorized)
     end
 
     it 'rejects requests without authentication or with a candidate token' do
-      post '/api/v1/admin/candidate_imports', params: { candidate_import: { file: uploaded_csv(csv_content) } }
+      post '/api/v1/admin/candidate_imports', params: { candidate_import: { campaign_id: qatar_campaign.public_id, file: uploaded_csv(csv_content) } }
       expect(response).to have_http_status(:unauthorized)
 
       candidate = create(:candidate)
@@ -91,7 +97,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       token = CandidateAuthentication::TokenIssuer.call(candidate:, candidate_session:)
 
       post '/api/v1/admin/candidate_imports',
-           params: { candidate_import: { file: uploaded_csv(csv_content) } },
+           params: { candidate_import: { campaign_id: qatar_campaign.public_id, file: uploaded_csv(csv_content) } },
            headers: { 'Authorization' => "Bearer #{token}" }
 
       expect(response).to have_http_status(:unauthorized)
@@ -107,6 +113,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       post '/api/v1/admin/candidate_imports',
            params: {
              candidate_import: {
+               campaign_id: qatar_campaign.public_id,
                file: uploaded_csv(
                  csv_content(
                    ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
@@ -122,6 +129,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
         post '/api/v1/admin/candidate_imports',
              params: {
                candidate_import: {
+                 campaign_id: qatar_campaign.public_id,
                  file: uploaded_csv(
                    csv_content(
                      ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
@@ -148,6 +156,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       post '/api/v1/admin/candidate_imports',
            params: {
              candidate_import: {
+               campaign_id: qatar_campaign.public_id,
                file: uploaded_csv(
                  csv_content(
                    ['Imported Candidate', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
@@ -194,7 +203,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       actor = create(:user, role: 'hr', password: 'Password123!')
       headers = { 'Authorization' => "Bearer #{login_as(actor)}", 'Idempotency-Key' => 'mps-307-commit' }
       post '/api/v1/admin/candidate_imports/preflight',
-           params: { candidate_import: { file: uploaded_csv(versioned_csv) } }, headers: headers
+           params: { candidate_import: { campaign_id: qatar_campaign.public_id, file: uploaded_csv(versioned_csv) } }, headers: headers
       expect(response).to have_http_status(:created)
       token = response.parsed_body.dig('data', 'preflight_token')
 
@@ -208,7 +217,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       actor = create(:user, role: 'mps', password: 'Password123!')
       headers = { 'Authorization' => "Bearer #{login_as(actor)}" }
       post '/api/v1/admin/candidate_imports/preflight',
-           params: { candidate_import: { file: uploaded_csv(versioned_csv) } }, headers: headers
+           params: { candidate_import: { campaign_id: qatar_campaign.public_id, file: uploaded_csv(versioned_csv) } }, headers: headers
       expect(response).to have_http_status(:forbidden)
       post '/api/v1/admin/candidate_imports/commit',
            params: { candidate_import: { preflight_token: 'invalid-token' } }, headers: headers

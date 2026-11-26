@@ -25,6 +25,6 @@ RSpec.describe Admin::Dashboards::ManagementSummaryService do
 
     described_class.new(trend_granularity: 'daily').call
 
-    expect(Admin::Reports::TrendQuery).to have_received(:call).with(granularity: 'daily')
+    expect(Admin::Reports::TrendQuery).to have_received(:call).with(scope: anything, granularity: 'daily')
   end
 end

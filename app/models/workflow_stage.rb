@@ -53,6 +53,7 @@ class WorkflowStage < ApplicationRecord
   validates :code, presence: true, uniqueness: true, format: { with: /\A[a-z0-9_]+\z/ }
   validates :position, presence: true, uniqueness: true, numericality: { only_integer: true, greater_than: 0 }
   validates :active, :system_defined, inclusion: { in: [true, false] }
+  validates :name_en, :name_ur, length: { maximum: 120 }
   validate :protect_system_definition_changes, on: :update
 
   before_destroy :prevent_system_destroy, prepend: true
@@ -65,6 +66,20 @@ class WorkflowStage < ApplicationRecord
   # The I18n key prefix under which this model's translated names are looked up.
   def self.i18n_name_scope
     'reference_data.workflow_stages'
+  end
+
+  # A name set in admin (name_en/name_ur) wins over the built-in translation.
+  def name_for(locale: I18n.locale)
+    custom_name(locale).presence || default_name_for(locale:)
+  end
+
+  # The built-in translated name, ignoring any admin override.
+  def default_name_for(locale: I18n.locale)
+    localized_name_from_i18n(locale) || code.humanize
+  end
+
+  def custom_name(locale)
+    locale.to_s == 'ur' ? name_ur : name_en
   end
 
   private

@@ -63,15 +63,23 @@ Rails.application.routes.draw do
             resource :rejection, only: :create, controller: :candidate_profile_photo_rejections
           end
         end
-        resources :countries, only: %i[index create update], param: :code do
+        resources :countries, only: %i[index create update destroy], param: :code do
           post :retirement, on: :member
+          post :restoration, on: :member
         end
-        resources :projects, only: %i[index create update], param: :code do
+        resources :projects, only: %i[index create update destroy], param: :code do
           post :retirement, on: :member
+          post :restoration, on: :member
         end
-        resources :crafts, only: %i[index create update], param: :code do
+        resources :crafts, only: %i[index create update destroy], param: :code do
           post :retirement, on: :member
+          post :restoration, on: :member
         end
+        resources :campaigns, only: %i[index create]
+        resources :role_permissions, only: %i[index update], param: :role_code
+        resources :document_requirements, only: %i[index create update]
+        resources :workflow_stages, only: %i[index update], param: :code
+        resources :mobilization_processes, only: :index
         resources :candidate_imports, only: %i[index show create] do
           get :template, on: :collection, controller: :candidate_import_templates, action: :show
           post :preflight, on: :collection
@@ -110,6 +118,9 @@ Rails.application.routes.draw do
           end
           resources :ai_calls, only: %i[index create], controller: :candidate_ai_calls
           resources :sms_messages, only: %i[index create], controller: :candidate_sms_messages
+          resources :uploaded_documents, only: :index, controller: :candidate_uploaded_documents do
+            post :access, on: :member
+          end
         end
         resources :candidate_documents, only: [] do
           resource :access, only: :create, controller: :document_accesses
@@ -150,12 +161,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Before `resources :users`, so PATCH /users/profile isn't read as /users/:id.
+      namespace :users do
+        resource :profile, only: %i[show update]
+      end
+
       resources :users, only: %i[index create update]
       resource :user_invitation, only: :update
-
-      namespace :users do
-        resource :profile, only: :show
-      end
 
       namespace :payments do
         scope 'hosted_checkout/:provider_code' do

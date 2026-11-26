@@ -24,7 +24,7 @@ module Api
         def show
           authorize :report, policy_class: ::Admin::ReportPolicy
 
-          render_success(data: ::Admin::Reports::ReportCatalog.data_for(report_type, params:))
+          render_success(data: ::Admin::Reports::ReportCatalog.data_for(report_type, params:, campaign_selection:))
         end
 
         # Streams the requested report as a downloadable file in the
@@ -57,7 +57,7 @@ module Api
         # the export, from the same catalog data backing #show.
         def export_table
           @export_table ||= begin
-            data = ::Admin::Reports::ReportCatalog.data_for(report_type, params:)
+            data = ::Admin::Reports::ReportCatalog.data_for(report_type, params:, campaign_selection:)
             ::Admin::Reports::ReportTable.for(report_type, data)
           end
         end

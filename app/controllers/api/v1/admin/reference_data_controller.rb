@@ -10,9 +10,12 @@ module Api
         CREATE_PARAMS = %i[code name_en name_ur].freeze
         UPDATE_PARAMS = %i[name_en name_ur expected_updated_at].freeze
 
-        # Lists all reference-data records of this type, ordered by code.
+        # Lists the active records of this type (for candidate forms), ordered
+        # by code. `include_retired=true` (developers managing reference data)
+        # lists every record with both names, its active flag and updated_at.
         def index
           authorize :reference_data, :index?, policy_class: ::Admin::ReferenceDataPolicy
+          return render_managed_list if ActiveModel::Type::Boolean.new.cast(params[:include_retired])
 
           render_success(data: records.order(:code).map { |record| lookup_serialized(record) })
         end
@@ -40,6 +43,23 @@ module Api
           render_success(data: serialized(updated))
         end
 
+        # Brings a retired record back.
+        def restoration
+          authorize :reference_data, :restore?, policy_class: ::Admin::ReferenceDataPolicy
+
+          restored = mutate(:restore, {})
+          apply_reference_data_state_headers(restored)
+          render_success(data: serialized(restored))
+        end
+
+        # Deletes a record nothing uses yet (422 reference_data_in_use otherwise).
+        def destroy
+          authorize :reference_data, :destroy?, policy_class: ::Admin::ReferenceDataPolicy
+
+          mutate(:destroy, {})
+          render_success(data: { code: params.expect(:code), deleted: true })
+        end
+
         # Retires (soft-deactivates) an existing reference-data record.
         def retirement
           authorize :reference_data, :retire?, policy_class: ::Admin::ReferenceDataPolicy
@@ -50,6 +70,14 @@ module Api
         end
 
         private
+
+        def render_managed_list
+          authorize :reference_data, :manage?, policy_class: ::Admin::ReferenceDataPolicy
+
+          all = policy_scope(record_class,
+                             policy_scope_class: ::Admin::ReferenceDataPolicy::Scope).unscope(where: :active)
+          render_success(data: all.order(:code).map { |record| serialized(record) })
+        end
 
         # Scopes the reference-data table to what the current staff member
         # is authorized to view.
@@ -98,6 +126,8 @@ module Api
           {
             code: record.code,
             name: record.name_for,
+            name_en: record.name_en,
+            name_ur: record.name_ur,
             active: record.active,
             updated_at: record.updated_at.utc.iso8601
           }.merge(extra_attributes(record))

@@ -46,6 +46,16 @@ RSpec.describe 'db:seed rake task' do
       reviewers = Candidate.where(cnic: '12345-6789012-3')
       expect(reviewers.count).to eq(1)
       expect(reviewers.first).to have_attributes(created_by: admin, status_code: 'registered')
+      expect(reviewers.first.current_assignment.campaign).to eq(Campaign.test_campaign)
+      expect(Campaign.test_campaign).to have_attributes(code: 'TEST', kind: 'test')
+    end
+
+    it 'records a developer as the creator when no administrator is left (after the pre-launch cleanup)' do
+      developer = create(:user, role: 'developer')
+
+      Rake::Task['db:seed'].invoke
+
+      expect(Candidate.find_by!(cnic: '12345-6789012-3').created_by).to eq(developer)
     end
 
     it 'skips the reviewer candidate while there is no staff administrator' do

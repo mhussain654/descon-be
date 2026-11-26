@@ -11,7 +11,8 @@ module Api
         def index
           authorize ::Payment, policy_class: ::Admin::PaymentPolicy
 
-          query = ::Admin::Payments::IndexQuery.new(scope: payment_scope, params:)
+          scope = campaign_selection.apply_to_assignment_records(payment_scope)
+          query = ::Admin::Payments::IndexQuery.new(scope:, params:)
           payments = query.call.includes(:payment_reconciliation_findings)
 
           render_collection(

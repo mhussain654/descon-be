@@ -65,6 +65,13 @@ RSpec.describe Backups::CreateDatabaseBackupJob do
       expect { described_class.new.perform('2026-09-06') }.not_to change(SystemDatabaseBackup, :count)
     end
 
+    it 'takes another backup on demand with force, even after one succeeded that day' do
+      create(:system_database_backup, status_code: 'succeeded', taken_at: Time.zone.parse('2026-09-06 00:00'))
+      stub_successful_pg_dump
+
+      expect { described_class.new.perform('2026-09-06', force: true) }.to change(SystemDatabaseBackup, :count).by(1)
+    end
+
     it 'allows a new attempt on a day whose only prior backup failed' do
       create(:system_database_backup, status_code: 'failed', taken_at: Time.zone.parse('2026-09-06 01:00'))
       stub_successful_pg_dump

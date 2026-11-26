@@ -36,7 +36,9 @@ class Permission < ApplicationRecord
     { code: 'access_communications_menu' },
     { code: 'correct_workflow_details' },
     { code: 'view_job_logs' },
-    { code: 'record_manual_payment' }
+    { code: 'record_manual_payment' },
+    { code: 'view_uploaded_documents' },
+    { code: 'manage_reference_data' }
   ].freeze
 
   # Granted only to the developer role: the App Settings feature switches, the
@@ -44,11 +46,14 @@ class Permission < ApplicationRecord
   # calls), and correcting a candidate's recorded medical appointment, QVC
   # appointment or flight details, and reading the background job logs
   # (runs, failures and why), and marking a candidate's fee paid by hand when
-  # KuickPay took the money but the system never heard about it. The
+  # KuickPay took the money but the system never heard about it, and viewing
+  # the documents a candidate uploaded before submitting them (support checks;
+  # view only), and managing reference data (countries, projects, crafts, role
+  # permissions, document checklists, workflow stage names). The
   # communications log and placing bulk calls are open to staff.
   DEVELOPER_ONLY_PERMISSIONS = %w[
     manage_app_settings access_communications_menu manage_ai_call_settings correct_workflow_details
-    view_job_logs record_manual_payment
+    view_job_logs record_manual_payment view_uploaded_documents manage_reference_data
   ].freeze
 
   has_many :role_permissions, dependent: :destroy

@@ -50,8 +50,8 @@ module Admin
 
         def persist_row(batch:, row_result:, row:)
           result = Result.new(total_rows: 1)
-          plan = RowBuilder.new(actor: batch.actor).call(row: row.except('row_number', 'template_version'),
-                                                         row_number: row_result.row_number)
+          builder = RowBuilder.new(actor: batch.actor, campaign: batch.campaign)
+          plan = builder.call(row: row.except('row_number', 'template_version'), row_number: row_result.row_number)
           return update_rejected_row!(row_result, plan) if plan.invalid?
 
           RowPersister.new.call(row_plan: plan, result:)

@@ -5,7 +5,7 @@ require 'rails_helper'
 RSpec.describe Admin::ReferenceData::MutationService do
   before { ensure_staff_authorization_reference_data! }
 
-  let(:actor) { create(:user, role: 'hr') }
+  let(:actor) { create(:user, role: 'developer') }
 
   it 'creates an active reference value and records safe audit metadata' do
     record = described_class.call(

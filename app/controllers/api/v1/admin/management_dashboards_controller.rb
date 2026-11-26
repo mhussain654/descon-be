@@ -10,7 +10,8 @@ module Api
         def show
           authorize :management_dashboard, policy_class: ::Admin::ManagementDashboardPolicy
 
-          data = ::Admin::Dashboards::ManagementSummaryService.call(trend_granularity: requested_granularity)
+          data = ::Admin::Dashboards::ManagementSummaryService.call(trend_granularity: requested_granularity,
+                                                                    campaign_selection:)
           render_success(data:)
         end
 

@@ -23,8 +23,10 @@ module Backups
     # waits for tomorrow's scheduled run instead.
     retry_on Backups::TransientBackupError, wait: :polynomially_longer, attempts: 3
 
-    def perform(run_date = Date.current.iso8601)
-      return if already_backed_up?(run_date)
+    # `force: true` takes a backup even when today's already succeeded (an
+    # on-demand backup, e.g. right before the pre-launch data reset).
+    def perform(run_date = Date.current.iso8601, force: false)
+      return if !force && already_backed_up?(run_date)
 
       backup = SystemDatabaseBackup.create!(status_code: 'in_progress', taken_at: Time.current)
       started_at = monotonic_now

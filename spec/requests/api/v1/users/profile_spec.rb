@@ -123,4 +123,48 @@ RSpec.describe 'API V1 User Profile', type: :request do
       expect(response.parsed_body.dig('errors', 0, 'code')).to eq('inactive_account')
     end
   end
+
+  describe 'PATCH /api/v1/users/profile' do
+    let(:user) { create(:user, role: 'finance') }
+    let(:headers) { { 'Authorization' => "Bearer #{login_as(user).fetch('access_token')}" } }
+
+    it 'saves the working campaign and shows it on the profile' do
+      campaign = create(:campaign)
+
+      patch '/api/v1/users/profile', params: { profile: { selected_campaign_id: campaign.public_id } }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data',
+                                      'selected_campaign')).to include('id' => campaign.public_id,
+                                                                       'code' => campaign.code)
+      expect(user.reload.selected_campaign).to eq(campaign)
+
+      get '/api/v1/users/profile', headers: headers
+      expect(response.parsed_body.dig('data', 'selected_campaign', 'id')).to eq(campaign.public_id)
+    end
+
+    it 'goes back to all campaigns with an empty value' do
+      user.update!(selected_campaign: create(:campaign))
+
+      patch '/api/v1/users/profile', params: { profile: { selected_campaign_id: '' } }, headers: headers
+
+      expect(response.parsed_body.dig('data', 'selected_campaign')).to be_nil
+      expect(user.reload.selected_campaign).to be_nil
+    end
+
+    it 'refuses an unknown or retired campaign' do
+      retired = create(:campaign, active: false)
+
+      patch '/api/v1/users/profile', params: { profile: { selected_campaign_id: retired.public_id } }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('profile.selected_campaign_id')
+    end
+
+    it 'rejects an unauthenticated request' do
+      patch '/api/v1/users/profile', params: { profile: { selected_campaign_id: '' } }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end
