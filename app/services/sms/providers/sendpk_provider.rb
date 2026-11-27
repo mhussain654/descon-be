@@ -50,7 +50,7 @@ module Sms
 
       # The full text is fixed in the approved template; only `variables` are sent.
       def deliver(to:, variables:, template:, locale: 'en')
-        return DeliveryResult.new(success: false, error_code: 'not_configured') unless configured?(template, to)
+        return DeliveryResult.new(success: false, error_code: 'not_configured') unless configured?(template)
         return DeliveryResult.new(success: false, error_code: 'insecure_endpoint_rejected') unless secure_endpoint?
 
         response = perform_request(to:, variables:, template:, locale:)
@@ -67,8 +67,8 @@ module Sms
       # sender and template id both have to be set up/approved in send.pk's
       # own dashboard, so a blank value here means setup isn't finished yet
       # rather than a delivery problem worth a network round-trip to learn.
-      def configured?(template, to)
-        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id(template, to:).present? &&
+      def configured?(template)
+        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id(template).present? &&
           @configuration.sendpk_template_id(template).present?
       end
 
@@ -121,7 +121,7 @@ module Sms
       def base_params(to:, variables:, template:, locale:)
         {
           'api_key' => @configuration.sendpk_api_key,
-          'sender' => @configuration.sendpk_sender_id(template, to:),
+          'sender' => @configuration.sendpk_sender_id(template),
           'mobile' => to,
           'template_id' => @configuration.sendpk_template_id(template, locale),
           'message' => variables.transform_values(&:to_s).to_json

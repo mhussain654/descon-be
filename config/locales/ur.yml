@@ -55,7 +55,7 @@ ur:
       gamca_medical_pending: "گامکا / وافد طبی معائنہ زیر التوا"
       gamca_medical_completed: "گامکا / وافد طبی معائنہ مکمل"
       e_number_processing: "ڈی ایچ کیو میں ای نمبر کی کارروائی"
-      e_number_requested: "ایجنٹ سے ای نمبر کی درخواست کی گئی"
+      e_number_requested: "ای نمبر کی درخواست (ایجنٹ کا انتظار)"
       e_number_received: "ای نمبر موصول ہو گیا"
       biometric_completed: "اعتماد آفس میں بائیو میٹرک مکمل"
       visa_stamping_case_prepared: "ویزا اسٹیمپنگ کیس تیار"

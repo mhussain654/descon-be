@@ -47,14 +47,6 @@ RSpec.describe Sms::Providers::SendpkProvider do
     expect(query).to include('api_key=api-key-1', 'sender=DESCON', 'mobile=%2B923001234567')
   end
 
-  it 'asks the configuration for the sender of this recipient' do
-    stub_response('OK ID:1')
-
-    provider.deliver(to: '923174851211', template: :otp, variables: { code: '1', minutes: 5 })
-
-    expect(configuration).to have_received(:sendpk_sender_id).with(:otp, to: '923174851211').at_least(:once)
-  end
-
   it 'sends the approved template id and the variables as a JSON message, never free text' do
     captured_request = nil
     response = Net::HTTPOK.new('1.1', '200', 'OK')

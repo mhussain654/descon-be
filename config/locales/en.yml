@@ -85,7 +85,7 @@ en:
       gamca_medical_pending: "GAMCA/Wafid Medical Pending"
       gamca_medical_completed: "GAMCA/Wafid Medical Completed"
       e_number_processing: "DHQ E-Number Processing"
-      e_number_requested: "E-Number Requested from Agent"
+      e_number_requested: "E-Number Requested (waiting for agent)"
       e_number_received: "E-Number Received"
       biometric_completed: "Biometric at Etimad Office"
       visa_stamping_case_prepared: "Visa Stamping Case Prepared"

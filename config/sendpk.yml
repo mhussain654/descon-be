@@ -15,10 +15,6 @@ default: &default
   # in place of the old 8062050 short code, so both use it.
   otp_sender_id: "DESCON MPS"
   sms_sender_id: "DESCON MPS"
-  # Zong has not approved the mask yet (Jazz, Telenor and Ufone have), so
-  # Zong numbers (031x) get the short code instead. Set to "" once Zong
-  # approves the mask.
-  zong_sender_id: "8062050"
   open_timeout: <%= ENV.fetch('SENDPK_OPEN_TIMEOUT_SECONDS', 5).to_i %>
   read_timeout: <%= ENV.fetch('SENDPK_READ_TIMEOUT_SECONDS', 10).to_i %>
 
