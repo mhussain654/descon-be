@@ -10,9 +10,20 @@ module Sms
       setting(:api_key)
     end
 
-    # The login code (OTP) goes out from the short code; every other message
-    # from the brand name.
-    def sendpk_sender_id(template = nil)
+    # Zong numbers (0310-0319, i.e. 92 31x) while Zong has not approved the
+    # mask. Numbers ported from another network keep their old prefix, so
+    # they are picked by the number they had, not the network they are on.
+    ZONG_NUMBER = /\A(?:92|0)31\d/
+
+    # The login code (OTP) goes out from its sender; every other message from
+    # the brand name. Zong has not approved the "DESCON MPS" mask yet, so a
+    # Zong number gets the short code instead while `zong_sender_id` is set;
+    # once Zong approves the mask, clearing that setting sends to Zong from
+    # the mask like every other network.
+    def sendpk_sender_id(template = nil, to: nil)
+      zong_sender = setting(:zong_sender_id) if zong_number?(to)
+      return zong_sender if zong_sender
+
       template.to_s == 'otp' ? setting(:otp_sender_id) : setting(:sms_sender_id)
     end
 
@@ -41,6 +52,10 @@ module Sms
     end
 
     private
+
+    def zong_number?(to)
+      to.to_s.gsub(/\D/, '').match?(ZONG_NUMBER)
+    end
 
     def sms_template(template)
       code = template.to_s

@@ -729,8 +729,11 @@ separately against throwaway local databases (see the PR description).
 * **SMS / candidate OTP.** `SMS_PROVIDER=test` sends nothing and does not
   return or log the code, so **no candidate can complete OTP login on a host
   using it**. `SMS_PROVIDER=sendpk` needs `sendpk.production.api_key` in
-  encrypted credentials, an approved `SENDPK_SENDER_ID` and the OTP's approved
-  template id, set by a developer in App Settings -> SMS settings. Real delivery from this host has
+  encrypted credentials, the approved senders in `config/sendpk.yml` and the OTP's approved
+  template id, set by a developer in App Settings -> SMS settings. Every network
+  gets the "DESCON MPS" mask except Zong, which has not approved it yet: Zong
+  numbers (031x) get the short code from `zong_sender_id`. Set that to `""` and
+  deploy once Zong approves the mask. Real delivery from this host has
   **not** been verified. Staff email/password login works without SMS.
 * **Email / SES.** Deferred. Staff invitations create the user and queue
   delivery, but there is no SMTP/SES configuration, so no invitation reaches

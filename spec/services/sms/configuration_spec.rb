@@ -80,6 +80,31 @@ RSpec.describe Sms::Configuration do
       expect([configuration.sendpk_sender_id(:otp), configuration.sendpk_sender_id('fee_pending')])
         .to eq(['DESCON MPS', 'DESCON MPS'])
     end
+
+    context 'with a Zong number, while Zong has not approved the mask' do
+      it 'sends every SMS from the short code, whatever the number format' do
+        senders = ['923174851211', '+923101234567', '03191234567'].flat_map do |to|
+          [configuration.sendpk_sender_id(:otp, to:), configuration.sendpk_sender_id('fee_pending', to:)]
+        end
+
+        expect(senders.uniq).to eq(['8062050'])
+      end
+
+      it 'keeps the mask for other networks' do
+        senders = %w[923001234567 923451234567 923211234567 03331234567].map do |to|
+          configuration.sendpk_sender_id(:otp, to:)
+        end
+
+        expect(senders.uniq).to eq(['DESCON MPS'])
+      end
+    end
+
+    it 'sends to Zong from the mask once the Zong sender is cleared' do
+      with_settings(api_key: 'key', otp_sender_id: 'DESCON MPS', sms_sender_id: 'DESCON MPS', zong_sender_id: '',
+                    base_url: 'https://sendpk.com', open_timeout: 5, read_timeout: 10)
+
+      expect(configuration.sendpk_sender_id(:otp, to: '923174851211')).to eq('DESCON MPS')
+    end
   end
 
   describe 'config/sendpk.yml' do
