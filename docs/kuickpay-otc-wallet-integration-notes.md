@@ -55,18 +55,78 @@ from the company id and `secured_key`.
 We call this to generate a voucher/consumer number for a candidate's fee — this
 replaces staff manually creating the code on KuickPay's portal.
 
-Key request fields: `institutionID`, `registrationNumber` (the candidate's reference
-number without dashes, e.g. `DES100016` — KuickPay shows it as "<registrationNumber>-<name>"
-cut to 30 characters, so a longer value hides the name), up to 10
+Key request fields: `institutionID`, `branch` (we send `Descon MPS`), `registrationNumber`
+(the candidate's registration / file number as entered, e.g. `500002` — see "The Kuickpay
+ID" below; KuickPay shows it as
+"<registrationNumber>-<name>" cut to 30 characters), up to 10
 `headN`/`amountN` line-item pairs (`head1`/`amount1` mandatory — e.g.
 `"Total Fee"` / `1000`), `totalAmount`, `dueDate`, `amountAfterDueDate` (late-fee
 amount), `expiryDate`, `issueDate`, `voucherMonth`, `voucherYear`, `name`, `mobile`,
 `email`, `branch` (optional).
 
-Response (success): `response_Code: "00"`, `response_description` = the actual
-payable voucher/consumer number (e.g. `"0000832249220"`), and KuickPay's own
-internal system voucher number, which the PDF calls `response_detail` but the UAT
-returns as `responseCode_Detail` (we read either).
+Response (success): `response_Code: "00"`, `response_description` and
+`responseCode_Detail` (the PDF calls it `response_detail`; we read either). The PDF
+says `response_description` is the payable voucher number. **On live it is not**
+(checked 26 Nov 2026): it is the institution code + KuickPay's 12-digit reference
+number (e.g. `10420` + `261105039065`), and `responseCode_Detail` is the last three
+digits of that reference number. Banking and wallet apps find no bill for it, and
+the 19-digit invoice number KuickPay's portal shows is not in the reply. We save the
+reference on the payment twice: `kuickpay_reference_number` without the institution
+code, as the portal's ReferenceNumber column shows it (searchable in admin), and
+`kuickpay_company_reference_number` exactly as returned. The whole reply is also
+kept in the voucher-created event.
+
+| KuickPay portal column (CSV column) | Example | Where we have it |
+| --- | --- | --- |
+| RegNumber (`registrationNumber`) | `500002` | The candidate's registration number (candidate_assignments.`registration_number`), sent as entered |
+| — | `10420500002` | The Kuickpay ID: payments.`voucher_number` |
+| Branch (`branch`) | `Descon MPS` | Sent with every voucher we create |
+| ReferenceNumber (`invoiceNumber`) | `261105039065` | payments.`kuickpay_reference_number` |
+| — | `10420261105039065` | payments.`kuickpay_company_reference_number` |
+| InvoiceNumber (`voucherNumber`) | `1042020261109065315` | Not returned by the API |
+
+### Voucher dates
+
+Developers set two numbers in admin App Settings ("Fee voucher dates"): days until the
+due date (15 by default, 1–60) and grace days after it (2 by default, 0–15). The voucher
+we send has issue date = today (Pakistan), due date = issue date + due days, expiry date
+= due date + grace days, and `amountAfterDueDate` = the fee (no late fee), matching the
+client's portal vouchers (expiry usually two days after the due date). The payment
+stores the due date (`voucher_due_on`, shown as "due by" in KuickPay's SMS) and stays
+open until the end of the expiry date (`checkout_expires_at`). Changing the numbers
+affects new vouchers only. This replaced the `PAYMENT_VOUCHER_VALID_DAYS` server setting.
+
+### The Kuickpay ID
+
+KuickPay pays a voucher by **institution code + registration number**: its own
+"Notify SMS" for a test voucher with registration number `5675` said "Kuickpay ID
+104205675", and that ID opens the voucher. Easypaisa and other wallets accept digits
+only (Meezan's app also takes letters), so the registration number must be digits.
+We send the candidate's **registration number** (the client's own file number), exactly
+as entered and unpadded, as their other system and the portal do: `10420` + `500002` =
+`10420500002`. The client guarantees it is unique across the organisation, and we
+enforce that too (`candidate_assignments.registration_number`, unique). So a voucher
+made here, in the client's other system, or by hand in the portal for the same person
+has the same Kuickpay ID. A candidate keeps that ID across vouchers (only one is open
+at a time), so the payment's `voucher_number` is not unique. Paid vouchers are matched
+by the reported `consumer_Number`, or by institution code + the reported
+`registrationNumber`; when several of the candidate's vouchers share the ID, the unpaid
+one is paid, a payment row already recorded is never applied to a later voucher, and
+a payment whose amount differs from our voucher's is logged, not applied (so a
+different fee paid on a voucher from the other system is not taken as ours).
+
+No voucher is created without a registration number. A candidate who reaches Fee
+Pending without one gets no voucher (the candidate app does not offer one); the
+admin candidate page warns staff, and when staff add the number while the candidate
+is still at Fee Pending, the voucher is created and KuickPay texts the Kuickpay ID.
+
+Vouchers issued before this change carry the unpayable reference number. Replace
+each one (it is cancelled and a new voucher is texted to the candidate), then
+delete the old voucher in KuickPay's portal:
+
+```bash
+bin/rails "payments:kuickpay:reissue_voucher[<old Kuickpay ID>]"
+```
 
 UAT-verified (27 Oct 2026): Insert Voucher uses one login and Bill Payment Bulk
 Inquiry a different one (`User is not Active` otherwise). A paid voucher is listed by
@@ -151,9 +211,12 @@ own `Payment`/`PaymentEvent` model would replace that manual step entirely.
 3. **Production base URL** — only the UAT host is documented here.
 4. **Auth credentials** — confirm whether Hybrid API credentials are separate from
    the existing hosted-checkout `KUICKPAY_COMPANY_ID`/`KUICKPAY_SECURED_KEY` pair.
-5. **`registrationNumber`** — decided: the candidate's reference number without dashes.
-   It is not unique per voucher (a candidate can get a new voucher); paid vouchers are
-   matched by voucher number, never by this field.
+5. **`registrationNumber`** — decided (27 Nov 2026): the candidate's registration /
+   file number, unique across the organisation and sent as entered (the client's
+   other system and the portal use the same number). Paid vouchers are matched by the
+   reported number or by this field. Still to confirm with KuickPay: when a
+   candidate's expired voucher and a new one share the registration number, the ID
+   pays the new one.
 6. **Duplicate/mismatch handling** — the BPS guide documented explicit response
    codes for duplicate/mismatched amounts; confirm whether the Hybrid model has
    equivalent protections, since `insertPPMVoucher` could plausibly be called

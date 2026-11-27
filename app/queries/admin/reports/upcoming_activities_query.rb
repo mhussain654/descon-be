@@ -48,7 +48,7 @@ module Admin
           type: type,
           occurs_on: occurs_on,
           candidate_assignment_public_id: assignment.public_id,
-          reference_number: assignment.reference_number
+          registration_number: assignment.registration_number
         }
       end
 

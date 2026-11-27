@@ -43,15 +43,27 @@ class CandidateAssignment < ApplicationRecord
   before_validation :assign_public_id, on: :create
   before_validation :resolve_mobilization_process, on: :create
   before_validation :sync_current_mobilization_process_stage
-  before_validation :normalize_reference_number
   before_validation :normalize_qvc_outcome_code
 
   validates :onboarding_fee_amount, numericality: { greater_than: 0, less_than: 100_000_000 }, allow_nil: true
   validates :public_id, presence: true, uniqueness: true
-  validates :reference_number, presence: true, uniqueness: true
+  # The client's own number for the candidate (their "file number"), unique across the organisation and sent to
+  # KuickPay as the voucher's registration number. Optional until a fee voucher is needed; editable later.
+  validates :registration_number, numericality: { only_integer: true, greater_than: 0, less_than: 10**15 },
+                                  uniqueness: true, allow_nil: true
   validates :qvc_outcome_code, format: { with: CODE_FORMAT }, allow_blank: true
   validate :qvc_outcome_fields_are_paired
   validate :current_stage_belongs_to_process
+
+  # Identifies the assignment in payment order ids: the registration number, or C + candidate id before one is set.
+  def order_reference = registration_number || "C#{candidate_id}"
+
+  # True if another assignment already has `number`.
+  def self.registration_number_taken?(number, except: nil)
+    return false if number.nil?
+
+    where(registration_number: number).where.not(id: except&.id).exists?
+  end
 
   # The next stage in this assignment's own process, or nil at its terminal stage.
   def next_process_stage
@@ -105,11 +117,6 @@ class CandidateAssignment < ApplicationRecord
   # Assigns a public-facing UUID identifier on creation, if one isn't already set.
   def assign_public_id
     self.public_id ||= SecureRandom.uuid
-  end
-
-  # Trims and uppercases the assignment's reference number.
-  def normalize_reference_number
-    self.reference_number = reference_number.to_s.strip.upcase
   end
 
   # Trims and lowercases the QVC outcome code, mapping the legacy 're_medical_required' value

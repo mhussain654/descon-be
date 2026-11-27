@@ -45,7 +45,7 @@ module Payments
 
     # The payment that was marked paid, or nil if there was nothing to do.
     def mark_paid(settlement)
-      payment = Payment.lock.find_by(provider_code: adapter.provider_code, voucher_number: settlement.consumer_number)
+      payment = payment_for(settlement)
       return if payment.blank? || payment.paid?
 
       notification = notification_for(payment, settlement)
@@ -53,6 +53,13 @@ module Payments
 
       apply(payment, notification)
       payment
+    end
+
+    # A candidate's vouchers share one Kuickpay ID, so the unpaid one wins, then the newest. A row already
+    # recorded against an earlier voucher is skipped by its event key, so it never pays a later one.
+    def payment_for(settlement)
+      Payment.lock.where(provider_code: adapter.provider_code, voucher_number: adapter.kuickpay_ids_for(settlement))
+             .order(Arel.sql("status_code = 'checkout_pending' DESC"), created_at: :desc, id: :desc).first
     end
 
     def apply(payment, notification)

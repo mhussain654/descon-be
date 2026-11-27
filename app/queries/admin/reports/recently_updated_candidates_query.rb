@@ -11,6 +11,10 @@ module Admin
     # was entered more than once).
     class RecentlyUpdatedCandidatesQuery < ApplicationQuery
       DEFAULT_LIMIT = 8
+      ROW_KEYS = %i[
+        candidate_full_name candidate_public_id candidate_assignment_public_id registration_number
+        workflow_stage_code last_updated_at
+      ].freeze
       WORKFLOW_STAGE_JOIN_SQL = 'INNER JOIN workflow_stages ON workflow_stages.id = ' \
                                 'current_assignments.current_workflow_stage_id'
 
@@ -26,7 +30,7 @@ module Admin
           .limit(@limit)
           .pluck(
             'candidates.full_name', 'candidates.public_id',
-            'current_assignments.public_id', 'current_assignments.reference_number',
+            'current_assignments.public_id', 'current_assignments.registration_number',
             'workflow_stages.code', 'latest_stage_entry.occurred_at'
           )
           .map { |row| row_hash(row) }
@@ -34,17 +38,7 @@ module Admin
 
       private
 
-      def row_hash(row)
-        full_name, candidate_public_id, assignment_public_id, reference_number, stage_code, occurred_at = row
-        {
-          candidate_full_name: full_name,
-          candidate_public_id: candidate_public_id,
-          candidate_assignment_public_id: assignment_public_id,
-          reference_number: reference_number,
-          workflow_stage_code: stage_code,
-          last_updated_at: occurred_at
-        }
-      end
+      def row_hash(row) = ROW_KEYS.zip(row).to_h
 
       def joined_scope
         CurrentAssignmentJoin.call(scope: @scope)

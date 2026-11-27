@@ -34,10 +34,15 @@ module Payments
       def payload(payment:, candidate:)
         {
           InstitutionID: @configuration.kuickpay_institution_id,
-          duedate: payment.checkout_expires_at.in_time_zone(TIME_ZONE).to_date.strftime('%d-%b-%Y'),
+          duedate: due_date(payment).strftime('%d-%b-%Y'),
           amount: payment.amount.to_i.to_s, consumerNo: payment.voucher_number,
           cellNumberSMS: KuickpayVoucherAdapter.local_mobile(candidate.mobile_number)
         }
+      end
+
+      # The voucher's due date (vouchers issued before due dates were stored fall back to their expiry).
+      def due_date(payment)
+        payment.voucher_due_on || payment.checkout_expires_at.in_time_zone(TIME_ZONE).to_date
       end
 
       # The reply's shape is not documented, so any successful HTTP reply counts unless it carries a KuickPay

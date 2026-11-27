@@ -40,6 +40,10 @@ module Payments
       Payments::CreateVoucherService.call(candidate:, request_id:).fetch(:payment)
     rescue PaymentNotEligibleError, InactiveAccountError, NoCurrentAssignmentError
       nil
+    rescue RegistrationNumberMissingError
+      # Staff are warned on the candidate page; adding the number issues the voucher (Admin::Candidates::UpdateService).
+      Rails.logger.info("Fee voucher waiting for a registration number: candidate_assignment_id=#{@assignment.id}")
+      nil
     end
 
     def send_code_sms!(payment)

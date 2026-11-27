@@ -111,6 +111,53 @@ RSpec.describe 'API V1 Users Management', type: :request do
     end
   end
 
+  describe 'POST /api/v1/users with a password (developer)' do
+    let(:new_password) { 'Direct-Account-9' }
+
+    def create_directly(actor, password: new_password, confirmation: new_password)
+      post '/api/v1/users',
+           params: { user: { email: 'direct.staff@example.com', role: 'hr', password:,
+                             password_confirmation: confirmation } },
+           headers: { 'Authorization' => "Bearer #{login_as(actor)}" }
+    end
+
+    it 'creates an active account with no invitation, which can sign in straight away' do
+      developer = create(:user, role: 'developer', password: admin_password)
+
+      expect { create_directly(developer) }.not_to have_enqueued_job(Users::InvitationDeliveryJob)
+
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body.dig('data', 'user', 'staff_state')).to eq('active')
+      user = User.find_by!(email: 'direct.staff@example.com')
+      expect(user).to have_attributes(staff_state: 'active', role: 'hr', invited_by: developer)
+      audit = AuditEvent.find_by!(action_code: 'staff_user_created')
+      expect(audit.metadata.to_json).not_to include(new_password)
+
+      post '/api/v1/auth/login', params: { auth: { email: user.email, password: new_password } }
+      expect(response.parsed_body.dig('data', 'access_token')).to be_present
+    end
+
+    it 'refuses a password from an admin: only developers create accounts directly' do
+      admin = create(:user, role: 'admin', password: admin_password)
+
+      create_directly(admin)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(User.find_by(email: 'direct.staff@example.com')).to be_nil
+    end
+
+    it 'refuses a short password or one that does not match its confirmation' do
+      developer = create(:user, role: 'developer', password: admin_password)
+
+      create_directly(developer, password: 'abc', confirmation: 'abc')
+      expect(response).to have_http_status(:unprocessable_content)
+
+      create_directly(developer, confirmation: 'Something-Else-9')
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(User.find_by(email: 'direct.staff@example.com')).to be_nil
+    end
+  end
+
   describe 'PATCH /api/v1/users/:id' do
     it 'allows an authorized admin to change role and revokes the target sessions immediately' do
       admin = create(:user, role: 'admin', password: admin_password, email: 'acting-admin@example.com')

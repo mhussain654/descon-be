@@ -26,6 +26,45 @@ RSpec.describe Payments::SettleVouchersService do
     end
   end
 
+  it 'finds the voucher by its registration number when KuickPay lists it under another number' do
+    payment.update!(voucher_number: '0000800000042')
+    row = kuickpay_settlement(consumer_number: '0000820261109065315', amount: 1500, registration_number: '00000042')
+
+    expect(run_with([row])).to eq(1)
+    expect(payment.reload).to be_paid
+  end
+
+  it "pays the candidate's unpaid voucher when an expired one shares its Kuickpay ID" do
+    payment.update!(checkout_expires_at: 2.days.ago, created_at: 3.days.ago)
+    newer = create(:payment, candidate_assignment: assignment, amount: BigDecimal('1500'),
+                             provider_code: 'kuickpay_voucher', status_code: 'checkout_pending',
+                             voucher_number: '0000811111', provider_order_id: 'PAY-NEW',
+                             checkout_expires_at: 5.days.from_now)
+    payment.update!(status_code: 'cancelled')
+
+    expect(run_with([kuickpay_settlement(consumer_number: '0000811111', amount: 1500)])).to eq(1)
+    expect(newer.reload).to be_paid
+    expect(payment.reload.status_code).to eq('cancelled')
+  end
+
+  it 'never pays a later voucher with a payment already recorded against an earlier one' do
+    run_with([kuickpay_settlement(consumer_number: '0000811111', amount: 1500, auth_id: '788895')])
+    newer = create(:payment, candidate_assignment: assignment, amount: BigDecimal('1500'),
+                             provider_code: 'kuickpay_voucher', status_code: 'checkout_pending',
+                             voucher_number: '0000811111', provider_order_id: 'PAY-NEW',
+                             checkout_expires_at: 5.days.from_now)
+
+    expect(run_with([kuickpay_settlement(consumer_number: '0000811111', amount: 1500, auth_id: '788895')])).to eq(0)
+    expect(newer.reload).to be_checkout_pending
+  end
+
+  it 'leaves a payment alone when neither the number nor the registration number matches' do
+    row = kuickpay_settlement(consumer_number: '0000899999', amount: 1500, registration_number: 'DES500002')
+
+    expect(run_with([row])).to eq(0)
+    expect(payment.reload).to be_checkout_pending
+  end
+
   it 'marks a paid voucher paid and moves the candidate to Fee Paid' do
     count = run_with([kuickpay_settlement(consumer_number: '0000811111', amount: 1500, auth_id: '788895')])
 

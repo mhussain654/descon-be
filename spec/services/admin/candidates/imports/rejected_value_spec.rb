@@ -13,7 +13,7 @@ RSpec.describe Admin::Candidates::Imports::RejectedValue do
     end
 
     it 'returns nil for a blank cell, a missing column, or a row-level error' do
-      expect(rejected('reference_number', '  ')).to be_nil
+      expect(rejected('registration_number', '  ')).to be_nil
       expect(described_class.call(field: 'country_code', source_values: {})).to be_nil
       expect(rejected('row', 'anything')).to be_nil
     end

@@ -749,7 +749,9 @@ separately against throwaway local databases (see the PR description).
   `sms_password`; until it is set, the SMS uses the voucher (hybrid) login.
   Off until `KUICKPAY_VOUCHER_ENABLED=true`.
   * Opening the code tab creates one code for the fee (`POST /api/v1/candidate/payment/voucher`),
-    valid `PAYMENT_VOUCHER_VALID_DAYS` days (14). No late fee: the due date is the expiry.
+    due after the "voucher due days" in admin App Settings (15 by default) and payable until
+    the "grace days" after that (2 by default; developer-only). No late fee.
+    `PAYMENT_VOUCHER_VALID_DAYS` is no longer read and can be removed from the server's environment.
   * The candidate can have a code and a card checkout open at the same time and
     chooses which to pay; the screen tells them to pay only one. If both get paid, the
     nightly reconciliation flags `duplicate_fee_payment` on both payments, and finance

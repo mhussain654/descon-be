@@ -12,7 +12,6 @@ module Admin
           full_name
           cnic
           mobile_number
-          reference_number
           candidate_status
           workflow_stage_code
           country_code
@@ -21,6 +20,7 @@ module Admin
           active
         ].freeze
         OPTIONAL_HEADERS = %w[
+          registration_number
           passport_number
           next_of_kin_name
           next_of_kin_relationship
@@ -30,6 +30,7 @@ module Admin
           preferred_locale
         ].freeze
         VERSION_HEADER = 'template_version'
+        HEADER_ALIASES = %w[file_number reference_number registrationnumber].index_with { 'registration_number' }.freeze
         SUPPORTED_HEADERS = (REQUIRED_HEADERS + OPTIONAL_HEADERS + [VERSION_HEADER]).freeze
         ALLOWED_CONTENT_TYPES = %w[
           text/csv
@@ -91,8 +92,11 @@ module Admin
           raise_unsupported_headers_error!(unsupported_headers) if unsupported_headers.any?
         end
 
+        # The registration number column may also be named as in the client's own files, or as in KuickPay's
+        # CSV (registrationNumber).
         def normalize_header(header)
-          header.to_s.strip.downcase
+          name = header.to_s.strip.downcase
+          HEADER_ALIASES.fetch(name, name)
         end
 
         def raise_missing_headers_error!(missing_headers)

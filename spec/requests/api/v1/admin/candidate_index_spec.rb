@@ -30,11 +30,11 @@ RSpec.describe 'API V1 Admin Candidate Index', type: :request do
     actor = create(:user, role: 'hr')
     candidate = indexed_candidate(
       { full_name: 'Ayesha Khan', cnic: '42101-1234567-1', passport_number: 'AB123456' },
-      { reference_number: 'DES-SEARCH-1' }
+      { registration_number: 300_001 }
     )
     headers = { 'Authorization' => "Bearer #{token_for(actor)}" }
 
-    %w[Ayesha 4210112345671 ab123456 des-search-1].each do |search|
+    %w[Ayesha 4210112345671 ab123456 300001].each do |search|
       get '/api/v1/admin/candidates', params: { search: }, headers: headers
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.fetch('data').map { |item| item.fetch('id') }).to include(candidate.public_id)
@@ -48,7 +48,7 @@ RSpec.describe 'API V1 Admin Candidate Index', type: :request do
     craft = create(:craft, code: 'mps305_craft')
     candidate = indexed_candidate(
       { full_name: 'Filtered', cnic: '42101-1234567-2', passport_number: nil },
-      { reference_number: 'DES-FILTER-1', country:, project:, craft: }
+      { country:, project:, craft: }
     )
 
     get '/api/v1/admin/candidates',
@@ -69,20 +69,20 @@ RSpec.describe 'API V1 Admin Candidate Index', type: :request do
     current_country = create(:country, code: 'mps305_current_country')
     candidate = indexed_candidate(
       { full_name: 'Current Assignment', cnic: '42101-1234567-3', passport_number: nil },
-      { reference_number: 'DES-OLD-REF', country: old_country, created_at: 2.days.ago }
+      { registration_number: 300_002, country: old_country, created_at: 2.days.ago }
     )
-    create(:candidate_assignment, candidate:, country: current_country, reference_number: 'DES-CURRENT-REF')
+    create(:candidate_assignment, candidate:, country: current_country, registration_number: 300_003)
     headers = { 'Authorization' => "Bearer #{token_for(actor)}" }
 
     get '/api/v1/admin/candidates', params: { filter: { country_code: old_country.code } }, headers: headers
     expect(response.parsed_body.fetch('data')).not_to include(hash_including('id' => candidate.public_id))
 
     get '/api/v1/admin/candidates',
-        params: { filter: { country_code: current_country.code }, sort: 'reference_number' }, headers: headers
+        params: { filter: { country_code: current_country.code }, sort: 'registration_number' }, headers: headers
     data = response.parsed_body.fetch('data')
     expect(data.count { |item| item.fetch('id') == candidate.public_id }).to eq(1)
     result = data.find { |item| item.fetch('id') == candidate.public_id }
-    expect(result.dig('assignment', 'reference_number')).to eq('DES-CURRENT-REF')
+    expect(result.dig('assignment', 'registration_number')).to eq(300_003)
   end
 
   it 'rejects invalid query inputs and unauthorized viewers' do

@@ -4,17 +4,17 @@ require 'rails_helper'
 
 RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
   let(:candidate) { create(:candidate, mobile_number: '+923001234512', cnic: '42101-1234567-1') }
-  let(:assignment) { create(:candidate_assignment, candidate:) }
+  let(:assignment) { create(:candidate_assignment, candidate:, registration_number: 500_001) }
 
   def call_for(caller_number:)
     create(:candidate_ai_call, :inbound, caller_number:)
   end
 
-  it 'verifies immediately when the reference number resolves and the caller number matches' do
+  it 'verifies immediately when the registration number resolves and the caller number matches' do
     call_record = call_for(caller_number: candidate.mobile_number)
 
     result = described_class.call(candidate_ai_call: call_record,
-                                  params: { 'reference_number' => assignment.reference_number })
+                                  params: { 'registration_number' => assignment.registration_number.to_s })
 
     expect(result.verified).to be(true)
     expect(call_record.reload.verification_status).to eq('verified')
@@ -25,7 +25,7 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
     call_record = call_for(caller_number: '+929999999999')
 
     result = described_class.call(candidate_ai_call: call_record,
-                                  params: { 'reference_number' => assignment.reference_number })
+                                  params: { 'registration_number' => assignment.registration_number.to_s })
 
     expect(result.verified).to be(false)
     expect(result.additional_verification_required).to eq('cnic')
@@ -37,7 +37,7 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
 
     result = described_class.call(
       candidate_ai_call: call_record,
-      params: { 'reference_number' => assignment.reference_number, 'cnic' => '42101-1234567-1' }
+      params: { 'registration_number' => assignment.registration_number.to_s, 'cnic' => '42101-1234567-1' }
     )
 
     expect(result.verified).to be(true)
@@ -46,7 +46,7 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
   it 'fails with an unknown reference number, consuming an attempt' do
     call_record = call_for(caller_number: '+929999999999')
 
-    result = described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => 'BOGUS-1' })
+    result = described_class.call(candidate_ai_call: call_record, params: { 'registration_number' => 'BOGUS-1' })
 
     expect(result.verified).to be(false)
     expect(result.locked).to be_nil
@@ -58,7 +58,7 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
 
     result = described_class.call(
       candidate_ai_call: call_record,
-      params: { 'reference_number' => assignment.reference_number, 'cnic' => '11111-1111111-1' }
+      params: { 'registration_number' => assignment.registration_number.to_s, 'cnic' => '11111-1111111-1' }
     )
 
     expect(result.verified).to be(false)
@@ -69,9 +69,9 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
     call_record = call_for(caller_number: '+929999999999')
 
     described_class::MAX_ATTEMPTS.times do
-      described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => 'BOGUS-1' })
+      described_class.call(candidate_ai_call: call_record, params: { 'registration_number' => 'BOGUS-1' })
     end
-    result = described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => 'BOGUS-1' })
+    result = described_class.call(candidate_ai_call: call_record, params: { 'registration_number' => 'BOGUS-1' })
 
     expect(result.verified).to be(false)
     expect(result.locked).to be(true)
@@ -80,10 +80,11 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
 
   it 'short-circuits to verified: true once already verified, without consuming another attempt' do
     call_record = call_for(caller_number: candidate.mobile_number)
-    described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => assignment.reference_number })
+    described_class.call(candidate_ai_call: call_record,
+                         params: { 'registration_number' => assignment.registration_number.to_s })
     attempts_before = call_record.reload.verification_attempts
 
-    result = described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => 'anything' })
+    result = described_class.call(candidate_ai_call: call_record, params: { 'registration_number' => 'anything' })
 
     expect(result.verified).to be(true)
     expect(call_record.reload.verification_attempts).to eq(attempts_before)
@@ -103,7 +104,7 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
 
     result = described_class.call(
       candidate_ai_call: call_record,
-      params: { 'reference_number' => assignment.reference_number, 'cnic' => candidate.cnic }
+      params: { 'registration_number' => assignment.registration_number.to_s, 'cnic' => candidate.cnic }
     )
 
     expect(result.verified).to be(false)
@@ -115,14 +116,23 @@ RSpec.describe AiCalls::Tools::VerifyCallerIdentity do
   it 'short-circuits to locked once already failed, without consuming another attempt' do
     call_record = call_for(caller_number: '+929999999999')
     described_class::MAX_ATTEMPTS.times do
-      described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => 'BOGUS-1' })
+      described_class.call(candidate_ai_call: call_record, params: { 'registration_number' => 'BOGUS-1' })
     end
-    described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => 'BOGUS-1' })
+    described_class.call(candidate_ai_call: call_record, params: { 'registration_number' => 'BOGUS-1' })
     attempts_before = call_record.reload.verification_attempts
 
-    result = described_class.call(candidate_ai_call: call_record, params: { 'reference_number' => 'anything' })
+    result = described_class.call(candidate_ai_call: call_record, params: { 'registration_number' => 'anything' })
 
     expect(result.locked).to be(true)
     expect(call_record.reload.verification_attempts).to eq(attempts_before)
+  end
+
+  it 'still accepts the number under the names agents configured earlier send' do
+    assignment
+
+    %w[file_number reference_number].each do |key|
+      call_record = call_for(caller_number: candidate.mobile_number)
+      expect(described_class.call(candidate_ai_call: call_record, params: { key => '500001' }).verified).to be(true)
+    end
   end
 end

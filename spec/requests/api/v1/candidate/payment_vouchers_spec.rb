@@ -35,11 +35,17 @@ RSpec.describe 'API V1 Candidate Payment Vouchers', type: :request do
 
         expect(response).to have_http_status(:created)
         data = response.parsed_body['data']
+        kuickpay_id = expected_kuickpay_id(Payment.last)
         expect(data['payment']).to include('status' => 'checkout_pending', 'provider' => 'kuickpay_voucher',
-                                           'voucher_number' => '0000832249220', 'amount' => '1500.0')
+                                           'voucher_number' => kuickpay_id, 'amount' => '1500.0')
         expect(data['payment']['checkout_expires_at']).to be_present
-        expect(data['eligibility']['open_voucher']).to include('voucher_number' => '0000832249220')
-        expect(Payment.last).to have_attributes(voucher_number: '0000832249220', amount: BigDecimal('1500'))
+        expect(data['eligibility']['open_voucher']).to include('voucher_number' => kuickpay_id)
+        today = Time.current.in_time_zone('Asia/Karachi').to_date
+        expect(Payment.last.voucher_due_on).to eq(today + 15)
+        expect(Payment.last.checkout_expires_at.to_i).to eq((today + 17).in_time_zone('Asia/Karachi').end_of_day.to_i)
+        expect(Payment.last).to have_attributes(voucher_number: kuickpay_id, amount: BigDecimal('1500'),
+                                                kuickpay_reference_number: '32249220',
+                                                kuickpay_company_reference_number: '0000832249220')
         expect(PaymentEvent.where(event_type: 'voucher_created').count).to eq(1)
         expect(AuditEvent.where(action_code: 'candidate_payment_checkout_initiated').count).to eq(1)
       end
@@ -74,7 +80,7 @@ RSpec.describe 'API V1 Candidate Payment Vouchers', type: :request do
           expect(Payment.pluck(:provider_code)).to contain_exactly('kuickpay_voucher', 'kuickpay')
           expect(response.parsed_body.dig('data', 'eligibility')).to include('card_checkout_open' => true)
           expect(response.parsed_body.dig('data', 'eligibility', 'open_voucher', 'voucher_number'))
-            .to eq('0000832249220')
+            .to eq(expected_kuickpay_id(Payment.find_by!(provider_code: 'kuickpay_voucher')))
         end
       end
     end
@@ -108,7 +114,9 @@ RSpec.describe 'API V1 Candidate Payment Vouchers', type: :request do
         post_voucher
 
         expect(response).to have_http_status(:created)
-        expect(Payment.pluck(:voucher_number)).to contain_exactly('0000811111', '0000822222')
+        # A new voucher, under the same Kuickpay ID: it is the candidate's.
+        expect(Payment.count).to eq(2)
+        expect(Payment.distinct.pluck(:voucher_number)).to eq([expected_kuickpay_id(Payment.last)])
       end
     end
 
@@ -179,6 +187,27 @@ RSpec.describe 'API V1 Candidate Payment Vouchers', type: :request do
 
       post '/api/v1/candidate/payment/voucher'
       expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe 'without a registration number' do
+    before { assignment.update!(registration_number: nil) }
+
+    it 'refuses a payment code, asking nothing of KuickPay, and does not offer one' do
+      ready_for_payment
+      requests = []
+      with_kuickpay_voucher_configured do
+        stub_kuickpay_hybrid(requests:)
+
+        post_voucher
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body.dig('errors', 0, 'code')).to eq('registration_number_missing')
+        expect(requests).to be_empty
+        expect(Payment.count).to eq(0)
+
+        get '/api/v1/candidate/payment', headers: candidate_headers
+        expect(response.parsed_body['data']).to include('voucher_available' => false)
+      end
     end
   end
 

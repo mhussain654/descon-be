@@ -6,7 +6,7 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
   let(:configuration) { Payments::Configuration.new }
   let(:adapter) { described_class.new(configuration:) }
   let(:candidate) { create(:candidate, full_name: 'Ayesha Khan 2', mobile_number: '+923001234567') }
-  let(:assignment) { create(:candidate_assignment, candidate:, reference_number: 'DES-100016') }
+  let(:assignment) { create(:candidate_assignment, candidate:, registration_number: 500_002) }
   let(:payment) do
     create(:payment, candidate_assignment: assignment, amount: BigDecimal('1500'), provider_code: 'kuickpay_voucher',
                      provider_order_id: 'PAY-REF-1')
@@ -41,22 +41,26 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
   end
 
   describe '#create_voucher' do
-    it 'sends the fee, the candidate and the dates KuickPay needs, and returns the voucher number' do
+    it 'sends the fee, the candidate and the dates KuickPay needs, and returns the Kuickpay ID it pays by' do
       requests = []
       with_kuickpay_voucher_configured do
         stub_kuickpay_hybrid(voucher_number: '0000832249220', requests:)
 
-        voucher = adapter.create_voucher(payment:, candidate:, expires_on: Date.new(2026, 11, 4))
+        voucher = adapter.create_voucher(payment:, candidate:, due_on: Date.new(2026, 11, 4),
+                                         expires_on: Date.new(2026, 11, 6))
 
-        expect(voucher).to have_attributes(consumer_number: '0000832249220', system_voucher_number: '234')
+        expect(voucher).to have_attributes(consumer_number: expected_kuickpay_id(payment),
+                                           company_reference_number: '0000832249220', reference_number: '32249220',
+                                           system_voucher_number: '234')
       end
       request = requests.first
       body = JSON.parse(request.body)
       expect(request.path).to eq('/api/insertPPMVoucher')
       expect([request['username'], request['password']]).to eq(%w[test-hybrid-user test-hybrid-password])
       expect(body).to include(
-        'institutionID' => '00008', 'registrationNumber' => 'DES100016', 'head1' => 'Fee', 'amount1' => 1500,
-        'totalAmount' => 1500, 'amountAfterDueDate' => 1500, 'dueDate' => '2026-11-04', 'expiryDate' => '2026-11-04',
+        'institutionID' => '00008', 'registrationNumber' => '500002', 'branch' => 'Descon MPS', 'head1' => 'Fee',
+        'amount1' => 1500,
+        'totalAmount' => 1500, 'amountAfterDueDate' => 1500, 'dueDate' => '2026-11-04', 'expiryDate' => '2026-11-06',
         'name' => 'Ayesha Khan', 'mobile' => '03001234567', 'email' => 'no-reply@descon-mps.com'
       )
     end
@@ -68,10 +72,22 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
           .and_return({ response_Code: '00', response_description: '0000832249220', response_detail: '77' }.to_json)
         allow(Net::HTTP).to receive(:start) { |*, &block| block.call(instance_double(Net::HTTP, request: ok)) }
 
-        voucher = adapter.create_voucher(payment:, candidate:, expires_on: Date.current)
+        voucher = adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current)
 
         expect(voucher.system_voucher_number).to eq('77')
       end
+    end
+
+    it 'never asks KuickPay for a voucher when the candidate has no registration number' do
+      assignment.update!(registration_number: nil)
+      requests = []
+      with_kuickpay_voucher_configured do
+        stub_kuickpay_hybrid(requests:)
+
+        expect { adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current) }
+          .to raise_error(RegistrationNumberMissingError)
+      end
+      expect(requests).to be_empty
     end
 
     it 'refuses a fee that is not a whole number of rupees' do
@@ -79,7 +95,7 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
       with_kuickpay_voucher_configured do
         stub_kuickpay_hybrid
 
-        expect { adapter.create_voucher(payment:, candidate:, expires_on: Date.current) }
+        expect { adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current) }
           .to raise_error(PaymentCheckoutUnavailableError)
       end
     end
@@ -88,23 +104,23 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
       with_kuickpay_voucher_configured do
         stub_kuickpay_hybrid(insert_code: '05')
 
-        expect { adapter.create_voucher(payment:, candidate:, expires_on: Date.current) }
+        expect { adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current) }
           .to raise_error(PaymentCheckoutUnavailableError)
       end
-      expect { adapter.create_voucher(payment:, candidate:, expires_on: Date.current) }
+      expect { adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current) }
         .to raise_error(PaymentCheckoutUnavailableError)
     end
 
     it 'fails cleanly on an unreadable answer or a network error' do
       with_kuickpay_voucher_configured do
         allow(Net::HTTP).to receive(:start).and_raise(Timeout::Error)
-        expect { adapter.create_voucher(payment:, candidate:, expires_on: Date.current) }
+        expect { adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current) }
           .to raise_error(PaymentCheckoutUnavailableError)
 
         garbled = Net::HTTPOK.new('1.1', '200', 'OK')
         allow(garbled).to receive(:body).and_return('<html>')
         allow(Net::HTTP).to receive(:start) { |*, &block| block.call(instance_double(Net::HTTP, request: garbled)) }
-        expect { adapter.create_voucher(payment:, candidate:, expires_on: Date.current) }
+        expect { adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current) }
           .to raise_error(PaymentCheckoutUnavailableError)
       end
     end
@@ -115,7 +131,7 @@ RSpec.describe Payments::Providers::KuickpayVoucherAdapter do
         allow(ok).to receive(:body).and_return({ response_Code: '00' }.to_json)
         allow(Net::HTTP).to receive(:start) { |*, &block| block.call(instance_double(Net::HTTP, request: ok)) }
 
-        expect { adapter.create_voucher(payment:, candidate:, expires_on: Date.current) }
+        expect { adapter.create_voucher(payment:, candidate:, due_on: Date.current, expires_on: Date.current) }
           .to raise_error(PaymentCheckoutUnavailableError)
       end
     end

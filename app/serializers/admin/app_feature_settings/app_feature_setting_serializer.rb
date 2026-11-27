@@ -13,6 +13,7 @@ module Admin
 
       def as_json(*)
         switches.merge(
+          voucher_due_days: @setting.voucher_due_days, voucher_grace_days: @setting.voucher_grace_days,
           server_ready: @server_readiness.as_json,
           updated_by: serialized_updated_by,
           updated_at: @setting.updated_at.utc.iso8601

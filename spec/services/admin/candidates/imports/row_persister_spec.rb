@@ -21,9 +21,9 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
     }
   end
 
-  def assignment_attributes(reference_number:)
+  def assignment_attributes(registration_number:)
     {
-      reference_number:,
+      registration_number:,
       current_workflow_stage: create(:workflow_stage, :registered),
       country: create(:country),
       project: create(:project),
@@ -32,11 +32,11 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
     }
   end
 
-  def build_row_plan(row_number: 2, cnic: '42101-1234567-1', reference_number: 'DES-000123')
+  def build_row_plan(row_number: 2, cnic: '42101-1234567-1', registration_number: 123)
     Admin::Candidates::Imports::Result::RowPlan.new(
       row_number:,
       candidate_attributes: candidate_attributes(cnic:),
-      assignment_attributes: assignment_attributes(reference_number:),
+      assignment_attributes: assignment_attributes(registration_number:),
       errors: [],
       blank: false
     )
@@ -65,7 +65,7 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
     context 'when a candidate with the same cnic already exists' do
       it 'skips the row without creating a new candidate' do
         create(:candidate, cnic: '42101-1234567-1', created_by: actor)
-        row_plan = build_row_plan(reference_number: 'DES-000999')
+        row_plan = build_row_plan(registration_number: 999)
 
         expect { persister.call(row_plan:, result:) }.not_to change(Candidate, :count)
 
@@ -82,7 +82,7 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
         create(
           :candidate_assignment,
           candidate: existing_candidate,
-          reference_number: 'DES-000123',
+          registration_number: 123,
           created_by: actor
         )
         row_plan = build_row_plan(cnic: '42109-7654321-2')
@@ -90,7 +90,7 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
         expect { persister.call(row_plan:, result:) }.not_to change(CandidateAssignment, :count)
 
         expect(result.to_h[:errors]).to contain_exactly(
-          hash_including(row: 2, field: 'reference_number', code: 'duplicate_reference_number')
+          hash_including(row: 2, field: 'registration_number', code: 'duplicate_registration_number')
         )
         expect(result.to_h).to include(skipped_rows: 1, successful_rows: 0, failed_rows: 0)
       end
@@ -130,7 +130,7 @@ RSpec.describe Admin::Candidates::Imports::RowPersister do
         row_plan = Admin::Candidates::Imports::Result::RowPlan.new(
           row_number: 2,
           candidate_attributes: candidate_attributes(cnic: '42101-1234567-1'),
-          assignment_attributes: assignment_attributes(reference_number: 'DES-000123').merge(
+          assignment_attributes: assignment_attributes(registration_number: 123).merge(
             current_workflow_stage: later_stage
           ),
           errors: [],

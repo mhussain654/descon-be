@@ -32,7 +32,7 @@ module Admin
           candidate_full_name: assignment.candidate.full_name,
           candidate_public_id: assignment.candidate.public_id,
           candidate_assignment_public_id: assignment.public_id,
-          reference_number: assignment.reference_number,
+          registration_number: assignment.registration_number,
           country_name: assignment.country.name_for,
           project_name: assignment.project.name_for,
           craft_name: assignment.craft.name_for

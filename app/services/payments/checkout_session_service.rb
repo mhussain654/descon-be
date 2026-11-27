@@ -91,7 +91,7 @@ module Payments
     end
 
     def generated_order_id(assignment)
-      "PAY-#{assignment.reference_number}-#{SecureRandom.hex(6).upcase}"
+      "PAY-#{assignment.order_reference}-#{SecureRandom.hex(6).upcase}"
     end
 
     def response_for(payment, replayed: false)

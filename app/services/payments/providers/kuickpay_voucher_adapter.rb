@@ -12,9 +12,16 @@ module Payments
       BULK_INQUIRY_PATH = '/api/BillPaymentBulkInquiry'
       SUCCESS_CODE = '00'
       FEE_HEAD = 'Fee'
+      # Shown in KuickPay's portal (its Branch column) for every voucher this system creates.
+      BRANCH = 'Descon MPS'
 
-      # `consumer_number` is the payable voucher number; `system_voucher_number` is KuickPay's own.
-      Voucher = Struct.new(:consumer_number, :system_voucher_number, :raw_response, keyword_init: true)
+      # `consumer_number` is the payable Kuickpay ID (institution code + registration number). KuickPay's
+      # reply carries only its reference number with the institution code in front
+      # (`company_reference_number`, e.g. 10420261105039065) and a short code (`system_voucher_number`).
+      # Neither can be paid. `reference_number` is the reference as KuickPay's portal shows it
+      # (261105039065), for staff to look the voucher up.
+      Voucher = Struct.new(:consumer_number, :reference_number, :company_reference_number, :system_voucher_number,
+                           :raw_response, keyword_init: true)
 
       # KuickPay wants the local form (03001234567), our stored number is +923001234567.
       def self.local_mobile(number)
@@ -35,16 +42,22 @@ module Payments
           [@configuration.kuickpay_institution_id, @configuration.kuickpay_hybrid_base_url].all?(&:present?)
       end
 
-      def create_voucher(payment:, candidate:, expires_on:)
+      def create_voucher(payment:, candidate:, due_on:, expires_on:)
         raise PaymentCheckoutUnavailableError unless available?
 
-        body = perform(INSERT_VOUCHER_PATH, voucher_payload(payment:, candidate:, expires_on:), 'insert_voucher',
-                       username: @configuration.kuickpay_hybrid_username,
-                       password: @configuration.kuickpay_hybrid_password)
-        Voucher.new(consumer_number: body.fetch('response_description').to_s, raw_response: body,
-                    system_voucher_number: system_voucher_number(body))
+        payload = voucher_payload(payment:, candidate:, due_on:, expires_on:)
+        login = { username: @configuration.kuickpay_hybrid_username, password: @configuration.kuickpay_hybrid_password }
+        body = perform(INSERT_VOUCHER_PATH, payload, 'insert_voucher', **login)
+        voucher_from(body, payment)
       rescue KeyError
         reject!('insert voucher response had no voucher number')
+      end
+
+      # The Kuickpay IDs a paid voucher may be listed under: the ID KuickPay reports, and the one built from
+      # the registration number it reports (in case it reports a different number for the same voucher).
+      def kuickpay_ids_for(settlement)
+        [settlement.consumer_number, settlement.registration_number.presence&.then { |number| kuickpay_id(number) }]
+          .compact_blank.uniq
       end
 
       # Has KuickPay text the candidate their voucher number, amount and due date (KuickpayVoucherSms).
@@ -66,6 +79,18 @@ module Payments
       end
 
       private
+
+      def registration_number(payment) = KuickpayRegistrationNumber.for(payment.candidate_assignment)
+
+      def kuickpay_id(registration_number) = "#{@configuration.kuickpay_institution_id}#{registration_number}"
+
+      def voucher_from(body, payment)
+        returned = body.fetch('response_description').to_s
+        reference = KuickpayReferenceNumber.without_institution(returned, @configuration.kuickpay_institution_id)
+        Voucher.new(consumer_number: kuickpay_id(registration_number(payment)), reference_number: reference,
+                    company_reference_number: returned, system_voucher_number: system_voucher_number(body),
+                    raw_response: body)
+      end
 
       def logins_present?
         [@configuration.kuickpay_hybrid_username, @configuration.kuickpay_hybrid_password,
@@ -93,25 +118,23 @@ module Payments
         (body['responseCode_Detail'].presence || body['response_detail']).to_s.presence
       end
 
-      # KuickPay's voucher takes whole rupees; the due date and expiry are the same day
-      # (no late fee), and a voucher needs an email, which candidates do not have.
-      def voucher_payload(payment:, candidate:, expires_on:)
+      # KuickPay's voucher takes whole rupees; the due and expiry dates come from App Settings (no late fee:
+      # the amount after the due date is the fee), and a voucher needs an email, which candidates do not have.
+      def voucher_payload(payment:, candidate:, due_on:, expires_on:)
         amount = whole_rupees(payment.amount)
         today = Time.current.in_time_zone('Asia/Karachi').to_date
         identity_payload(payment:, candidate:).merge(
           head1: FEE_HEAD, amount1: amount, totalAmount: amount, amountAfterDueDate: amount,
-          dueDate: expires_on.iso8601, expiryDate: expires_on.iso8601, issueDate: today.iso8601,
+          dueDate: due_on.iso8601, expiryDate: expires_on.iso8601, issueDate: today.iso8601,
           voucherMonth: today.strftime('%m'), voucherYear: today.strftime('%Y')
         )
       end
 
-      # KuickPay shows "<registrationNumber>-<name>" cut to 30 characters, so the registration number is the
-      # candidate's short reference number (DES100016), leaving room for the name. It does not need to be
-      # unique per voucher: a paid voucher is matched by its voucher number.
+      # KuickPay shows "<registrationNumber>-<name>" cut to 30 characters.
       def identity_payload(payment:, candidate:)
         {
-          institutionID: @configuration.kuickpay_institution_id,
-          registrationNumber: payment.candidate_assignment.reference_number.delete('-'),
+          institutionID: @configuration.kuickpay_institution_id, branch: BRANCH,
+          registrationNumber: registration_number(payment),
           name: alphabetic_name(candidate.full_name), mobile: local_mobile(candidate.mobile_number),
           email: @configuration.voucher_fallback_email
         }

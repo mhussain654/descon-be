@@ -223,7 +223,8 @@ FactoryBot.define do
     craft
     association :current_workflow_stage, factory: %i[workflow_stage registered]
     association :created_by, factory: :user
-    reference_number { "DES-#{SecureRandom.hex(6).upcase}" }
+    # Random, so it never clashes with numbers other examples (or rows left by non-transactional specs) use.
+    registration_number { SecureRandom.random_number(10**12) + (10**12) }
     qvc_outcome_code { nil }
     qvc_outcome_date { nil }
   end

@@ -12,7 +12,6 @@ module StoreReview
     FULL_NAME = 'Store Reviewer'
     # Never texted: no SMS is sent for this account.
     MOBILE_NUMBER = '+920000000000'
-    REFERENCE_NUMBER = 'STORE-REVIEW'
     COUNTRY_CODE = 'qatar'
     PROJECT_CODE = 'qatar_infrastructure'
     CRAFT_CODE = 'electrician'
@@ -44,7 +43,7 @@ module StoreReview
 
     def create_assignment!(candidate)
       candidate.candidate_assignments.create!(
-        reference_number: REFERENCE_NUMBER, country: Country.find_by!(code: COUNTRY_CODE),
+        country: Country.find_by!(code: COUNTRY_CODE),
         project: Project.find_by!(code: PROJECT_CODE), craft: Craft.find_by!(code: CRAFT_CODE),
         current_workflow_stage: WorkflowStage.find_by!(code: 'registered'), created_by: @created_by,
         campaign: Campaign.test_campaign

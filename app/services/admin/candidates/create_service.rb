@@ -13,13 +13,13 @@ module Admin
       AUDITED_FIELDS = %w[
         full_name cnic mobile_number passport_number preferred_locale
         next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
-        country_code project_code craft_code reference_number campaign_id
+        country_code project_code craft_code registration_number campaign_id
       ].freeze
 
       Params = Struct.new(
         :actor, :full_name, :cnic, :mobile_number, :passport_number, :preferred_locale,
         :next_of_kin_name, :next_of_kin_relationship, :next_of_kin_mobile_number, :next_of_kin_cnic,
-        :country_code, :project_code, :craft_code, :reference_number, :campaign_id, :request_id,
+        :country_code, :project_code, :craft_code, :registration_number, :campaign_id, :request_id,
         keyword_init: true
       )
 
@@ -65,8 +65,7 @@ module Admin
         {
           country_code: params[:country_code].to_s.strip.downcase,
           project_code: params[:project_code].to_s.strip.downcase,
-          craft_code: params[:craft_code].to_s.strip.downcase,
-          reference_number: params[:reference_number].to_s.strip.upcase
+          craft_code: params[:craft_code].to_s.strip.downcase
         }
       end
 
@@ -90,8 +89,8 @@ module Admin
         validate_passport_number! if @params.passport_number.present?
         validate_next_of_kin!
         validate_preferred_locale!
-        validate_reference_number!
         validate_assignment_references!
+        validate_registration_number!
       end
 
       def validate_assignment_references!
@@ -164,11 +163,16 @@ module Admin
         raise_validation_error(field.to_s, 'api.errors.next_of_kin_field_required')
       end
 
-      def validate_reference_number!
-        if @params.reference_number.blank?
-          raise_validation_error('reference_number', 'api.errors.candidate_reference_number_required')
+      # Optional; unique across the organisation.
+      def validate_registration_number!
+        parsed = ::Candidates::RegistrationNumberParser.call(@params.registration_number)
+        unless parsed.valid?
+          raise_validation_error('registration_number',
+                                 'api.errors.candidate_registration_number_invalid')
         end
-        raise DuplicateReferenceNumberError if CandidateAssignment.exists?(reference_number: @params.reference_number)
+        raise DuplicateRegistrationNumberError if CandidateAssignment.registration_number_taken?(parsed.value)
+
+        @registration_number = parsed.value
       end
 
       def validated_reference(model, code, field:)
@@ -200,7 +204,7 @@ module Admin
 
       def create_assignment!(candidate)
         candidate.candidate_assignments.create!(
-          reference_number: @params.reference_number,
+          registration_number: @registration_number,
           country: @country,
           project: @project,
           craft: @craft,

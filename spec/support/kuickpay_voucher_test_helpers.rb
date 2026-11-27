@@ -16,6 +16,9 @@ module KuickpayVoucherTestHelpers
     KUICKPAY_VOUCHER_TEST_ENV.each_key { |key| ENV[key] = original[key] }
   end
 
+  # The Kuickpay ID a voucher payment gets: the test institution id + the candidate's registration number.
+  def expected_kuickpay_id(payment) = "00008#{payment.candidate_assignment.registration_number}"
+
   # Stubs Net::HTTP for both Hybrid calls, told apart by request path. `requests`
   # collects every request made, so a spec can look at what was sent.
   def stub_kuickpay_hybrid(voucher_number: '0000832249220', settlements: [], insert_code: '00', requests: [])
@@ -43,8 +46,9 @@ module KuickpayVoucherTestHelpers
   # A row as KuickPay's UAT returns it. Right after the candidate pays, KuickPay has not settled it yet:
   # `isSettled` is false and `settlement_Date_Time` is null; the transaction date is midnight and the time of
   # day comes separately in `tranTime`.
-  def kuickpay_settlement(consumer_number:, amount:, auth_id: '788895', settled: true)
-    { consumer_Number: consumer_number, registrationNumber: '5675', transaction_Date_Time: '2026-10-21T00:00:00',
+  def kuickpay_settlement(consumer_number:, amount:, auth_id: '788895', settled: true, registration_number: '5675')
+    { consumer_Number: consumer_number, registrationNumber: registration_number,
+      transaction_Date_Time: '2026-10-21T00:00:00',
       settlement_Date_Time: (settled ? '2026-10-22T10:00:05' : nil), amountTransaction: amount.to_f,
       authID: auth_id, bank: 'KPY', network: 'KPDirect', isSettled: settled, tranTime: '091602', fee: 50.0,
       amountAfterFee: amount.to_f - 50 }

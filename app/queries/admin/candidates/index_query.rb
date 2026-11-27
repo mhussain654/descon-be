@@ -10,7 +10,7 @@ module Admin
       ALLOWED_FILTERS = (%w[status country_code project_code craft_code boarding_pass] +
                          RegisteredDateFilter::NAMES).freeze
       BOARDING_PASS_FILTERS = %w[uploaded missing].freeze
-      ALLOWED_SORTS = %w[created_at full_name reference_number].freeze
+      ALLOWED_SORTS = %w[created_at full_name registration_number].freeze
       REFERENCE_FILTER_SQL = {
         'country_code' => 'current_assignments.country_id = ?',
         'project_code' => 'current_assignments.project_id = ?',
@@ -69,26 +69,27 @@ module Admin
 
         normalized_cnic = ::Candidates::CnicNormalizer.call(value)
         normalized_passport = value.upcase.gsub(/\s+/, '')
-        normalized_reference = value.upcase
+        number = ::Candidates::RegistrationNumberParser.search_number(value)
         name_match = "%#{ActiveRecord::Base.sanitize_sql_like(value)}%"
-        matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
+        matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, number:)
       end
 
       # cnic/passport_number are deterministically encrypted (MPS-901), so they can only be
       # matched via ActiveRecord's own hash-condition `where` (which transparently encrypts the
       # query value) -- never as a raw SQL string comparison, which would compare plaintext
-      # against ciphertext and silently match nothing. full_name/reference_number aren't
+      # against ciphertext and silently match nothing. full_name/registration_number aren't
       # encrypted, so they stay a single raw ILIKE/`=` clause combined with `.or`.
-      def matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, normalized_reference:)
+      # A number matches the registration number.
+      def matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, number:)
         scope
-          .where(name_or_reference_clause, name: name_match, reference: normalized_reference)
+          .where(name_or_number_clause, name: name_match, number:)
           .or(scope.where(cnic: normalized_cnic))
           .or(scope.where(passport_number: normalized_passport))
       end
 
-      def name_or_reference_clause
+      def name_or_number_clause
         <<~SQL.squish
-          candidates.full_name ILIKE :name OR current_assignments.reference_number = :reference
+          candidates.full_name ILIKE :name OR current_assignments.registration_number = :number
         SQL
       end
 
@@ -154,15 +155,18 @@ module Admin
         field = raw.delete_prefix('-')
         raise UnsupportedSortError.new(sort_name: field) unless ALLOWED_SORTS.include?(field)
 
-        return reference_number_sort(scope, direction) if field == 'reference_number'
+        return registration_number_sort(scope, direction) if field == 'registration_number'
 
         scope.order(field => direction, public_id: :asc)
       end
 
-      def reference_number_sort(scope, direction)
-        return scope.order('current_assignments.reference_number ASC', public_id: :asc) if direction == :asc
+      def registration_number_sort(scope, direction)
+        if direction == :asc
+          return scope.order(Arel.sql('current_assignments.registration_number ASC NULLS LAST'),
+                             public_id: :asc)
+        end
 
-        scope.order('current_assignments.reference_number DESC', public_id: :asc)
+        scope.order(Arel.sql('current_assignments.registration_number DESC NULLS LAST'), public_id: :asc)
       end
 
       def paginate(scope)

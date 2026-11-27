@@ -28,7 +28,8 @@ RSpec.describe 'API V1 App Feature Setting', type: :request do
                               'progress_sms_enabled' => true, 'automatic_calls_enabled' => true,
                               'bulk_calls_enabled' => true, 'document_ocr_enabled' => true,
                               # Rejecting uploads automatically starts off until a developer turns it on.
-                              'document_identity_check_enabled' => false)
+                              'document_identity_check_enabled' => false,
+                              'voucher_due_days' => 15, 'voucher_grace_days' => 2)
       expect(data).not_to have_key('sms_messages')
       expect(data['server_ready'].keys).to match_array(%w[card_payment voucher_payment progress_sms automatic_calls
                                                           bulk_calls document_ocr document_identity_check])
@@ -60,6 +61,24 @@ RSpec.describe 'API V1 App Feature Setting', type: :request do
       expect(AppFeatureSetting.current).to have_attributes(voucher_payment_enabled: false, updated_by: developer)
       audit = AuditEvent.find_by!(action_code: 'app_feature_setting_updated')
       expect(audit.metadata['changes'].keys).to eq(%w[voucher_payment_enabled])
+    end
+
+    it 'saves the voucher due and grace days, refusing values out of range' do
+      developer = create(:user, role: 'developer')
+
+      patch '/api/v1/admin/app_feature_setting',
+            params: { app_feature_setting: { voucher_due_days: 10, voucher_grace_days: 3 } }.to_json,
+            headers: json_headers(developer)
+      expect(response).to have_http_status(:ok)
+      expect(AppFeatureSetting.current).to have_attributes(voucher_due_days: 10, voucher_grace_days: 3)
+      expect(AuditEvent.find_by!(action_code: 'app_feature_setting_updated').metadata['changes'].keys)
+        .to match_array(%w[voucher_due_days voucher_grace_days])
+
+      patch '/api/v1/admin/app_feature_setting',
+            params: { app_feature_setting: { voucher_due_days: 0, voucher_grace_days: 16 } }.to_json,
+            headers: json_headers(developer)
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(AppFeatureSetting.current).to have_attributes(voucher_due_days: 10, voucher_grace_days: 3)
     end
 
     it 'records no audit event when nothing changed' do

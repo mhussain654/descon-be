@@ -90,11 +90,6 @@ module Payments
       kuickpay_setting(:institution_id) || kuickpay_company_id
     end
 
-    # How long an unpaid voucher stays payable (also the due date: no late fee).
-    def voucher_valid_days
-      ENV.fetch('PAYMENT_VOUCHER_VALID_DAYS', 14).to_i
-    end
-
     # KuickPay requires an email for every voucher; candidates have none on file.
     def voucher_fallback_email
       ENV.fetch('PAYMENT_VOUCHER_FALLBACK_EMAIL', 'no-reply@descon-mps.com').strip

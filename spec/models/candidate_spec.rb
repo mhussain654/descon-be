@@ -140,11 +140,11 @@ RSpec.describe Candidate, type: :model do
 
     it 'exposes the most recent assignment as the current assignment' do
       candidate = create(:candidate)
-      first_assignment = create(:candidate_assignment, candidate:, reference_number: 'DES-000101')
+      first_assignment = create(:candidate_assignment, candidate:, registration_number: 101)
       latest_assignment = create(
         :candidate_assignment,
         candidate:,
-        reference_number: 'DES-000102',
+        registration_number: 102,
         created_at: 1.minute.from_now
       )
 

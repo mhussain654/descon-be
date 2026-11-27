@@ -6,6 +6,13 @@ module Admin
   module Payments
     # rubocop:disable Metrics/ClassLength
     class IndexQuery < ApplicationQuery
+      # A search that is a number also matches the registration number.
+      SEARCH_SQL = <<~SQL.squish
+        candidates.full_name ILIKE :match OR candidate_assignments.registration_number = :number OR
+        payments.external_reference ILIKE :match OR payments.voucher_number ILIKE :match OR
+        payments.kuickpay_reference_number ILIKE :match
+      SQL
+
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
       ALLOWED_STATUSES = Payment::STATUS_CODES.freeze
@@ -82,14 +89,8 @@ module Admin
         value = @params[:search].to_s.strip
         return scope if value.blank?
 
-        match = "%#{ActiveRecord::Base.sanitize_sql_like(value)}%"
-        scope.where(
-          <<~SQL.squish,
-            candidates.full_name ILIKE :match OR candidate_assignments.reference_number ILIKE :match OR
-            payments.external_reference ILIKE :match OR payments.voucher_number ILIKE :match
-          SQL
-          match:
-        )
+        scope.where(SEARCH_SQL, match: "%#{ActiveRecord::Base.sanitize_sql_like(value)}%",
+                                number: ::Candidates::RegistrationNumberParser.search_number(value))
       end
 
       def apply_filters(scope)

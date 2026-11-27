@@ -30,6 +30,7 @@ module Payments
 
       existing = Payments::OpenPayments.voucher(assignment)
       return response_for(existing, replayed: true) if existing.present?
+      raise RegistrationNumberMissingError if assignment.registration_number.blank?
 
       payment = create_payment!(assignment:)
       issue_voucher!(payment:, candidate:, assignment:)
@@ -59,18 +60,33 @@ module Payments
         payment_type_code: 'onboarding_fee', status_code: 'checkout_pending',
         amount: Payments::FeeResolver.amount(assignment), currency_code: @configuration.currency_code,
         provider_code: provider.provider_code,
-        provider_order_id: "PAY-#{assignment.reference_number}-#{SecureRandom.hex(6).upcase}"
+        provider_order_id: "PAY-#{assignment.order_reference}-#{SecureRandom.hex(6).upcase}"
       )
     end
 
     def issue_voucher!(payment:, candidate:, assignment:)
-      expires_on = Time.current.in_time_zone(TIME_ZONE).to_date + @configuration.voucher_valid_days
-      voucher = provider.create_voucher(payment:, candidate:, expires_on:)
+      due_on, expires_on = voucher_dates
+      voucher = provider.create_voucher(payment:, candidate:, due_on:, expires_on:)
       expires_at = expires_on.in_time_zone(TIME_ZONE).end_of_day
-      payment.update!(voucher_number: voucher.consumer_number, checkout_expires_at: expires_at)
+      payment.update!(voucher_attributes(voucher).merge(checkout_expires_at: expires_at, voucher_due_on: due_on))
       assignment.update!(updated_at: Time.current)
       record_audit!(payment:, assignment:, expires_at:)
       record_event!(payment:, assignment:, voucher:)
+    end
+
+    # The due date and the expiry (last payable day) from App Settings, counted from today in Pakistan.
+    def voucher_dates
+      setting = AppFeatureSetting.current
+      due_on = Time.current.in_time_zone(TIME_ZONE).to_date + setting.voucher_due_days
+      [due_on, due_on + setting.voucher_grace_days]
+    end
+
+    def voucher_attributes(voucher)
+      {
+        voucher_number: voucher.consumer_number,
+        kuickpay_reference_number: voucher.reference_number.presence,
+        kuickpay_company_reference_number: voucher.company_reference_number.presence
+      }
     end
 
     def record_audit!(payment:, assignment:, expires_at:)

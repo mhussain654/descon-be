@@ -40,7 +40,7 @@ module Admin
       {
         id: assignment.candidate.public_id,
         full_name: assignment.candidate.full_name,
-        reference_number: assignment.reference_number,
+        registration_number: assignment.registration_number,
         country_name: assignment.country&.name_for,
         project_name: assignment.project&.name_for,
         craft_name: assignment.craft&.name_for

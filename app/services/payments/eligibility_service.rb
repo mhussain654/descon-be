@@ -53,7 +53,8 @@ module Payments
       build_result(
         assignment:, current_stage_code: assignment.current_workflow_stage.code, eligible: allowed,
         blocking_reasons: prerequisite_result.blocking_reasons,
-        checkout_available: allowed && card_offered?, voucher_available: allowed && voucher_offered?
+        checkout_available: allowed && card_offered?,
+        voucher_available: allowed && voucher_offered? && assignment.registration_number.present?
       )
     end
 

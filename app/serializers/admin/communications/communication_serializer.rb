@@ -52,7 +52,7 @@ module Admin
 
         {
           id: assignment.public_id,
-          reference_number: assignment.reference_number,
+          registration_number: assignment.registration_number,
           candidate_id: assignment.candidate.public_id
         }
       end

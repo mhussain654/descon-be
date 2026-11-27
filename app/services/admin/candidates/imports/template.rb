@@ -28,8 +28,8 @@ module Admin
 
         def example_row
           [
-            'Example Candidate', '42101-1234567-1', '+923001234567', 'DES-EXAMPLE-001', 'registered',
-            'registered', 'Qatar', 'Qatar Infrastructure', 'Electrician', 'true', 'AB123456', 'مثالی سرپرست',
+            'Example Candidate', '42101-1234567-1', '+923001234567', 'registered', 'registered', 'Qatar',
+            'Qatar Infrastructure', 'Electrician', 'true', '500001', 'AB123456', 'مثالی سرپرست',
             'sibling', '+923001234568', '42101-1234567-2', 'candidate@example.com', VERSION
           ]
         end

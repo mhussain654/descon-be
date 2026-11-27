@@ -16,7 +16,7 @@ RSpec.describe 'API V1 Admin candidate campaign assignment', type: :request do
   let(:row) do
     {
       'full_name' => 'Campaign Candidate', 'cnic' => '42101-1234567-1', 'mobile_number' => '+923001234567',
-      'reference_number' => 'DES-CAMPAIGN-1', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
+      'registration_number' => '700001', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
       'workflow_stage_code' => 'registered', 'project_code' => 'qatar_infrastructure',
       'craft_code' => 'electrician', 'active' => 'true', 'template_version' => 'v1'
     }
@@ -59,7 +59,7 @@ RSpec.describe 'API V1 Admin candidate campaign assignment', type: :request do
       )
       Admin::Candidates::Imports::BatchExecutionService.call(import_id:, request_id: 'run-campaign')
 
-      expect(CandidateAssignment.find_by!(reference_number: 'DES-CAMPAIGN-1').campaign).to eq(campaign)
+      expect(CandidateAssignment.find_by!(registration_number: 700_001).campaign).to eq(campaign)
       expect(CandidateImportBatch.find_by!(public_id: import_id).campaign).to eq(campaign)
     end
 
@@ -92,7 +92,7 @@ RSpec.describe 'API V1 Admin candidate campaign assignment', type: :request do
     def create_params(overrides = {})
       { full_name: 'Form Candidate', cnic: '42101-7654321-1', mobile_number: '+923007654321', preferred_locale: 'en',
         country_code: 'qatar', project_code: 'qatar_infrastructure', craft_code: 'electrician',
-        reference_number: 'DES-FORM-1', campaign_id: campaign.public_id }.merge(overrides)
+        registration_number: '700002', campaign_id: campaign.public_id }.merge(overrides)
     end
 
     def create_candidate(overrides = {})

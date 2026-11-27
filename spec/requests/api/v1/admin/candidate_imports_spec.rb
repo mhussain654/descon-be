@@ -31,7 +31,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
         full_name
         cnic
         mobile_number
-        reference_number
+        registration_number
         preferred_locale
         candidate_status
         workflow_stage_code
@@ -54,7 +54,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
                campaign_id: qatar_campaign.public_id,
                file: uploaded_csv(
                  csv_content(
-                   ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
+                   ['Candidate One', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered', 'registered',
                     'qatar', 'qatar_infrastructure', 'electrician', 'true']
                  )
                )
@@ -116,7 +116,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
                campaign_id: qatar_campaign.public_id,
                file: uploaded_csv(
                  csv_content(
-                   ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
+                   ['Candidate One', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered', 'registered',
                     'qatar', 'qatar_infrastructure', 'electrician', 'true']
                  )
                )
@@ -132,7 +132,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
                  campaign_id: qatar_campaign.public_id,
                  file: uploaded_csv(
                    csv_content(
-                     ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
+                     ['Candidate One', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered', 'registered',
                       'qatar', 'qatar_infrastructure', 'electrician', 'true']
                    )
                  )
@@ -159,7 +159,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
                campaign_id: qatar_campaign.public_id,
                file: uploaded_csv(
                  csv_content(
-                   ['Imported Candidate', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered',
+                   ['Imported Candidate', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered', 'registered',
                     'qatar', 'qatar_infrastructure', 'electrician', 'true']
                  )
                )
@@ -187,7 +187,7 @@ RSpec.describe 'API V1 Admin Candidate Imports', type: :request do
       headers = Admin::Candidates::Imports::CsvFileParser::SUPPORTED_HEADERS
       values = {
         'full_name' => 'Preflight Candidate', 'cnic' => '42101-1234567-1', 'mobile_number' => '+923001234567',
-        'reference_number' => 'DES-001001', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
+        'registration_number' => '001001', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
         'workflow_stage_code' => 'registered', 'country_code' => 'qatar', 'project_code' => 'qatar_infrastructure',
         'craft_code' => 'electrician', 'active' => 'true', 'passport_number' => '', 'next_of_kin_name' => '',
         'next_of_kin_relationship' => '', 'next_of_kin_mobile_number' => '', 'next_of_kin_cnic' => '', 'email' => '',

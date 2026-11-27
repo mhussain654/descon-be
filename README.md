@@ -301,14 +301,14 @@ Authentication and authorization are enforced separately.
 Candidate registry data remains split by domain responsibility:
 
 - `candidates` stores candidate identity, authentication fields, preferred language, candidate-level status, and active state
-- `candidate_assignments` stores the current reference number and workflow-stage relationship
+- `candidate_assignments` stores the optional registration number (unique within a campaign) and workflow-stage relationship
 
 Admin import is exposed as `POST /api/v1/admin/candidate_imports`.
 
 - Requires an authenticated active staff session with the active `manage_candidates` permission
 - Accepts `multipart/form-data` with `candidate_import[file]`
 - Normalizes CNIC and mobile values before validation and persistence
-- Detects duplicate CNICs and reference numbers inside the CSV and against existing database records
+- Detects duplicate CNICs, mobile numbers and registration numbers inside the CSV and against existing database records (registration numbers across the organisation)
 - Never silently overwrites an existing candidate or assignment
 - Supports safe client retries through `Idempotency-Key`
 - Records a PII-safe audit event with only summary counts and the request ID
@@ -318,7 +318,6 @@ Required CSV headers:
 - `full_name`
 - `cnic`
 - `mobile_number`
-- `reference_number`
 - `candidate_status`
 - `workflow_stage_code`
 - `country_code`
@@ -328,6 +327,7 @@ Required CSV headers:
 
 Column values:
 
+- `registration_number` (the client's file number) is optional: blank, or a whole number above zero, unique across the organisation (`invalid_registration_number`, `duplicate_registration_number`, `duplicate_registration_number_in_file`). The column may also be named `file_number`, `reference_number` or `registrationNumber`. Staff can set or change it later in admin. It is the KuickPay registration number, so a fee voucher is only created once it is set.
 - `preferred_locale` is optional (not in the template): left out or blank, the candidate is stored without a language and the language they sign in with is recorded on their first OTP sign-in. Otherwise it must be `en` or `ur`.
 - `candidate_status` and `workflow_stage_code` may be blank or a "Not Registered" label (any case; spaces, underscores or hyphens; the "Not Registred" spelling too); both import as `registered`.
 - `country_code`, `project_code` and `craft_code` each match a code or the English name, ignoring case and extra spaces (e.g. `Qatar`, `Qatar Infrastructure`, `HSE Assistant`). Anything else, including a misspelt name, fails the row with `unknown_country_code`, `unknown_project_code` or `unknown_craft_code`.
@@ -344,10 +344,10 @@ curl -X POST http://localhost:3000/api/v1/admin/candidate_imports \
 Safe sample CSV:
 
 ```csv
-full_name,cnic,mobile_number,reference_number,candidate_status,workflow_stage_code,country_code,project_code,craft_code,active
-Ahmed Ali,42101-1234567-1,+923001234567,DES-001001,registered,registered,qatar,qatar_infrastructure,electrician,true
-Fatima Noor,42102-1234567-2,+923001234568,DES-001002,registered,documents_pending,uae,qatar_energy,welder,false
-Bilal Khan,42103-1234567-3,+923001234569,DES-001003,Not Registered,,Qatar,Qatar Infrastructure,HSE Assistant,true
+full_name,cnic,mobile_number,registration_number,candidate_status,workflow_stage_code,country_code,project_code,craft_code,active
+Ahmed Ali,42101-1234567-1,+923001234567,500001,registered,registered,qatar,qatar_infrastructure,electrician,true
+Fatima Noor,42102-1234567-2,+923001234568,500002,registered,documents_pending,uae,qatar_energy,welder,false
+Bilal Khan,42103-1234567-3,+923001234569,,Not Registered,,Qatar,Qatar Infrastructure,HSE Assistant,true
 ```
 
 ## Candidate profile API
@@ -360,7 +360,7 @@ Candidate-facing endpoints remain isolated from staff APIs.
   - public candidate ID
   - full name
   - masked CNIC
-  - reference number
+  - registration (file) number, or null until staff add it
   - preferred locale
   - candidate status
   - current workflow stage
@@ -659,7 +659,7 @@ Queue and detail behavior:
 
 - The queue supports `page[number]`, `page[size]`, and safe filters for `status`, `submitted_from`, `submitted_to`, `candidate_public_id`, `project_code`, and `country_code`
 - Queue and detail responses expose public IDs only
-- The API returns safe metadata only: candidate public ID and display name, assignment public ID and reference number, localized country/project/craft names, submission time, review counts, localized document-type names, file content type, file size, upload time, and review status
+- The API returns safe metadata only: candidate public ID and display name, assignment public ID, registration number and candidate number, localized country/project/craft names, submission time, review counts, localized document-type names, file content type, file size, upload time, and review status
 - The API does not expose internal numeric IDs, storage keys, disk paths, public file URLs, CNIC, passport details, phone numbers, or document contents
 
 Review-state rules:

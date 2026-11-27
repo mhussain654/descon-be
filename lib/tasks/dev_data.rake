@@ -45,7 +45,8 @@ namespace :dev_data do
   task :payment_test_candidate, [:cnic] => :environment do |_task, args|
     require Rails.root.join('lib/dev_data/payment_test_candidate')
     candidate = DevData::PaymentTestCandidate.call(cnic: args[:cnic])
-    puts "Candidate: #{candidate.full_name} (#{candidate.current_assignment.reference_number})"
+    number = candidate.current_assignment.registration_number || 'not set'
+    puts "Candidate: #{candidate.full_name} (registration number #{number})"
     puts "CNIC:      #{candidate.cnic}"
     puts "Login code: #{DevData::PaymentTestCandidate::CODE} (valid 1 hour)."
     puts 'In the app, enter the CNIC and request the code within a minute of running this, then type the code.'

@@ -4,9 +4,9 @@ module Admin
   module Candidates
     # Updates a candidate's own profile fields and, only before any document
     # has actually been uploaded, its project/country/craft. CNIC (the
-    # candidate's own login identifier) and reference_number (used as an
-    # external tracking identifier elsewhere) are never editable through this
-    # endpoint -- both are treated as immutable once assigned.
+    # candidate's own login identifier) is never editable through this endpoint.
+    # The registration (file) number can be set, changed or cleared at any stage; it is unique across
+    # the organisation and is the KuickPay registration number (adding it at Fee Pending issues the voucher).
     #
     # Document requirements are resolved *live* from the assignment's
     # project/country/craft on every read (Candidates::Documents::
@@ -51,7 +51,7 @@ module Admin
       Params = Struct.new(
         :actor, :candidate, :full_name, :mobile_number, :email, :passport_number, :preferred_locale,
         :next_of_kin_name, :next_of_kin_relationship, :next_of_kin_mobile_number, :next_of_kin_cnic,
-        :country_code, :project_code, :craft_code, :campaign_id, :expected_updated_at,
+        :country_code, :project_code, :craft_code, :campaign_id, :registration_number, :expected_updated_at,
         keyword_init: true
       )
 
@@ -70,16 +70,25 @@ module Admin
         validate_staleness!
         validate_payload!
 
-        CandidateAssignment.transaction do
-          update_candidate!
-          update_assignment! if assignment_fields_provided?
-          record_audit!
-        end
-
+        save_changes!
         @params.candidate.reload
       end
 
       private
+
+      def save_changes!
+        CandidateAssignment.transaction do
+          update_candidate!
+          update_assignment! if assignment_fields_provided? || provided?(:registration_number)
+          record_audit!
+          issue_waiting_fee_voucher! if @registration_number_added
+        end
+      rescue ActiveRecord::RecordNotUnique => e
+        # Another request saved the same registration number between our check and the save.
+        raise DuplicateRegistrationNumberError if e.message.include?('_on_registration_number')
+
+        raise
+      end
 
       def assignment
         @assignment ||= @params.candidate.current_assignment
@@ -107,6 +116,18 @@ module Admin
         FIELD_VALIDATIONS.each { |field, validation| send(validation) if provided?(field) }
         validate_next_of_kin! if next_of_kin_fields_provided?
         validate_assignment_fields! if assignment_fields_provided?
+        validate_registration_number! if provided?(:registration_number)
+      end
+
+      # A whole number (or blank to clear it) that no other candidate has.
+      def validate_registration_number!
+        parsed = ::Candidates::RegistrationNumberParser.call(@params.registration_number)
+        raise_validation_error('registration_number', 'api.errors.candidate_registration_number_invalid') unless
+          parsed.valid?
+        raise DuplicateRegistrationNumberError if
+          CandidateAssignment.registration_number_taken?(parsed.value, except: assignment)
+
+        @registration_number = parsed.value
       end
 
       def assignment_fields_provided?
@@ -274,6 +295,12 @@ module Admin
         attributes = assignment_attributes
         return if attributes.empty?
 
+        had_registration_number = assignment.registration_number.present?
+        save_assignment!(attributes)
+        @registration_number_added = !had_registration_number && assignment.registration_number.present?
+      end
+
+      def save_assignment!(attributes)
         assignment.assign_attributes(attributes)
         if assignment.country_id_changed?
           assignment.mobilization_process = MobilizationProcess.resolve_for(assignment.country)
@@ -281,10 +308,24 @@ module Admin
         assignment.save!
       end
 
+      # A candidate who reached Fee Pending without a registration number got no voucher; once staff add the
+      # number, the same job that runs on entering the stage issues it and has KuickPay text the Kuickpay ID
+      # (and our fee SMS, deduplicated per stage entry). Enqueued in the transaction, so only if the edit commits.
+      def issue_waiting_fee_voucher!
+        stage = assignment.current_workflow_stage
+        return unless stage.code == 'fee_pending'
+
+        entry = assignment.candidate_stage_histories.where(to_workflow_stage: stage).order(:occurred_at, :id).last
+        return if entry.blank?
+
+        ::Payments::IssueFeeVoucherJob.perform_later(candidate_assignment_id: assignment.id, history_entry_id: entry.id)
+      end
+
       def assignment_attributes
-        { country_code: @country, project_code: @project, craft_code: @craft, campaign_id: @campaign }
-          .slice(*@provided_fields)
-          .transform_keys { |field| field.to_s.delete_suffix('_code').delete_suffix('_id').to_sym }
+        attributes = { country_code: @country, project_code: @project, craft_code: @craft, campaign_id: @campaign }
+                     .slice(*@provided_fields)
+                     .transform_keys { |field| field.to_s.delete_suffix('_code').delete_suffix('_id').to_sym }
+        provided?(:registration_number) ? attributes.merge(registration_number: @registration_number) : attributes
       end
 
       def normalized_mobile_number(raw_value)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_27_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -77,8 +77,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "document_identity_check_enabled", default: false, null: false
+    t.integer "voucher_due_days", default: 15, null: false
+    t.integer "voucher_grace_days", default: 2, null: false
     t.index ["singleton_guard"], name: "index_app_feature_settings_on_singleton_guard", unique: true
     t.index ["updated_by_id"], name: "index_app_feature_settings_on_updated_by_id"
+    t.check_constraint "voucher_due_days >= 1 AND voucher_due_days <= 60", name: "app_feature_settings_voucher_due_days_range"
+    t.check_constraint "voucher_grace_days >= 0 AND voucher_grace_days <= 15", name: "app_feature_settings_voucher_grace_days_range"
   end
 
   create_table "audit_events", force: :cascade do |t|
@@ -298,11 +302,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
     t.string "public_id", null: false
     t.string "qvc_outcome_code"
     t.date "qvc_outcome_date"
-    t.string "reference_number", null: false
     t.datetime "updated_at", null: false
     t.decimal "onboarding_fee_amount", precision: 10, scale: 2
     t.integer "fee_version", default: 0, null: false
     t.bigint "campaign_id"
+    t.bigint "registration_number"
     t.index ["campaign_id"], name: "index_candidate_assignments_on_campaign_id"
     t.index ["candidate_id", "created_at"], name: "index_candidate_assignments_on_candidate_id_and_created_at"
     t.index ["candidate_id"], name: "index_candidate_assignments_on_candidate_id"
@@ -316,10 +320,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
     t.index ["project_id", "craft_id", "country_id"], name: "index_candidate_assignments_on_project_craft_country"
     t.index ["project_id"], name: "index_candidate_assignments_on_project_id"
     t.index ["public_id"], name: "index_candidate_assignments_on_public_id", unique: true
-    t.index ["reference_number"], name: "index_candidate_assignments_on_reference_number", unique: true
+    t.index ["registration_number"], name: "index_candidate_assignments_on_registration_number", unique: true, where: "(registration_number IS NOT NULL)"
     t.check_constraint "onboarding_fee_amount IS NULL OR onboarding_fee_amount > 0::numeric", name: "candidate_onboarding_fee_positive"
     t.check_constraint "qvc_outcome_code IS NULL AND qvc_outcome_date IS NULL OR qvc_outcome_code IS NOT NULL AND qvc_outcome_date IS NOT NULL", name: "candidate_assignments_qvc_pair"
     t.check_constraint "qvc_outcome_code IS NULL OR qvc_outcome_code::text ~ '^[a-z0-9_]+$'::text", name: "candidate_assignments_qvc_outcome_code_format"
+    t.check_constraint "registration_number > 0", name: "candidate_assignments_registration_number_positive"
   end
 
   create_table "candidate_bank_details", force: :cascade do |t|
@@ -1109,15 +1114,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_26_130000) do
     t.string "status_code", null: false
     t.datetime "updated_at", null: false
     t.string "voucher_number"
+    t.string "kuickpay_reference_number", limit: 40
+    t.string "kuickpay_company_reference_number", limit: 40
+    t.date "voucher_due_on"
     t.index ["candidate_assignment_id", "status_code", "created_at"], name: "index_payments_on_assignment_status_created_at"
     t.index ["candidate_assignment_id"], name: "index_payments_on_candidate_assignment_id"
     t.index ["external_reference"], name: "index_payments_on_external_reference", unique: true, where: "(external_reference IS NOT NULL)"
+    t.index ["kuickpay_reference_number"], name: "index_payments_on_kuickpay_reference_number", where: "(kuickpay_reference_number IS NOT NULL)"
     t.index ["provider_order_id"], name: "index_payments_on_provider_order_id", unique: true
     t.index ["provider_session_id"], name: "index_payments_on_provider_session_id", unique: true
     t.index ["provider_transaction_id"], name: "index_payments_on_provider_transaction_id"
     t.index ["public_id"], name: "index_payments_on_public_id", unique: true
     t.index ["recorded_by_id"], name: "index_payments_on_recorded_by_id"
-    t.index ["voucher_number"], name: "index_payments_on_voucher_number", unique: true, where: "(voucher_number IS NOT NULL)"
+    t.index ["voucher_number"], name: "index_payments_on_voucher_number", where: "(voucher_number IS NOT NULL)"
     t.check_constraint "amount > 0::numeric", name: "payments_amount_positive"
     t.check_constraint "currency_code::text ~ '^[A-Z]{3}$'::text", name: "payments_currency_code_format"
     t.check_constraint "payment_type_code::text ~ '^[a-z0-9_]+$'::text", name: "payments_payment_type_code_format"

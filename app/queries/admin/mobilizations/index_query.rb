@@ -75,10 +75,11 @@ module Admin
         return scope if value.blank?
 
         like = "%#{ActiveRecord::Base.sanitize_sql_like(value)}%"
+        number = ::Candidates::RegistrationNumberParser.search_number(value)
         scope.where(
-          'candidates.full_name ILIKE :like OR candidate_assignments.reference_number = :exact ' \
+          'candidates.full_name ILIKE :like OR candidate_assignments.registration_number = :number ' \
           'OR candidate_flight_details.flight_number ILIKE :like',
-          like:, exact: value.upcase
+          like:, number:
         )
       end
 

@@ -22,7 +22,7 @@ RSpec.describe Admin::Candidates::ImportService do
         full_name
         cnic
         mobile_number
-        reference_number
+        registration_number
         preferred_locale
         candidate_status
         workflow_stage_code
@@ -41,9 +41,9 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered', 'qatar',
+            ['Candidate One', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Candidate Two', '42102-1234567-2', '+923001234568', 'DES-001002', 'ur', 'registered', 'documents_pending', 'uae',
+            ['Candidate Two', '42102-1234567-2', '+923001234568', '001002', 'ur', 'registered', 'documents_pending', 'uae',
              'qatar_energy', 'welder', 'inactive']
           )
         ),
@@ -72,7 +72,7 @@ RSpec.describe Admin::Candidates::ImportService do
       expect do
         described_class.call(
           actor:,
-          file: uploaded_csv(csv_content(['Candidate', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered',
+          file: uploaded_csv(csv_content(['Candidate', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered',
                                           'registered', 'qatar', 'qatar_infrastructure', 'electrician', 'true'])),
           request_id: 'req-import-3'
         )
@@ -111,9 +111,9 @@ RSpec.describe Admin::Candidates::ImportService do
           actor:,
           file: uploaded_csv(
             csv_content(
-              ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered', 'qatar',
+              ['Candidate One', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered', 'registered', 'qatar',
                'qatar_infrastructure', 'electrician', 'true'],
-              ['Candidate Two', '42102-1234567-2', '+923001234568', 'DES-001002', 'ur', 'registered', 'documents_pending', 'uae',
+              ['Candidate Two', '42102-1234567-2', '+923001234568', '001002', 'ur', 'registered', 'documents_pending', 'uae',
                'qatar_energy', 'welder', 'false']
             )
           ),
@@ -124,21 +124,21 @@ RSpec.describe Admin::Candidates::ImportService do
 
     it 'reports invalid rows, duplicate rows within the CSV, and existing database duplicates safely' do
       create(:candidate, cnic: '42103-1234567-3')
-      create(:candidate_assignment, reference_number: 'DES-009999')
+      create(:candidate_assignment, registration_number: '009999')
 
       result = described_class.call(
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Invalid Candidate', 'bad-cnic', 'abc', 'DES-001003', 'en', 'registered', 'registered', 'qatar',
+            ['Invalid Candidate', 'bad-cnic', 'abc', '001003', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Duplicate In File A', '42104-1234567-4', '+923001234569', 'DES-001004', 'en', 'registered', 'registered', 'qatar',
+            ['Duplicate In File A', '42104-1234567-4', '+923001234569', '001004', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Duplicate In File B', '42104-1234567-4', '+923001234570', 'DES-001005', 'en', 'registered', 'registered', 'qatar',
+            ['Duplicate In File B', '42104-1234567-4', '+923001234570', '001005', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Existing Candidate', '42103-1234567-3', '+923001234571', 'DES-001006', 'en', 'registered', 'registered', 'qatar',
+            ['Existing Candidate', '42103-1234567-3', '+923001234571', '001006', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Existing Reference', '42105-1234567-5', '+923001234572', 'DES-009999', 'en', 'registered', 'registered', 'qatar',
+            ['Existing Reference', '42105-1234567-5', '+923001234572', '009999', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -152,7 +152,7 @@ RSpec.describe Admin::Candidates::ImportService do
         include(row: 2, field: 'cnic', code: 'invalid_cnic', value: 'ba****ic'),
         include(row: 4, field: 'cnic', code: 'duplicate_cnic_in_file', value: '42104-*******-4'),
         include(row: 5, field: 'cnic', code: 'duplicate_candidate', value: '42103-*******-3'),
-        include(row: 6, field: 'reference_number', code: 'duplicate_reference_number', value: 'DES-009999')
+        include(row: 6, field: 'registration_number', code: 'duplicate_registration_number', value: '009999')
       )
       expect(result[:errors].pluck(:value).join).not_to include('1234567')
     end
@@ -162,11 +162,11 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Client Blank', '42131-1234567-1', '923001234567', 'DES-001030', '', '', '', 'qatar',
+            ['Client Blank', '42131-1234567-1', '923001234567', '001030', '', '', '', 'qatar',
              'qatar_infrastructure', 'Electrician', 'TRUE'],
-            ['Client Misspelt', '42132-1234567-2', '923001234568', 'DES-001031', ' ', 'Not Registred', 'Not Registred', 'qatar',
+            ['Client Misspelt', '42132-1234567-2', '923001234568', '001031', ' ', 'Not Registred', 'Not Registred', 'qatar',
              'qatar_infrastructure', '  welder ', 'TRUE'],
-            ['Client Code', '42133-1234567-3', '923001234569', 'DES-001032', 'UR', 'NOT_REGISTERED', 'not registered', 'qatar',
+            ['Client Code', '42133-1234567-3', '923001234569', '001032', 'UR', 'NOT_REGISTERED', 'not registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'TRUE']
           )
         ),
@@ -186,9 +186,9 @@ RSpec.describe Admin::Candidates::ImportService do
 
     it 'imports a file without a language column, matching country and project by English name' do
       content = CSV.generate do |csv|
-        csv << %w[full_name cnic mobile_number reference_number candidate_status workflow_stage_code country_code
+        csv << %w[full_name cnic mobile_number registration_number candidate_status workflow_stage_code country_code
                   project_code craft_code active email]
-        csv << ['Named Lookups', '42135-1234567-5', '923001234571', 'DES-001034', 'Not Registred', 'Not Registred',
+        csv << ['Named Lookups', '42135-1234567-5', '923001234571', '001034', 'Not Registred', 'Not Registred',
                 'Qatar', ' qatar   INFRASTRUCTURE ', 'Welder', 'TRUE', '']
       end
 
@@ -202,11 +202,45 @@ RSpec.describe Admin::Candidates::ImportService do
         .to eq(%w[qatar qatar_infrastructure welder])
     end
 
+    it 'rejects a registration number that is not a whole number, and allows a blank one' do
+      content = CSV.generate do |csv|
+        csv << %w[full_name cnic mobile_number registration_number candidate_status workflow_stage_code country_code
+                  project_code craft_code active]
+        csv << ['Bad File', '42137-1234567-7', '923001234573', 'DES-1', '', '', 'qatar', 'qatar_infrastructure',
+                'electrician', 'TRUE']
+        csv << ['No File', '42138-1234567-8', '923001234574', '', '', '', 'qatar', 'qatar_infrastructure',
+                'electrician', 'TRUE']
+      end
+
+      result = described_class.call(actor:, file: uploaded_csv(content), request_id: 'req-import-file-number')
+
+      expect(result).to include(successful_rows: 1, failed_rows: 1)
+      expect(result[:errors]).to contain_exactly(include(row: 2, field: 'registration_number', code: 'invalid_registration_number'))
+      expect(Candidate.find_by!(cnic: '42138-1234567-8').current_assignment.registration_number).to be_nil
+    end
+
+    it "reads the registration number from a column named as in the client's files or KuickPay's CSV" do
+      %w[file_number reference_number registrationNumber].each_with_index do |header, index|
+        content = CSV.generate do |csv|
+          csv << ['full_name', 'cnic', 'mobile_number', header, 'candidate_status', 'workflow_stage_code',
+                  'country_code', 'project_code', 'craft_code', 'active']
+          csv << ["Alias #{index}", "4214#{index}-1234567-1", "92300123460#{index}", "60000#{index}", '', '', 'qatar',
+                  'qatar_infrastructure', 'electrician', 'TRUE']
+        end
+
+        result = described_class.call(actor:, file: uploaded_csv(content), request_id: "req-alias-#{index}")
+
+        expect(result).to include(successful_rows: 1)
+        expect(Candidate.find_by!(cnic: "4214#{index}-1234567-1").current_assignment.registration_number)
+          .to eq(600_000 + index)
+      end
+    end
+
     it 'rejects a project that matches neither a code nor an English project name' do
       result = described_class.call(
         actor:,
         file: uploaded_csv(
-          csv_content(['Typo Project', '42136-1234567-6', '923001234572', 'DES-001035', '', '', '', 'Qatar',
+          csv_content(['Typo Project', '42136-1234567-6', '923001234572', '001035', '', '', '', 'Qatar',
                        'Qatar Infrastracture', 'electrician', 'TRUE'])
         ),
         request_id: 'req-import-project-typo'
@@ -221,7 +255,7 @@ RSpec.describe Admin::Candidates::ImportService do
       result = described_class.call(
         actor:,
         file: uploaded_csv(
-          csv_content(['Typo Craft', '42134-1234567-4', '923001234570', 'DES-001033', '', '', '', 'qatar',
+          csv_content(['Typo Craft', '42134-1234567-4', '923001234570', '001033', '', '', '', 'qatar',
                        'qatar_infrastructure', 'Electricain', 'TRUE'])
         ),
         request_id: 'req-import-craft-typo'
@@ -238,11 +272,11 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Bad Metadata', '42111-1234567-1', '+923001234567', 'DES-001010', 'fr', 'Needs Review', 'missing_stage', 'missing_country',
+            ['Bad Metadata', '42111-1234567-1', '+923001234567', '001010', 'fr', 'Needs Review', 'missing_stage', 'missing_country',
              'missing_project', 'missing_craft', 'maybe'],
-            ['Duplicate Ref A', '42112-1234567-2', '+923001234568', 'DES-001011', 'en', 'registered', 'registered', 'qatar',
+            ['Duplicate Ref A', '42112-1234567-2', '+923001234568', '001011', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Duplicate Ref B', '42113-1234567-3', '+923001234569', 'DES-001011', 'en', 'registered', 'registered', 'qatar',
+            ['Duplicate Ref B', '42113-1234567-3', '+923001234569', '001011', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -259,7 +293,7 @@ RSpec.describe Admin::Candidates::ImportService do
         include(row: 2, field: 'country_code', code: 'unknown_country_code'),
         include(row: 2, field: 'project_code', code: 'unknown_project_code'),
         include(row: 2, field: 'craft_code', code: 'unknown_craft_code'),
-        include(row: 4, field: 'reference_number', code: 'duplicate_reference_number_in_file')
+        include(row: 4, field: 'registration_number', code: 'duplicate_registration_number_in_file')
       )
     end
 
@@ -268,9 +302,9 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Broken Candidate', '42121-1234567-1', '+923001234567', 'DES-001020', 'fr', 'registered', 'registered', 'qatar',
+            ['Broken Candidate', '42121-1234567-1', '+923001234567', '001020', 'fr', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Corrected Candidate', '42121-1234567-1', '+923001234568', 'DES-001021', 'en', 'registered', 'registered', 'qatar',
+            ['Corrected Candidate', '42121-1234567-1', '+923001234568', '001021', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -287,9 +321,9 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Original Candidate', '42122-1234567-2', '+923001234567', 'DES-001022', 'en', 'registered', 'registered', 'qatar',
+            ['Original Candidate', '42122-1234567-2', '+923001234567', '001022', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Duplicate Candidate', '42122-1234567-2', '+923001234568', 'DES-001023', 'en', 'registered', 'registered', 'qatar',
+            ['Duplicate Candidate', '42122-1234567-2', '+923001234568', '001023', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -305,7 +339,7 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Candidate One', '42101-1234567-1', '+923001234567', 'DES-001001', 'en', 'registered', 'registered', 'qatar',
+            ['Candidate One', '42101-1234567-1', '+923001234567', '001001', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -332,7 +366,7 @@ RSpec.describe Admin::Candidates::ImportService do
           actor:,
           file: uploaded_csv(
             csv_content(
-              ['Candidate One', '42131-1234567-1', '+923001234567', 'DES-001031', 'en', 'registered', 'registered', 'qatar',
+              ['Candidate One', '42131-1234567-1', '+923001234567', '001031', 'en', 'registered', 'registered', 'qatar',
                'qatar_infrastructure', 'electrician', 'true']
             )
           ),
@@ -341,7 +375,7 @@ RSpec.describe Admin::Candidates::ImportService do
       end.to raise_error(ActiveRecord::RecordInvalid)
 
       expect(Candidate.find_by(cnic: '42131-1234567-1')).to be_nil
-      expect(CandidateAssignment.find_by(reference_number: 'DES-001031')).to be_nil
+      expect(CandidateAssignment.find_by(registration_number: '001031')).to be_nil
     end
 
     it 'rolls back a candidate when assignment persistence fails and still imports later valid rows' do
@@ -351,7 +385,7 @@ RSpec.describe Admin::Candidates::ImportService do
 
         allow(association_proxy).to receive(:create!).and_wrap_original do |create_original, *create_args|
           attributes = create_args.first
-          raise ActiveRecord::RecordInvalid, CandidateAssignment.new if attributes[:reference_number] == 'DES-001041'
+          raise ActiveRecord::RecordInvalid, CandidateAssignment.new if attributes[:registration_number] == 1041
 
           create_original.call(*create_args)
         end
@@ -363,9 +397,9 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Broken Assignment', '42141-1234567-1', '+923001234567', 'DES-001041', 'en', 'registered', 'registered', 'qatar',
+            ['Broken Assignment', '42141-1234567-1', '+923001234567', '001041', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Imported Candidate', '42142-1234567-2', '+923001234568', 'DES-001042', 'en', 'registered', 'registered', 'qatar',
+            ['Imported Candidate', '42142-1234567-2', '+923001234568', '001042', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -375,7 +409,7 @@ RSpec.describe Admin::Candidates::ImportService do
       expect(result).to include(successful_rows: 1, failed_rows: 1, skipped_rows: 0, total_rows: 2)
       expect(result[:errors]).to include(include(row: 2, field: 'row', code: 'validation_failed'))
       expect(Candidate.find_by(cnic: '42141-1234567-1')).to be_nil
-      expect(CandidateAssignment.find_by(reference_number: 'DES-001041')).to be_nil
+      expect(CandidateAssignment.find_by(registration_number: '001041')).to be_nil
       expect(Candidate.find_by!(cnic: '42142-1234567-2')).to be_present
       expect(
         AuditEvent.find_by!(action_code: 'candidate_import_completed', request_id: 'req-import-assignment-rollback').metadata
@@ -401,9 +435,9 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Raced Candidate', '42151-1234567-1', '+923001234567', 'DES-001051', 'en', 'registered', 'registered', 'qatar',
+            ['Raced Candidate', '42151-1234567-1', '+923001234567', '001051', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Imported Candidate', '42152-1234567-2', '+923001234568', 'DES-001052', 'en', 'registered', 'registered', 'qatar',
+            ['Imported Candidate', '42152-1234567-2', '+923001234568', '001052', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -413,7 +447,7 @@ RSpec.describe Admin::Candidates::ImportService do
       expect(result).to include(successful_rows: 1, failed_rows: 0, skipped_rows: 1, total_rows: 2)
       expect(result[:errors]).to include(include(row: 2, field: 'row', code: 'duplicate_row'))
       expect(Candidate.find_by(cnic: '42151-1234567-1')).to be_nil
-      expect(CandidateAssignment.find_by(reference_number: 'DES-001051')).to be_nil
+      expect(CandidateAssignment.find_by(registration_number: '001051')).to be_nil
       expect(Candidate.find_by!(cnic: '42152-1234567-2')).to be_present
       expect(
         AuditEvent.find_by!(action_code: 'candidate_import_completed', request_id: 'req-import-unique-race').metadata
@@ -439,9 +473,9 @@ RSpec.describe Admin::Candidates::ImportService do
         actor:,
         file: uploaded_csv(
           csv_content(
-            ['Committed First', '42161-1234567-1', '+923001234567', 'DES-001061', 'en', 'registered', 'registered', 'qatar',
+            ['Committed First', '42161-1234567-1', '+923001234567', '001061', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true'],
-            ['Fails Transition', '42162-1234567-2', '+923001234568', 'DES-001062', 'en', 'registered', 'registered', 'qatar',
+            ['Fails Transition', '42162-1234567-2', '+923001234568', '001062', 'en', 'registered', 'registered', 'qatar',
              'qatar_infrastructure', 'electrician', 'true']
           )
         ),
@@ -451,7 +485,7 @@ RSpec.describe Admin::Candidates::ImportService do
       expect(result).to include(successful_rows: 1, failed_rows: 1, skipped_rows: 0, total_rows: 2)
       expect(result[:errors]).to include(include(row: 3, field: 'workflow_stage_code', code: 'workflow_transition_failed'))
       expect(Candidate.find_by(cnic: '42161-1234567-1')).to be_present
-      expect(CandidateAssignment.find_by(reference_number: 'DES-001061')).to be_present
+      expect(CandidateAssignment.find_by(registration_number: '001061')).to be_present
       expect(Candidate.find_by(cnic: '42162-1234567-2')).to be_nil
       expect(
         AuditEvent.find_by!(action_code: 'candidate_import_completed', request_id: 'req-import-workflow-error').metadata

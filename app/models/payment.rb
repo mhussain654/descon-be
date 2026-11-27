@@ -16,6 +16,8 @@ class Payment < ApplicationRecord
     provider_response_code
     checkout_url
     voucher_number
+    kuickpay_reference_number
+    kuickpay_company_reference_number
   ].freeze
 
   belongs_to :candidate_assignment
@@ -32,7 +34,8 @@ class Payment < ApplicationRecord
   validates :amount, numericality: { greater_than: 0 }
   validates :external_reference, uniqueness: true, allow_blank: true
   validates :provider_code, format: { with: CODE_FORMAT }, allow_blank: true
-  validates :provider_order_id, :provider_session_id, :voucher_number, uniqueness: true, allow_blank: true
+  # Not voucher_number: a candidate's KuickPay vouchers share one Kuickpay ID (see KuickpayVoucherAdapter).
+  validates :provider_order_id, :provider_session_id, uniqueness: true, allow_blank: true
   validates :status_code, inclusion: { in: STATUS_CODES }
 
   scope :latest_first, -> { order(created_at: :desc, id: :desc) }

@@ -20,6 +20,18 @@ RSpec.describe Payments::IssueFeeVoucherService do
   context 'when the candidate can pay by voucher' do
     before { create_all_verified_required_documents(assignment:) }
 
+    it 'waits, sending nothing, until staff add a registration number' do
+      assignment.update!(registration_number: nil)
+      requests = []
+      with_kuickpay_voucher_configured do
+        stub_kuickpay_hybrid(requests:)
+
+        expect { issue }.not_to have_enqueued_job(CandidateSms::DeliveryJob)
+      end
+      expect(requests).to be_empty
+      expect(Payment.count).to eq(0)
+    end
+
     it 'issues the code, has KuickPay text it, then queues the fee SMS' do
       requests = []
       with_kuickpay_voucher_configured do
@@ -29,10 +41,12 @@ RSpec.describe Payments::IssueFeeVoucherService do
       end
 
       payment = Payment.sole
-      expect(payment).to have_attributes(voucher_number: '0000832249220', status_code: 'checkout_pending')
+      expect(payment).to have_attributes(voucher_number: expected_kuickpay_id(payment), status_code: 'checkout_pending')
       sms = sms_requests(requests).sole
       expect(sms.uri.host).to eq('api.kuickpay.com')
-      expect(JSON.parse(sms.body)).to include('consumerNo' => '0000832249220', 'amount' => '1500',
+      due_on = Time.current.in_time_zone('Asia/Karachi').to_date + 15
+      expect(JSON.parse(sms.body)).to include('duedate' => due_on.strftime('%d-%b-%Y'))
+      expect(JSON.parse(sms.body)).to include('consumerNo' => expected_kuickpay_id(payment), 'amount' => '1500',
                                               'cellNumberSMS' => '03001234567')
       expect(PaymentEvent.where(event_type: 'voucher_sms_sent', payment:).count).to eq(1)
       expect(CandidateSmsDelivery.sole).to have_attributes(message_code: 'fee_pending', dedupe_key: 'fee_pending:41')

@@ -23,7 +23,7 @@ module Admin
         {
           id: candidate.public_id,
           full_name: candidate.full_name,
-          reference_number: assignment&.reference_number,
+          registration_number: assignment&.registration_number,
           mobile_number_masked: PhoneNumbers::Masker.call(candidate.mobile_number),
           call_state: call_state(assignment, last_call),
           last_call: serialized_call(last_call)

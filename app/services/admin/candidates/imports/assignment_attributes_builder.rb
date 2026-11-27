@@ -13,7 +13,7 @@ module Admin
 
         def call(attributes:, row_errors:)
           {
-            reference_number: validated_reference_number(attributes.fetch('reference_number'), row_errors:),
+            registration_number: validated_registration_number(attributes.fetch('registration_number'), row_errors:),
             current_workflow_stage: current_workflow_stage(attributes, row_errors:),
             country: country(attributes, row_errors:),
             project: project(attributes, row_errors:),
@@ -53,11 +53,12 @@ module Admin
           referenced_record(Craft.where(active: true), attributes.fetch('craft_code'), field: 'craft_code', row_errors:)
         end
 
-        def validated_reference_number(raw_value, row_errors:)
-          value = raw_value.to_s.strip.upcase
-          return value if value.present?
+        # Optional: blank, or a whole number above zero.
+        def validated_registration_number(raw_value, row_errors:)
+          parsed = ::Candidates::RegistrationNumberParser.call(raw_value)
+          return parsed.value if parsed.valid?
 
-          row_errors << { field: 'reference_number', code: 'missing_value' }
+          row_errors << { field: 'registration_number', code: 'invalid_registration_number' }
           nil
         end
 

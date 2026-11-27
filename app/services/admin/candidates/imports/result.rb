@@ -20,7 +20,7 @@ module Admin
           def cnic = candidate_attributes.fetch(:cnic)
           def passport_number = candidate_attributes[:passport_number]
           def mobile_number = candidate_attributes[:mobile_number]
-          def reference_number = assignment_attributes.fetch(:reference_number)
+          def registration_number = assignment_attributes[:registration_number]
         end
 
         def initialize(total_rows:)

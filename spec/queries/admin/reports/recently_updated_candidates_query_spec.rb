@@ -40,7 +40,7 @@ RSpec.describe Admin::Reports::RecentlyUpdatedCandidatesQuery do
       candidate_full_name: assignment.candidate.full_name,
       candidate_public_id: assignment.candidate.public_id,
       candidate_assignment_public_id: assignment.public_id,
-      reference_number: assignment.reference_number,
+      registration_number: assignment.registration_number,
       workflow_stage_code: 'verified'
     )
   end

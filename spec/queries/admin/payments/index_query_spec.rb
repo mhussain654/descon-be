@@ -7,9 +7,9 @@ RSpec.describe Admin::Payments::IndexQuery do
     ActionController::Parameters.new(hash)
   end
 
-  def payment_for(full_name: 'Ahmed Ali', reference_number: "DES-#{SecureRandom.hex(4).upcase}", **attrs)
+  def payment_for(full_name: 'Ahmed Ali', registration_number: nil, **attrs)
     candidate = create(:candidate, full_name:)
-    assignment = create(:candidate_assignment, candidate:, reference_number:)
+    assignment = create(:candidate_assignment, candidate:, registration_number:)
     create(:payment, candidate_assignment: assignment, **attrs)
   end
 
@@ -102,9 +102,9 @@ RSpec.describe Admin::Payments::IndexQuery do
     end
   end
 
-  it 'searches by candidate name, assignment reference number, external_reference and voucher_number' do
+  it 'searches by candidate name, registration number, external_reference and voucher_number' do
     by_name = payment_for(full_name: 'Zubair Khan')
-    by_reference = payment_for(reference_number: 'DES-SEARCHABLE')
+    by_reference = payment_for(registration_number: 987_654)
     by_external_ref = payment_for(status_code: 'paid', paid_at: Time.current, external_reference: 'KP-77889900')
     by_voucher = payment_for(voucher_number: '10420261000061939')
     payment_for(full_name: 'Someone Else')
@@ -113,7 +113,7 @@ RSpec.describe Admin::Payments::IndexQuery do
     expect(described_class.new(scope: Payment.all,
                                params: params_for(search: '1000061939')).call.to_a).to eq([by_voucher])
     expect(described_class.new(scope: Payment.all,
-                               params: params_for(search: 'SEARCHABLE')).call.to_a).to eq([by_reference])
+                               params: params_for(search: '987654')).call.to_a).to eq([by_reference])
     expect(described_class.new(scope: Payment.all,
                                params: params_for(search: '77889900')).call.to_a).to eq([by_external_ref])
   end

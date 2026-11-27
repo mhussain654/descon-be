@@ -86,7 +86,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
     {
       full_name: 'Jane Applicant', cnic: '42101-1234567-1', mobile_number: '+923001234567', preferred_locale: 'en',
       country_code: country.code, project_code: Project.first.code, craft_code: Craft.first.code,
-      reference_number: 'DES-REQ0001', campaign_id: create(:campaign, country:).public_id
+      registration_number: '500001', campaign_id: create(:campaign, country:).public_id
     }.merge(overrides)
   end
 
@@ -181,7 +181,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(data.fetch('full_name')).to eq('Jane Applicant')
       expect(data.fetch('cnic')).to eq('42101-1234567-1')
       expect(data.fetch('candidate_status')).to eq('documents_pending')
-      expect(data.dig('assignment', 'reference_number')).to eq('DES-REQ0001')
+      expect(data.dig('assignment', 'registration_number')).to eq(500_001)
       expect(data.dig('assignment', 'current_workflow_stage', 'code')).to eq('documents_pending')
       expect(AuditEvent.where(action_code: 'candidate_created').count).to eq(1)
     end
@@ -245,7 +245,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       create(:candidate, cnic: '42101-1234567-1')
 
       post '/api/v1/admin/candidates',
-           params: { candidate: create_candidate_params(reference_number: 'DES-REQ0002') },
+           params: { candidate: create_candidate_params(registration_number: '500002') },
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}",
                       'Idempotency-Key' => 'candidate-create-dup-cnic' }
 
@@ -285,21 +285,36 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(error.fetch('field')).to eq('passport_number')
     end
 
-    it 'rejects a duplicate reference number clearly' do
+    it 'rejects a registration number already used in the same campaign, but not in another one' do
       actor = create(:user, role: 'hr')
-      other_candidate = create(:candidate)
-      create(:candidate_assignment, candidate: other_candidate, reference_number: 'DES-REQ0001',
+      campaign = create(:campaign, country: Country.order(:id).first)
+      create(:candidate_assignment, candidate: create(:candidate), campaign:, registration_number: 500_001,
                                     current_workflow_stage: create(:workflow_stage, :registered))
 
       post '/api/v1/admin/candidates',
-           params: { candidate: create_candidate_params(cnic: '42101-7654321-2') },
+           params: { candidate: create_candidate_params(cnic: '42101-7654321-2', campaign_id: campaign.public_id) },
            headers: { 'Authorization' => "Bearer #{access_token_for(actor)}",
                       'Idempotency-Key' => 'candidate-create-dup-ref' }
 
       expect(response).to have_http_status(:unprocessable_content)
       error = response.parsed_body.dig('errors', 0)
-      expect(error.fetch('code')).to eq('duplicate_reference_number')
-      expect(error.fetch('field')).to eq('reference_number')
+      expect(error.fetch('code')).to eq('duplicate_registration_number')
+      expect(error.fetch('field')).to eq('registration_number')
+    end
+
+    it 'creates a candidate without a registration number, and refuses one that is not a whole number' do
+      actor = create(:user, role: 'hr')
+      headers = { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+
+      post '/api/v1/admin/candidates', params: { candidate: create_candidate_params(registration_number: 'DES-1') },
+                                       headers: headers.merge('Idempotency-Key' => 'candidate-create-bad-file')
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('registration_number')
+
+      post '/api/v1/admin/candidates', params: { candidate: create_candidate_params(registration_number: '') },
+                                       headers: headers.merge('Idempotency-Key' => 'candidate-create-no-file')
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body.dig('data', 'assignment', 'registration_number')).to be_nil
     end
 
     it 'maps an unknown project code to the correct field' do
@@ -332,7 +347,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       create(:candidate, cnic: '42101-1234567-1')
 
       post '/api/v1/admin/candidates',
-           params: { candidate: create_candidate_params(reference_number: 'DES-REQ0003') },
+           params: { candidate: create_candidate_params(registration_number: '500003') },
            headers: {
              'Authorization' => "Bearer #{access_token_for(actor)}",
              'Idempotency-Key' => 'candidate-create-dup-cnic-ur',
@@ -361,7 +376,7 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(data.fetch('cnic')).to eq(candidate.cnic)
       expect(data.fetch('passport_number')).to eq('AB123456')
       expect(data.fetch('email')).to eq('candidate@example.com')
-      expect(data.dig('assignment', 'reference_number')).to eq(assignment.reference_number)
+      expect(data.dig('assignment', 'registration_number')).to eq(assignment.registration_number)
     end
 
     it 'is not found, not forbidden, for a role lacking view/manage_candidates (excluded by policy scope first)' do
@@ -412,6 +427,49 @@ RSpec.describe 'API V1 Admin Candidates', type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.dig('data', 'next_of_kin_cnic')).to eq('42101-1234567-1')
       expect(AuditEvent.last.metadata.fetch('changed_fields')).to include('next_of_kin_name')
+    end
+
+    it 'sets, changes and clears the registration number at any stage, unique across the organisation' do
+      actor = create(:user, role: 'hr')
+      candidate = create(:candidate)
+      create(:candidate_assignment, candidate:, campaign: create(:campaign), registration_number: nil,
+                                    current_workflow_stage: WorkflowStage.find_by!(code: 'registered'))
+      create(:candidate_assignment, campaign: create(:campaign), registration_number: 800_002)
+      headers = { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      path = "/api/v1/admin/candidates/#{candidate.public_id}"
+
+      patch path, params: { candidate: { registration_number: '800001' } }, headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'assignment', 'registration_number')).to eq(800_001)
+
+      patch path, params: { candidate: { registration_number: '800002' } }, headers: headers
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'code')).to eq('duplicate_registration_number')
+
+      patch path, params: { candidate: { registration_number: 'abc' } }, headers: headers
+      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('registration_number')
+
+      patch path, params: { candidate: { registration_number: '' } }, headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig('data', 'assignment', 'registration_number')).to be_nil
+    end
+
+    it 'creates the waiting fee voucher once staff add the registration number at Fee Pending' do
+      actor = create(:user, role: 'hr')
+      candidate = create(:candidate)
+      fee_pending = WorkflowStage.find_by!(code: 'fee_pending')
+      assignment = create(:candidate_assignment, candidate:, registration_number: nil,
+                                                 current_workflow_stage: fee_pending)
+      entry = create(:candidate_stage_history, candidate_assignment: assignment, to_workflow_stage: fee_pending)
+      headers = { 'Authorization' => "Bearer #{access_token_for(actor)}" }
+      path = "/api/v1/admin/candidates/#{candidate.public_id}"
+
+      expect { patch path, params: { candidate: { registration_number: '800003' } }, headers: headers }
+        .to have_enqueued_job(Payments::IssueFeeVoucherJob)
+        .with(candidate_assignment_id: assignment.id, history_entry_id: entry.id)
+
+      expect { patch path, params: { candidate: { registration_number: '800004' } }, headers: headers }
+        .not_to have_enqueued_job(Payments::IssueFeeVoucherJob)
     end
 
     it "adds, corrects and clears the candidate's email" do

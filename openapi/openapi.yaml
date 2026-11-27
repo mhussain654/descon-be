@@ -483,6 +483,19 @@ components:
               type: string
               enum: [admin, hr, mps, finance, management]
               description: The developer role is set only from the Rails console and is refused here; a developer account cannot be changed through this API.
+            password:
+              type: string
+              format: password
+              minLength: 6
+              maxLength: 128
+              description: >-
+                Developers only (403 for anyone else). Creates the account `active` with this password and sends
+                no invitation, for staff who cannot receive the email. Without it, the account is `invited` and
+                an invitation is emailed. Never logged or audited.
+            password_confirmation:
+              type: string
+              format: password
+              description: Must match `password` (422 otherwise).
       required: [user]
     UserUpdateRequest:
       type: object
@@ -603,8 +616,16 @@ components:
             The candidate's own email address, added or changed with
             PATCH /api/v1/candidate/profile. Null until they add one.
           example: candidate@example.com
+        registration_number:
+          type: integer
+          nullable: true
+          description: The candidate's registration (file) number; null until staff add it.
+          example: 500001
         reference_number:
           type: string
+          nullable: true
+          deprecated: true
+          description: The same number as text, for app builds released before the registration number. Will be removed.
         preferred_locale:
           type: string
           enum: [en, ur]
@@ -684,7 +705,7 @@ components:
         - id
         - full_name
         - masked_cnic
-        - reference_number
+        - registration_number
         - preferred_locale
         - candidate_status
         - payment
@@ -795,9 +816,11 @@ components:
         id:
           type: string
           format: uuid
-        reference_number:
-          type: string
-      required: [id, reference_number]
+        registration_number:
+          type: integer
+          nullable: true
+          description: The client's registration (file) number, unique across the organisation; null until staff add it. Sent to KuickPay as the voucher's registration number.
+      required: [id]
     AdminCandidateBankDetail:
       type: object
       properties:
@@ -1312,8 +1335,11 @@ components:
           anyOf:
             - type: string
             - type: 'null'
-          description: The payment code the candidate pays from a wallet or bank app. Only for `kuickpay_voucher` payments.
-          example: '0000832249220'
+          description: >-
+            The Kuickpay ID the candidate pays from a wallet or bank app: KuickPay's institution code followed by the
+            candidate's registration number, as entered (digits only; the same for each of the candidate's vouchers).
+            Only for `kuickpay_voucher` payments.
+          example: '1042000000042'
         checkout_expires_at:
           anyOf:
             - type: string
@@ -1409,9 +1435,11 @@ components:
         masked_cnic:
           type: string
           example: 42101-*******-1
-        reference_number:
-          type: string
-      required: [id, full_name, masked_cnic, reference_number]
+        registration_number:
+          type: integer
+          nullable: true
+          description: The client's registration (file) number, unique across the organisation; null until staff add it. Sent to KuickPay as the voucher's registration number.
+      required: [id, full_name, masked_cnic]
     AdminPaymentSummary:
       type: object
       properties:
@@ -1438,7 +1466,19 @@ components:
           nullable: true
         voucher_number:
           type: string
-          description: The KuickPay voucher (consumer) number the candidate paid against; only for voucher payments.
+          description: >-
+            The Kuickpay ID the candidate pays with (institution code + the candidate's registration number); only
+            for voucher payments.
+        kuickpay_reference_number:
+          type: string
+          description: >-
+            KuickPay's reference number for the voucher, as its portal's ReferenceNumber column shows it (e.g.
+            261105039065). Not payable; for looking the voucher up. Only for voucher payments.
+        kuickpay_company_reference_number:
+          type: string
+          description: >-
+            The same reference exactly as KuickPay's insert-voucher reply returned it, with the institution code
+            in front (e.g. 10420261105039065). Only for voucher payments.
         reconciliation_state:
           type: string
           enum: [clean, open, resolved]
@@ -2340,6 +2380,18 @@ components:
                 document, or a photo too blurry to read). Needs document OCR on too. Off by default.
                 Never rejects the same requirement automatically twice in a row, and staff may
                 still approve a rejected one.
+            voucher_due_days:
+              type: integer
+              minimum: 1
+              maximum: 60
+              description: KuickPay voucher due date = issue date + this many days (15 by default).
+            voucher_grace_days:
+              type: integer
+              minimum: 0
+              maximum: 15
+              description: >-
+                Expiry (last payable day, and when our voucher closes) = due date + this many days (2 by
+                default). No late fee is charged in the grace days.
           additionalProperties: false
       required: [app_feature_setting]
     AdminSmsTemplateRequest:
@@ -2929,8 +2981,10 @@ components:
         id:
           type: string
           format: uuid
-        reference_number:
-          type: string
+        registration_number:
+          type: integer
+          nullable: true
+          description: The client's registration (file) number, unique across the organisation; null until staff add it. Sent to KuickPay as the voucher's registration number.
         country:
           $ref: '#/components/schemas/ReferenceDataItem'
         project:
@@ -2959,7 +3013,7 @@ components:
             code: { type: string }
             name: { type: string }
             kind: { type: string, enum: [regular, test] }
-      required: [id, reference_number, country, project, craft, current_workflow_stage, created_at, fields_editable]
+      required: [id, country, project, craft, current_workflow_stage, created_at, fields_editable]
     AdminCandidateDetail:
       type: object
       description: >-
@@ -3048,7 +3102,7 @@ components:
       properties:
         candidate:
           type: object
-          required: [full_name, cnic, mobile_number, preferred_locale, country_code, project_code, craft_code, reference_number,
+          required: [full_name, cnic, mobile_number, preferred_locale, country_code, project_code, craft_code,
                      campaign_id]
           properties:
             full_name:
@@ -3078,8 +3132,13 @@ components:
               type: string
             craft_code:
               type: string
-            reference_number:
-              type: string
+            registration_number:
+              oneOf:
+                - type: string
+                - type: integer
+              nullable: true
+              description: Optional whole number, unique across the organisation; blank for none.
+              example: '500001'
             campaign_id:
               type: string
               format: uuid
@@ -3093,8 +3152,8 @@ components:
       type: object
       description: >-
         Every field is optional -- only the fields actually being changed
-        should be sent. cnic and reference_number are never accepted here;
-        both are immutable once the candidate is created.
+        should be sent. cnic is never accepted here; it is immutable once
+        the candidate is created. registration_number can be changed at any stage.
         country_code/project_code/craft_code are only accepted while the
         candidate's assignment has not moved past documents_pending.
       properties:
@@ -3140,6 +3199,15 @@ components:
                 Moves the candidate to another active campaign, under the same
                 lock as country/project/craft. The campaign's country must be the
                 assignment's country (422 `country_not_in_campaign` on `campaign_id`).
+            registration_number:
+              oneOf:
+                - type: string
+                - type: integer
+              nullable: true
+              description: >-
+                Set, change or clear (blank) the registration number at any stage. Must be a whole number above
+                zero, unique across the organisation (422 `duplicate_registration_number`). Adding it to a
+                candidate at Fee Pending who had none creates their KuickPay voucher and texts the Kuickpay ID.
             expected_updated_at:
               type: string
               format: date-time
@@ -3222,15 +3290,17 @@ components:
         id:
           type: string
           format: uuid
-        reference_number:
-          type: string
+        registration_number:
+          type: integer
+          nullable: true
+          description: The client's registration (file) number, unique across the organisation; null until staff add it. Sent to KuickPay as the voucher's registration number.
         country:
           $ref: '#/components/schemas/AdminReferenceRecord'
         project:
           $ref: '#/components/schemas/AdminReferenceRecord'
         craft:
           $ref: '#/components/schemas/AdminReferenceRecord'
-      required: [id, reference_number, country, project, craft]
+      required: [id, country, project, craft]
     AdminDocumentReviewQueueItem:
       type: object
       properties:
@@ -3388,9 +3458,11 @@ components:
     CandidateImportRequest:
       type: object
       description: >-
-        CSV with the headers full_name, cnic, mobile_number, reference_number,
+        CSV with the headers full_name, cnic, mobile_number,
         candidate_status, workflow_stage_code, country_code, project_code,
-        craft_code, active. Optional: passport_number, next_of_kin_name,
+        craft_code, active. Optional: registration_number (a whole number, unique
+        across the organisation; the column may also be named file_number, reference_number
+        or registrationNumber), passport_number, next_of_kin_name,
         next_of_kin_relationship, next_of_kin_mobile_number, next_of_kin_cnic,
         email, and preferred_locale (blank or left out: the candidate picks a
         language on first sign-in; otherwise en/ur). candidate_status and
@@ -4211,7 +4283,7 @@ paths:
                         id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                         full_name: Ahmed Ali
                         masked_cnic: 42101-*******-1
-                        reference_number: DES-001001
+                        registration_number: 500001
                         preferred_locale: en
                         candidate_status: registered
                         current_workflow_stage:
@@ -4305,7 +4377,7 @@ paths:
                         id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                         full_name: Ahmed Ali
                         masked_cnic: 42101-*******-1
-                        reference_number: DES-001001
+                        registration_number: 500001
                         preferred_locale: en
                         candidate_status: registered
                         current_workflow_stage:
@@ -4403,7 +4475,7 @@ paths:
                       id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                       full_name: Ahmed Ali
                       masked_cnic: 42101-*******-1
-                      reference_number: DES-001001
+                      registration_number: 500001
                       preferred_locale: en
                       candidate_status: registered
                       current_workflow_stage:
@@ -4433,7 +4505,7 @@ paths:
                       id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                       full_name: Ahmed Ali
                       masked_cnic: 42101-*******-1
-                      reference_number: DES-001001
+                      registration_number: 500001
                       preferred_locale: ur
                       candidate_status: registered
                       current_workflow_stage:
@@ -4810,8 +4882,10 @@ paths:
         wallet (JazzCash, Easypaisa) or a bank app. Returns the open code if one exists, never a
         second one. Requires an `Idempotency-Key` header. It can be taken
         while a card checkout is open, and the other way round: the candidate chooses which to pay. If both
-        are paid, reconciliation flags `duplicate_fee_payment` for finance. The code expires after `PAYMENT_VOUCHER_VALID_DAYS` (14 by default). A paid code
-        is noticed by a background job, not by this call.
+        are paid, reconciliation flags `duplicate_fee_payment` for finance. The code is due after the developer-set voucher due days (App Settings, 15 by default) and stays payable for the grace days after that (2 by default); `checkout_expires_at` is the end of that last day. A paid code
+        is noticed by a background job, not by this call. Refused (422
+        `registration_number_missing`) while the candidate has no registration (file) number: it is the
+        voucher's registration number and so part of the Kuickpay ID; `voucher_available` is false until then.
       security:
         - candidateBearerAuth: []
       parameters:
@@ -6251,8 +6325,8 @@ paths:
                           value: 42**********-1
                           message: Enter a valid CNIC in the format 00000-0000000-0.
                         - row: 3
-                          field: reference_number
-                          code: duplicate_reference_number
+                          field: registration_number
+                          code: duplicate_registration_number
                           value: DES-001002
                           message: A candidate assignment with this reference number already exists.
                     meta:
@@ -6446,7 +6520,7 @@ paths:
                         candidate:
                           id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
                           full_name: Ali Raza
-                          reference_number: MPS-2026-000123
+                          registration_number: 500001
                           country_name: Qatar
                           project_name: Qatar Infrastructure
                           craft_name: Electrician
@@ -6513,7 +6587,7 @@ paths:
           schema: { type: string, enum: [uploaded, missing] }
         - name: sort
           in: query
-          schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, reference_number, -reference_number] }
+          schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, registration_number, -registration_number] }
         - name: page[number]
           in: query
           schema: { type: integer, minimum: 1, default: 1 }
@@ -6528,7 +6602,7 @@ paths:
       summary: Create a candidate and its initial assignment
       description: >-
         Creates a single candidate (source_code admin_ui) plus its initial
-        assignment (project/country/craft/reference_number), always starting
+        assignment (project/country/craft, optional registration_number), always starting
         at the registered stage and immediately auto-advancing to
         documents_pending (no document requirements yet exist to block it).
         CNIC, mobile number and passport number (if given) must each be
@@ -6581,7 +6655,7 @@ paths:
                       updated_at: '2026-09-15T10:00:00Z'
                       assignment:
                         id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
-                        reference_number: DES-000123
+                        registration_number: 500001
                         country: { code: qatar, name: Qatar }
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
@@ -6672,7 +6746,7 @@ paths:
                       updated_at: '2026-09-15T10:00:00Z'
                       assignment:
                         id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
-                        reference_number: DES-000123
+                        registration_number: 500001
                         country: { code: qatar, name: Qatar }
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
@@ -6692,7 +6766,7 @@ paths:
     patch:
       summary: Update a candidate's profile and, only before documents_pending is left, its assignment
       description: >-
-        cnic and reference_number are immutable. country_code/project_code/
+        cnic is immutable; registration_number can be changed at any stage. country_code/project_code/
         craft_code are only accepted while the assignment has not moved past
         documents_pending (document requirements are resolved live from
         these, so changing them is only safe before any document has been
@@ -6749,7 +6823,7 @@ paths:
                       updated_at: '2026-09-15T10:05:00Z'
                       assignment:
                         id: 4cc9b4c8-f690-4ff3-b9fc-6ab3e7eab867
-                        reference_number: DES-000123
+                        registration_number: 500001
                         country: { code: qatar, name: Qatar }
                         project: { code: qatar_infrastructure, name: Qatar Infrastructure }
                         craft: { code: electrician, name: Electrician }
@@ -9391,7 +9465,7 @@ paths:
                         id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
                         full_name: Ahmed Ali
                         masked_cnic: 42101-*******-1
-                        reference_number: DES-001001
+                        registration_number: 500001
                       payment_type_code: onboarding_fee
                       status: paid
                       amount: '1500.0'
@@ -10285,7 +10359,7 @@ paths:
               type: object
               description: >-
                 conversation_id (required, identifies the CandidateAiCall) plus whatever
-                arguments the named tool expects (e.g. reference_number/cnic for
+                arguments the named tool expects (e.g. registration_number/cnic for
                 verify_caller_identity, reason for create_callback_request).
       responses:
         '200':
@@ -10446,7 +10520,7 @@ paths:
                           full_name: Ahmed Ali
                         assignment:
                           id: 674845a4-f90d-413c-b655-e3488c578e95
-                          reference_number: DES-001001
+                          registration_number: 500001
                           country:
                             code: qatar
                             name: Qatar
@@ -10487,7 +10561,7 @@ paths:
                           full_name: احمد علی
                         assignment:
                           id: 674845a4-f90d-413c-b655-e3488c578e95
-                          reference_number: DES-001001
+                          registration_number: 500001
                           country:
                             code: qatar
                             name: قطر
@@ -10579,7 +10653,7 @@ paths:
                         full_name: Ahmed Ali
                       assignment:
                         id: 674845a4-f90d-413c-b655-e3488c578e95
-                        reference_number: DES-001001
+                        registration_number: 500001
                         country:
                           code: qatar
                           name: Qatar
@@ -10717,7 +10791,7 @@ paths:
                           id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
                           full_name: Ahmed Ali
                           masked_cnic: 42101-*******-1
-                          reference_number: DES-001001
+                          registration_number: 500001
                         payment_type_code: onboarding_fee
                         status: paid
                         amount: '1500.00'
@@ -10804,7 +10878,7 @@ paths:
                         id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
                         full_name: Ahmed Ali
                         masked_cnic: 42101-*******-1
-                        reference_number: DES-001001
+                        registration_number: 500001
                       payment_type_code: onboarding_fee
                       status: paid
                       amount: '1500.00'
@@ -10979,7 +11053,7 @@ paths:
                         full_name: Ahmed Ali
                       assignment:
                         id: 1a48e789-5f08-44bf-84e5-7f6b17a4cab1
-                        reference_number: DES-001001
+                        registration_number: 500001
                       status: submitted
                       account_title: Ahmed Ali
                       account_number: '********************6702'
@@ -11004,7 +11078,7 @@ paths:
                         full_name: احمد علی
                       assignment:
                         id: 1a48e789-5f08-44bf-84e5-7f6b17a4cab1
-                        reference_number: DES-001001
+                        registration_number: 500001
                       status: submitted
                       account_title: احمد علی
                       account_number: PK36SCBL0000001123456702
@@ -11075,7 +11149,7 @@ paths:
                         full_name: Ahmed Ali
                       assignment:
                         id: 5a6b7c8d-9e0f-1a2b-3c4d-5e6f1c2d3e4f
-                        reference_number: DES-100013
+                        registration_number: 500001
                       account_title: Ahmed Ali
                       account_number: '****************6702'
                       bank_name: Meezan Bank
@@ -11565,7 +11639,7 @@ paths:
                         locale: en
                         candidate_assignment:
                           id: d8805480-7d1b-4ef4-aee6-c76dd026e3e4
-                          reference_number: REF-1001
+                          registration_number: 500001
                           candidate_id: bbe3e0b4-9237-4e8d-9bd7-04fe0e9ce8dd
                         initiated_by:
                           id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
@@ -11929,7 +12003,7 @@ paths:
                     data:
                       - id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
                         full_name: Ahmed Khan
-                        reference_number: DES-1A2B3C4D5E6F
+                        registration_number: 500001
                         mobile_number_masked: '+92300*****12'
                         call_state: not_called
                         last_call: null
@@ -12266,6 +12340,8 @@ paths:
                       bulk_calls_enabled: true
                       document_ocr_enabled: false
                       document_identity_check_enabled: false
+                      voucher_due_days: 15
+                      voucher_grace_days: 2
                       server_ready:
                         card_payment: true
                         voucher_payment: true
@@ -12326,6 +12402,8 @@ paths:
                       bulk_calls_enabled: true
                       document_ocr_enabled: false
                       document_identity_check_enabled: false
+                      voucher_due_days: 15
+                      voucher_grace_days: 2
                       server_ready:
                         card_payment: true
                         voucher_payment: true
@@ -13155,16 +13233,16 @@ paths:
                         - type: qvc_appointment
                           occurs_on: '2026-09-10'
                           candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
-                          reference_number: REF-000123
+                          registration_number: 500001
                         - type: flight_departure
                           occurs_on: '2026-09-12'
                           candidate_assignment_public_id: 1c2d3e4f-5a6b-4c7d-8e9f-1c2d3e4f5a6b
-                          reference_number: REF-000456
+                          registration_number: 500001
                       recently_updated_candidates:
                         - candidate_full_name: Ahmed Khan
                           candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
                           candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
-                          reference_number: REF-000123
+                          registration_number: 500001
                           workflow_stage_code: under_verification
                           last_updated_at: '2026-09-04T09:48:00Z'
                       kpi_trends:
@@ -13262,7 +13340,7 @@ paths:
                       attention_candidates:
                         - candidate_full_name: Sample Candidate
                           candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
-                          reference_number: REF-000123
+                          registration_number: 500001
                           workflow_stage_code: documents_pending
                           days_waiting: 18
                           severity: critical
@@ -13297,7 +13375,7 @@ paths:
                         candidate_full_name: Ahmed Khan
                         candidate_public_id: 8f14e45f-ceea-467e-adc9-8f14e45fceea
                         candidate_assignment_public_id: 6e6a3b8e-7b0a-4b8a-9b0a-6e6a3b8e7b0a
-                        reference_number: REF-000123
+                        registration_number: 500001
                         country_name: Qatar
                         project_name: Project One
                         craft_name: Electrician

@@ -7,7 +7,8 @@ module Api
       # singleton AppFeatureSetting row). Every change is audited.
       class AppFeatureSettingsController < ProtectedStaffController
         SWITCH_PARAMS = AppFeatureSetting::SWITCHES.map { |switch| :"#{switch}_enabled" }.freeze
-        AUDITED_FIELDS = SWITCH_PARAMS.map(&:to_s).freeze
+        VOUCHER_DAY_PARAMS = %i[voucher_due_days voucher_grace_days].freeze
+        AUDITED_FIELDS = (SWITCH_PARAMS + VOUCHER_DAY_PARAMS).map(&:to_s).freeze
 
         def show
           authorize ::AppFeatureSetting, policy_class: ::Admin::AppFeatureSettingPolicy
@@ -37,7 +38,7 @@ module Api
         end
 
         def update_params
-          params.expect(app_feature_setting: SWITCH_PARAMS)
+          params.expect(app_feature_setting: SWITCH_PARAMS + VOUCHER_DAY_PARAMS)
         end
 
         def record_audit!(record)

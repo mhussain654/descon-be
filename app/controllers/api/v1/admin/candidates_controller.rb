@@ -10,13 +10,13 @@ module Api
         CREATE_PARAMS = %i[
           full_name cnic mobile_number passport_number preferred_locale
           next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
-          country_code project_code craft_code reference_number campaign_id
+          country_code project_code craft_code registration_number campaign_id
         ].freeze
 
         UPDATE_PARAMS = %i[
           full_name mobile_number email passport_number preferred_locale
           next_of_kin_name next_of_kin_relationship next_of_kin_mobile_number next_of_kin_cnic
-          country_code project_code craft_code campaign_id expected_updated_at
+          country_code project_code craft_code campaign_id registration_number expected_updated_at
         ].freeze
 
         # Returns a paginated, filtered list of candidates within the staff member's authorized scope.

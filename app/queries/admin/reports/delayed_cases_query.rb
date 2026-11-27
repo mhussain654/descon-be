@@ -32,7 +32,7 @@ module Admin
       # and timestamp as the totals above. No document/contact identifiers.
       def attention_candidates
         attention_scope
-          .pluck('candidates.full_name', 'candidates.public_id', 'current_assignments.reference_number',
+          .pluck('candidates.full_name', 'candidates.public_id', 'current_assignments.registration_number',
                  'workflow_stages.code',
                  Arel.sql('COALESCE(latest_stage_entry.occurred_at, current_assignments.created_at)'))
           .map { |row| attention_row(row) }
@@ -51,10 +51,10 @@ module Admin
       end
 
       def attention_row(row)
-        name, public_id, reference, stage_code, entered_at = row
+        name, public_id, registration_number, stage_code, entered_at = row
         {
           candidate_full_name: name, candidate_public_id: public_id,
-          reference_number: reference, workflow_stage_code: stage_code,
+          registration_number:, workflow_stage_code: stage_code,
           days_waiting: ((@reference_time - entered_at) / 1.day.to_i).floor,
           severity: entered_at <= @reference_time - CRITICAL_THRESHOLD ? 'critical' : 'delayed'
         }

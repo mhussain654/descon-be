@@ -160,12 +160,34 @@ RUN="/home/deploy/descon-mps-api/shared/bin/with-env env RAILS_ENV=production RB
    `add_campaign_to_candidate_import_batches`,
    `add_view_uploaded_documents_permission`,
    `add_manage_reference_data_permission`,
-   `add_name_overrides_to_workflow_stages` (plus `add_email_to_candidates` and
-   `retire_cheque_copy_document` if not deployed yet). Deploys do not run the
+   `add_name_overrides_to_workflow_stages`,
+   `allow_shared_kuickpay_ids_on_payments`,
+   `add_kuickpay_reference_numbers_to_payments` and
+   `replace_reference_number_with_file_number`,
+   `rename_file_number_to_registration_number`,
+   `add_voucher_days_to_app_feature_settings` (plus `add_email_to_candidates` and
+   `retire_cheque_copy_document` if not deployed yet). The last one turns each
+   reference number into a whole-number registration number by keeping its digits
+   (`DES-500002` becomes `500002`; `STORE-REVIEW` becomes empty) and stops,
+   changing nothing, if two candidates in one campaign would get the same number;
+   the rename after it stops the same way if two candidates anywhere share one,
+   because the registration number is unique across the organisation. Deploys do not run the
    seeds on an existing database.
 2. **Confirm a developer account** exists and is active; sign in to the admin
-   web with it once. If none exists, create one as in the runbook's "first
-   administrator" step with `role: 'developer'`.
+   web with it once. Check:
+
+   ```bash
+   $RUN rails runner "puts User.where(role: 'developer', active: true).pluck(:email)"
+   ```
+
+   If it prints nothing, create one (the password is typed hidden, never
+   shown or saved in shell history):
+
+   ```bash
+   read -rs DEV_PASSWORD && export DEV_PASSWORD
+   $RUN rails runner "User.create!(email: 'developer@your-domain', password: ENV.fetch('DEV_PASSWORD'), role: 'developer', active: true)"
+   unset DEV_PASSWORD
+   ```
 3. **Stop the app** so no staff or candidate writes data mid-run, and no
    background job runs:
 

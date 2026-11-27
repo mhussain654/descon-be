@@ -22,7 +22,9 @@ module AiCalls
 
       def initialize(candidate_ai_call:, params: {})
         @candidate_ai_call = candidate_ai_call
-        @reference_number = params['reference_number'].to_s.strip
+        # Agents configured earlier send the number as `file_number` or `reference_number`.
+        @registration_number = %w[registration_number file_number reference_number]
+                               .filter_map { |key| params[key].presence }.first.to_s.strip
         @cnic = params['cnic'].presence
       end
 
@@ -40,22 +42,28 @@ module AiCalls
 
       private
 
+      # The registration number names one candidate; the caller's phone number (or, failing that, their CNIC)
+      # confirms it is them.
       def attempt_verification
-        assignment = find_assignment
-        return Result.new(verified: false) if assignment.blank?
+        assignments = candidate_assignments
+        return Result.new(verified: false) if assignments.empty?
 
-        candidate = assignment.candidate
-        return succeed!(candidate:, assignment:) if caller_number_matches?(candidate)
+        match = assignments.find { |assignment| caller_number_matches?(assignment.candidate) }
+        return succeed_for(match) if match
         return Result.new(verified: false, additional_verification_required: 'cnic') if @cnic.blank?
-        return succeed!(candidate:, assignment:) if cnic_matches?(candidate)
 
-        Result.new(verified: false)
+        match = assignments.find { |assignment| cnic_matches?(assignment.candidate) }
+        match ? succeed_for(match) : Result.new(verified: false)
       end
 
-      def find_assignment
-        return nil if @reference_number.blank?
+      def succeed_for(assignment) = succeed!(candidate: assignment.candidate, assignment:)
 
-        CandidateAssignment.find_by(reference_number: @reference_number.upcase)
+      # The current assignment with the registration number the caller gave, if any.
+      def candidate_assignments
+        return [] unless @registration_number.match?(::Candidates::RegistrationNumberParser::FORMAT)
+
+        CandidateAssignment.includes(:candidate).where(registration_number: @registration_number.to_i)
+                           .select { |assignment| assignment.candidate.current_assignment == assignment }
       end
 
       def caller_number_matches?(candidate)

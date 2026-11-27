@@ -114,7 +114,7 @@ erDiagram
     bigint country_id FK
     bigint project_id FK
     bigint craft_id FK
-    string reference_number UK
+    bigint registration_number "unique, optional; KuickPay registration number"
     bigint current_workflow_stage_id FK
     string qvc_outcome_code
     date qvc_outcome_date

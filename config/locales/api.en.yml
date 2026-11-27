@@ -174,14 +174,15 @@ en:
       candidate_mobile_number_invalid: "Enter a valid mobile number."
       candidate_passport_number_invalid: "Enter a valid passport number."
       candidate_preferred_locale_invalid: "Select a supported preferred language."
-      candidate_reference_number_required: "Enter the assignment reference number."
+      candidate_registration_number_invalid: "Enter the registration / file number as a whole number, e.g. 500001, or leave it blank."
       next_of_kin_field_required: "Complete all next-of-kin fields or leave them all blank."
       next_of_kin_mobile_number_invalid: "Enter a valid next-of-kin mobile number."
       next_of_kin_cnic_invalid: "Enter a valid next-of-kin CNIC in the format 00000-0000000-0."
       duplicate_cnic: "A candidate with this CNIC already exists."
       duplicate_mobile_number: "A candidate with this mobile number already exists."
       duplicate_passport_number: "A candidate with this passport number already exists."
-      duplicate_reference_number: "A candidate assignment with this reference number already exists."
+      duplicate_registration_number: "Another candidate already has this registration / file number."
+      registration_number_missing: "This candidate has no registration / file number yet, so a KuickPay voucher cannot be created. Staff must add it first."
       unknown_country_code: "Select a valid country."
       unknown_campaign: "Select a valid campaign."
       reference_data_in_use: "This is in use, so it cannot be deleted. Retire it instead."
@@ -210,6 +211,7 @@ en:
       logout_succeeded: "Session revoked."
     users:
       invitation_created: "Staff user invited successfully."
+      created: "Staff account created. They can sign in now with the password you set."
       updated: "Staff user updated successfully."
       invitation_accepted: "Invitation accepted. You can now sign in."
       mailer:
@@ -250,11 +252,12 @@ en:
         duplicate_cnic_in_file: "This CNIC is duplicated in the uploaded CSV."
         duplicate_passport_in_file: "This passport number is duplicated in the uploaded CSV."
         duplicate_mobile_number_in_file: "This mobile number is duplicated in the uploaded CSV."
-        duplicate_reference_number_in_file: "This reference number is duplicated in the uploaded CSV."
+        invalid_registration_number: "Enter the registration / file number as a whole number, or leave it blank."
+        duplicate_registration_number_in_file: "This registration / file number is duplicated in the uploaded CSV."
         duplicate_candidate: "A candidate with this CNIC already exists."
         duplicate_passport: "A candidate with this passport number already exists."
         duplicate_mobile_number: "A candidate with this mobile number already exists."
-        duplicate_reference_number: "A candidate assignment with this reference number already exists."
+        duplicate_registration_number: "Another candidate already has this registration / file number."
         duplicate_row: "This row duplicates an existing candidate import record."
         validation_failed: "This row could not be imported."
         incomplete_next_of_kin: "Provide all next-of-kin fields or leave all of them blank."
@@ -315,7 +318,7 @@ en:
             the start of the call. Do not disclose any candidate-specific information (application
             status, documents, payments, visa, protection, or flight details) until the caller's
             identity has been verified through the verify_caller_identity tool. Ask for their
-            application or reference number first, and call verify_caller_identity with it. If the
+            registration number first, and call verify_caller_identity with it. If the
             tool responds with additional_verification_required: 'cnic', briefly explain that you
             could not confirm their identity from the phone number alone, ask them for their CNIC
             as well, and call the tool again including it. If the tool responds with locked: true,
@@ -329,8 +332,8 @@ en:
           # best to you") -- not a placeholder needing approval, this wording stands
           # unless the client later asks to change it. Change it here, not in code.
           opening_line: "Hello, thank you for calling Descon Manpower. I'm an AI assistant, and
-            I'm here to help with your application. Could you tell me your application or
-            reference number to get started?"
+            I'm here to help with your application. Could you tell me your registration number to get
+            started?"
       # Human-readable labels for internal status/reason codes returned by the
       # data-retrieval tools (AiCalls::Tools::*). These are spoken back to the
       # candidate, so the raw snake_case codes the tools also return (kept

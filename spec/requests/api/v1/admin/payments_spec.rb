@@ -17,10 +17,10 @@ RSpec.describe 'API V1 Admin Payments', type: :request do
     { 'Authorization' => "Bearer #{login_as(user)}" }
   end
 
-  def payment_for(full_name: 'Ahmed Ali', reference_number: "DES-#{SecureRandom.hex(4).upcase}", **attrs)
+  def payment_for(full_name: 'Ahmed Ali', **attrs)
     candidate = create(:candidate, full_name:,
                                    cnic: "42101-#{format('%07d', SecureRandom.random_number(10_000_000))}-1")
-    assignment = create(:candidate_assignment, candidate:, reference_number:,
+    assignment = create(:candidate_assignment, candidate:,
                                                current_workflow_stage: WorkflowStage.find_by!(code: 'fee_paid'))
     create(:payment, candidate_assignment: assignment, external_reference: "EXT-#{SecureRandom.hex(4).upcase}", **attrs)
   end
@@ -215,14 +215,22 @@ RSpec.describe 'API V1 Admin Payments', type: :request do
       expect(body).not_to have_key('voucher_number')
     end
 
-    it 'includes the voucher number of a voucher payment' do
+    it "includes the voucher's Kuickpay ID and KuickPay's reference numbers, and finds it by the reference" do
       finance = create(:user, role: 'finance')
-      payment = payment_for(provider_code: 'kuickpay_voucher', voucher_number: '10420261000061939')
+      payment = payment_for(provider_code: 'kuickpay_voucher', voucher_number: '1042000000042',
+                            kuickpay_reference_number: '261105039065',
+                            kuickpay_company_reference_number: '10420261105039065')
 
       get "/api/v1/admin/payments/#{payment.public_id}", headers: auth_headers(finance)
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body['data']['voucher_number']).to eq('10420261000061939')
+      expect(response.parsed_body['data']).to include(
+        'voucher_number' => '1042000000042', 'kuickpay_reference_number' => '261105039065',
+        'kuickpay_company_reference_number' => '10420261105039065'
+      )
+
+      get '/api/v1/admin/payments', params: { search: '261105039065' }, headers: auth_headers(finance)
+      expect(response.parsed_body['data'].pluck('id')).to eq([payment.public_id])
     end
 
     it 'returns not_found for an unknown payment id' do

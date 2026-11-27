@@ -8,7 +8,7 @@ module Admin
           @seen_cnics = Set.new
           @seen_passports = Set.new
           @seen_mobile_numbers = Set.new
-          @seen_reference_numbers = Set.new
+          @seen_registration_numbers = Set.new
         end
 
         def register(row_plan)
@@ -28,7 +28,9 @@ module Admin
             return { field: 'mobile_number',
                      code: 'duplicate_mobile_number_in_file' }
           end
-          duplicate_reference_number_error if @seen_reference_numbers.include?(row_plan.reference_number)
+          if row_plan.registration_number && @seen_registration_numbers.include?(row_plan.registration_number)
+            duplicate_registration_number_error
+          end
         end
 
         def duplicate_passport?(row_plan)
@@ -39,12 +41,12 @@ module Admin
           @seen_cnics << row_plan.cnic
           @seen_passports << row_plan.passport_number if row_plan.passport_number.present?
           @seen_mobile_numbers << row_plan.mobile_number
-          @seen_reference_numbers << row_plan.reference_number
+          @seen_registration_numbers << row_plan.registration_number if row_plan.registration_number
           nil
         end
 
-        def duplicate_reference_number_error
-          { field: 'reference_number', code: 'duplicate_reference_number_in_file' }
+        def duplicate_registration_number_error
+          { field: 'registration_number', code: 'duplicate_registration_number_in_file' }
         end
       end
     end

@@ -15,7 +15,7 @@ RSpec.describe 'API V1 Candidate Profile', type: :request do
   describe 'GET /api/v1/candidate/profile' do
     it 'returns only the authenticated candidate profile with masked sensitive data' do
       candidate = create(:candidate, cnic: '42101-1234567-1', preferred_locale: 'ur', status_code: 'registered')
-      create(:candidate_assignment, candidate:, reference_number: 'DES-000111')
+      create(:candidate_assignment, candidate:, registration_number: 111)
 
       get '/api/v1/candidate/profile', headers: { 'Authorization' => "Bearer #{candidate_access_token_for(candidate)}" }
 
@@ -24,7 +24,7 @@ RSpec.describe 'API V1 Candidate Profile', type: :request do
       expect(response.headers['ETag']).to be_present
       expect(response.parsed_body.dig('data', 'id')).to eq(candidate.public_id)
       expect(response.parsed_body.dig('data', 'masked_cnic')).to eq('42101-*******-1')
-      expect(response.parsed_body.dig('data', 'reference_number')).to eq('DES-000111')
+      expect(response.parsed_body['data']).to include('registration_number' => 111, 'reference_number' => '111')
       expect(response.parsed_body.dig('data', 'candidate_status')).to eq('registered')
       expect(response.parsed_body.dig('data', 'current_workflow_stage', 'code')).to eq('registered')
       expect(response.parsed_body.dig('data', 'payment', 'required_stage_code')).to eq('fee_pending')

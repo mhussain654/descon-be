@@ -10,10 +10,16 @@ class AppFeatureSetting < ApplicationRecord
     card_payment voucher_payment progress_sms automatic_calls bulk_calls document_ocr document_identity_check
   ].freeze
 
+  # KuickPay voucher dates: due date = issue date + due days; expiry = due date + grace days.
+  VOUCHER_DUE_DAYS = (1..60)
+  VOUCHER_GRACE_DAYS = (0..15)
+
   belongs_to :updated_by, class_name: 'User', optional: true
 
   validates :singleton_guard, inclusion: { in: [true] }
   validates(*SWITCHES.map { |switch| :"#{switch}_enabled" }, inclusion: { in: [true, false] })
+  validates :voucher_due_days, numericality: { only_integer: true, in: VOUCHER_DUE_DAYS }
+  validates :voucher_grace_days, numericality: { only_integer: true, in: VOUCHER_GRACE_DAYS }
 
   before_destroy :raise_readonly_record
 

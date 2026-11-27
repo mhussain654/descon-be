@@ -27,11 +27,17 @@ module Candidates
         full_name: @candidate.full_name,
         masked_cnic: Candidates::CnicMasker.call(@candidate.cnic),
         email: @candidate.email,
-        reference_number: current_assignment&.reference_number,
         preferred_locale: @candidate.preferred_locale,
         candidate_status: @candidate.status_code,
         active: @candidate.active
-      }
+      }.merge(registration_number_attributes)
+    end
+
+    # The registration number, or nil when not set. `reference_number` is the same value for app builds released
+    # before the registration number; remove it once those builds are retired.
+    def registration_number_attributes
+      number = current_assignment&.registration_number
+      { registration_number: number, reference_number: number&.to_s }
     end
 
     def current_assignment

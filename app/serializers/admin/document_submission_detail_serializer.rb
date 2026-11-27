@@ -28,7 +28,7 @@ module Admin
 
       {
         id: assignment.public_id,
-        reference_number: assignment.reference_number,
+        registration_number: assignment.registration_number,
         country: serialized_reference_record(assignment.country),
         project: serialized_reference_record(assignment.project),
         craft: serialized_reference_record(assignment.craft)

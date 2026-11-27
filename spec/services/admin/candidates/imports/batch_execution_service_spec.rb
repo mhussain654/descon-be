@@ -43,7 +43,7 @@ RSpec.describe Admin::Candidates::Imports::BatchExecutionService do
     ensure_candidate_import_reference_data!
     row = {
       'full_name' => 'Late Reject', 'cnic' => '42101-1234567-1', 'mobile_number' => '+923001234567',
-      'reference_number' => 'DES-007001', 'preferred_locale' => '', 'candidate_status' => '',
+      'registration_number' => '007001', 'preferred_locale' => '', 'candidate_status' => '',
       'workflow_stage_code' => '', 'country_code' => 'qatar', 'project_code' => 'qatar_infrastructure',
       'craft_code' => 'Crane Opereator', 'active' => 'true', 'row_number' => 2, 'template_version' => 'v1'
     }

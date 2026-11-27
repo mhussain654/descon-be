@@ -159,8 +159,8 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Tool Calls', type: :request do
     it 'does not re-increment verification_attempts when an identical verify_caller_identity call is replayed' do
       call_record
 
-      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
-      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
+      call_tool('verify_caller_identity', params: { registration_number: 'unknown-ref' })
+      call_tool('verify_caller_identity', params: { registration_number: 'unknown-ref' })
 
       expect(call_record.reload.verification_attempts).to eq(1)
     end
@@ -168,8 +168,8 @@ RSpec.describe 'API V1 AI Calls ElevenLabs Tool Calls', type: :request do
     it 'still counts a genuinely new verify_caller_identity attempt with different arguments' do
       call_record
 
-      call_tool('verify_caller_identity', params: { reference_number: 'unknown-ref' })
-      call_tool('verify_caller_identity', params: { reference_number: 'another-ref' })
+      call_tool('verify_caller_identity', params: { registration_number: 'unknown-ref' })
+      call_tool('verify_caller_identity', params: { registration_number: 'another-ref' })
 
       expect(call_record.reload.verification_attempts).to eq(2)
     end

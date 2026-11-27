@@ -40,7 +40,7 @@ module Admin
           ::Candidate.exists?(cnic: row_plan.cnic) ||
             (row_plan.passport_number.present? && ::Candidate.exists?(passport_number: row_plan.passport_number)) ||
             ::Candidate.exists?(mobile_number: row_plan.mobile_number) ||
-            ::CandidateAssignment.exists?(reference_number: row_plan.reference_number)
+            registration_number_taken?(row_plan)
         end
 
         def handle_duplicate(row_plan:, result:)
@@ -52,15 +52,19 @@ module Admin
             return record_skipped(row_plan:, result:, field: 'mobile_number', code: 'duplicate_mobile_number')
           end
 
-          record_duplicate_reference_number(row_plan:, result:)
+          record_duplicate_registration_number(row_plan:, result:)
         end
 
         def record_duplicate_candidate(row_plan:, result:)
           record_skipped(row_plan:, result:, field: 'cnic', code: 'duplicate_candidate')
         end
 
-        def record_duplicate_reference_number(row_plan:, result:)
-          record_skipped(row_plan:, result:, field: 'reference_number', code: 'duplicate_reference_number')
+        def registration_number_taken?(row_plan)
+          ::CandidateAssignment.registration_number_taken?(row_plan.registration_number)
+        end
+
+        def record_duplicate_registration_number(row_plan:, result:)
+          record_skipped(row_plan:, result:, field: 'registration_number', code: 'duplicate_registration_number')
         end
 
         def create_candidate!(row_plan)

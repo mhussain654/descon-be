@@ -14,10 +14,13 @@ module Api
         render_payload(collection_payload(data: serialized_users(users), pagination: query.pagination))
       end
 
-      # Creates (invites) a new staff user with the given email and role; idempotent per Idempotency-Key.
+      # Creates (invites) a new staff user with the given email and role; idempotent per Idempotency-Key. A developer
+      # may send a password (and its confirmation) to create the account active, with no invitation.
       def create
         authorize User
-        render_idempotent_response(scope: 'users.create', subject: current_user) { create_payload }
+        render_idempotent_response(scope: 'users.create', subject: current_user, fingerprint: create_fingerprint) do
+          create_payload
+        end
       end
 
       # Updates an existing staff user's role and/or staff_state.
@@ -36,8 +39,9 @@ module Api
           request_id: request.request_id
         )
 
+        message = user.active_staff_account? ? t('api.users.created') : t('api.users.invitation_created')
         success_payload(
-          data: { user: serialized_user(user), message: t('api.users.invitation_created') },
+          data: { user: serialized_user(user), message: },
           status: :created
         )
       end
@@ -55,7 +59,8 @@ module Api
 
       # Validates that only the email/role keys were submitted, then returns the strong-params hash for creation.
       def create_user_attributes
-        enforce_allowed_keys!(params[:user], allowed_keys: %w[email role], prefix: 'user')
+        enforce_allowed_keys!(params[:user], allowed_keys: %w[email role password password_confirmation],
+                                             prefix: 'user')
         create_params.to_h.symbolize_keys
       end
 
@@ -65,9 +70,16 @@ module Api
         update_params.to_h.symbolize_keys
       end
 
+      # Identifies a create request for idempotency without the password (the default fingerprint hashes the body).
+      def create_fingerprint
+        attributes = create_params
+        { email: attributes[:email].to_s.strip.downcase, role: attributes[:role].to_s,
+          direct: attributes[:password].present? }.to_json
+      end
+
       # Strong-params the fields allowed when creating a user.
       def create_params
-        params.expect(user: %i[email role])
+        params.expect(user: %i[email role password password_confirmation])
       end
 
       # Strong-params the fields allowed when updating a user.

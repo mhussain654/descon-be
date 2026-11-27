@@ -28,6 +28,8 @@ module Admin
           payment_type_code: @payment.payment_type_code, status: @payment.status_code,
           amount: @payment.amount.to_s('F'), currency_code: @payment.currency_code, provider: @payment.provider_code,
           external_reference: @payment.external_reference, voucher_number: @payment.voucher_number,
+          kuickpay_reference_number: @payment.kuickpay_reference_number,
+          kuickpay_company_reference_number: @payment.kuickpay_company_reference_number,
           reconciliation_state: reconciliation_state
         }
       end
@@ -46,7 +48,7 @@ module Admin
           id: candidate.public_id,
           full_name: candidate.full_name,
           masked_cnic: ::Candidates::CnicMasker.call(candidate.cnic),
-          reference_number: @payment.candidate_assignment.reference_number
+          registration_number: @payment.candidate_assignment.registration_number
         }
       end
 

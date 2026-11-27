@@ -101,9 +101,9 @@ RSpec.describe Payments::Configuration do
   end
 
   describe 'voucher (KuickPay Hybrid) settings' do
-    it 'is off by default, with a 14-day voucher and the fixed test login' do
+    it 'is off by default, with the fixed test login' do
       %w[KUICKPAY_VOUCHER_ENABLED KUICKPAY_INSTITUTION_ID KUICKPAY_COMPANY_ID
-         PAYMENT_VOUCHER_VALID_DAYS PAYMENT_VOUCHER_FALLBACK_EMAIL].each { |key| ENV.delete(key) }
+         PAYMENT_VOUCHER_FALLBACK_EMAIL].each { |key| ENV.delete(key) }
 
       configuration = described_class.new
 
@@ -114,21 +114,18 @@ RSpec.describe Payments::Configuration do
         .to eq(%w[test-hybrid-user test-hybrid-password])
       expect([configuration.kuickpay_payment_status_username, configuration.kuickpay_payment_status_password])
         .to eq(%w[test-payment-status-user test-payment-status-password])
-      expect(configuration.voucher_valid_days).to eq(14)
       expect(configuration.voucher_fallback_email).to eq('no-reply@descon-mps.com')
     end
 
-    it 'reads the switch, institution id, validity and fallback email from the environment' do
+    it 'reads the switch, institution id and fallback email from the environment' do
       ENV['KUICKPAY_VOUCHER_ENABLED'] = 'true'
       ENV['KUICKPAY_INSTITUTION_ID'] = '00008'
-      ENV['PAYMENT_VOUCHER_VALID_DAYS'] = '7'
       ENV['PAYMENT_VOUCHER_FALLBACK_EMAIL'] = ' fees@example.test '
 
       configuration = described_class.new
 
       expect(configuration).to be_kuickpay_voucher_enabled
       expect(configuration.kuickpay_institution_id).to eq('00008')
-      expect(configuration.voucher_valid_days).to eq(7)
       expect(configuration.voucher_fallback_email).to eq('fees@example.test')
     end
 

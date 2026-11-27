@@ -44,9 +44,10 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
         'boarding_pass_uploaded_at' => detail.boarding_pass_uploaded_at.utc.iso8601,
         'mobilized_on' => nil, 'status' => 'scheduled'
       )
-      expect(row.fetch('candidate')).to include('id' => detail.candidate_assignment.candidate.public_id,
+      assignment = detail.candidate_assignment
+      expect(row.fetch('candidate')).to include('id' => assignment.candidate.public_id,
                                                 'full_name' => 'Booked Candidate',
-                                                'reference_number' => detail.candidate_assignment.reference_number)
+                                                'registration_number' => assignment.registration_number)
       expect(response.parsed_body.dig('meta', 'pagination', 'total_count')).to eq(1)
     end
 
@@ -157,7 +158,8 @@ RSpec.describe 'API V1 Admin Mobilizations', type: :request do
       get path, params: { search: 'ek-600' }, headers: headers
       expect(names).to eq(['Bilal Khan'])
 
-      get path, params: { search: other.candidate_assignment.reference_number.downcase }, headers: headers
+      other.candidate_assignment.update!(registration_number: 424_242)
+      get path, params: { search: '424242' }, headers: headers
       expect(names).to eq(['Bilal Khan'])
     end
 

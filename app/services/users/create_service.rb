@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 module Users
+  # Adds a staff account. Normally an invitation: the account starts `invited` and the person sets their own
+  # password from the emailed link. A developer may instead give a password, which creates the account `active`
+  # straight away with no invitation sent (for staff who cannot receive the email); the password is never logged
+  # or audited.
   class CreateService < ApplicationService
     def initialize(actor:, attributes:, request_id:)
       @actor = actor
@@ -10,8 +14,10 @@ module Users
 
     def call
       DeveloperRoleGuard.ensure_assignable!(@attributes.fetch(:role), actor: @actor)
+      raise ForbiddenError if direct? && @actor&.role != 'developer'
+
       user = create_user_with_audit!
-      InvitationDeliveryJob.perform_later(user.id)
+      InvitationDeliveryJob.perform_later(user.id) unless direct?
       user
     rescue ActiveRecord::RecordNotUnique
       raise duplicate_email_error
@@ -19,22 +25,27 @@ module Users
 
     private
 
+    def direct? = @attributes[:password].present?
+
     def create_user_with_audit!
       User.transaction do
-        user = User.create!(
-          email: @attributes.fetch(:email),
-          role: @attributes.fetch(:role),
-          staff_state: 'invited',
-          invited_by: @actor
-        )
-        audit_invitation!(user)
+        user = User.create!(user_attributes)
+        audit!(user)
         user
       end
     end
 
-    def audit_invitation!(user)
+    def user_attributes
+      base = { email: @attributes.fetch(:email), role: @attributes.fetch(:role), invited_by: @actor }
+      return base.merge(staff_state: 'invited') unless direct?
+
+      base.merge(staff_state: 'active', password: @attributes[:password],
+                 password_confirmation: @attributes[:password_confirmation].to_s)
+    end
+
+    def audit!(user)
       AuditLogger.call(
-        action_code: 'staff_user_invited',
+        action_code: direct? ? 'staff_user_created' : 'staff_user_invited',
         actor: @actor,
         target: user,
         request_id: @request_id,

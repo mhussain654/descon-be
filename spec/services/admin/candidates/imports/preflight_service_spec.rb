@@ -21,7 +21,7 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
   def valid_row(**overrides)
     values = {
       'full_name' => 'Imported Candidate', 'cnic' => '42101-1234567-1', 'mobile_number' => '+923001234567',
-      'reference_number' => 'DES-001001', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
+      'registration_number' => '001001', 'preferred_locale' => 'en', 'candidate_status' => 'registered',
       'workflow_stage_code' => 'registered', 'country_code' => 'qatar', 'project_code' => 'qatar_infrastructure',
       'craft_code' => 'electrician', 'active' => 'true', 'passport_number' => 'AB123456',
       'next_of_kin_name' => '', 'next_of_kin_relationship' => '', 'next_of_kin_mobile_number' => '',
@@ -43,7 +43,7 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
     expect(result).to include(status: 'queued', accepted_rows: 1)
     Admin::Candidates::Imports::BatchExecutionService.call(import_id: result.fetch(:import_id), request_id: 'execute-1')
     candidate = Candidate.find_by!(cnic: '42101-1234567-1')
-    expect(candidate.candidate_assignments.find_by!(reference_number: 'DES-001001')).to be_present
+    expect(candidate.candidate_assignments.find_by!(registration_number: '001001')).to be_present
   end
 
   it 'imports the optional email column, trimmed and lowercased' do
@@ -79,9 +79,9 @@ RSpec.describe Admin::Candidates::Imports::PreflightService do
   it "shows each rejected row's offending cell, masking identity numbers" do
     Candidate.find_by(cnic: '42101-1234567-1') || create(:candidate, cnic: '42101-1234567-1')
     rows = [
-      valid_row('cnic' => '42109-1234567-9', 'mobile_number' => '+923001234569', 'reference_number' => 'DES-001009',
+      valid_row('cnic' => '42109-1234567-9', 'mobile_number' => '+923001234569', 'registration_number' => '001009',
                 'craft_code' => 'Crane Opereator'),
-      valid_row('mobile_number' => '+923001234568', 'reference_number' => 'DES-001008', 'passport_number' => '')
+      valid_row('mobile_number' => '+923001234568', 'registration_number' => '001008', 'passport_number' => '')
     ]
 
     result = described_class.call(actor:, file: upload(rows), request_id: 'preflight-values')

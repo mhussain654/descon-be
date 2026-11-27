@@ -58,7 +58,7 @@ RSpec.describe 'API V1 Admin Communications', type: :request do
         'locale' => 'en',
         'candidate_assignment' => {
           'id' => assignment.public_id,
-          'reference_number' => assignment.reference_number,
+          'registration_number' => assignment.registration_number,
           'candidate_id' => assignment.candidate.public_id
         },
         'initiated_by' => { 'id' => actor.public_id, 'role' => 'developer' },

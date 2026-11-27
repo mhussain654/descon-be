@@ -35,7 +35,7 @@ RSpec.describe Admin::Reports::LatestMobilizationQuery do
       candidate_full_name: later_assignment.candidate.full_name,
       candidate_public_id: later_assignment.candidate.public_id,
       candidate_assignment_public_id: later_assignment.public_id,
-      reference_number: later_assignment.reference_number
+      registration_number: later_assignment.registration_number
     )
     expect(result.fetch(:country_name)).to eq(later_assignment.country.name_for)
     expect(result.fetch(:project_name)).to eq(later_assignment.project.name_for)

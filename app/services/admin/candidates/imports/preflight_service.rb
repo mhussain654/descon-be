@@ -85,7 +85,7 @@ module Admin
         def database_duplicate(plan)
           return { field: 'cnic', code: 'duplicate_candidate' } if Candidate.exists?(cnic: plan.cnic)
 
-          passport_duplicate(plan) || mobile_duplicate(plan) || reference_duplicate(plan)
+          passport_duplicate(plan) || mobile_duplicate(plan) || registration_number_duplicate(plan)
         end
 
         def passport_duplicate(plan)
@@ -101,10 +101,10 @@ module Admin
           { field: 'mobile_number', code: 'duplicate_mobile_number' }
         end
 
-        def reference_duplicate(plan)
-          return unless CandidateAssignment.exists?(reference_number: plan.reference_number)
+        def registration_number_duplicate(plan)
+          return unless CandidateAssignment.registration_number_taken?(plan.registration_number)
 
-          { field: 'reference_number', code: 'duplicate_reference_number' }
+          { field: 'registration_number', code: 'duplicate_registration_number' }
         end
 
         def validate_template_version!(rows)
