@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_110100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -565,8 +565,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
     t.datetime "expires_at", null: false
     t.string "requested_ip"
     t.datetime "updated_at", null: false
+    t.bigint "sent_by_id"
     t.index ["candidate_id"], name: "index_candidate_otp_challenges_on_candidate_id"
     t.index ["cnic", "created_at"], name: "index_candidate_otp_challenges_on_cnic_and_created_at"
+    t.index ["sent_by_id"], name: "index_candidate_otp_challenges_on_sent_by_id"
     t.check_constraint "attempts >= 0", name: "candidate_otp_challenges_attempts_range"
   end
 
@@ -1415,6 +1417,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
   add_foreign_key "candidate_medical_results", "candidate_stage_histories"
   add_foreign_key "candidate_medical_results", "users", column: "recorded_by_id"
   add_foreign_key "candidate_otp_challenges", "candidates"
+  add_foreign_key "candidate_otp_challenges", "users", column: "sent_by_id"
   add_foreign_key "candidate_protection_records", "candidate_assignments"
   add_foreign_key "candidate_protection_records", "users", column: "appeared_recorded_by_id"
   add_foreign_key "candidate_protection_records", "users", column: "ready_recorded_by_id"

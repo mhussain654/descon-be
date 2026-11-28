@@ -7,9 +7,11 @@ module Admin
     class IndexQuery < ApplicationQuery
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
-      ALLOWED_FILTERS = (%w[status country_code project_code craft_code boarding_pass registration_number] +
+      ALLOWED_FILTERS = (%w[status country_code project_code craft_code boarding_pass registration_number sms_sender] +
                          RegisteredDateFilter::NAMES).freeze
       BOARDING_PASS_FILTERS = %w[uploaded missing].freeze
+      # Digits with the usual phone punctuation (+, spaces, dashes, brackets).
+      MOBILE_SEARCH_FORMAT = /\A\+?[\d\s()-]+\z/
       ALLOWED_SORTS = %w[created_at full_name registration_number].freeze
       REFERENCE_FILTER_SQL = {
         'country_code' => 'current_assignments.country_id = ?',
@@ -63,33 +65,45 @@ module Admin
         CurrentAssignmentScope.call(scope: @scope)
       end
 
+      # cnic/passport_number are deterministically encrypted (MPS-901), so they can only be
+      # matched via ActiveRecord's own hash-condition `where` (which transparently encrypts the
+      # query value) -- never as a raw SQL string comparison, which would compare plaintext
+      # against ciphertext and silently match nothing. full_name, registration_number and
+      # mobile_number aren't encrypted, so they stay a single raw clause combined with `.or`.
       def apply_search(scope)
         value = @params[:search].to_s.strip
         return scope if value.blank?
 
-        normalized_cnic = ::Candidates::CnicNormalizer.call(value)
-        normalized_passport = value.upcase.gsub(/\s+/, '')
-        number = ::Candidates::RegistrationNumberParser.search_number(value)
-        name_match = "%#{ActiveRecord::Base.sanitize_sql_like(value)}%"
-        matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, number:)
+        scope
+          .where(name_or_number_clause, **plain_text_matches(value))
+          .or(scope.where(cnic: ::Candidates::CnicNormalizer.call(value)))
+          .or(scope.where(passport_number: value.upcase.gsub(/\s+/, '')))
       end
 
-      # cnic/passport_number are deterministically encrypted (MPS-901), so they can only be
-      # matched via ActiveRecord's own hash-condition `where` (which transparently encrypts the
-      # query value) -- never as a raw SQL string comparison, which would compare plaintext
-      # against ciphertext and silently match nothing. full_name/registration_number aren't
-      # encrypted, so they stay a single raw ILIKE/`=` clause combined with `.or`.
-      # A number matches the registration number.
-      def matching_search_scope(scope, name_match:, normalized_cnic:, normalized_passport:, number:)
-        scope
-          .where(name_or_number_clause, name: name_match, number:)
-          .or(scope.where(cnic: normalized_cnic))
-          .or(scope.where(passport_number: normalized_passport))
+      # Part of the name, the file number, and a phone-like search's mobile number.
+      def plain_text_matches(value)
+        { name: "%#{ActiveRecord::Base.sanitize_sql_like(value)}%",
+          number: ::Candidates::RegistrationNumberParser.search_number(value),
+          mobile: mobile_match(value) }
+      end
+
+      # A phone-like search of 7 to 12 digits (a whole number in any spelling --
+      # 0300 1234567, 923001234567, +92 300 1234567 -- or a part of one) matches
+      # the stored +92 number by its last 10 digits. Fewer digits would collide
+      # with file numbers; 13 is a CNIC. nil (matching nothing) otherwise.
+      def mobile_match(value)
+        return unless value.match?(MOBILE_SEARCH_FORMAT)
+
+        digits = value.delete('^0-9')
+        return unless digits.length.between?(7, 12)
+
+        "%#{digits.last(::PhoneNumbers::Normalizer::NATIONAL_SIGNIFICANT_DIGITS_LENGTH)}%"
       end
 
       def name_or_number_clause
         <<~SQL.squish
           candidates.full_name ILIKE :name OR current_assignments.registration_number = :number
+          OR candidates.mobile_number LIKE :mobile
         SQL
       end
 
@@ -115,6 +129,7 @@ module Admin
         return registered_scope(scope, name, value) if RegisteredDateFilter::NAMES.include?(name)
         return status_scope(scope, value) if name == 'status'
         return registration_number_scope(scope, value) if name == 'registration_number'
+        return sms_sender_scope(scope, value) if name == 'sms_sender'
 
         scope.where(REFERENCE_FILTER_SQL.fetch(name), reference_id(name, value))
       end
@@ -132,6 +147,14 @@ module Admin
         raise InvalidQueryParameterError.new(field: 'filter.registration_number') unless range
 
         scope.where(current_assignments: { registration_number: range })
+      end
+
+      # Candidates whose SMS go out from the brand name (masking) or the short code.
+      def sms_sender_scope(scope, value)
+        sender = value.to_s.strip.downcase
+        raise InvalidQueryParameterError.new(field: 'filter.sms_sender') unless ::Candidate.sms_senders.key?(sender)
+
+        scope.where(sms_sender: sender)
       end
 
       # Candidates registered (added or imported) in the given days -- one import batch.

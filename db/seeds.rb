@@ -72,12 +72,6 @@ permission_ids_by_code = Permission.pluck(:code, :id).to_h
   end
 end
 
-# Developer-only permissions never stay on another role, even one granted them by
-# an earlier seed run.
-RolePermission.where(permission_id: Permission.where(code: Permission::DEVELOPER_ONLY_PERMISSIONS).select(:id))
-              .where.not(role_id: role_ids_by_code.fetch('developer'))
-              .destroy_all
-
 WorkflowStage::CANONICAL_STAGES.each do |stage_attributes|
   stage = WorkflowStage.find_or_initialize_by(code: stage_attributes.fetch(:code))
   stage.assign_attributes(

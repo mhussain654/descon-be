@@ -26,6 +26,7 @@ class CandidateOtpChallenge < ApplicationRecord
   # keeps handling any decoy rows a database migrated from before that
   # change may still contain.
   belongs_to :candidate, optional: true
+  belongs_to :sent_by, class_name: 'User', optional: true
 
   validates :cnic, presence: true
   validates :code_digest, presence: true
@@ -39,14 +40,17 @@ class CandidateOtpChallenge < ApplicationRecord
   # returned in any API response or log"). `cnic` defaults from `candidate`
   # for the real-candidate case. `code` is given only for the store reviewer
   # account's fixed code (StoreReview::Account); everyone else gets a random one.
-  def self.generate_for(candidate: nil, cnic: candidate&.cnic, requested_ip: nil, code: nil)
+  # `sent_by` is the developer who sent it from the candidate page (nil when
+  # the candidate asked for it in the app).
+  def self.generate_for(candidate: nil, cnic: candidate&.cnic, requested_ip: nil, code: nil, sent_by: nil)
     code ||= SecureRandom.random_number(10**CODE_LENGTH).to_s.rjust(CODE_LENGTH, '0')
     challenge = create!(
       candidate:,
       cnic:,
       code_digest: BCrypt::Password.create(code),
       expires_at: EXPIRY_WINDOW.from_now,
-      requested_ip:
+      requested_ip:,
+      sent_by:
     )
     { challenge:, code: }
   end
@@ -84,5 +88,15 @@ class CandidateOtpChallenge < ApplicationRecord
   # Records a failed verification attempt against this challenge.
   def register_failed_attempt!
     increment!(:attempts) # rubocop:disable Rails/SkipsModelValidations -- atomic counter increment, not a full save
+  end
+
+  # Where the code stands, for staff: used, locked (too many wrong tries),
+  # expired, or still pending.
+  def history_status
+    return 'used' if consumed?
+    return 'locked' if locked?
+    return 'expired' if expired?
+
+    'pending'
   end
 end

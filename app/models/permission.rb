@@ -39,10 +39,13 @@ class Permission < ApplicationRecord
     { code: 'record_manual_payment' },
     { code: 'view_uploaded_documents' },
     { code: 'manage_reference_data' },
-    { code: 'view_authentication_logs' }
+    { code: 'view_authentication_logs' },
+    { code: 'send_candidate_otp' }
   ].freeze
 
-  # Granted only to the developer role: the App Settings feature switches, the
+  # The developer role's by default (seeds and migrations grant them to it
+  # alone); a developer may also give any of them to another role on the
+  # Roles screen (Admin::RolePermissions::UpdateService). They are: the App Settings feature switches, the
   # automated call limits, and setting up calls (bulk call types, automatic
   # calls), and correcting a candidate's recorded medical appointment, QVC
   # appointment or flight details, and reading the background job logs
@@ -51,12 +54,14 @@ class Permission < ApplicationRecord
   # the documents a candidate uploaded before submitting them (support checks;
   # view only), and managing reference data (countries, projects, crafts, role
   # permissions, document checklists, workflow stage names), and reading who
-  # signed in and when (staff logins, candidate OTPs and app use). The
+  # signed in and when (staff logins, candidate OTPs and app use), and sending
+  # a candidate a new sign-in code from the candidate page (the code is shown
+  # to the developer once, to read out when the SMS is late). The
   # communications log and placing bulk calls are open to staff.
   DEVELOPER_ONLY_PERMISSIONS = %w[
     manage_app_settings access_communications_menu manage_ai_call_settings correct_workflow_details
     view_job_logs record_manual_payment view_uploaded_documents manage_reference_data
-    view_authentication_logs
+    view_authentication_logs send_candidate_otp
   ].freeze
 
   has_many :role_permissions, dependent: :destroy

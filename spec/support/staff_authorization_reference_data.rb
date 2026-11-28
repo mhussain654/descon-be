@@ -81,8 +81,9 @@ module StaffAuthorizationReferenceData
     remove_developer_only_grants!
   end
 
-  # Mirrors db/seeds.rb: a test database seeded before a permission became
-  # developer-only may still grant it to another role.
+  # Starts every test from the default grants, where developer-only
+  # permissions belong to the developer role alone (a developer may grant them
+  # to other roles later, on the Roles screen).
   def remove_developer_only_grants!
     RolePermission.joins(:permission, :role)
                   .where(permissions: { code: Permission::DEVELOPER_ONLY_PERMISSIONS })

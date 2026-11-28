@@ -64,6 +64,7 @@ en:
       correct_workflow_details: "Correct medical, QVC and flight details"
       view_job_logs: "View background job logs"
       view_authentication_logs: "View staff and candidate sign-ins"
+      send_candidate_otp: "Send a candidate a sign-in code (OTP)"
       record_manual_payment: "Mark a candidate's fee as paid"
       view_admin_dashboard: "View admin dashboard"
       view_mps_dashboard: "View operations dashboard"

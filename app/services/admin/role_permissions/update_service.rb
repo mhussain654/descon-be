@@ -2,10 +2,12 @@
 
 module Admin
   module RolePermissions
-    # Replaces the permissions of one staff role (developer-only,
-    # `manage_reference_data`). The developer role is locked to every
-    # permission; developer-only permissions never go to another role; admin
-    # always keeps `manage_staff_users` so someone can still manage staff.
+    # Replaces the permissions of one staff role (`manage_reference_data`).
+    # Any permission may go to any role, developer-only ones included (they
+    # are only the developer role's by default). The developer role is locked
+    # to every permission, nobody can change their own role's permissions (so
+    # a role given `manage_reference_data` cannot grant itself more), and
+    # admin always keeps `manage_staff_users` so someone can still manage staff.
     class UpdateService < ApplicationService
       LOCKED_ROLE_CODES = %w[developer].freeze
       ADMIN_REQUIRED_PERMISSIONS = %w[manage_staff_users].freeze
@@ -21,6 +23,7 @@ module Admin
         validate_actor!
         role = Role.find_by!(code: @role_code)
         invalid!('role_permissions_locked') if LOCKED_ROLE_CODES.include?(role.code)
+        invalid!('role_permissions_own_role') if role.code == @actor.role
 
         permissions = requested_permissions
         validate_rules!(role, permissions)
@@ -43,7 +46,6 @@ module Admin
 
       def validate_rules!(role, permissions)
         codes = permissions.map(&:code)
-        invalid!('developer_only_permission') if codes.intersect?(Permission::DEVELOPER_ONLY_PERMISSIONS)
         return unless role.code == 'admin' && !ADMIN_REQUIRED_PERMISSIONS.all? { |code| codes.include?(code) }
 
         invalid!('admin_needs_staff_management')

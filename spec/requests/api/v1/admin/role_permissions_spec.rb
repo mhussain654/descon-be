@@ -2,7 +2,7 @@
 
 require 'rails_helper'
 
-# Developer-only roles and permissions matrix.
+# Roles and permissions matrix (manage_reference_data, the developer role by default).
 RSpec.describe 'API V1 Admin role permissions', type: :request do
   before { ensure_staff_authorization_reference_data! }
 
@@ -26,10 +26,11 @@ RSpec.describe 'API V1 Admin role permissions', type: :request do
 
       expect(response).to have_http_status(:ok)
       data = response.parsed_body.fetch('data')
-      expect(data.fetch('roles').find { |role| role['code'] == 'developer' }).to include('locked' => true)
+      expect(data.fetch('roles').find { |role| role['code'] == 'developer' }).to include('locked' => true,
+                                                                                         'own_role' => true)
       expect(data.fetch('roles').find do |role|
         role['code'] == 'hr'
-      end).to include('locked' => false, 'name' => be_present)
+      end).to include('locked' => false, 'own_role' => false, 'name' => be_present)
       expect(data.fetch('permissions').find { |permission| permission['code'] == 'manage_reference_data' })
         .to include('developer_only' => true)
       expect(data.dig('grants', 'hr')).to eq(codes_for('hr'))
@@ -59,13 +60,32 @@ RSpec.describe 'API V1 Admin role permissions', type: :request do
       expect(codes_for('developer')).to include('manage_reference_data')
     end
 
-    it 'refuses a developer-only permission for another role' do
+    it 'gives and takes developer-only permissions to and from another role' do
       before = codes_for('hr')
-      save('hr', before + %w[view_job_logs])
+      save('hr', before + %w[view_job_logs send_candidate_otp])
 
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.parsed_body.dig('errors', 0, 'field')).to eq('role_permission.permission_codes')
+      expect(response).to have_http_status(:ok)
+      expect(codes_for('hr')).to include('view_job_logs', 'send_candidate_otp')
+      expect(create(:user, role: 'hr').permission?('send_candidate_otp')).to be(true)
+
+      save('hr', before)
       expect(codes_for('hr')).to eq(before)
+    end
+
+    it "refuses to let a role given manage_reference_data change its own permissions, but not another role's" do
+      save('admin', codes_for('admin') + %w[manage_reference_data])
+      admin = create(:user, role: 'admin')
+      admin_before = codes_for('admin')
+
+      save('admin', admin_before + %w[view_job_logs], user: admin)
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig('errors', 0, 'message'))
+        .to eq('You cannot change the permissions of your own role.')
+      expect(codes_for('admin')).to eq(admin_before)
+
+      save('finance', %w[view_payments], user: admin)
+      expect(response).to have_http_status(:ok)
+      expect(codes_for('finance')).to eq(%w[view_payments])
     end
 
     it 'refuses to take staff management away from admin' do

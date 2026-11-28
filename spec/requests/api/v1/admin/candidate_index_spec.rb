@@ -41,6 +41,36 @@ RSpec.describe 'API V1 Admin Candidate Index', type: :request do
     end
   end
 
+  it 'searches by mobile number in any spelling, or part of one' do
+    actor = create(:user, role: 'hr')
+    candidate = indexed_candidate(
+      { full_name: 'Mobile Match', cnic: '42101-7654321-1', mobile_number: '+923001234567' },
+      { registration_number: 300_002 }
+    )
+    other = indexed_candidate({ full_name: 'Someone Else', cnic: '42101-7654321-2', mobile_number: '+923331112223' },
+                              { registration_number: 300_003 })
+    headers = { 'Authorization' => "Bearer #{token_for(actor)}" }
+
+    ['03001234567', '923001234567', '+92 300 1234567', '0300-1234567', '1234567'].each do |search|
+      get '/api/v1/admin/candidates', params: { search: }, headers: headers
+      ids = response.parsed_body.fetch('data').map { |item| item.fetch('id') }
+      expect(ids).to eq([candidate.public_id]), search
+    end
+    expect(other).to be_persisted
+  end
+
+  it 'does not treat a short number or a name with digits as a mobile number' do
+    actor = create(:user, role: 'hr')
+    indexed_candidate({ full_name: 'Mobile Match', cnic: '42101-7654321-3', mobile_number: '+923001234567' },
+                      { registration_number: 300_004 })
+    headers = { 'Authorization' => "Bearer #{token_for(actor)}" }
+
+    %w[123456 Ali1234567].each do |search|
+      get '/api/v1/admin/candidates', params: { search: }, headers: headers
+      expect(response.parsed_body.fetch('data')).to be_empty, search
+    end
+  end
+
   it 'filters by status and assignment references, with pagination metadata' do
     actor = create(:user, role: 'hr')
     country = create(:country, code: 'mps305_country')
@@ -82,6 +112,24 @@ RSpec.describe 'API V1 Admin Candidate Index', type: :request do
     get '/api/v1/admin/candidates', params: { filter: { registration_number: '7100a' } }, headers: headers
     expect(response).to have_http_status(:bad_request)
     expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.registration_number')
+  end
+
+  it 'filters by SMS sender' do
+    headers = { 'Authorization' => "Bearer #{token_for(create(:user, role: 'hr'))}" }
+    masking = indexed_candidate({ full_name: 'Brand Name', cnic: '42101-8765432-1' })
+    short_code = indexed_candidate({ full_name: 'Short Code', cnic: '42101-8765432-2', sms_sender: 'short_code' })
+    ids = lambda do |value|
+      get '/api/v1/admin/candidates', params: { filter: { sms_sender: value } }, headers: headers
+      response.parsed_body.fetch('data').map { |item| item.fetch('id') }
+    end
+
+    expect(ids.call('short_code')).to eq([short_code.public_id])
+    expect(ids.call('masking')).to eq([masking.public_id])
+    expect(response.parsed_body.dig('meta', 'applied_filters')).to include('sms_sender' => 'masking')
+
+    get '/api/v1/admin/candidates', params: { filter: { sms_sender: 'whatsapp' } }, headers: headers
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.sms_sender')
   end
 
   it 'uses only the authoritative current assignment for filters, reference search, and sorting' do

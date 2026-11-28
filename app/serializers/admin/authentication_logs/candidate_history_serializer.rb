@@ -32,19 +32,11 @@ module Admin
       def otp(challenge)
         {
           sent_at: challenge.created_at,
-          status: otp_status(challenge),
+          status: challenge.history_status,
           used_at: challenge.consumed_at,
           wrong_attempts: challenge.attempts,
           ip_address: challenge.requested_ip
         }
-      end
-
-      def otp_status(challenge)
-        return 'used' if challenge.consumed_at.present?
-        return 'locked' if challenge.locked?
-        return 'expired' if challenge.expires_at <= Time.current
-
-        'pending'
       end
     end
   end

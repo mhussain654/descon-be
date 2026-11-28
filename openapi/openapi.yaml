@@ -6660,7 +6660,9 @@ paths:
       summary: List candidates for authorized staff
       description: >-
         Searches normalized CNIC, passport, and reference identifiers exactly; full_name supports
-        partial matching. `meta.summary` returns a zero-filled count per canonical workflow stage
+        partial matching. A phone-like search of 7 to 12 digits (any spelling: 03001234567,
+        923001234567, +92 300 1234567, or part of a number) matches the mobile number by its last
+        10 digits. `meta.summary` returns a zero-filled count per canonical workflow stage
         (every catalog stage, the same set as `filter[status]`), scoped by every active filter except `filter[status]`.
         `filter[boarding_pass]` keeps only candidates whose flight is recorded and who have
         (`uploaded`) or have not (`missing`) uploaded their boarding pass photo;
@@ -6673,7 +6675,9 @@ paths:
         - $ref: '#/components/parameters/RegisteredToFilter'
         - name: search
           in: query
+          description: Part of the name, a file number, a full CNIC or passport number, or a mobile number (whole or 7+ digits of it).
           schema: { type: string }
+          example: '03001234567'
         - name: filter[status]
           in: query
           schema: { type: string }
@@ -6695,6 +6699,12 @@ paths:
             One registration (file) number, or an inclusive range written `first-last` (either
             order). Matches the candidate's current assignment.
           schema: { type: string, pattern: '^\\s*\\d{1,15}\\s*(-\\s*\\d{1,15}\\s*)?$', example: 900001-900050 }
+        - name: filter[sms_sender]
+          in: query
+          description: >-
+            The sender the candidate's SMS go out from: `masking` (the "DESCON MPS" brand name)
+            or `short_code`.
+          schema: { type: string, enum: [masking, short_code] }
         - name: sort
           in: query
           schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, registration_number, -registration_number] }
@@ -7302,9 +7312,11 @@ paths:
     get:
       summary: Roles and permissions matrix
       description: >-
-        Developer-only (`manage_reference_data`). Every active staff role, every
-        active permission (with whether it is developer-only), and the permission
-        codes each role has. The developer role is `locked` (always has all).
+        Requires `manage_reference_data` (the developer role's by default). Every active
+        staff role, every active permission (`developer_only`: the developer role's by
+        default; it may still be given to any role), and the permission codes each role
+        has. The developer role is `locked` (always has all); `own_role` marks the
+        caller's own role, whose permissions they cannot change.
       security: [{ bearerAuth: [] }]
       responses:
         '200':
@@ -7314,23 +7326,24 @@ paths:
               example:
                 data:
                   roles:
-                    - { code: hr, name: HR, locked: false }
-                    - { code: developer, name: Developer, locked: true }
+                    - { code: hr, name: HR, locked: false, own_role: false }
+                    - { code: developer, name: Developer, locked: true, own_role: true }
                   permissions:
                     - { code: view_candidates, name: View candidates, developer_only: false }
                     - { code: view_job_logs, name: View job logs, developer_only: true }
                   grants:
                     hr: [view_candidates]
                     developer: [view_candidates, view_job_logs]
-        '403': { description: Not a developer }
+        '403': { description: Lacks manage_reference_data }
   /api/v1/admin/role_permissions/{role_code}:
     patch:
       summary: Replace one role's permissions
       description: >-
-        Developer-only (`manage_reference_data`). Returns the whole matrix. Refused
-        (422, field `role_permission.permission_codes`) for the developer role, an
-        unknown permission, a developer-only permission, or an admin role without
-        `manage_staff_users`. Recorded in the audit log.
+        Requires `manage_reference_data`. Any permission may be given to any role,
+        developer-only ones included. Returns the whole matrix. Refused (422, field
+        `role_permission.permission_codes`) for the developer role, the caller's own
+        role, an unknown permission, or an admin role without `manage_staff_users`.
+        Recorded in the audit log.
       security: [{ bearerAuth: [] }]
       parameters:
         - name: role_code
@@ -7346,7 +7359,7 @@ paths:
                 permission_codes: [view_candidates, view_payments]
       responses:
         '200': { description: Saved; the updated matrix }
-        '403': { description: Not a developer }
+        '403': { description: Lacks manage_reference_data }
         '404': { description: Unknown role }
         '422':
           description: Not allowed
@@ -7356,7 +7369,7 @@ paths:
                 errors:
                   - code: validation_failed
                     field: role_permission.permission_codes
-                    message: Developer-only permissions can only belong to the developer role.
+                    message: You cannot change the permissions of your own role.
   /api/v1/admin/document_requirements:
     get:
       summary: Document checklist rows
@@ -8153,6 +8166,155 @@ paths:
         '401': { description: Missing, invalid, expired, or revoked staff access token }
         '403': { description: Not a developer (`document_access_forbidden`) }
         '404': { description: No such current document for this candidate }
+  /api/v1/admin/candidates/{candidate_id}/otps:
+    get:
+      summary: List the sign-in codes (OTPs) sent to a candidate
+      description: >-
+        Developer-only (`send_candidate_otp`). The candidate's 20 most recent sign-in codes,
+        newest first: when each was sent, when it expires, its status (`pending`, `used`,
+        `expired`, or `locked` after too many wrong tries), wrong attempts, and who sent it
+        (`sent_by` is null when the candidate asked in the app). Never a code or its digest.
+        `default_locale` is the candidate's language; `sender_name` is the sender a new code
+        goes out from. Not cached (`Cache-Control: private, no-store`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      responses:
+        '200':
+          description: The codes sent to the candidate
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                history:
+                  value:
+                    data:
+                      default_locale: ur
+                      sender_name: DESCON MPS
+                      otps:
+                        - sent_at: '2026-11-28T09:00:00Z'
+                          expires_at: '2026-11-28T09:10:00Z'
+                          status: expired
+                          used_at: null
+                          wrong_attempts: 0
+                          sent_by: null
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-28T09:20:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks send_candidate_otp, or is inactive
+        '404':
+          description: Candidate not found
+    post:
+      summary: Send a candidate a new sign-in code, and show it once
+      description: >-
+        Developer-only (`send_candidate_otp`), for a candidate whose own code arrived late or
+        expired. Creates a new code (replacing the candidate's earlier one, with no resend
+        cooldown), texts it in the chosen language from the candidate's SMS sender, and returns
+        the code in this response only, so the developer can read it out -- a deliberate,
+        client-approved exception to never returning an OTP. The code is stored only as a
+        digest, never logged or shown again, and the send is audited without it. `sms_sent`
+        says whether send.pk accepted the SMS (`sms_error_code` says why not); the code is
+        returned either way. Not idempotent-replayed and not cached
+        (`Cache-Control: private, no-store`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otp]
+              properties:
+                otp:
+                  type: object
+                  required: [locale]
+                  properties:
+                    locale:
+                      type: string
+                      enum: [en, ur]
+            examples:
+              urdu:
+                value:
+                  otp:
+                    locale: ur
+      responses:
+        '201':
+          description: Code created and sent (or the SMS failed); the code is in the response
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                sent:
+                  value:
+                    data:
+                      code: '482731'
+                      sent_at: '2026-11-28T09:20:00Z'
+                      expires_at: '2026-11-28T09:30:00Z'
+                      status: pending
+                      used_at: null
+                      wrong_attempts: 0
+                      sent_by:
+                        id: 2be3e0b4-9237-4e8d-9bd7-04fe0e9ce8aa
+                        role: developer
+                      sms_sent: true
+                      sms_error_code: null
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-28T09:20:00Z'
+                    errors: []
+        '400':
+          description: The otp object is missing
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user lacks send_candidate_otp, or is inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: The language is not en or ur, the candidate is inactive, or it is the store review account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidLocale:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: otp.locale
+                        message: Choose English or Urdu.
+                    request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                    timestamp: '2026-11-28T09:20:00Z'
   /api/v1/admin/candidates/{candidate_id}/sms_sender:
     patch:
       summary: Choose which sender a candidate's SMS go out from

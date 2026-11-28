@@ -3,8 +3,10 @@
 module Api
   module V1
     module Admin
-      # Developer-only role permissions matrix: every staff role with the
-      # permissions it has, and replacing one role's permissions.
+      # Role permissions matrix (`manage_reference_data`): every staff role with
+      # the permissions it has, and replacing one role's permissions. `locked`
+      # is the developer role (always every permission); `own_role` is the
+      # caller's own role, which they cannot change.
       class RolePermissionsController < ProtectedStaffController
         def index
           authorize :reference_data, :manage?, policy_class: ::Admin::ReferenceDataPolicy
@@ -45,7 +47,8 @@ module Api
 
         def serialized_role(role)
           locked = ::Admin::RolePermissions::UpdateService::LOCKED_ROLE_CODES.include?(role.code)
-          { code: role.code, name: role.name_for.presence || role.code.humanize, locked: }
+          { code: role.code, name: role.name_for.presence || role.code.humanize, locked:,
+            own_role: role.code == current_user.role }
         end
 
         def serialized_permission(permission)
