@@ -45,7 +45,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       expect(result).to eq(
         expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
         resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
-        mobile_last_four: '4567'
+        mobile_last_four: '4567',
+        sender_name: 'DESCON MPS'
       )
     end
 
@@ -55,6 +56,16 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       result = described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
 
       expect(result.values.map(&:to_s)).not_to include(a_string_including('300123'))
+    end
+
+    it 'sends the code from the short code, and names it, for a candidate moved to the short code' do
+      candidate = create(:candidate, mobile_number: '+923001234567', sms_sender: 'short_code')
+      allow(Sms::SendMessage).to receive(:call).and_return(Sms::DeliveryResult.new(success: true))
+
+      result = described_class.call(cnic: candidate.cnic, ip_address: '10.0.0.1')
+
+      expect(Sms::SendMessage).to have_received(:call).with(hash_including(sender: 'short_code', template: :otp))
+      expect(result).to include(sender_name: '8062050')
     end
 
     it 'still returns the mobile hint for a repeat request inside the resend cooldown' do
@@ -81,7 +92,8 @@ RSpec.describe CandidateAuthentication::Otp::RequestService do
       expect(result).to eq(
         expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
         resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
-        mobile_last_four: '0000'
+        mobile_last_four: '0000',
+        sender_name: 'DESCON MPS'
       )
     end
 

@@ -572,7 +572,11 @@ components:
           pattern: '^[0-9]{4}$'
           description: Last four digits of the candidate's registered mobile number, so the client can show a "code sent to •••• 4821" hint. Never more of the number than this.
           example: '4821'
-      required: [expires_in_seconds, resend_after_seconds, mobile_last_four]
+        sender_name:
+          type: string
+          description: The sender the code arrives from -- the "DESCON MPS" brand name, or the short code for a candidate whose network blocks the brand name (set per candidate by staff) -- so the app can tell the candidate which message to open.
+          example: DESCON MPS
+      required: [expires_in_seconds, resend_after_seconds, mobile_last_four, sender_name]
     CandidateOtpVerifyRequest:
       type: object
       properties:
@@ -4288,6 +4292,7 @@ paths:
                       expires_in_seconds: 600
                       resend_after_seconds: 600
                       mobile_last_four: '4821'
+                      sender_name: DESCON MPS
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                       timestamp: '2026-08-23T09:00:08Z'
@@ -4298,6 +4303,7 @@ paths:
                       expires_in_seconds: 600
                       resend_after_seconds: 600
                       mobile_last_four: '4821'
+                      sender_name: DESCON MPS
                     meta:
                       request_id: 8f2a6a3b-4b8e-4c2a-9b3e-1e9a2c4d5e6f
                       timestamp: '2026-08-23T09:00:08Z'
@@ -8147,6 +8153,92 @@ paths:
         '401': { description: Missing, invalid, expired, or revoked staff access token }
         '403': { description: Not a developer (`document_access_forbidden`) }
         '404': { description: No such current document for this candidate }
+  /api/v1/admin/candidates/{candidate_id}/sms_sender:
+    patch:
+      summary: Choose which sender a candidate's SMS go out from
+      description: >-
+        Sets the sender every SMS to this candidate (the login code included) goes out from:
+        `masking` (the "DESCON MPS" brand name, every candidate's default) or `short_code`,
+        for a number whose network blocks the brand name. Any signed-in staff member who can
+        open the candidate may change it; each change is audited. Setting the sender already
+        set changes nothing.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sms_sender]
+              properties:
+                sms_sender:
+                  type: object
+                  required: [sender]
+                  properties:
+                    sender:
+                      type: string
+                      enum: [masking, short_code]
+            examples:
+              shortCode:
+                value:
+                  sms_sender:
+                    sender: short_code
+      responses:
+        '200':
+          description: The candidate's sender, now saved
+          headers:
+            Content-Language:
+              $ref: '#/components/headers/ContentLanguageHeader'
+            Vary:
+              $ref: '#/components/headers/VaryLanguageHeaders'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestIdHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    data:
+                      sender: short_code
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-28T09:05:00Z'
+                    errors: []
+        '400':
+          description: The sms_sender object is missing
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Authenticated staff user is inactive
+        '404':
+          description: Candidate not found
+        '422':
+          description: The sender is not masking or short_code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidSender:
+                  value:
+                    errors:
+                      - code: validation_failed
+                        field: sms_sender.sender
+                        message: Choose a valid SMS sender.
+                    request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                    timestamp: '2026-11-28T09:05:00Z'
   /api/v1/admin/candidates/{candidate_id}/sms_messages:
     get:
       summary: List the SMS staff can send a candidate, and the candidate's SMS history
@@ -8156,9 +8248,11 @@ paths:
         it is also sent automatically at its step; `locales` are the languages with a
         template; `variables` are the values its template uses, and `prefilled` holds those
         the candidate's record already has, per language. `default_locale` is the
-        candidate's own language. `deliveries` is the candidate's SMS history, automatic and
-        manual, most recent first (at most 50); `sent_by` is null for an automatic SMS.
-        Requires the `send_candidate_sms` permission.
+        candidate's own language. `sender` is the sender this candidate's SMS (the login
+        code included) go out from -- `masking` (the "DESCON MPS" brand name) or `short_code`
+        -- and `senders` lists both with their sender ids. `deliveries` is the candidate's SMS
+        history, automatic and manual, most recent first (at most 50); `sent_by` is null for
+        an automatic SMS. Requires the `send_candidate_sms` permission.
       security:
         - bearerAuth: []
       parameters:
@@ -8189,6 +8283,12 @@ paths:
                   value:
                     data:
                       default_locale: ur
+                      sender: masking
+                      senders:
+                        - code: masking
+                          sender_id: DESCON MPS
+                        - code: short_code
+                          sender_id: '8062050'
                       messages:
                         - message_code: visa_issued
                           automatic: true
@@ -8223,7 +8323,7 @@ paths:
       description: >-
         Queues one SMS from the list above in the chosen language, whether or not it is sent
         automatically. Every value the template uses must be given. The SMS is sent from the
-        brand-name sender through send.pk and recorded in the candidate's SMS history with
+        candidate's sender (see `sender` above) through send.pk and recorded in the candidate's SMS history with
         the staff member who sent it. Requires the `send_candidate_sms` permission and an
         Idempotency-Key header.
       security:

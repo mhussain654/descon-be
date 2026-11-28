@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -792,6 +792,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_090000) do
     t.datetime "profile_photo_reviewed_at"
     t.bigint "profile_photo_reviewed_by_id"
     t.string "email"
+    t.string "sms_sender", default: "masking", null: false
     t.index ["cnic"], name: "index_candidates_on_cnic", unique: true
     t.index ["created_by_id", "created_at"], name: "index_candidates_on_created_by_id_and_created_at"
     t.index ["created_by_id"], name: "index_candidates_on_created_by_id"
@@ -803,6 +804,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_090000) do
     t.check_constraint "next_of_kin_mobile_number IS NULL OR next_of_kin_mobile_number::text ~ '^\\+?\\d{10,15}$'::text", name: "candidates_next_of_kin_mobile_number_format"
     t.check_constraint "preferred_locale::text = ANY (ARRAY['en'::character varying::text, 'ur'::character varying::text])", name: "candidates_preferred_locale"
     t.check_constraint "profile_photo_status IS NULL OR (profile_photo_status::text = ANY (ARRAY['pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text]))", name: "candidates_profile_photo_status"
+    t.check_constraint "sms_sender::text = ANY (ARRAY['masking'::character varying, 'short_code'::character varying]::text[])", name: "candidates_sms_sender_check"
     t.check_constraint "source_code::text = ANY (ARRAY['admin_ui'::character varying::text, 'csv_import'::character varying::text])", name: "candidates_source_code"
     t.check_constraint "status_code::text ~ '^[a-z0-9_]+$'::text", name: "candidates_status_code_format"
   end

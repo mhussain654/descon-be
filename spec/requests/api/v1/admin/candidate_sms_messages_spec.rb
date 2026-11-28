@@ -32,6 +32,9 @@ RSpec.describe 'API V1 Admin Candidate SMS Messages', type: :request do
       expect(response).to have_http_status(:ok)
       data = response.parsed_body.fetch('data')
       expect(data['default_locale']).to eq('ur')
+      expect(data['sender']).to eq('masking')
+      expect(data['senders']).to eq([{ 'code' => 'masking', 'sender_id' => 'DESCON MPS' },
+                                     { 'code' => 'short_code', 'sender_id' => '8062050' }])
       expect(data['messages'].pluck('message_code')).to eq(%w[medical_unfit visa_issued])
       expect(data['messages'].last).to include(
         'automatic' => true, 'locales' => %w[en ur], 'variables' => %w[country],

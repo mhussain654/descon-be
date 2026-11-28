@@ -55,30 +55,30 @@ RSpec.describe Sms::Configuration do
 
   describe 'defaults and blanks' do
     it 'treats blank settings as unset and applies the base URL default' do
-      with_settings(api_key: '', otp_sender_id: ' ', sms_sender_id: '', base_url: '', open_timeout: 5, read_timeout: 10)
+      with_settings(api_key: '', masking_sender_id: ' ', short_code_sender_id: '', base_url: '', open_timeout: 5,
+                    read_timeout: 10)
 
       expect(configuration.sendpk_api_key).to be_nil
-      expect(configuration.sendpk_sender_id(:otp)).to be_nil
-      expect(configuration.sendpk_sender_id(:visa_issued)).to be_nil
+      expect(configuration.sendpk_sender_id('masking')).to be_nil
+      expect(configuration.sendpk_sender_id('short_code')).to be_nil
       expect(configuration.sendpk_base_url).to eq('https://sendpk.com')
       expect([configuration.sendpk_open_timeout, configuration.sendpk_read_timeout]).to eq([5, 10])
     end
   end
 
   describe '#sendpk_sender_id' do
-    it 'sends the login code from the OTP sender and every other SMS from the SMS sender' do
-      with_settings(api_key: 'key', otp_sender_id: '8062050', sms_sender_id: 'Descon', base_url: 'https://sendpk.com',
+    it "maps a candidate's sms_sender to its sender id, the brand name by default" do
+      with_settings(api_key: 'key', masking_sender_id: 'Descon', short_code_sender_id: '1234', base_url: 'https://sendpk.com',
                     open_timeout: 5, read_timeout: 10)
 
-      expect(configuration.sendpk_sender_id(:otp)).to eq('8062050')
-      expect(configuration.sendpk_sender_id('visa_issued')).to eq('Descon')
+      expect(configuration.sendpk_sender_id('short_code')).to eq('1234')
+      expect(configuration.sendpk_sender_id(:masking)).to eq('Descon')
       expect(configuration.sendpk_sender_id).to eq('Descon')
     end
 
-    # send.pk approved the "DESCON MPS" mask, so every SMS goes out from it.
-    it 'sends every SMS from the approved DESCON MPS mask' do
-      expect([configuration.sendpk_sender_id(:otp), configuration.sendpk_sender_id('fee_pending')])
-        .to eq(['DESCON MPS', 'DESCON MPS'])
+    it 'uses the approved DESCON MPS mask and the 8062050 short code' do
+      expect([configuration.sendpk_sender_id('masking'), configuration.sendpk_sender_id('short_code')])
+        .to eq(['DESCON MPS', '8062050'])
     end
   end
 

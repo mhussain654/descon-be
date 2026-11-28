@@ -118,6 +118,7 @@ Rails.application.routes.draw do
           end
           resources :ai_calls, only: %i[index create], controller: :candidate_ai_calls
           resources :sms_messages, only: %i[index create], controller: :candidate_sms_messages
+          resource :sms_sender, only: :update, controller: :candidate_sms_senders
           resources :uploaded_documents, only: :index, controller: :candidate_uploaded_documents do
             post :access, on: :member
           end

@@ -9,7 +9,7 @@ RSpec.describe Sms::SendMessage do
       allow(ENV).to receive(:fetch).with('SMS_PROVIDER', 'test').and_return('test')
 
       result = described_class.call(to: '+923001234567', variables: { code: '123456', minutes: 5 },
-                                    template: :otp)
+                                    template: :otp, sender: 'masking')
       expect(result).to be_a(Sms::DeliveryResult)
       expect(result).to be_success
     end
@@ -26,7 +26,7 @@ RSpec.describe Sms::SendMessage do
       allow(Net::HTTP).to receive(:start)
 
       result = described_class.call(to: '+923001234567', variables: { code: '123456', minutes: 5 },
-                                    template: :otp)
+                                    template: :otp, sender: 'masking')
 
       expect(result).to be_a(Sms::DeliveryResult)
       expect(result).not_to be_success
@@ -40,7 +40,7 @@ RSpec.describe Sms::SendMessage do
 
       expect do
         described_class.call(to: '+923001234567', variables: { code: '123456', minutes: 5 },
-                             template: :otp)
+                             template: :otp, sender: 'masking')
       end
         .to raise_error(Sms::ProviderNotConfiguredError, /unknown_vendor/i)
     end

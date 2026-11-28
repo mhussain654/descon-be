@@ -26,9 +26,18 @@ RSpec.describe CandidateSms::DeliveryService do
 
     expect(Sms::SendMessage).to have_received(:call).with(
       to: candidate.mobile_number, variables: { 'name' => 'Daim Javed', 'date' => '04-11-2026' },
-      template: 'medical_appointment', locale: 'ur'
+      template: 'medical_appointment', locale: 'ur', sender: 'masking'
     )
     expect(delivery.reload).to have_attributes(status: 'sent', provider_reference: '29346', sent_at: be_present)
+  end
+
+  it 'sends from the short code for a candidate moved to it' do
+    stub_send(Sms::DeliveryResult.new(success: true, provider_reference: '29349'))
+    candidate.update!(sms_sender: 'short_code')
+
+    deliver
+
+    expect(Sms::SendMessage).to have_received(:call).with(hash_including(sender: 'short_code'))
   end
 
   it 'sends only the values the message’s template uses' do
@@ -66,7 +75,7 @@ RSpec.describe CandidateSms::DeliveryService do
     described_class.call(candidate_sms_delivery_id: fee.id)
 
     expect(Sms::SendMessage).to have_received(:call).with(
-      to: candidate.mobile_number, variables: {}, template: 'fee_pending', locale: 'en'
+      to: candidate.mobile_number, variables: {}, template: 'fee_pending', locale: 'en', sender: 'masking'
     )
     expect(fee.reload.status).to eq('sent')
   end

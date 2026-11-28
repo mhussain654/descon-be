@@ -7,7 +7,7 @@ module Sms
   # behind provider adapters. Application code must not directly depend on
   # SendPK... or other vendor-specific APIs"). Providers::TestProvider (no
   # network call) and Providers::SendpkProvider (the real vendor) both
-  # satisfy the same #deliver(to:, variables:, template:, locale:) interface,
+  # satisfy the same #deliver(to:, variables:, template:, locale:, sender:) interface,
   # selected below by SMS_PROVIDER.
   #
   # No message text is passed: send.pk only sends its pre-approved templates
@@ -26,17 +26,19 @@ module Sms
   # already expecting to take a moment.
   class SendMessage < ApplicationService
     # `variables` are the values for the vendor's pre-approved template;
-    # `template` names the message (e.g. :otp, :registered) and `locale` picks
-    # its English or Urdu template.
-    def initialize(to:, variables:, template:, locale: 'en')
+    # `template` names the message (e.g. :otp, :registered), `locale` picks
+    # its English or Urdu template and `sender` is the recipient's
+    # Candidate#sms_sender (the brand name or the short code).
+    def initialize(to:, variables:, template:, sender:, locale: 'en')
       @to = to
       @variables = variables
       @template = template
+      @sender = sender
       @locale = locale
     end
 
     def call
-      provider.deliver(to: @to, variables: @variables, template: @template, locale: @locale)
+      provider.deliver(to: @to, variables: @variables, template: @template, locale: @locale, sender: @sender)
     end
 
     private

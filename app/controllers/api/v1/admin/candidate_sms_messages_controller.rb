@@ -12,12 +12,15 @@ module Api
 
         HISTORY_LIMIT = 50
 
-        # The messages this candidate can be sent, the language to preselect, and the SMS history.
+        # The messages this candidate can be sent, the language to preselect,
+        # the sender their SMS go out from (and the senders to choose from), and the SMS history.
         def index
           authorize ::CandidateSmsDelivery, policy_class: ::Admin::CandidateSmsMessagePolicy
 
           render_success(data: {
                            default_locale: ::CandidateSms::ScheduleDelivery.locale_for(candidate),
+                           sender: candidate.sms_sender,
+                           senders: sender_options,
                            messages: ::CandidateSms::SendManual.sendable_templates.map do |template|
                              ::Admin::CandidateSmsMessages::SendableMessageSerializer.new(template, candidate:).as_json
                            end,
@@ -51,6 +54,11 @@ module Api
           permitted = params.expect(sms_message: [:message_code, :locale, { variables: {} }])
           { message_code: permitted[:message_code], locale: permitted[:locale],
             variables: permitted[:variables].to_h }
+        end
+
+        def sender_options
+          configuration = ::Sms::Configuration.new
+          ::Candidate.sms_senders.keys.map { |code| { code:, sender_id: configuration.sendpk_sender_id(code) } }
         end
 
         def serialized(delivery) = ::Admin::CandidateSmsMessages::DeliverySerializer.new(delivery).as_json

@@ -49,11 +49,12 @@ module Sms
       end
 
       # The full text is fixed in the approved template; only `variables` are sent.
-      def deliver(to:, variables:, template:, locale: 'en')
-        return DeliveryResult.new(success: false, error_code: 'not_configured') unless configured?(template)
+      # `sender` is the recipient's Candidate#sms_sender, mapped to its sender id.
+      def deliver(to:, variables:, template:, sender:, locale: 'en')
+        return DeliveryResult.new(success: false, error_code: 'not_configured') unless configured?(template, sender)
         return DeliveryResult.new(success: false, error_code: 'insecure_endpoint_rejected') unless secure_endpoint?
 
-        response = perform_request(to:, variables:, template:, locale:)
+        response = perform_request(to:, variables:, template:, locale:, sender:)
         parse_http_response(response)
       rescue Net::OpenTimeout, Net::ReadTimeout
         DeliveryResult.new(success: false, error_code: 'timeout')
@@ -67,8 +68,8 @@ module Sms
       # sender and template id both have to be set up/approved in send.pk's
       # own dashboard, so a blank value here means setup isn't finished yet
       # rather than a delivery problem worth a network round-trip to learn.
-      def configured?(template)
-        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id(template).present? &&
+      def configured?(template, sender)
+        @configuration.sendpk_api_key.present? && @configuration.sendpk_sender_id(sender).present? &&
           @configuration.sendpk_template_id(template).present?
       end
 
@@ -85,9 +86,9 @@ module Sms
         false
       end
 
-      def perform_request(to:, variables:, template:, locale:)
+      def perform_request(to:, variables:, template:, locale:, sender:)
         uri = URI.join(@configuration.sendpk_base_url, ENDPOINT_PATH)
-        request = build_request(uri, request_params(to:, variables:, template:, locale:))
+        request = build_request(uri, request_params(to:, variables:, template:, locale:, sender:))
         http_response_for(uri, request)
       end
 
@@ -112,16 +113,16 @@ module Sms
       # send.pk's collection documents `type=unicode` as required for any
       # non-Latin script, which an Urdu template is. An Urdu candidate whose
       # message has no Urdu template gets the English one, sent as plain text.
-      def request_params(to:, variables:, template:, locale:)
-        params = base_params(to:, variables:, template:, locale:)
+      def request_params(to:, variables:, template:, locale:, sender:)
+        params = base_params(to:, variables:, template:, locale:, sender:)
         params['type'] = 'unicode' if @configuration.sendpk_urdu_template_id(template, locale).present?
         params
       end
 
-      def base_params(to:, variables:, template:, locale:)
+      def base_params(to:, variables:, template:, locale:, sender:)
         {
           'api_key' => @configuration.sendpk_api_key,
-          'sender' => @configuration.sendpk_sender_id(template),
+          'sender' => @configuration.sendpk_sender_id(sender),
           'mobile' => to,
           'template_id' => @configuration.sendpk_template_id(template, locale),
           'message' => variables.transform_values(&:to_s).to_json

@@ -76,6 +76,7 @@ en:
       idempotency_conflict: "The idempotency key does not match the original request."
       idempotency_in_progress: "A request with this idempotency key is already being processed."
       cnic_invalid: "Enter a valid CNIC in the format 00000-0000000-0."
+      sms_sender_invalid: "Choose a valid SMS sender."
       otp_format_invalid: "Enter the 6-digit verification code."
       otp_invalid: "The verification code is incorrect or has already been used."
       otp_expired: "This verification code has expired. Request a new one."

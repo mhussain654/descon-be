@@ -30,7 +30,7 @@ module CandidateSms
     def send_message(delivery)
       Sms::SendMessage.call(
         to: delivery.candidate.mobile_number, variables: template_variables(delivery),
-        template: delivery.message_code, locale: delivery.locale
+        template: delivery.message_code, locale: delivery.locale, sender: delivery.candidate.sms_sender
       )
     end
 

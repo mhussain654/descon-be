@@ -10,11 +10,12 @@
 # corrupting it).
 default: &default
   base_url: <%= ENV.fetch('SENDPK_BASE_URL', 'https://sendpk.com').to_json %>
-  # The approved senders: the one the login code (OTP) is sent from, and the
-  # one every other SMS is sent from. send.pk approved the "DESCON MPS" mask
-  # in place of the old 8062050 short code, so both use it.
-  otp_sender_id: "DESCON MPS"
-  sms_sender_id: "DESCON MPS"
+  # The two approved senders. Every candidate's SMS (the login code included)
+  # go out from the "DESCON MPS" brand name (masking) unless their
+  # candidates.sms_sender is short_code -- for a network that blocks the
+  # brand name -- in which case they go out from the short code.
+  masking_sender_id: "DESCON MPS"
+  short_code_sender_id: "8062050"
   open_timeout: <%= ENV.fetch('SENDPK_OPEN_TIMEOUT_SECONDS', 5).to_i %>
   read_timeout: <%= ENV.fetch('SENDPK_READ_TIMEOUT_SECONDS', 10).to_i %>
 

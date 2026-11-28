@@ -40,6 +40,11 @@ class Candidate < ApplicationRecord
   # Candidates::ProfilePhotos::UpdateService). Served only through short-lived
   # signed URLs -- never a public link.
   has_one_attached :profile_photo
+
+  # The sender this candidate's SMS (the login code included) go out from:
+  # the "DESCON MPS" brand name by default, or the short code when their
+  # network blocks the brand name. Sms::Configuration maps each to its sender id.
+  enum :sms_sender, { masking: 'masking', short_code: 'short_code' }, prefix: true, validate: true
   validates :profile_photo_status, inclusion: { in: PROFILE_PHOTO_STATUSES }, allow_nil: true
 
   # Sets the photo's review status. `reviewer` is the staff member deciding;

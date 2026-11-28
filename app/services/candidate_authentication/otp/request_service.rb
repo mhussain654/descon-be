@@ -20,7 +20,9 @@ module CandidateAuthentication
     #
     # Since existence is already disclosed, the success response also carries
     # the last four digits of the candidate's registered mobile -- the
-    # standard "code sent to •••• 4821" hint -- and nothing more of the number.
+    # standard "code sent to •••• 4821" hint -- and nothing more of the number
+    # -- and the name the code is sent from (the candidate's Candidate#sms_sender),
+    # so the app tells them which message to open.
     class RequestService < ApplicationService
       MOBILE_HINT_DIGITS = 4
 
@@ -39,7 +41,8 @@ module CandidateAuthentication
         {
           expires_in_seconds: CandidateOtpChallenge::EXPIRY_WINDOW.to_i,
           resend_after_seconds: CandidateOtpChallenge::RESEND_COOLDOWN.to_i,
-          mobile_last_four: @candidate.mobile_number.delete('^0-9').last(MOBILE_HINT_DIGITS)
+          mobile_last_four: @candidate.mobile_number.delete('^0-9').last(MOBILE_HINT_DIGITS),
+          sender_name: Sms::Configuration.new.sendpk_sender_id(@candidate.sms_sender)
         }
       end
 
@@ -83,7 +86,7 @@ module CandidateAuthentication
       end
 
       def deliver(candidate:, code:, locale:)
-        result = send_sms(to: candidate.mobile_number, code:, locale:)
+        result = send_sms(candidate:, code:, locale:)
         return if result.success?
 
         Rails.logger.warn(
@@ -129,8 +132,9 @@ module CandidateAuthentication
         Database::AdvisoryTransactionLock.call(scope: LOCK_SCOPE, key: @cnic)
       end
 
-      def send_sms(to:, code:, locale:)
-        Sms::SendMessage.call(to:, variables: sms_variables(code:), template: :otp, locale:)
+      def send_sms(candidate:, code:, locale:)
+        Sms::SendMessage.call(to: candidate.mobile_number, variables: sms_variables(code:), template: :otp,
+                              sender: candidate.sms_sender, locale:)
       end
 
       # Values for the vendor's approved OTP template (variables #code# and

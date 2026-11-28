@@ -6,14 +6,16 @@ module Sms
   # each message's template ids from its SmsTemplate row -- so providers
   # themselves never touch ENV, credentials or App Settings directly.
   class Configuration
+    DEFAULT_SENDER = 'masking'
+
     def sendpk_api_key
       setting(:api_key)
     end
 
-    # The login code (OTP) goes out from the short code; every other message
-    # from the brand name.
-    def sendpk_sender_id(template = nil)
-      template.to_s == 'otp' ? setting(:otp_sender_id) : setting(:sms_sender_id)
+    # The sender id for a candidate's Candidate#sms_sender: the "DESCON MPS"
+    # brand name (masking, the default) or the short code.
+    def sendpk_sender_id(sender = DEFAULT_SENDER)
+      sender.to_s == 'short_code' ? setting(:short_code_sender_id) : setting(:masking_sender_id)
     end
 
     # Each message (`template`, e.g. :otp or :registered) has its own approved

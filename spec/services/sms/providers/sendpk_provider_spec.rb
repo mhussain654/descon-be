@@ -40,11 +40,25 @@ RSpec.describe Sms::Providers::SendpkProvider do
       block.call(http)
     end
 
-    provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+    provider.deliver(to: '+923001234567', template: :otp, sender: 'masking', variables: { code: '123456', minutes: 5 })
 
     expect(captured_request).to be_a(Net::HTTP::Get)
     query = captured_request.path
     expect(query).to include('api_key=api-key-1', 'sender=DESCON', 'mobile=%2B923001234567')
+  end
+
+  it "sends from the sender id of the candidate's sms_sender" do
+    allow(configuration).to receive(:sendpk_sender_id).with('short_code').and_return('8062050')
+    captured_request = nil
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    allow(response).to receive(:body).and_return('OK ID:1')
+    http = instance_double(Net::HTTP)
+    allow(http).to receive(:request) { |request| captured_request = request }.and_return(response)
+    allow(Net::HTTP).to receive(:start).and_yield(http)
+
+    provider.deliver(to: '923001234567', template: :otp, sender: 'short_code', variables: { code: '1', minutes: 5 })
+
+    expect(query_params(captured_request)['sender']).to eq('8062050')
   end
 
   it 'sends the approved template id and the variables as a JSON message, never free text' do
@@ -57,7 +71,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
       block.call(http)
     end
 
-    provider.deliver(to: '923001234567', template: :otp, variables: { code: '482731', minutes: 5 })
+    provider.deliver(to: '923001234567', template: :otp, sender: 'masking', variables: { code: '482731', minutes: 5 })
 
     form = query_params(captured_request)
     expect(form['template_id']).to eq('10743')
@@ -68,7 +82,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports a distinct error code when send.pk rejects the caller IP' do
     stub_response('1: API Disabled! Please Whitelist Your IP: 203.0.113.9')
 
-    result = provider.deliver(to: '923001234567', template: :otp, variables: { code: '1', minutes: 5 })
+    result = provider.deliver(to: '923001234567', template: :otp, sender: 'masking',
+                              variables: { code: '1', minutes: 5 })
 
     expect(result.error_code).to eq('ip_not_whitelisted')
   end
@@ -86,8 +101,10 @@ RSpec.describe Sms::Providers::SendpkProvider do
       block.call(http)
     end
 
-    provider.deliver(to: '923001234567', template: :otp, variables: { code: '1', minutes: 5 }, locale: 'ur')
-    provider.deliver(to: '923001234567', template: :otp, variables: { code: '1', minutes: 5 }, locale: 'en')
+    provider.deliver(to: '923001234567', template: :otp, sender: 'masking', variables: { code: '1', minutes: 5 },
+                     locale: 'ur')
+    provider.deliver(to: '923001234567', template: :otp, sender: 'masking', variables: { code: '1', minutes: 5 },
+                     locale: 'en')
 
     expect(types).to eq(['unicode', nil])
   end
@@ -105,8 +122,10 @@ RSpec.describe Sms::Providers::SendpkProvider do
     end
     allow(configuration).to receive(:sendpk_template_id) { |_template, locale| locale == 'ur' ? '11065' : '11062' }
 
-    provider.deliver(to: '923001234567', template: :otp, variables: { code: '1', minutes: 5 }, locale: 'ur')
-    provider.deliver(to: '923001234567', template: :otp, variables: { code: '1', minutes: 5 }, locale: 'en')
+    provider.deliver(to: '923001234567', template: :otp, sender: 'masking', variables: { code: '1', minutes: 5 },
+                     locale: 'ur')
+    provider.deliver(to: '923001234567', template: :otp, sender: 'masking', variables: { code: '1', minutes: 5 },
+                     locale: 'en')
 
     expect(seen).to eq(%w[11065 11062])
   end
@@ -114,7 +133,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports success and the provider message id for an "OK ID:<id>" response' do
     stub_response('OK ID:29346')
 
-    result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+    result = provider.deliver(to: '+923001234567', template: :otp,
+                              sender: 'masking', variables: { code: '123456', minutes: 5 })
 
     expect(result).to be_success
     expect(result.provider_reference).to eq('29346')
@@ -123,7 +143,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'maps a documented failure code to a descriptive error_code' do
     stub_response('4')
 
-    result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+    result = provider.deliver(to: '+923001234567', template: :otp,
+                              sender: 'masking', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('missing_sender_id')
@@ -132,7 +153,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports an unknown_error for a response that matches neither shape' do
     stub_response('<html>unexpected</html>')
 
-    result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+    result = provider.deliver(to: '+923001234567', template: :otp,
+                              sender: 'masking', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('unknown_error')
@@ -144,7 +166,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
     allow(Net::HTTP).to receive(:start)
 
     result = described_class.new(configuration: unconfigured).deliver(to: '+923001234567', template: :otp,
-                                                                      variables: {
+                                                                      sender: 'masking', variables: {
                                                                         code: '123456', minutes: 5
                                                                       })
 
@@ -160,7 +182,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
     allow(Net::HTTP).to receive(:start)
 
     result = described_class.new(configuration: unconfigured).deliver(
-      to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 }
+      to: '+923001234567', template: :otp, sender: 'masking', variables: { code: '123456', minutes: 5 }
     )
 
     expect(result.error_code).to eq('not_configured')
@@ -173,7 +195,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
     allow(Net::HTTP).to receive(:start)
 
     result = described_class.new(configuration: unconfigured).deliver(to: '+923001234567', template: :otp,
-                                                                      variables: {
+                                                                      sender: 'masking', variables: {
                                                                         code: '123456', minutes: 5
                                                                       })
 
@@ -185,7 +207,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports a timeout distinctly from a general network error' do
     allow(Net::HTTP).to receive(:start).and_raise(Net::ReadTimeout)
 
-    result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+    result = provider.deliver(to: '+923001234567', template: :otp,
+                              sender: 'masking', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('timeout')
@@ -194,7 +217,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
   it 'reports a network_error for a connection failure' do
     allow(Net::HTTP).to receive(:start).and_raise(SocketError)
 
-    result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+    result = provider.deliver(to: '+923001234567', template: :otp,
+                              sender: 'masking', variables: { code: '123456', minutes: 5 })
 
     expect(result).not_to be_success
     expect(result.error_code).to eq('network_error')
@@ -211,7 +235,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
       allow(Net::HTTP).to receive(:start)
 
       result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567', template: :otp,
-                                                                                  variables: {
+                                                                                  sender: 'masking', variables: {
                                                                                     code: '123456', minutes: 5
                                                                                   })
 
@@ -229,7 +253,7 @@ RSpec.describe Sms::Providers::SendpkProvider do
       stub_response('OK ID:1')
 
       result = described_class.new(configuration: insecure_configuration).deliver(to: '+923001234567', template: :otp,
-                                                                                  variables: {
+                                                                                  sender: 'masking', variables: {
                                                                                     code: '123456', minutes: 5
                                                                                   })
 
@@ -243,7 +267,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
       allow(response).to receive(:body).and_return('OK ID:1')
       allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
 
-      result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+      result = provider.deliver(to: '+923001234567', template: :otp,
+                                sender: 'masking', variables: { code: '123456', minutes: 5 })
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('http_error')
@@ -254,7 +279,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
       allow(response).to receive(:body).and_return('')
       allow(Net::HTTP).to receive(:start).and_yield(instance_double(Net::HTTP, request: response))
 
-      result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+      result = provider.deliver(to: '+923001234567', template: :otp,
+                                sender: 'masking', variables: { code: '123456', minutes: 5 })
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('unexpected_redirect')
@@ -263,7 +289,8 @@ RSpec.describe Sms::Providers::SendpkProvider do
     it 'still parses a documented failure code normally on a 200 response' do
       stub_response('4')
 
-      result = provider.deliver(to: '+923001234567', template: :otp, variables: { code: '123456', minutes: 5 })
+      result = provider.deliver(to: '+923001234567', template: :otp,
+                                sender: 'masking', variables: { code: '123456', minutes: 5 })
 
       expect(result).not_to be_success
       expect(result.error_code).to eq('missing_sender_id')
