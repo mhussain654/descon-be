@@ -63,6 +63,27 @@ RSpec.describe 'API V1 Admin Candidate Index', type: :request do
     expect(response.parsed_body.dig('meta', 'applied_filters')).to include('country_code' => country.code)
   end
 
+  it 'filters by one file (registration) number or a range of them' do
+    headers = { 'Authorization' => "Bearer #{token_for(create(:user, role: 'hr'))}" }
+    numbers = [710_001, 710_002, 710_003, 710_010]
+    candidates = numbers.map.with_index do |number, index|
+      indexed_candidate({ full_name: "File #{number}", cnic: "42101-765432#{index}-1" },
+                        { registration_number: number })
+    end
+    ids = lambda do |value|
+      get '/api/v1/admin/candidates', params: { filter: { registration_number: value } }, headers: headers
+      response.parsed_body.fetch('data').map { |item| item.fetch('id') }
+    end
+
+    expect(ids.call('710002')).to eq([candidates[1].public_id])
+    expect(ids.call(' 710003 - 710001 ')).to match_array(candidates.first(3).map(&:public_id))
+    expect(response.parsed_body.dig('meta', 'applied_filters')).to include('registration_number' => ' 710003 - 710001 ')
+
+    get '/api/v1/admin/candidates', params: { filter: { registration_number: '7100a' } }, headers: headers
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig('errors', 0, 'field')).to eq('filter.registration_number')
+  end
+
   it 'uses only the authoritative current assignment for filters, reference search, and sorting' do
     actor = create(:user, role: 'hr')
     old_country = create(:country, code: 'mps305_old_country')

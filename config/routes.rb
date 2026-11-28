@@ -130,6 +130,10 @@ Rails.application.routes.draw do
         end
         resources :audit_events, only: :index
         resources :job_logs, only: :index
+        namespace :authentication_logs do
+          resources :candidates, only: %i[index show]
+          resources :staff, only: %i[index show]
+        end
         resources :communications, only: :index
         resources :ai_calls, only: %i[index show] do
           resource :review, only: :create, controller: :ai_call_reviews

@@ -27,6 +27,36 @@ RSpec.describe Authentication::LoginService do
       expect(AuthenticationEvent.count).to eq(authentication_event_count)
     end
 
+    describe 'wrong-password count' do
+      def sign_in(user, password)
+        described_class.call(email: user.email, password:, user_agent: 'RSpec', ip_address: '10.0.0.1', request_id:)
+      end
+
+      it 'is cleared by a successful sign-in' do
+        user = create(:user, password: 'Password123!', failed_attempts: 3)
+
+        sign_in(user, 'Password123!')
+
+        expect(user.reload.failed_attempts).to eq(0)
+      end
+
+      it 'locks only after the maximum wrong passwords in a row, not in total' do
+        user = create(:user, password: 'Password123!')
+        (Devise.maximum_attempts - 1).times { expect { sign_in(user, 'wrong') }.to raise_error(UnauthorizedError) }
+        sign_in(user, 'Password123!')
+
+        expect { sign_in(user, 'wrong') }.to raise_error(UnauthorizedError)
+        expect(user.reload).to have_attributes(failed_attempts: 1, locked_at: nil)
+      end
+
+      it 'is kept when the sign-in is rejected for an inactive account' do
+        user = create(:user, :suspended, password: 'Password123!', failed_attempts: 2)
+
+        expect { sign_in(user, 'Password123!') }.to raise_error(InactiveAccountError)
+        expect(user.reload.failed_attempts).to eq(2)
+      end
+    end
+
     it 'records a masked failed-login event for an unknown email' do
       expect do
         described_class.call(

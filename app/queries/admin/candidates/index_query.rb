@@ -7,7 +7,7 @@ module Admin
     class IndexQuery < ApplicationQuery
       DEFAULT_PAGE_SIZE = 20
       MAX_PAGE_SIZE = 100
-      ALLOWED_FILTERS = (%w[status country_code project_code craft_code boarding_pass] +
+      ALLOWED_FILTERS = (%w[status country_code project_code craft_code boarding_pass registration_number] +
                          RegisteredDateFilter::NAMES).freeze
       BOARDING_PASS_FILTERS = %w[uploaded missing].freeze
       ALLOWED_SORTS = %w[created_at full_name registration_number].freeze
@@ -114,6 +114,7 @@ module Admin
         return boarding_pass_scope(scope, value.to_s.strip.downcase) if name == 'boarding_pass'
         return registered_scope(scope, name, value) if RegisteredDateFilter::NAMES.include?(name)
         return status_scope(scope, value) if name == 'status'
+        return registration_number_scope(scope, value) if name == 'registration_number'
 
         scope.where(REFERENCE_FILTER_SQL.fetch(name), reference_id(name, value))
       end
@@ -123,6 +124,14 @@ module Admin
         raise InvalidQueryParameterError.new(field: 'filter.status') unless WorkflowStage.exists?(code: status)
 
         scope.where(status_code: status)
+      end
+
+      # One registration (file) number, or an inclusive range such as `900001-900050`.
+      def registration_number_scope(scope, value)
+        range = ::Candidates::RegistrationNumberRange.call(value)
+        raise InvalidQueryParameterError.new(field: 'filter.registration_number') unless range
+
+        scope.where(current_assignments: { registration_number: range })
       end
 
       # Candidates registered (added or imported) in the given days -- one import batch.

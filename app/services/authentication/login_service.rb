@@ -23,19 +23,19 @@ module Authentication
 
     private
 
+    # A successful sign-in clears the wrong-password count. Devise only does
+    # this in its Warden hook, which this API sign-in never goes through, so
+    # without it wrong passwords added up across months and locked the
+    # account after 10 in total rather than 10 in a row.
     def authenticate!(user)
-      result = nil
-
       Session.transaction do
+        user.reset_failed_attempts!
         session = user.sessions.create!(
           user_agent: @request_context.fetch(:user_agent),
           ip_address: @request_context.fetch(:ip_address)
         )
-        result = issue_tokens(user:, session:)
-        log_event('login_succeeded', user:, session:)
+        issue_tokens(user:, session:).tap { log_event('login_succeeded', user:, session:) }
       end
-
-      result
     end
 
     def issue_tokens(user:, session:)

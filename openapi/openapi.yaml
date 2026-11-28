@@ -2184,6 +2184,104 @@ components:
               example: '09:30'
           additionalProperties: false
       required: [medical_appointment_setting]
+    AdminAuthenticationCandidate:
+      type: object
+      description: >-
+        One candidate's sign-in activity. `otp_count` counts every sign-in code sent (a code that
+        was never entered, or a resend, adds one without a sign-in); `login_count` counts
+        successful sign-ins. `last_seen_at` is the last app use, updated at most every five
+        minutes (a sign-in counts as use).
+      properties:
+        id: { type: string, description: Candidate public id }
+        full_name: { type: string }
+        registration_number: { type: integer, nullable: true, description: From the latest assignment }
+        masked_cnic: { type: string, example: '35202-*******-1' }
+        active: { type: boolean }
+        store_review_account:
+          type: boolean
+          description: The fixed-code demo account Google Play and App Store reviewers use.
+        otp_count: { type: integer }
+        last_otp_at: { type: string, format: date-time, nullable: true }
+        login_count: { type: integer }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        last_seen_at: { type: string, format: date-time, nullable: true }
+      required: [id, full_name, registration_number, masked_cnic, active, store_review_account, otp_count,
+                 last_otp_at, login_count, last_login_at, last_seen_at]
+    AdminAuthenticationCandidateDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminAuthenticationCandidate'
+        - type: object
+          properties:
+            sign_ins:
+              type: array
+              description: The 50 most recent sign-ins, newest first.
+              items:
+                type: object
+                properties:
+                  signed_in_at: { type: string, format: date-time }
+                  last_seen_at: { type: string, format: date-time }
+                  signed_out_at: { type: string, format: date-time, nullable: true }
+                  ip_address: { type: string, nullable: true }
+                  user_agent: { type: string, nullable: true }
+                required: [signed_in_at, last_seen_at, signed_out_at, ip_address, user_agent]
+            otps:
+              type: array
+              description: The 50 most recent sign-in codes sent, newest first. Never includes the code.
+              items:
+                type: object
+                properties:
+                  sent_at: { type: string, format: date-time }
+                  status:
+                    type: string
+                    enum: [used, locked, expired, pending]
+                    description: >-
+                      used (signed in with it), locked (too many wrong codes), expired, or pending
+                      (still valid, not yet entered).
+                  used_at: { type: string, format: date-time, nullable: true }
+                  wrong_attempts: { type: integer }
+                  ip_address: { type: string, nullable: true }
+                required: [sent_at, status, used_at, wrong_attempts, ip_address]
+          required: [sign_ins, otps]
+    AdminAuthenticationStaff:
+      type: object
+      description: >-
+        One staff account's sign-in activity. `failed_attempts` is the wrong passwords entered
+        since its last successful sign-in (also cleared when a lock ends). `last_seen_at` is the last activity, updated at most
+        every five minutes (a sign-in counts as activity).
+      properties:
+        id: { type: string, description: User public id }
+        email: { type: string, format: email }
+        role: { type: string, example: hr }
+        staff_state: { type: string, enum: [invited, active, suspended] }
+        locked: { type: boolean }
+        failed_attempts: { type: integer }
+        login_count: { type: integer }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        last_seen_at: { type: string, format: date-time, nullable: true }
+      required: [id, email, role, staff_state, locked, failed_attempts, login_count, last_login_at, last_seen_at]
+    AdminAuthenticationStaffDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminAuthenticationStaff'
+        - type: object
+          properties:
+            events:
+              type: array
+              description: >-
+                The 50 most recent authentication events, newest first, without session refreshes.
+              items:
+                type: object
+                properties:
+                  event_code:
+                    type: string
+                    example: login_succeeded
+                    description: >-
+                      login_succeeded, logout_succeeded, account_locked_login_rejected,
+                      inactive_account_login_rejected, refresh_failed, refresh_token_reuse_detected.
+                  occurred_at: { type: string, format: date-time }
+                  ip_address: { type: string, nullable: true }
+                  user_agent: { type: string, nullable: true }
+                required: [event_code, occurred_at, ip_address, user_agent]
+          required: [events]
     AdminJobLog:
       type: object
       description: >-
@@ -6585,6 +6683,12 @@ paths:
         - name: filter[boarding_pass]
           in: query
           schema: { type: string, enum: [uploaded, missing] }
+        - name: filter[registration_number]
+          in: query
+          description: >-
+            One registration (file) number, or an inclusive range written `first-last` (either
+            order). Matches the candidate's current assignment.
+          schema: { type: string, pattern: '^\\s*\\d{1,15}\\s*(-\\s*\\d{1,15}\\s*)?$', example: 900001-900050 }
         - name: sort
           in: query
           schema: { type: string, enum: [created_at, -created_at, full_name, -full_name, registration_number, -registration_number] }
@@ -11564,6 +11668,273 @@ paths:
           description: Missing, invalid, expired, or revoked staff access token
         '403':
           description: Not a developer (lacks view_job_logs), or inactive
+  /api/v1/admin/authentication_logs/candidates:
+    get:
+      summary: Candidate sign-in codes, sign-ins and app use (developer only)
+      description: >-
+        One row per candidate with how many sign-in codes (OTPs) were sent, how many times they
+        signed in, and when they last signed in and last used the app. Defaults to the most
+        recent sign-in first, candidates who never signed in last. Read only. Developer only
+        (`view_authentication_logs`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - name: page[size]
+          in: query
+          description: Rows per page; defaults to 25, at most 100.
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: search
+          in: query
+          description: Part of the name, a registration number, or a full CNIC.
+          schema: { type: string }
+        - name: filter[activity]
+          in: query
+          schema: { type: string, enum: [signed_in, never_signed_in] }
+        - name: sort
+          in: query
+          description: Prefix `-` for descending. Rows without a value always come last.
+          schema:
+            type: string
+            default: -last_login_at
+            enum: [last_login_at, -last_login_at, last_seen_at, -last_seen_at, login_count, -login_count,
+                   otp_count, -otp_count, full_name, -full_name]
+      responses:
+        '200':
+          description: Paginated AdminAuthenticationCandidate collection
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/AdminAuthenticationCandidate' }
+              examples:
+                candidates:
+                  value:
+                    data:
+                      - id: 9b0e6f8c-3c1d-4a7e-8f62-1d2c3b4a5e6f
+                        full_name: Ali Raza
+                        registration_number: 900002
+                        masked_cnic: '35202-*******-1'
+                        active: true
+                        store_review_account: false
+                        otp_count: 4
+                        last_otp_at: '2026-11-27T08:01:00Z'
+                        login_count: 3
+                        last_login_at: '2026-11-27T08:02:00Z'
+                        last_seen_at: '2026-11-28T06:40:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-28T09:00:00Z'
+                      pagination: { page: 1, per_page: 25, total_count: 1, total_pages: 1 }
+                      applied_filters: {}
+                    errors: []
+        '400':
+          description: Unsupported filter, sort or activity, or a bad page number or size
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks view_authentication_logs), or inactive
+  /api/v1/admin/authentication_logs/candidates/{id}:
+    get:
+      summary: One candidate's recent sign-ins and sign-in codes (developer only)
+      description: >-
+        The candidate's row plus their 50 most recent sign-ins and 50 most recent sign-in codes, newest first. Never returns a code. Developer only (`view_authentication_logs`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: AdminAuthenticationCandidateDetail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/AdminAuthenticationCandidateDetail' }
+              examples:
+                candidate:
+                  value:
+                    data:
+                      id: 9b0e6f8c-3c1d-4a7e-8f62-1d2c3b4a5e6f
+                      full_name: Ali Raza
+                      registration_number: 900002
+                      masked_cnic: '35202-*******-1'
+                      active: true
+                      store_review_account: false
+                      otp_count: 1
+                      last_otp_at: '2026-11-27T08:01:00Z'
+                      login_count: 1
+                      last_login_at: '2026-11-27T08:02:00Z'
+                      last_seen_at: '2026-11-28T06:40:00Z'
+                      sign_ins:
+                        - signed_in_at: '2026-11-27T08:02:00Z'
+                          last_seen_at: '2026-11-28T06:40:00Z'
+                          signed_out_at: null
+                          ip_address: 198.51.100.4
+                          user_agent: okhttp/4.12.0
+                      otps:
+                        - sent_at: '2026-11-27T08:01:00Z'
+                          status: used
+                          used_at: '2026-11-27T08:02:00Z'
+                          wrong_attempts: 0
+                          ip_address: 198.51.100.4
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-28T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks view_authentication_logs), or inactive
+        '404':
+          description: No record with this id
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /api/v1/admin/authentication_logs/staff:
+    get:
+      summary: Staff sign-ins and last activity (developer only)
+      description: >-
+        One row per staff account with how many times it signed in, when it last signed in and
+        was last active, and the wrong passwords entered since its last sign-in. A wrong password
+        for an email that matches no account can't be tied to a person, so it is not counted.
+        Defaults to the most recent sign-in first. Read only. Developer only
+        (`view_authentication_logs`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - $ref: '#/components/parameters/PageNumber'
+        - name: page[size]
+          in: query
+          description: Rows per page; defaults to 25, at most 100.
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: search
+          in: query
+          description: Part of the email.
+          schema: { type: string }
+        - name: sort
+          in: query
+          description: Prefix `-` for descending. Rows without a value always come last.
+          schema:
+            type: string
+            default: -last_login_at
+            enum: [last_login_at, -last_login_at, last_seen_at, -last_seen_at, login_count, -login_count, email, -email]
+      responses:
+        '200':
+          description: Paginated AdminAuthenticationStaff collection
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/AdminAuthenticationStaff' }
+              examples:
+                staff:
+                  value:
+                    data:
+                      - id: 4f1c2d3e-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+                        email: hr.officer@example.com
+                        role: hr
+                        staff_state: active
+                        locked: false
+                        failed_attempts: 0
+                        login_count: 42
+                        last_login_at: '2026-11-28T05:15:00Z'
+                        last_seen_at: '2026-11-28T08:50:00Z'
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-28T09:00:00Z'
+                      pagination: { page: 1, per_page: 25, total_count: 1, total_pages: 1 }
+                    errors: []
+        '400':
+          description: Unsupported sort, or a bad page number or size
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks view_authentication_logs), or inactive
+  /api/v1/admin/authentication_logs/staff/{id}:
+    get:
+      summary: One staff account's recent authentication events (developer only)
+      description: >-
+        The account's row plus its 50 most recent authentication events (sign-ins, sign-outs and rejected sign-ins), newest first, without session refreshes. Developer only (`view_authentication_logs`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XLocaleHeader'
+        - $ref: '#/components/parameters/AcceptLanguageHeader'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: AdminAuthenticationStaffDetail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/AdminAuthenticationStaffDetail' }
+              examples:
+                staff:
+                  value:
+                    data:
+                      id: 4f1c2d3e-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+                      email: hr.officer@example.com
+                      role: hr
+                      staff_state: active
+                      locked: false
+                      failed_attempts: 0
+                      login_count: 42
+                      last_login_at: '2026-11-28T05:15:00Z'
+                      last_seen_at: '2026-11-28T08:50:00Z'
+                      events:
+                        - event_code: login_succeeded
+                          occurred_at: '2026-11-28T05:15:00Z'
+                          ip_address: 203.0.113.10
+                          user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
+                    meta:
+                      request_id: 7fbe6381-916c-4e6e-9d13-09b496d11ba5
+                      timestamp: '2026-11-28T09:00:00Z'
+                    errors: []
+        '401':
+          description: Missing, invalid, expired, or revoked staff access token
+        '403':
+          description: Not a developer (lacks view_authentication_logs), or inactive
+        '404':
+          description: No record with this id
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
   /api/v1/admin/communications:
     get:
       summary: Browse the central cross-channel communications log
