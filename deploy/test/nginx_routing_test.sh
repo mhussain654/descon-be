@@ -4,7 +4,7 @@
 # and a fake SPA build, then asserts the routing the production host depends
 # on: API and signed-file paths reach Rails (even when they end in .jpg),
 # deep links fall back to index.html, missing assets are 404 (never HTML),
-# HTTP never serves the app, and X-Forwarded-For cannot be spoofed.
+# HTTP never serves the app, and X-Forwarded-For / Client-IP cannot be spoofed.
 #
 # Needs: nginx, openssl, curl, python3. Runs unprivileged on high ports.
 set -uo pipefail
@@ -44,7 +44,7 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length') or 0)
         if length:
             self.rfile.read(length)
-        body = f"UPSTREAM {self.path} XFF={self.headers.get('X-Forwarded-For')} PROTO={self.headers.get('X-Forwarded-Proto')}".encode()
+        body = f"UPSTREAM {self.path} XFF={self.headers.get('X-Forwarded-For')} PROTO={self.headers.get('X-Forwarded-Proto')} CIP={self.headers.get('Client-IP')}".encode()
         self.send_response(200)
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
@@ -131,6 +131,8 @@ check "a signed file URL ending in .jpg reaches Rails" "UPSTREAM /rails/active_s
 check "X-Forwarded-Proto is https" "PROTO=https" "$(body "$https/api/v1/x")"
 check "a client-supplied X-Forwarded-For is overwritten" "XFF=127.0.0.1" \
   "$(body -H 'X-Forwarded-For: 6.6.6.6' "$https/api/v1/x")"
+check "a client-supplied Client-IP is dropped" "CIP=None" \
+  "$(body -H 'Client-IP: 10.0.0.5' "$https/api/v1/x")"
 head -c 9437184 /dev/zero > "$work/big.bin"
 check "an oversized body is rejected" "413" "$(code -X POST --data-binary "@$work/big.bin" "$https/api/v1/x" --max-time 10)"
 
